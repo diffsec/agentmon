@@ -177,10 +177,7 @@ This stops the current daemon, clears session state, and starts a new session.`,
 
 			case "darwin":
 				fmt.Fprintln(w, "Restarting agentsh daemon...")
-				// Unload and reload the service
-				plistPath := getLaunchdPlistPath()
-				_ = exec.Command("launchctl", "unload", plistPath).Run()
-				if err := exec.Command("launchctl", "load", plistPath).Run(); err != nil {
+				if err := reloadLaunchdService(getLaunchdPlistPath()); err != nil {
 					return fmt.Errorf("restart failed: %w", err)
 				}
 				fmt.Fprintln(w, "Daemon restarted successfully")
@@ -230,6 +227,7 @@ func installSystemdService(cmd *cobra.Command, force bool) error {
 	if err != nil {
 		return fmt.Errorf("get current user: %w", err)
 	}
+	home := userHomeDir()
 
 	// Get agentsh binary path
 	exePath, err := os.Executable()
@@ -242,7 +240,7 @@ func installSystemdService(cmd *cobra.Command, force bool) error {
 	}
 
 	// Ensure systemd user directory exists
-	systemdDir := filepath.Join(currentUser.HomeDir, ".config", "systemd", "user")
+	systemdDir := filepath.Join(home, ".config", "systemd", "user")
 	if err := os.MkdirAll(systemdDir, 0755); err != nil {
 		return fmt.Errorf("create systemd directory: %w", err)
 	}
@@ -257,7 +255,7 @@ func installSystemdService(cmd *cobra.Command, force bool) error {
 	}
 
 	// Data directory for read-write access
-	dataDir := filepath.Join(currentUser.HomeDir, ".local", "share", "agentsh")
+	dataDir := filepath.Join(home, ".local", "share", "agentsh")
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		return fmt.Errorf("create data directory: %w", err)
 	}
@@ -265,7 +263,7 @@ func installSystemdService(cmd *cobra.Command, force bool) error {
 	// Generate service content
 	serviceContent := fmt.Sprintf(systemdServiceTemplate,
 		exePath,
-		currentUser.HomeDir,
+		home,
 		currentUser.Uid,
 		dataDir,
 	)
@@ -290,10 +288,22 @@ func installSystemdService(cmd *cobra.Command, force bool) error {
 		fmt.Fprintln(w, "Service enabled for automatic start on login")
 	}
 
+	// A pre-existing daemon (notably under --force) keeps running the old
+	// ExecStart until bounced; restart so the new unit takes effect (#439).
+	restarted, err := restartSystemdIfActive()
+	if err != nil {
+		return fmt.Errorf("restart service: %w (unit written to %s; restart manually with: systemctl --user restart agentsh)", err, servicePath)
+	}
+	if restarted {
+		fmt.Fprintln(w, "Service restarted with updated configuration")
+	}
+
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "To start the daemon now:")
-	fmt.Fprintln(w, "  systemctl --user start agentsh")
-	fmt.Fprintln(w)
+	if !restarted {
+		fmt.Fprintln(w, "To start the daemon now:")
+		fmt.Fprintln(w, "  systemctl --user start agentsh")
+		fmt.Fprintln(w)
+	}
 	fmt.Fprintln(w, "To check status:")
 	fmt.Fprintln(w, "  systemctl --user status agentsh")
 	fmt.Fprintln(w, "  agentsh daemon status")
@@ -304,12 +314,7 @@ func installSystemdService(cmd *cobra.Command, force bool) error {
 func uninstallSystemdService(cmd *cobra.Command) error {
 	w := cmd.OutOrStdout()
 
-	currentUser, err := user.Current()
-	if err != nil {
-		return fmt.Errorf("get current user: %w", err)
-	}
-
-	servicePath := filepath.Join(currentUser.HomeDir, ".config", "systemd", "user", "agentsh.service")
+	servicePath := filepath.Join(userHomeDir(), ".config", "systemd", "user", "agentsh.service")
 
 	// Stop service if running
 	_ = runSystemctl("stop", "agentsh")
@@ -331,6 +336,23 @@ func uninstallSystemdService(cmd *cobra.Command) error {
 
 	fmt.Fprintln(w, "Service uninstalled successfully")
 	return nil
+}
+
+// restartSystemdIfActive restarts the agentsh user unit only when it is
+// currently active, so install is never the thing that first starts the
+// daemon on Linux. The bool reports whether a restart occurred. is-active is
+// queried via Output() rather than runSystemctl so "inactive" does not leak
+// to the terminal. Any query error (including a broken systemctl, which
+// already produced warnings above) is treated as not-active.
+func restartSystemdIfActive() (bool, error) {
+	out, err := exec.Command("systemctl", "--user", "is-active", "agentsh").Output()
+	if err != nil || strings.TrimSpace(string(out)) != "active" {
+		return false, nil
+	}
+	if err := runSystemctl("restart", "agentsh"); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func runSystemctl(action, service string) error {
@@ -381,17 +403,28 @@ const launchdPlistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 `
 
 func getLaunchdPlistPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, "Library", "LaunchAgents", "ai.canyonroad.agentsh.daemon.plist")
+	return filepath.Join(userHomeDir(), "Library", "LaunchAgents", "ai.canyonroad.agentsh.daemon.plist")
+}
+
+// reloadLaunchdService replaces whatever job definition launchd currently
+// holds with the plist on disk. The unload error is ignored: not-loaded is
+// the expected case on a fresh install.
+func reloadLaunchdService(plistPath string) error {
+	_ = exec.Command("launchctl", "unload", plistPath).Run()
+	out, err := exec.Command("launchctl", "load", plistPath).CombinedOutput()
+	if err != nil {
+		if msg := strings.TrimSpace(string(out)); msg != "" {
+			return fmt.Errorf("%w: %s", err, msg)
+		}
+		return err
+	}
+	return nil
 }
 
 func installLaunchdService(cmd *cobra.Command, force bool) error {
 	w := cmd.OutOrStdout()
 
-	currentUser, err := user.Current()
-	if err != nil {
-		return fmt.Errorf("get current user: %w", err)
-	}
+	home := userHomeDir()
 
 	exePath, err := os.Executable()
 	if err != nil {
@@ -403,7 +436,7 @@ func installLaunchdService(cmd *cobra.Command, force bool) error {
 	}
 
 	// Ensure LaunchAgents directory exists
-	launchAgentsDir := filepath.Join(currentUser.HomeDir, "Library", "LaunchAgents")
+	launchAgentsDir := filepath.Join(home, "Library", "LaunchAgents")
 	if err := os.MkdirAll(launchAgentsDir, 0755); err != nil {
 		return fmt.Errorf("create LaunchAgents directory: %w", err)
 	}
@@ -417,7 +450,7 @@ func installLaunchdService(cmd *cobra.Command, force bool) error {
 	}
 
 	// Log directory
-	logDir := filepath.Join(currentUser.HomeDir, "Library", "Logs", "agentsh")
+	logDir := filepath.Join(home, "Library", "Logs", "agentsh")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return fmt.Errorf("create log directory: %w", err)
 	}
@@ -426,7 +459,7 @@ func installLaunchdService(cmd *cobra.Command, force bool) error {
 		exePath,
 		logDir,
 		logDir,
-		currentUser.HomeDir,
+		home,
 	)
 
 	if err := os.WriteFile(plistPath, []byte(plistContent), 0644); err != nil {
@@ -436,12 +469,12 @@ func installLaunchdService(cmd *cobra.Command, force bool) error {
 	fmt.Fprintf(w, "Service installed: %s\n", plistPath)
 	fmt.Fprintln(w)
 
-	// Load the service
-	if err := exec.Command("launchctl", "load", plistPath).Run(); err != nil {
-		fmt.Fprintf(w, "Warning: failed to load service: %v\n", err)
-	} else {
-		fmt.Fprintln(w, "Service loaded and started")
+	// Load the service, replacing any already-loaded definition — the normal
+	// case under --force, where an installation exists by definition (#439).
+	if err := reloadLaunchdService(plistPath); err != nil {
+		return fmt.Errorf("load service: %w (plist written to %s; load manually with: launchctl load %s)", err, plistPath, plistPath)
 	}
+	fmt.Fprintln(w, "Service loaded and started")
 
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "To check status:")
