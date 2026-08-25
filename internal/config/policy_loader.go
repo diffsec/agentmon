@@ -43,24 +43,23 @@ func LoadPolicyFilesWithVersion(dir string) (*PolicyState, error) {
 
 // PolicyFiles represents policy configuration loaded from separate files.
 type PolicyFiles struct {
-	Env      *EnvProtectionPolicy `yaml:"env_protection"`
-	File     *FilePolicyConfig    `yaml:"file_policy"`
-	Network  *NetworkPolicyConfig `yaml:"network_policy"`
-	DNS      *DNSPolicyConfig     `yaml:"dns_policy"`
-	Registry *RegistryPolicyConfig `yaml:"registry_policy"` // Windows only
+	Env     *EnvProtectionPolicy `yaml:"env_protection"`
+	File    *FilePolicyConfig    `yaml:"file_policy"`
+	Network *NetworkPolicyConfig `yaml:"network_policy"`
+	DNS     *DNSPolicyConfig     `yaml:"dns_policy"`
 }
 
 // EnvProtectionPolicy configures environment variable protection.
 type EnvProtectionPolicy struct {
-	Enabled           bool     `yaml:"enabled"`
-	Mode              string   `yaml:"mode"` // "allowlist" or "blocklist"
-	Allowlist         []string `yaml:"allowlist"`
-	Blocklist         []string `yaml:"blocklist"`
-	SensitivePatterns []string `yaml:"sensitive_patterns"`
-	RedactInsteadOfRemove bool   `yaml:"redact_instead_of_remove"`
-	RedactPlaceholder     string `yaml:"redact_placeholder"`
-	LogAccess             bool   `yaml:"log_access"`
-	AlertOnSensitive      bool   `yaml:"alert_on_sensitive"`
+	Enabled               bool     `yaml:"enabled"`
+	Mode                  string   `yaml:"mode"` // "allowlist" or "blocklist"
+	Allowlist             []string `yaml:"allowlist"`
+	Blocklist             []string `yaml:"blocklist"`
+	SensitivePatterns     []string `yaml:"sensitive_patterns"`
+	RedactInsteadOfRemove bool     `yaml:"redact_instead_of_remove"`
+	RedactPlaceholder     string   `yaml:"redact_placeholder"`
+	LogAccess             bool     `yaml:"log_access"`
+	AlertOnSensitive      bool     `yaml:"alert_on_sensitive"`
 }
 
 // FilePolicyConfig configures file access policy.
@@ -71,11 +70,11 @@ type FilePolicyConfig struct {
 
 // FilePolicyRule defines a file access rule.
 type FilePolicyRule struct {
-	Name           string   `yaml:"name"`
-	Paths          []string `yaml:"paths"`
-	Operations     []string `yaml:"operations"` // read, write, create, delete, rename, stat
-	Action         string   `yaml:"action"`     // allow, deny, approve, redirect
-	TimeoutSeconds int      `yaml:"timeout_seconds,omitempty"`
+	Name           string              `yaml:"name"`
+	Paths          []string            `yaml:"paths"`
+	Operations     []string            `yaml:"operations"` // read, write, create, delete, rename, stat
+	Action         string              `yaml:"action"`     // allow, deny, approve, redirect
+	TimeoutSeconds int                 `yaml:"timeout_seconds,omitempty"`
 	Redirect       *FileRedirectConfig `yaml:"redirect,omitempty"`
 }
 
@@ -92,12 +91,12 @@ type NetworkPolicyConfig struct {
 
 // NetworkPolicyRule defines a network access rule.
 type NetworkPolicyRule struct {
-	Name           string   `yaml:"name"`
-	Domains        []string `yaml:"domains,omitempty"`
-	CIDRs          []string `yaml:"cidrs,omitempty"`
-	Ports          []int    `yaml:"ports,omitempty"`
-	Action         string   `yaml:"action"` // allow, deny, approve, redirect
-	TimeoutSeconds int      `yaml:"timeout_seconds,omitempty"`
+	Name           string                 `yaml:"name"`
+	Domains        []string               `yaml:"domains,omitempty"`
+	CIDRs          []string               `yaml:"cidrs,omitempty"`
+	Ports          []int                  `yaml:"ports,omitempty"`
+	Action         string                 `yaml:"action"` // allow, deny, approve, redirect
+	TimeoutSeconds int                    `yaml:"timeout_seconds,omitempty"`
 	Redirect       *NetworkRedirectConfig `yaml:"redirect,omitempty"`
 }
 
@@ -114,42 +113,15 @@ type DNSPolicyConfig struct {
 
 // DNSPolicyRule defines a DNS policy rule.
 type DNSPolicyRule struct {
-	Name     string   `yaml:"name"`
-	Patterns []string `yaml:"patterns"` // glob patterns like "*.malware.com"
-	Action   string   `yaml:"action"`   // allow, deny, redirect
+	Name     string             `yaml:"name"`
+	Patterns []string           `yaml:"patterns"` // glob patterns like "*.malware.com"
+	Action   string             `yaml:"action"`   // allow, deny, redirect
 	Redirect *DNSRedirectConfig `yaml:"redirect,omitempty"`
 }
 
 // DNSRedirectConfig configures DNS redirect behavior.
 type DNSRedirectConfig struct {
 	IPAddress string `yaml:"ip_address"`
-}
-
-// RegistryPolicyConfig configures Windows registry access policy.
-type RegistryPolicyConfig struct {
-	DefaultAction   string               `yaml:"default_action"`
-	LogAll          bool                 `yaml:"log_all"`
-	DefaultCacheTTL int                  `yaml:"default_cache_ttl"` // seconds
-	NotifyOnDeny    bool                 `yaml:"notify_on_deny"`
-	Rules           []RegistryPolicyRule `yaml:"rules"`
-}
-
-// RegistryPolicyRule defines a Windows registry access rule.
-type RegistryPolicyRule struct {
-	Name           string                  `yaml:"name"`
-	Paths          []string                `yaml:"paths"` // e.g., "HKLM\\SOFTWARE\\..."
-	Operations     []string                `yaml:"operations"` // read, write, create, delete
-	Action         string                  `yaml:"action"` // allow, deny, approve, redirect
-	Priority       int                     `yaml:"priority"`
-	CacheTTL       int                     `yaml:"cache_ttl"` // seconds, 0 = use default
-	TimeoutSeconds int                     `yaml:"timeout_seconds,omitempty"`
-	Notify         bool                    `yaml:"notify"`
-	Redirect       *RegistryRedirectConfig `yaml:"redirect,omitempty"`
-}
-
-// RegistryRedirectConfig configures registry redirect behavior.
-type RegistryRedirectConfig struct {
-	Value string `yaml:"value"`
 }
 
 // LoadPolicyFiles loads policy configuration from separate files in a directory.
@@ -184,13 +156,6 @@ func LoadPolicyFiles(dir string) (*PolicyFiles, error) {
 		policies.DNS = p
 	}
 
-	// Load registry policy (Windows only)
-	if p, err := loadRegistryPolicyFile(dir, "registry.yaml", "registry.yml"); err != nil {
-		return nil, fmt.Errorf("load registry policy: %w", err)
-	} else if p != nil {
-		policies.Registry = p
-	}
-
 	return policies, nil
 }
 
@@ -209,10 +174,6 @@ type networkPolicyWrapper struct {
 
 type dnsPolicyWrapper struct {
 	DNSPolicy *DNSPolicyConfig `yaml:"dns_policy"`
-}
-
-type registryPolicyWrapper struct {
-	RegistryPolicy *RegistryPolicyConfig `yaml:"registry_policy"`
 }
 
 func loadEnvPolicyFile(dir string, names ...string) (*EnvProtectionPolicy, error) {
@@ -303,28 +264,6 @@ func loadDNSPolicyFile(dir string, names ...string) (*DNSPolicyConfig, error) {
 	return nil, nil
 }
 
-func loadRegistryPolicyFile(dir string, names ...string) (*RegistryPolicyConfig, error) {
-	for _, name := range names {
-		path := filepath.Join(dir, name)
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			continue
-		}
-
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("read %s: %w", path, err)
-		}
-
-		var wrapper registryPolicyWrapper
-		if err := yaml.Unmarshal(data, &wrapper); err != nil {
-			return nil, fmt.Errorf("parse %s: %w", path, err)
-		}
-
-		return wrapper.RegistryPolicy, nil
-	}
-	return nil, nil
-}
-
 // LoadMinimalPolicy loads a minimal starter policy from a single file.
 func LoadMinimalPolicy(path string) (*PolicyFiles, error) {
 	data, err := os.ReadFile(path)
@@ -357,11 +296,6 @@ func ValidatePolicyFiles(policies *PolicyFiles) error {
 			return fmt.Errorf("network policy: %w", err)
 		}
 	}
-	if policies.Registry != nil {
-		if err := validateRegistryPolicy(policies.Registry); err != nil {
-			return fmt.Errorf("registry policy: %w", err)
-		}
-	}
 	return nil
 }
 
@@ -390,21 +324,6 @@ func validateFilePolicy(p *FilePolicyConfig) error {
 }
 
 func validateNetworkPolicy(p *NetworkPolicyConfig) error {
-	if err := validateAction(p.DefaultAction); err != nil {
-		return fmt.Errorf("default_action: %w", err)
-	}
-	for i, rule := range p.Rules {
-		if rule.Name == "" {
-			return fmt.Errorf("rule[%d]: name is required", i)
-		}
-		if err := validateAction(rule.Action); err != nil {
-			return fmt.Errorf("rule[%d] %q: action: %w", i, rule.Name, err)
-		}
-	}
-	return nil
-}
-
-func validateRegistryPolicy(p *RegistryPolicyConfig) error {
 	if err := validateAction(p.DefaultAction); err != nil {
 		return fmt.Errorf("default_action: %w", err)
 	}

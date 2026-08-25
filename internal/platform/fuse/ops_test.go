@@ -1,5 +1,5 @@
 // internal/platform/fuse/ops_test.go
-//go:build cgo
+//go:build cgo && !nofuse
 
 package fuse
 

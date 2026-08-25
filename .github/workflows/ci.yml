@@ -96,39 +96,8 @@ jobs:
       - name: go test (all packages)
         run: go test ./...
 
-  test-windows:
-    runs-on: windows-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: false
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~\go\pkg\mod
-            ~\AppData\Local\go-build
-          key: ${{ env.GO_CACHE_VERSION }}-${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ env.GO_CACHE_VERSION }}-${{ runner.os }}-go-
-
-      - name: go build
-        run: go build ./...
-        env:
-          CGO_ENABLED: 0
-
-      - name: go test
-        run: go test ./...
-        env:
-          CGO_ENABLED: 0
-
   build-matrix:
-    needs: [test-linux, test-macos, test-windows]
+    needs: [test-linux, test-macos]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:

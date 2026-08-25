@@ -225,60 +225,6 @@ dns_policy:
 	}
 }
 
-func TestLoadPolicyFiles_RegistryPolicy(t *testing.T) {
-	dir := t.TempDir()
-
-	registryPolicy := `
-registry_policy:
-  default_action: allow
-  log_all: true
-  rules:
-    - name: block-autorun
-      paths:
-        - "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run*"
-        - "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run*"
-      operations:
-        - write
-        - create
-        - delete
-      action: deny
-    - name: approve-services
-      paths:
-        - "HKLM\\SYSTEM\\CurrentControlSet\\Services\\*"
-      operations:
-        - create
-        - write
-      action: approve
-      timeout_seconds: 300
-`
-	if err := os.WriteFile(filepath.Join(dir, "registry.yaml"), []byte(registryPolicy), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	policies, err := LoadPolicyFiles(dir)
-	if err != nil {
-		t.Fatalf("LoadPolicyFiles: %v", err)
-	}
-
-	if policies.Registry == nil {
-		t.Fatal("registry policy should not be nil")
-	}
-	if policies.Registry.DefaultAction != "allow" {
-		t.Errorf("registry_policy.default_action = %q, want allow", policies.Registry.DefaultAction)
-	}
-	if !policies.Registry.LogAll {
-		t.Error("registry_policy.log_all should be true")
-	}
-	if len(policies.Registry.Rules) != 2 {
-		t.Errorf("registry_policy.rules len = %d, want 2", len(policies.Registry.Rules))
-	}
-
-	approveRule := policies.Registry.Rules[1]
-	if approveRule.TimeoutSeconds != 300 {
-		t.Errorf("approve rule timeout_seconds = %d, want 300", approveRule.TimeoutSeconds)
-	}
-}
-
 func TestLoadPolicyFiles_NoFiles(t *testing.T) {
 	dir := t.TempDir()
 
@@ -299,9 +245,6 @@ func TestLoadPolicyFiles_NoFiles(t *testing.T) {
 	}
 	if policies.DNS != nil {
 		t.Error("dns policy should be nil")
-	}
-	if policies.Registry != nil {
-		t.Error("registry policy should be nil")
 	}
 }
 
@@ -418,15 +361,6 @@ func TestValidatePolicyFiles_ValidPolicies(t *testing.T) {
 				{
 					Name:   "test",
 					Action: "allow",
-				},
-			},
-		},
-		Registry: &RegistryPolicyConfig{
-			DefaultAction: "allow",
-			Rules: []RegistryPolicyRule{
-				{
-					Name:   "test",
-					Action: "deny",
 				},
 			},
 		},

@@ -123,10 +123,10 @@ fi
 
 # All 10 policy files
 for policy in \
-  default.yaml default-windows.yaml \
-  dev-safe.yaml dev-safe-windows.yaml \
-  ci-strict.yaml ci-strict-windows.yaml \
-  agent-sandbox.yaml agent-sandbox-windows.yaml \
+  default.yaml \
+  dev-safe.yaml \
+  ci-strict.yaml \
+  agent-sandbox.yaml \
   signal-strict.yaml system-readonly.yaml; do
   if [ -f "/etc/agentsh/policies/$policy" ]; then
     pass "policy $policy exists"

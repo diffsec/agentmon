@@ -13,6 +13,43 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// saveRlimit snapshots one rlimit and restores it when the test ends.
+//
+// Restoring is subtler than it looks on macOS. Lowering a soft limit also
+// silently lowers the hard limit (RLIMIT_NPROC observed going 8000/12000 ->
+// 500/8000), and raising a hard limit back needs root. Setting the original
+// Rlimit struct verbatim therefore fails with EPERM, and these tests used to
+// discard that error -- leaving RLIMIT_NPROC pinned at 500 for the remainder
+// of the test binary. Because NPROC is counted per-UID across the whole
+// system, every later test that forked then died with EAGAIN on any machine
+// with more than 500 live processes for the user. CI never saw it.
+//
+// So restore the soft limit only, clamped to whatever hard limit we are left
+// with, and register it with t.Cleanup so it also runs when the test fails
+// partway through.
+func saveRlimit(t *testing.T, resource int) {
+	t.Helper()
+
+	var orig unix.Rlimit
+	require.NoError(t, unix.Getrlimit(resource, &orig))
+
+	t.Cleanup(func() {
+		var cur unix.Rlimit
+		if err := unix.Getrlimit(resource, &cur); err != nil {
+			t.Errorf("getrlimit(%d) during restore: %v", resource, err)
+			return
+		}
+		cur.Cur = orig.Cur
+		if cur.Cur > cur.Max {
+			cur.Cur = cur.Max
+		}
+		if err := unix.Setrlimit(resource, &cur); err != nil {
+			t.Errorf("restoring rlimit %d to cur=%d max=%d: %v",
+				resource, cur.Cur, cur.Max, err)
+		}
+	})
+}
+
 func TestNewDarwinLimiter(t *testing.T) {
 	limiter := NewDarwinLimiter()
 	require.NotNil(t, limiter)
@@ -152,15 +189,13 @@ func TestDarwinLimiter_ApplySelfLimits(t *testing.T) {
 	limiter := NewDarwinLimiter()
 
 	// Get current limits first to restore them later
-	var origNproc unix.Rlimit
-	err := unix.Getrlimit(unix.RLIMIT_NPROC, &origNproc)
-	require.NoError(t, err)
+	saveRlimit(t, unix.RLIMIT_NPROC)
 
 	// Apply limits to self (pid 0 means current process)
 	limits := ResourceLimits{
 		MaxProcesses: 500,
 	}
-	err = limiter.Apply(0, limits)
+	err := limiter.Apply(0, limits)
 	require.NoError(t, err)
 	defer limiter.Cleanup(0)
 
@@ -169,18 +204,13 @@ func TestDarwinLimiter_ApplySelfLimits(t *testing.T) {
 	err = unix.Getrlimit(unix.RLIMIT_NPROC, &newNproc)
 	require.NoError(t, err)
 	assert.Equal(t, uint64(500), newNproc.Cur)
-
-	// Restore original limit
-	unix.Setrlimit(unix.RLIMIT_NPROC, &origNproc)
 }
 
 func TestDarwinLimiter_ApplySelfMemoryLimit(t *testing.T) {
 	limiter := NewDarwinLimiter()
 
 	// Get current limits first
-	var origAS unix.Rlimit
-	err := unix.Getrlimit(unix.RLIMIT_AS, &origAS)
-	require.NoError(t, err)
+	saveRlimit(t, unix.RLIMIT_AS)
 
 	// Apply memory limit (in MB)
 	// Note: On macOS, RLIMIT_AS may return "invalid argument" for certain values
@@ -188,7 +218,7 @@ func TestDarwinLimiter_ApplySelfMemoryLimit(t *testing.T) {
 	limits := ResourceLimits{
 		MaxMemoryMB: 8192, // 8 GB
 	}
-	err = limiter.Apply(0, limits)
+	err := limiter.Apply(0, limits)
 	if err != nil {
 		// macOS may reject certain RLIMIT_AS values - this is expected
 		t.Skipf("RLIMIT_AS not supported on this macOS version: %v", err)
@@ -200,24 +230,19 @@ func TestDarwinLimiter_ApplySelfMemoryLimit(t *testing.T) {
 	err = unix.Getrlimit(unix.RLIMIT_AS, &newAS)
 	require.NoError(t, err)
 	assert.Equal(t, uint64(8192*1024*1024), newAS.Cur)
-
-	// Restore original limit
-	unix.Setrlimit(unix.RLIMIT_AS, &origAS)
 }
 
 func TestDarwinLimiter_ApplySelfCPUTimeLimit(t *testing.T) {
 	limiter := NewDarwinLimiter()
 
 	// Get current limits first
-	var origCPU unix.Rlimit
-	err := unix.Getrlimit(unix.RLIMIT_CPU, &origCPU)
-	require.NoError(t, err)
+	saveRlimit(t, unix.RLIMIT_CPU)
 
 	// Apply CPU time limit
 	limits := ResourceLimits{
 		CommandTimeout: 300 * time.Second, // 5 minutes
 	}
-	err = limiter.Apply(0, limits)
+	err := limiter.Apply(0, limits)
 	require.NoError(t, err)
 	defer limiter.Cleanup(0)
 
@@ -229,24 +254,19 @@ func TestDarwinLimiter_ApplySelfCPUTimeLimit(t *testing.T) {
 	// Hard limit should be at least Cur+60 (grace period), but won't be
 	// lowered below the original hard limit since non-root can't raise it back.
 	assert.GreaterOrEqual(t, newCPU.Max, uint64(360))
-
-	// Restore original limit
-	unix.Setrlimit(unix.RLIMIT_CPU, &origCPU)
 }
 
 func TestDarwinLimiter_ApplySelfFileSizeLimit(t *testing.T) {
 	limiter := NewDarwinLimiter()
 
 	// Get current limits first
-	var origFsize unix.Rlimit
-	err := unix.Getrlimit(unix.RLIMIT_FSIZE, &origFsize)
-	require.NoError(t, err)
+	saveRlimit(t, unix.RLIMIT_FSIZE)
 
 	// Apply file size limit
 	limits := ResourceLimits{
 		MaxDiskMB: 1024, // 1 GB
 	}
-	err = limiter.Apply(0, limits)
+	err := limiter.Apply(0, limits)
 	require.NoError(t, err)
 	defer limiter.Cleanup(0)
 
@@ -255,9 +275,6 @@ func TestDarwinLimiter_ApplySelfFileSizeLimit(t *testing.T) {
 	err = unix.Getrlimit(unix.RLIMIT_FSIZE, &newFsize)
 	require.NoError(t, err)
 	assert.Equal(t, uint64(1024*1024*1024), newFsize.Cur)
-
-	// Restore original limit
-	unix.Setrlimit(unix.RLIMIT_FSIZE, &origFsize)
 }
 
 func TestDarwinLimiter_ApplyExternalCPUShares(t *testing.T) {
@@ -386,8 +403,7 @@ func TestDarwinLimiter_ApplyCurrentProcess(t *testing.T) {
 	pid := os.Getpid()
 
 	// Get current limits to restore later
-	var origNproc unix.Rlimit
-	unix.Getrlimit(unix.RLIMIT_NPROC, &origNproc)
+	saveRlimit(t, unix.RLIMIT_NPROC)
 
 	// Apply limits to current process (using actual PID)
 	// Note: On macOS, reducing RLIMIT_NPROC below current may fail with EPERM
@@ -399,10 +415,7 @@ func TestDarwinLimiter_ApplyCurrentProcess(t *testing.T) {
 		// macOS may reject RLIMIT_NPROC changes - this is expected
 		t.Skipf("RLIMIT_NPROC not permitted on this macOS: %v", err)
 	}
-	defer func() {
-		limiter.Cleanup(pid)
-		unix.Setrlimit(unix.RLIMIT_NPROC, &origNproc)
-	}()
+	defer limiter.Cleanup(pid)
 
 	// Verify the limit was set
 	var newNproc unix.Rlimit
@@ -417,11 +430,11 @@ func TestDarwinLimiter_CPUSharesNiceMapping(t *testing.T) {
 		shares       int64
 		expectedNice int
 	}{
-		{100, 0},  // 100% shares = nice 0 (highest priority)
-		{50, 10},  // 50% shares = nice 10
-		{0, 20},   // 0% shares = nice 20 (lowest priority)
-		{75, 5},   // 75% shares = nice 5
-		{25, 15},  // 25% shares = nice 15
+		{100, 0}, // 100% shares = nice 0 (highest priority)
+		{50, 10}, // 50% shares = nice 10
+		{0, 20},  // 0% shares = nice 20 (lowest priority)
+		{75, 5},  // 75% shares = nice 5
+		{25, 15}, // 25% shares = nice 15
 	}
 
 	for _, tc := range testCases {

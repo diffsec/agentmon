@@ -7,7 +7,6 @@ import (
 	"net"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -58,11 +57,10 @@ type Engine struct {
 	enforceApprovals bool
 	enforceRedirects bool
 
-	compiledFileRules     []compiledFileRule
-	compiledNetworkRules  []compiledNetworkRule
-	compiledCommandRules  []compiledCommandRule
-	compiledUnixRules     []compiledUnixRule
-	compiledRegistryRules []compiledRegistryRule
+	compiledFileRules    []compiledFileRule
+	compiledNetworkRules []compiledNetworkRule
+	compiledCommandRules []compiledCommandRule
+	compiledUnixRules    []compiledUnixRule
 
 	// hasRestrictiveCommandRule is true iff any compiled command rule has
 	// a decision that restricts or instruments execution (deny, redirect,
@@ -132,13 +130,6 @@ type compiledUnixRule struct {
 	rule  UnixSocketRule
 	paths []glob.Glob
 	ops   map[string]struct{}
-}
-
-type compiledRegistryRule struct {
-	rule     RegistryRule
-	globs    []glob.Glob
-	ops      map[string]struct{}
-	priority int
 }
 
 type compiledDnsRedirectRule struct {
@@ -317,33 +308,6 @@ func NewEngine(p *Policy, enforceApprovals bool, enforceRedirects bool) (*Engine
 		e.compiledUnixRules = append(e.compiledUnixRules, cr)
 	}
 
-	// Compile registry rules
-	for _, r := range p.RegistryRules {
-		cr := compiledRegistryRule{
-			rule:     r,
-			ops:      map[string]struct{}{},
-			priority: r.Priority,
-		}
-		for _, op := range r.Operations {
-			cr.ops[strings.ToLower(op)] = struct{}{}
-		}
-		for _, pat := range r.Paths {
-			// Escape backslashes for glob (backslash is the escape character in gobwas/glob)
-			// Compile without separator so * matches across path segments
-			escapedPat := strings.ReplaceAll(pat, `\`, `\\`)
-			g, err := glob.Compile(escapedPat)
-			if err != nil {
-				return nil, fmt.Errorf("compile registry rule %q glob %q: %w", r.Name, pat, err)
-			}
-			cr.globs = append(cr.globs, g)
-		}
-		e.compiledRegistryRules = append(e.compiledRegistryRules, cr)
-	}
-	// Sort by priority (higher first)
-	sort.Slice(e.compiledRegistryRules, func(i, j int) bool {
-		return e.compiledRegistryRules[i].priority > e.compiledRegistryRules[j].priority
-	})
-
 	// Compile DNS redirect rules
 	for _, r := range p.DnsRedirectRules {
 		pattern, _ := regexp.Compile(r.Match) // Already validated
@@ -469,7 +433,6 @@ func expandPolicy(p *Policy, vars map[string]string) (*Policy, error) {
 
 	// Copy other rules as-is (command rules unlikely to need variables)
 	expanded.CommandRules = append([]CommandRule(nil), p.CommandRules...)
-	expanded.RegistryRules = append([]RegistryRule(nil), p.RegistryRules...)
 	expanded.UnixRules = append([]UnixSocketRule(nil), p.UnixRules...)
 
 	return &expanded, nil
@@ -991,26 +954,6 @@ func (e *Engine) CheckUnixSocket(path string, operation string) Decision {
 }
 
 // CheckRegistry evaluates registry_rules against a path and operation.
-func (e *Engine) CheckRegistry(path string, operation string) Decision {
-	if e.policy == nil {
-		return Decision{PolicyDecision: types.DecisionAllow, EffectiveDecision: types.DecisionAllow}
-	}
-	operation = strings.ToLower(operation)
-	pathUpper := strings.ToUpper(path)
-
-	for _, r := range e.compiledRegistryRules {
-		if !matchOp(r.ops, operation) {
-			continue
-		}
-		for _, g := range r.globs {
-			if g.Match(path) || g.Match(pathUpper) {
-				return e.wrapDecision(r.rule.Decision, r.rule.Name, r.rule.Message, nil)
-			}
-		}
-	}
-	return e.wrapDecision(string(types.DecisionDeny), "default-deny-registry", "", nil)
-}
-
 // EnvDecision represents the result of CheckEnv with additional metadata.
 type EnvDecision struct {
 	Allowed   bool

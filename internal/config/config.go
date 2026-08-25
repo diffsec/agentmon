@@ -64,10 +64,8 @@ type PlatformFallbackConfig struct {
 
 // PlatformMountPointsConfig specifies platform-specific mount points.
 type PlatformMountPointsConfig struct {
-	Linux       string `yaml:"linux"`
-	Darwin      string `yaml:"darwin"`
-	Windows     string `yaml:"windows"`
-	WindowsWSL2 string `yaml:"windows_wsl2"`
+	Linux  string `yaml:"linux"`
+	Darwin string `yaml:"darwin"`
 }
 
 type ServerConfig struct {
@@ -1678,12 +1676,6 @@ func applyDefaultsWithSource(cfg *Config, source ConfigSource, configPath string
 	}
 	if cfg.Platform.MountPoints.Darwin == "" {
 		cfg.Platform.MountPoints.Darwin = "/tmp/agentsh/workspace"
-	}
-	if cfg.Platform.MountPoints.Windows == "" {
-		cfg.Platform.MountPoints.Windows = "X:"
-	}
-	if cfg.Platform.MountPoints.WindowsWSL2 == "" {
-		cfg.Platform.MountPoints.WindowsWSL2 = "/tmp/agentsh/workspace"
 	}
 
 	if cfg.Server.HTTP.Addr == "" {

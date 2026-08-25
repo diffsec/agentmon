@@ -151,8 +151,8 @@ type InterceptedOperation struct {
 	Redirect *RedirectTarget `json:"redirect,omitempty"`
 
 	// Timing
-	HeldAt    time.Time  `json:"held_at"`
-	DecidedAt *time.Time `json:"decided_at,omitempty"`
+	HeldAt    time.Time     `json:"held_at"`
+	DecidedAt *time.Time    `json:"decided_at,omitempty"`
 	Timeout   time.Duration `json:"timeout"`
 
 	// For manual approval
@@ -271,10 +271,10 @@ type IOEvent struct {
 	Type EventType `json:"type"`
 
 	// File operations
-	Path        string        `json:"path,omitempty"`
-	Operation   FileOperation `json:"operation,omitempty"`
-	BytesCount  int64         `json:"bytes,omitempty"`
-	TargetPath  string        `json:"target_path,omitempty"` // For rename/link
+	Path       string        `json:"path,omitempty"`
+	Operation  FileOperation `json:"operation,omitempty"`
+	BytesCount int64         `json:"bytes,omitempty"`
+	TargetPath string        `json:"target_path,omitempty"` // For rename/link
 
 	// Network operations
 	Protocol   string `json:"protocol,omitempty"`
@@ -373,14 +373,10 @@ const (
 	// ModeDarwinNative uses macOS native implementation
 	ModeDarwinNative
 
-	// ModeDarwinLima uses macOS with Lima VM
+	// ModeDarwinLima uses macOS with a Lima VM. Opt-in only: it is never
+	// selected by auto-detection, because the presence of an unrelated Lima
+	// or Colima VM must not silently change the enforcement backend.
 	ModeDarwinLima
-
-	// ModeWindowsNative uses Windows native implementation
-	ModeWindowsNative
-
-	// ModeWindowsWSL2 uses Windows with WSL2
-	ModeWindowsWSL2
 )
 
 func (m PlatformMode) String() string {
@@ -393,17 +389,13 @@ func (m PlatformMode) String() string {
 		return "darwin-native"
 	case ModeDarwinLima:
 		return "darwin-lima"
-	case ModeWindowsNative:
-		return "windows-native"
-	case ModeWindowsWSL2:
-		return "windows-wsl2"
 	default:
 		return "unknown"
 	}
 }
 
 // ParsePlatformMode parses a platform mode string.
-// Accepts variations like "linux", "linux-native", "darwin", "windows-wsl2", etc.
+// Accepts variations like "linux", "linux-native", "darwin", "darwin-lima", etc.
 func ParsePlatformMode(s string) PlatformMode {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "auto", "":
@@ -414,10 +406,6 @@ func ParsePlatformMode(s string) PlatformMode {
 		return ModeDarwinNative
 	case "darwin-lima", "lima":
 		return ModeDarwinLima
-	case "windows", "windows-native":
-		return ModeWindowsNative
-	case "windows-wsl2", "wsl2", "wsl":
-		return ModeWindowsWSL2
 	default:
 		return ModeAuto
 	}
