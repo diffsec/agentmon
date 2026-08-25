@@ -8,11 +8,11 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/fsmonitor/audit"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/trash"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/fsmonitor/audit"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/trash"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type stubSink struct {

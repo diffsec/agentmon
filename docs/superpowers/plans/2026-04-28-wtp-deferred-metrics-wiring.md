@@ -298,7 +298,7 @@ func (t *Transport) runConnecting(ctx context.Context) (State, error) {
 
 Note: `dial: %w` does NOT increment — the dial-failure path bumps `wtp_reconnects_total{reason=dial_failed}` upstream and is a connection-level event distinct from "the SessionInit handshake failed."
 
-The `metrics` import is already present in this file as `"github.com/agentsh/agentsh/internal/metrics"` (the existing `wtp_loss_unknown_reason_total` references confirm). No new import needed.
+The `metrics` import is already present in this file as `"github.com/diffsec/agentmon/internal/metrics"` (the existing `wtp_loss_unknown_reason_total` references confirm). No new import needed.
 
 - [ ] **Step 3: Build and run targeted tests**
 
@@ -917,11 +917,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/metrics"
-	"github.com/agentsh/agentsh/internal/store/watchtower"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
-	"github.com/agentsh/agentsh/internal/store/watchtower/testserver"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/metrics"
+	"github.com/diffsec/agentmon/internal/store/watchtower"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/store/watchtower/testserver"
 )
 
 // scrapeMetricsFor renders the Collector's Prom output as a string.
@@ -1164,12 +1164,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/metrics"
-	"github.com/agentsh/agentsh/internal/store/watchtower"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
-	"github.com/agentsh/agentsh/internal/store/watchtower/testserver"
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/metrics"
+	"github.com/diffsec/agentmon/internal/store/watchtower"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/store/watchtower/testserver"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 func newStoreForInvalidFrame(t *testing.T, srv *testserver.Server, c *metrics.Collector) *watchtower.Store {

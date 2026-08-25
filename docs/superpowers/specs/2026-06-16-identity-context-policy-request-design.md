@@ -6,11 +6,11 @@
 
 ## Summary
 
-AgentSH should report a **decision context** to Watchtower (WT) so WT can resolve
+AgentMon should report a **decision context** to Watchtower (WT) so WT can resolve
 which signed policy the agent enforces. The context includes identity signals
 (the signed-in OS user, or the Tailscale identity when Tailscale is up) plus
 environmental signals (hostname, configured tags), and is **extensible**. WT owns
-all mapping logic; AgentSH only reports context and enforces what WT installs.
+all mapping logic; AgentMon only reports context and enforces what WT installs.
 
 Grounding against `main` showed the protocol **already implements** an
 agent-level resolve/deliver/re-resolve loop, so this feature is small:
@@ -33,13 +33,13 @@ already exist and are reused unchanged.
 
 ## Decisions (resolved during brainstorming + grounding)
 
-1. **Context, not just identity.** AgentSH sends a *decision context*; identity
+1. **Context, not just identity.** AgentMon sends a *decision context*; identity
    is one field. Core fields are typed; an open `extra` map allows new signals
    without a proto change.
 2. **`user` is source-labeled** — `{ value, source: tailscale | os }`. The
    Tailscale identity, when available, fills the slot labeled `tailscale`;
    otherwise the OS user fills it labeled `os`.
-3. **Bundle all signals; WT decides.** AgentSH sends the whole context; WT owns
+3. **Bundle all signals; WT decides.** AgentMon sends the whole context; WT owns
    the mapping.
 4. **Agent/process-level resolution.** The context (hostname/tags/user) is a
    property of the agent process/host, identical across every `createSession`
@@ -58,14 +58,14 @@ already exist and are reused unchanged.
    just a restrictive policy WT returns and the agent installs normally.
 8. **`wtp-protos` workflow:** add the messages to a local clone of
    `github.com/canyonroad/wtp-protos`, regenerate with `make gen`, and wire a
-   temporary `replace` in agentsh's `go.mod` for development. A real `v0.2.0`
+   temporary `replace` in agentmon's `go.mod` for development. A real `v0.2.0`
    release replaces the `replace` later.
 
 ## Non-goals (v1)
 
 - **Watchtower server-side resolution logic** — the mapping of DecisionContext →
   policy lives in the Watchtower server (separate repo: `canyonroad/watchtower`),
-  not in agentsh. agentsh only *reports* context and *installs* what WT returns.
+  not in agentmon. agentmon only *reports* context and *installs* what WT returns.
 - **Mid-session re-resolution on local context change** (watching Tailscale go
   up/down and emitting `SessionUpdate`). The wire supports it; v1 resolves at
   `SessionInit`. Phase-2 extension.
@@ -230,7 +230,7 @@ new request/response, no per-session swap.
 - **Failure independence** — a context source erroring degrades to partial
   context; it never blocks store construction or session creation. Tailscale
   absent ⇒ `user.source = os`.
-- **Trust of `user.source`** — agentsh reports context honestly (it already
+- **Trust of `user.source`** — agentmon reports context honestly (it already
   holds the WT bearer/cert); WT decides how much to trust `os` vs `tailscale`.
 - **Deny** — `policy_id == ""` ⇒ revert to local file policy; a lockdown outcome
   is a restrictive policy WT returns and the agent installs normally.
@@ -272,11 +272,11 @@ Tests lead the implementation (TDD).
 
 1. In `~/work/wtp-protos`: add `DecisionContext` + the two fields, `make gen`,
    `make tidy`, commit.
-2. In agentsh `go.mod`: temporary
+2. In agentmon `go.mod`: temporary
    `replace github.com/canyonroad/wtp-protos/gen/go => /home/eran/work/wtp-protos/gen/go`.
-3. Implement + test agentsh side.
+3. Implement + test agentmon side.
 4. Later: tag `gen/go/v0.2.0` in wtp-protos, `go get` the new version in
-   agentsh, drop the `replace`.
+   agentmon, drop the `replace`.
 
 ## Open items for planning
 

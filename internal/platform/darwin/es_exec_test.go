@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/platform/darwin/policysock"
+	"github.com/diffsec/agentmon/internal/platform/darwin/policysock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -144,7 +144,7 @@ func TestESExecHandler_RedirectSpawnsStub(t *testing.T) {
 		effectiveDecision: "redirect",
 		rule:              "redirect-rule",
 		message:           "redirecting",
-	}, "/usr/local/bin/agentsh-stub")
+	}, "/usr/local/bin/agentmon-stub")
 
 	result := handler.CheckExec("/usr/bin/git", []string{"/usr/bin/git", "push"}, 9999, 9998, "sess-4", policysock.ExecContext{})
 
@@ -160,7 +160,7 @@ func TestESExecHandler_ApproveSpawnsStub(t *testing.T) {
 		effectiveDecision: "approve",
 		rule:              "approve-rule",
 		message:           "needs approval",
-	}, "/usr/local/bin/agentsh-stub")
+	}, "/usr/local/bin/agentmon-stub")
 
 	result := handler.CheckExec("/usr/bin/rm", []string{"/usr/bin/rm", "-rf", "/"}, 1111, 1110, "sess-5", policysock.ExecContext{})
 
@@ -214,7 +214,7 @@ func TestLaunchStub_NoTTY(t *testing.T) {
 	handler := NewESExecHandler(&mockPolicyChecker{
 		decision:          "redirect",
 		effectiveDecision: "redirect",
-	}, "/nonexistent/agentsh-stub")
+	}, "/nonexistent/agentmon-stub")
 
 	// Create a dummy file to pass as stubFile.
 	tmpFile, err := os.CreateTemp("", "stub-test-*")

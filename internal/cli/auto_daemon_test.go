@@ -16,7 +16,7 @@ import (
 // stdout/stderr pipes open. In sandbox toolboxes like Daytona, the toolbox waits
 // for EOF on these pipes — a daemon holding them open blocks the toolbox forever.
 //
-// Strategy: start a helper process (simulating agentsh exec) that calls
+// Strategy: start a helper process (simulating agentmon exec) that calls
 // ensureServerRunning-like code. The helper's stdout/stderr are pipes we control.
 // After the helper exits, verify we get EOF on the pipes (not a timeout).
 func TestEnsureServerRunning_DaemonDoesNotHoldPipes(t *testing.T) {
@@ -71,8 +71,8 @@ exit 0
 
 // TestEnsureServerRunning_DaemonInheritedFds is the actual integration test:
 // it calls ensureServerRunning from a child process with controlled pipes and
-// verifies EOF arrives. This requires a real agentsh binary available on PATH.
-// If agentsh is not available, the test is skipped.
+// verifies EOF arrives. This requires a real agentmon binary available on PATH.
+// If agentmon is not available, the test is skipped.
 func TestEnsureServerRunning_DaemonInheritedFds(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("daemon fd test requires Unix")

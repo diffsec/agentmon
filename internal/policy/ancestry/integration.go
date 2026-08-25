@@ -1,7 +1,7 @@
 package ancestry
 
 import (
-	"github.com/agentsh/agentsh/internal/process"
+	"github.com/diffsec/agentmon/internal/process"
 )
 
 // ProcessTreeIntegration bridges ProcessTree events to TaintCache.

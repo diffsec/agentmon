@@ -25,7 +25,7 @@ Implement memory limiting on macOS using RLIMIT_AS via a wrapper binary approach
 │                    Execution Flow                            │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  agentsh server                                              │
+│  agentmon server                                              │
 │       │                                                      │
 │       ▼                                                      │
 │  ExecuteWithResources(rh, "bash", "-c", "cmd")              │
@@ -35,13 +35,13 @@ Implement memory limiting on macOS using RLIMIT_AS via a wrapper binary approach
 │       │                                                      │
 │       ▼ yes                                                  │
 │  Wrap command:                                               │
-│    env AGENTSH_RLIMIT_AS=268435456 \                        │
-│    agentsh-rlimit-exec bash -c "cmd"                        │
+│    env AGENTMON_RLIMIT_AS=268435456 \                        │
+│    agentmon-rlimit-exec bash -c "cmd"                        │
 │       │                                                      │
 │       ▼                                                      │
 │  ┌─────────────────────────────────────────┐                │
-│  │       agentsh-rlimit-exec               │                │
-│  │  1. Parse AGENTSH_RLIMIT_AS             │                │
+│  │       agentmon-rlimit-exec               │                │
+│  │  1. Parse AGENTMON_RLIMIT_AS             │                │
 │  │  2. setrlimit(RLIMIT_AS, 256MB)         │                │
 │  │  3. exec("bash", "-c", "cmd")           │                │
 │  └─────────────────────────────────────────┘                │
@@ -61,7 +61,7 @@ Implement memory limiting on macOS using RLIMIT_AS via a wrapper binary approach
 
 ```bash
 # Via environment variable
-AGENTSH_RLIMIT_AS=268435456 agentsh-rlimit-exec bash -c "command"
+AGENTMON_RLIMIT_AS=268435456 agentmon-rlimit-exec bash -c "command"
 
 # Limit is in bytes (256MB = 268435456)
 ```
@@ -69,7 +69,7 @@ AGENTSH_RLIMIT_AS=268435456 agentsh-rlimit-exec bash -c "command"
 ### Implementation
 
 ```go
-// cmd/agentsh-rlimit-exec/main.go
+// cmd/agentmon-rlimit-exec/main.go
 package main
 
 import (
@@ -82,15 +82,15 @@ import (
 
 func main() {
     if len(os.Args) < 2 {
-        fmt.Fprintln(os.Stderr, "usage: agentsh-rlimit-exec <command> [args...]")
+        fmt.Fprintln(os.Stderr, "usage: agentmon-rlimit-exec <command> [args...]")
         os.Exit(1)
     }
 
     // Apply RLIMIT_AS if set
-    if limitStr := os.Getenv("AGENTSH_RLIMIT_AS"); limitStr != "" {
+    if limitStr := os.Getenv("AGENTMON_RLIMIT_AS"); limitStr != "" {
         limit, err := strconv.ParseUint(limitStr, 10, 64)
         if err != nil {
-            fmt.Fprintf(os.Stderr, "invalid AGENTSH_RLIMIT_AS: %v\n", err)
+            fmt.Fprintf(os.Stderr, "invalid AGENTMON_RLIMIT_AS: %v\n", err)
             os.Exit(1)
         }
         rlimit := unix.Rlimit{Cur: limit, Max: limit}
@@ -137,9 +137,9 @@ func (s *Sandbox) ExecuteWithResources(ctx context.Context, rh *ResourceHandle, 
         for _, rl := range rlimits {
             if rl.Resource == unix.RLIMIT_AS && rl.Cur > 0 {
                 // Prepend wrapper
-                actualCmd = "agentsh-rlimit-exec"
+                actualCmd = "agentmon-rlimit-exec"
                 actualArgs = append([]string{cmd}, args...)
-                extraEnv = append(extraEnv, fmt.Sprintf("AGENTSH_RLIMIT_AS=%d", rl.Cur))
+                extraEnv = append(extraEnv, fmt.Sprintf("AGENTMON_RLIMIT_AS=%d", rl.Cur))
                 break
             }
         }
@@ -189,7 +189,7 @@ func (r *ResourceLimiter) Apply(config platform.ResourceConfig) (platform.Resour
 
 | File | Change |
 |------|--------|
-| `cmd/agentsh-rlimit-exec/main.go` | New wrapper binary |
+| `cmd/agentmon-rlimit-exec/main.go` | New wrapper binary |
 | `internal/platform/darwin/sandbox_resources.go` | Use wrapper when rlimits configured |
 | `internal/platform/darwin/resources.go` | Re-add ResourceMemory support |
 | `internal/platform/darwin/resources_test.go` | Update tests for memory support |

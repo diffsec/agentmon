@@ -16,12 +16,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/internal/envinject"
-	"github.com/agentsh/agentsh/internal/wrapenv"
-	"github.com/agentsh/agentsh/internal/wraphandoff"
-	"github.com/agentsh/agentsh/internal/wrapperlog"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/internal/envinject"
+	"github.com/diffsec/agentmon/internal/wrapenv"
+	"github.com/diffsec/agentmon/internal/wraphandoff"
+	"github.com/diffsec/agentmon/internal/wrapperlog"
+	"github.com/diffsec/agentmon/pkg/types"
 	"golang.org/x/sys/unix"
 )
 
@@ -34,7 +34,7 @@ var notifySetupStatusTimeout = 30 * time.Second
 // socketpair (documented limitation: signal-filter is not supported in
 // shim mode), so we strip this key from WrapperEnv to avoid confusing the
 // wrapper binary.
-const signalSockFDKey = "AGENTSH_SIGNAL_SOCK_FD"
+const signalSockFDKey = "AGENTMON_SIGNAL_SOCK_FD"
 
 // argv0EnvKey is the env var the shim injects so unixwrap preserves the
 // caller's original invocation name as argv[0] when execve'ing the real
@@ -42,7 +42,7 @@ const signalSockFDKey = "AGENTSH_SIGNAL_SOCK_FD"
 // invocation (or operator-set value) cannot leak through and contradict
 // the InstallParams.Argv0=="" "no override" contract — only the value we
 // append in runRelay is honored.
-const argv0EnvKey = "AGENTSH_UNIXWRAP_ARGV0"
+const argv0EnvKey = "AGENTMON_UNIXWRAP_ARGV0"
 
 // seccompFilterCount returns the number of seccomp filters already
 // installed on the calling process, parsed from /proc/self/status's
@@ -91,15 +91,15 @@ func readKernelSeccompFilterCount() int {
 //     filter inherited (any Mode), because trying to install another
 //     filter on top of an inherited one fails on some kernels/runtimes
 //     (issue #282 EFAULT on Runloop kernel 6.18.5: nested
-//     `agentsh-shell-shim` invocation inside a process tree where
-//     `agentsh-unixwrap` already installed F1). The inherited filter is
+//     `agentmon-shell-shim` invocation inside a process tree where
+//     `agentmon-unixwrap` already installed F1). The inherited filter is
 //     unforgeable evidence that policy enforcement is already active —
 //     re-installing would be redundant at best, and on hostile kernels
 //     the second `seccomp(SECCOMP_SET_MODE_FILTER, ...)` call rejects
 //     the program with EFAULT and breaks every wrapped exec. ModeOn
 //     "fail-closed" is satisfied here because we ARE filtered, just not
 //     by us.
-//  3. Calls wrap-init via the agentsh server to get a wrapper binary + socket.
+//  3. Calls wrap-init via the agentmon server to get a wrapper binary + socket.
 //  4. On failure, fails closed (ModeOn) or skips (ModeAuto).
 //  5. Runs the socketpair relay: mirrors internal/cli/wrap_linux.go
 //     platformSetupWrap, minus the signal-filter second socketpair.
@@ -154,7 +154,7 @@ func Install(p InstallParams) (Result, error) {
 	return runRelay(p, resp)
 }
 
-// callWrapInit contacts the agentsh server and returns its WrapInitResponse.
+// callWrapInit contacts the agentmon server and returns its WrapInitResponse.
 func callWrapInit(p InstallParams) (types.WrapInitResponse, error) {
 	c, err := client.NewForCLI(client.CLIOptions{
 		HTTPBaseURL:   p.ServerBaseURL,
@@ -205,9 +205,9 @@ func runRelay(p InstallParams, resp types.WrapInitResponse) (Result, error) {
 	}
 
 	// Build the wrapper child environment: caller env (shim-internal markers
-	// stripped) with sandbox.env_inject overlaid, then the internal AGENTSH_*
+	// stripped) with sandbox.env_inject overlaid, then the internal AGENTMON_*
 	// markers (notify fd, argv0 override, wrapper config). See
-	// assembleWrapperEnv for the env_inject override and AGENTSH_SIGNAL_SOCK_FD
+	// assembleWrapperEnv for the env_inject override and AGENTMON_SIGNAL_SOCK_FD
 	// stripping rationale (issue #374).
 	env := assembleWrapperEnv(wrapenv.Filter(filterShimInternalEnv(p.Env), resp.EnvPolicy), p.Argv0, resp.WrapperEnv, resp.EnvInject)
 
@@ -583,7 +583,7 @@ func forwardNotifyFDWithPID(socketPath string, notifyFD int, wrapperPID int) err
 	return nil
 }
 
-// filterSignalSockFD returns a copy of env with AGENTSH_SIGNAL_SOCK_FD
+// filterSignalSockFD returns a copy of env with AGENTMON_SIGNAL_SOCK_FD
 // entries removed.  Used by tests that need to verify the strip behavior
 // without going through the full relay.
 func filterSignalSockFD(env []string) []string {
@@ -599,7 +599,7 @@ func filterSignalSockFD(env []string) []string {
 }
 
 // filterShimInternalEnv returns a copy of env with all internal env vars
-// (AGENTSH_SIGNAL_SOCK_FD, AGENTSH_UNIXWRAP_ARGV0) removed. The signal
+// (AGENTMON_SIGNAL_SOCK_FD, AGENTMON_UNIXWRAP_ARGV0) removed. The signal
 // fd is stripped because shim mode does not replicate the signal-filter
 // socketpair, so a stale value would point the wrapper at a non-existent
 // fd. The argv0 override is stripped because we always append the
@@ -607,13 +607,13 @@ func filterSignalSockFD(env []string) []string {
 // empty); a stale inherited value from a re-entrant invocation would
 // otherwise silently win on Argv0=="" and contradict the documented
 // "empty falls back to the resolved real path" contract.
-// assembleWrapperEnv builds the environment for the agentsh-unixwrap child.
+// assembleWrapperEnv builds the environment for the agentmon-unixwrap child.
 // base is the caller environment with shim-internal markers already stripped
 // (filterShimInternalEnv). envInject overlays operator-configured
 // sandbox.env_inject values with override semantics — injected values win over
 // inherited ones, matching the server-spawned exec path (issue #374). The
-// internal AGENTSH_* markers (notify fd, argv0 override, wrapper config) are
-// appended afterward and remain authoritative. AGENTSH_SIGNAL_SOCK_FD from
+// internal AGENTMON_* markers (notify fd, argv0 override, wrapper config) are
+// appended afterward and remain authoritative. AGENTMON_SIGNAL_SOCK_FD from
 // wrapperEnv is dropped: shim mode does not replicate the signal-filter
 // socketpair, so the wrapper must not try to open that fd.
 func assembleWrapperEnv(base []string, argv0 string, wrapperEnv, envInject map[string]string) []string {
@@ -621,11 +621,11 @@ func assembleWrapperEnv(base []string, argv0 string, wrapperEnv, envInject map[s
 	// return base unchanged when envInject is empty). Re-run the
 	// internal-marker filter AFTER Apply: env_inject is operator
 	// controlled and applied verbatim, and os.Getenv returns the FIRST
-	// duplicate — an injected AGENTSH_WRAPPER_LOG_FD / signal-fd /
+	// duplicate — an injected AGENTMON_WRAPPER_LOG_FD / signal-fd /
 	// argv0 would otherwise shadow the authoritative values appended
 	// below (issue #415).
 	env := append([]string(nil), filterShimInternalEnv(envinject.Apply(base, envInject))...)
-	env = append(env, "AGENTSH_NOTIFY_SOCK_FD=3")
+	env = append(env, "AGENTMON_NOTIFY_SOCK_FD=3")
 	// Plumb the original invocation name (e.g. "/bin/sh") through to the
 	// wrapper so it can override argv[0] when execve'ing the real shell.
 	// On Alpine, /bin/sh.real is a busybox binary; without this override,

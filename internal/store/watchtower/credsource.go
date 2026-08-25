@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// CredentialSource yields the bearer credential agentsh presents on each
+// CredentialSource yields the bearer credential agentmon presents on each
 // WTP Dial. Returning "" means "present no credential" (anonymous; for
 // local/test servers). It is called once per Dial so a future rotating or
 // attested source (Phase 2) can return fresh values on reconnect with no
@@ -39,6 +39,6 @@ func credLogID(token string) string {
 	if i := strings.IndexByte(token, '.'); i > 0 {
 		return token[:i]
 	}
-	sum := sha256.Sum256([]byte("agentsh-wt-cred\x00" + token))
+	sum := sha256.Sum256([]byte("agentmon-wt-cred\x00" + token))
 	return "sha256:" + hex.EncodeToString(sum[:4])
 }

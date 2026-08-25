@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/metrics"
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport/compress"
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
+	"github.com/diffsec/agentmon/internal/metrics"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport/compress"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
 	wtpv1 "github.com/canyonroad/wtp-protos/gen/go/canyonroad/wtp/v1"
 	"google.golang.org/protobuf/proto"
 )

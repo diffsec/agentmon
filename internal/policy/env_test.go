@@ -285,11 +285,11 @@ func TestEngine_CheckEnv_DangerousLinkerVars(t *testing.T) {
 }
 
 func TestBuildEnv_InternalVarsBypassPolicyFiltering(t *testing.T) {
-	// When a policy has explicit allow patterns, AGENTSH_* variables
+	// When a policy has explicit allow patterns, AGENTMON_* variables
 	// should still be passed through to support internal functionality
-	// like the recursion guard (AGENTSH_IN_SESSION).
+	// like the recursion guard (AGENTMON_IN_SESSION).
 	pol := ResolvedEnvPolicy{
-		Allow: []string{"PATH", "HOME"}, // Explicit allow - doesn't include AGENTSH_*
+		Allow: []string{"PATH", "HOME"}, // Explicit allow - doesn't include AGENTMON_*
 	}
 	baseEnv := []string{
 		"PATH=/usr/bin",
@@ -297,9 +297,9 @@ func TestBuildEnv_InternalVarsBypassPolicyFiltering(t *testing.T) {
 		"OTHER_VAR=filtered", // Should be filtered (not in allow)
 	}
 	addKeys := map[string]string{
-		"AGENTSH_IN_SESSION": "1",
-		"AGENTSH_SESSION_ID": "test-123",
-		"AGENTSH_SERVER":     "http://localhost:8080",
+		"AGENTMON_IN_SESSION": "1",
+		"AGENTMON_SESSION_ID": "test-123",
+		"AGENTMON_SERVER":     "http://localhost:8080",
 		"CUSTOM_VAR":         "filtered", // Should be filtered (not in allow)
 	}
 
@@ -313,13 +313,13 @@ func TestBuildEnv_InternalVarsBypassPolicyFiltering(t *testing.T) {
 		resultMap[kv] = true
 	}
 
-	// Internal AGENTSH_* vars should be present despite not being in allow list
+	// Internal AGENTMON_* vars should be present despite not being in allow list
 	expectedPresent := []string{
 		"PATH=/usr/bin",
 		"HOME=/home/user",
-		"AGENTSH_IN_SESSION=1",
-		"AGENTSH_SESSION_ID=test-123",
-		"AGENTSH_SERVER=http://localhost:8080",
+		"AGENTMON_IN_SESSION=1",
+		"AGENTMON_SESSION_ID=test-123",
+		"AGENTMON_SERVER=http://localhost:8080",
 	}
 	for _, kv := range expectedPresent {
 		if !resultMap[kv] {

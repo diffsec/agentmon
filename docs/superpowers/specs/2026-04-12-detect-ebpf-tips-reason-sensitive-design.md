@@ -1,11 +1,11 @@
-# Design: Reason-sensitive tips for `agentsh detect`
+# Design: Reason-sensitive tips for `agentmon detect`
 
 **Issue:** #217
 **Date:** 2026-04-12
 
 ## Problem
 
-`agentsh detect` shows a generic "Requires CAP_BPF and cgroups v2" tip for
+`agentmon detect` shows a generic "Requires CAP_BPF and cgroups v2" tip for
 eBPF regardless of the actual failure reason. When the real issue is missing
 BTF (kernel built without `CONFIG_DEBUG_INFO_BTF=y`), the tip sends users
 chasing capabilities and cgroups instead of the kernel build.

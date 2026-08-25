@@ -3,7 +3,7 @@ package config
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestCompileBlockOn_DefaultsAndOverrides(t *testing.T) {

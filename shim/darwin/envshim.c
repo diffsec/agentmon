@@ -24,10 +24,10 @@
 // Configuration
 #define MAX_PATTERNS 256
 #define MAX_PATTERN_LEN 256
-#define SOCKET_PATH_ENV "AGENTSH_ENV_SOCKET"
-#define POLICY_FILE_ENV "AGENTSH_ENV_POLICY_FILE"
-#define DEFAULT_SOCKET "/var/run/agentsh/env.sock"
-#define DEFAULT_POLICY_FILE "/etc/agentsh/env-policy.conf"
+#define SOCKET_PATH_ENV "AGENTMON_ENV_SOCKET"
+#define POLICY_FILE_ENV "AGENTMON_ENV_POLICY_FILE"
+#define DEFAULT_SOCKET "/var/run/agentmon/env.sock"
+#define DEFAULT_POLICY_FILE "/etc/agentmon/env-policy.conf"
 
 // Original function pointers
 static char* (*real_getenv)(const char*) = NULL;
@@ -157,7 +157,7 @@ static void init_logging(void) {
     strncpy(log_addr.sun_path, socket_path, sizeof(log_addr.sun_path) - 1);
 }
 
-// Emit event to agentsh daemon
+// Emit event to agentmon daemon
 static void emit_event(const char* var, const char* op, int allowed, int sensitive) {
     if (log_socket < 0 || !log_access) return;
 

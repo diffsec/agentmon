@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `agentsh detect` (and the shared `SelectMode`) consume the `SeccompInstallable` probe so the Command Control domain's `✓/-` marks, `active backend` label, and score agree on hosts where the seccomp `NEW_LISTENER` filter can't install (e.g. Daytona/`EBUSY`).
+**Goal:** Make `agentmon detect` (and the shared `SelectMode`) consume the `SeccompInstallable` probe so the Command Control domain's `✓/-` marks, `active backend` label, and score agree on hosts where the seccomp `NEW_LISTENER` filter can't install (e.g. Daytona/`EBUSY`).
 
 **Architecture:** Three localized edits in `internal/capabilities` on the mode-selection/detect path. `SelectMode` gates `ModeFull` on `SeccompInstallable` (not kernel-support `Seccomp`); `buildLinuxDomains` makes the `ptrace` Command Control backend reflect *actual enforcement* (`Ptrace && PtraceEnabled`) and derives `commandActive` by priority. The existing any-backend `ComputeScore` then yields the correct number with no scorer change; darwin/windows builders and the runtime seccomp install path are untouched.
 
@@ -350,7 +350,7 @@ Expected: success (changed files are `//go:build linux`; darwin/windows builders
 
 - [ ] **Step 4: Sanity-check detect output on this host**
 
-Run: `go run ./cmd/agentsh detect`
+Run: `go run ./cmd/agentmon detect`
 Expected: the `COMMAND CONTROL` domain's `ptrace` row shows `-  available, not active (enable ptrace mode)`; if this host's seccomp install probe succeeds, `seccomp-execve` shows `✓` and `active backend: seccomp-execve` with `25/25`; if it fails, `seccomp-execve` shows `-`, no `active backend` line, and Command Control is `0/25`. `CAPABILITIES` still lists `ptrace ✓`.
 
 - [ ] **Step 5: Commit (only if Step 4 surfaced a doc/comment tweak; otherwise skip)**

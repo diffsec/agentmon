@@ -44,10 +44,10 @@ SessionPolicyCache
 
 **Lifecycle:**
 - Created on `register_session` — SysExt calls `fetchPolicySnapshot` via XPC (which routes through `PolicyBridge` to the Go server's Unix socket)
-- Updated on Darwin notification `ai.canyonroad.agentsh.policy-updated` — SysExt calls `fetchPolicySnapshot` via XPC, atomically replaces if version is higher
+- Updated on Darwin notification `dev.diffsec.agentmon.policy-updated` — SysExt calls `fetchPolicySnapshot` via XPC, atomically replaces if version is higher
 - Destroyed on `unregister_session`
 
-All snapshot fetches go through the XPC protocol (`AgentshXPCProtocol.fetchPolicySnapshot`) and `PolicyBridge`, not direct socket access. This keeps the transport consistent with all other SysExt → Go communication.
+All snapshot fetches go through the XPC protocol (`AgentmonXPCProtocol.fetchPolicySnapshot`) and `PolicyBridge`, not direct socket access. This keeps the transport consistent with all other SysExt → Go communication.
 
 **Version semantics:** Version is a per-session monotonic counter, initial value 1. On any policy change (file change, runtime update, Watchtower push), the Go server increments the version for ALL active sessions — it does not evaluate which sessions are affected. This is simple and correct; if the snapshot content is unchanged, the Swift side will receive an identical snapshot and the atomic replace is a no-op.
 
@@ -63,7 +63,7 @@ All snapshot fetches go through the XPC protocol (`AgentshXPCProtocol.fetchPolic
 
 ### 2. Cache Update Mechanism (Darwin Notification + Pull)
 
-Go server posts `notify_post("ai.canyonroad.agentsh.policy-updated")` via cgo when:
+Go server posts `notify_post("dev.diffsec.agentmon.policy-updated")` via cgo when:
 - Policy file changes (already watched via fsnotify)
 - Session policy updated at runtime
 - Watchtower pushes new policy (future)
@@ -144,7 +144,7 @@ New flow:
 
 FilterDataProvider runs in the same SysExt process as ESFClient, so it reads the `SessionPolicyCache` directly — no extra IPC.
 
-**XPC protocol change:** Add `sessionID` parameter to `checkNetworkPNACL` in `AgentshXPCProtocol`. This requires changes to:
+**XPC protocol change:** Add `sessionID` parameter to `checkNetworkPNACL` in `AgentmonXPCProtocol`. This requires changes to:
 - `xpcProtocol.swift` — add parameter to protocol method signature
 - `PolicyBridge.swift` — add `session_id` to the request dictionary, pass through from caller
 - `FilterDataProvider.swift` — pass resolved sessionID from cache lookup
@@ -215,7 +215,7 @@ This requires adding `EventStore` and `Broker` fields to the XPC server (or to a
 - `internal/platform/darwin/es_exec.go` — pass depth field through exec pipeline
 
 **Xcode project:**
-- `agentsh.xcodeproj/project.pbxproj` — add `SessionPolicyCache.swift` to SysExt Sources
+- `agentmon.xcodeproj/project.pbxproj` — add `SessionPolicyCache.swift` to SysExt Sources
 
 ## What This Does NOT Cover
 
@@ -230,4 +230,4 @@ This requires adding `EventStore` and `Broker` fields to the XPC server (or to a
 - **Cache staleness window:** Between policy change and notification receipt, the cache may serve stale decisions. For the `allow` default case, this means a briefly-allowed operation that should have been denied. The window is sub-millisecond in practice (Darwin notifications are delivered synchronously within the process).
 - **NOTIFY_WRITE volume:** Addressed by not subscribing to NOTIFY_WRITE. File write auditing uses NOTIFY_CLOSE with `modified == true` only.
 - **AUTH event deadlines:** ESF imposes a deadline on AUTH event responses (default ~60s, varies by event type). The cache fast-path responds in microseconds. The XPC fallback path uses `PolicyBridge.timeout` of 5 seconds, well within ESF's deadline. If the Go server is unreachable, `PolicyBridge` returns a fail-open/fail-closed response within the timeout — never blocks indefinitely.
-- **Notification constant:** The Darwin notification name `ai.canyonroad.agentsh.policy-updated` must be defined as a shared constant in both Swift (`SessionPolicyCache.swift`) and Go (`notify.go`) to prevent typos.
+- **Notification constant:** The Darwin notification name `dev.diffsec.agentmon.policy-updated` must be defined as a shared constant in both Swift (`SessionPolicyCache.swift`) and Go (`notify.go`) to prevent typos.

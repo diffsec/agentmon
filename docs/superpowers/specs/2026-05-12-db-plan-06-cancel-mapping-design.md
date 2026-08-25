@@ -4,7 +4,7 @@ Status: design draft 2026-05-12. Brainstormed via `superpowers:brainstorming`.
 
 Cross-references:
 - Roadmap: `docs/superpowers/specs/2026-05-08-db-access-phase-1-roadmap-design.md` section 3, Plan 06.
-- Spec: `docs/agentsh-db-access-spec.md` v0.8 section 15.
+- Spec: `docs/agentmon-db-access-spec.md` v0.8 section 15.
 - Predecessor design: `docs/superpowers/specs/2026-05-11-db-plan-05-pg-extended-tx-design.md`.
 
 Plan 06 replaces the temporary un-mapped CancelRequest behavior from Plan 04b2 with protocol-correct `BackendKeyData` translation, a proxy-wide synthetic-to-real cancel mapping table, cancel-rule evaluation against mapped connection metadata, and tests that prove the client never sees upstream cancel credentials.

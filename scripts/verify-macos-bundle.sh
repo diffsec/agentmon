@@ -1,14 +1,14 @@
 #!/bin/bash
-# verify-macos-bundle.sh — verify provisioning profiles inside AgentSH.app.
+# verify-macos-bundle.sh — verify provisioning profiles inside AgentMon.app.
 #
 # AMFI refuses to exec any binary signed with a restricted entitlement unless
 # its bundle embeds a provisioning profile granting that entitlement. Neither
 # codesign --verify nor notarization checks this, so a broken bundle only
 # fails on user machines (issue #436). This script is the release gate for
 # that condition, and is equally runnable against an installed
-# /Applications/AgentSH.app or a mounted DMG when triaging user reports.
+# /Applications/AgentMon.app or a mounted DMG when triaging user reports.
 #
-# Usage: scripts/verify-macos-bundle.sh /path/to/AgentSH.app
+# Usage: scripts/verify-macos-bundle.sh /path/to/AgentMon.app
 #
 # Requires macOS 12+ (codesign --xml needs 11+, plutil -extract raw needs 12+).
 #
@@ -19,7 +19,7 @@
 set -u
 
 PLISTBUDDY=/usr/libexec/PlistBuddy
-SYSEXT_REL="Contents/Library/SystemExtensions/ai.canyonroad.agentsh.SysExt.systemextension"
+SYSEXT_REL="Contents/Library/SystemExtensions/dev.diffsec.agentmon.SysExt.systemextension"
 # Restricted entitlements this project uses. Apple publishes no
 # machine-readable classification; extend this list when a new restricted
 # entitlement is adopted — and if it is load-bearing, also add it to the
@@ -44,7 +44,7 @@ die()  { printf 'error: %s\n' "$1" >&2; exit 2; }
 for tool in security codesign plutil date "$PLISTBUDDY"; do
   command -v "$tool" >/dev/null 2>&1 || die "required tool not found: $tool"
 done
-[ $# -eq 1 ] || die "usage: $0 /path/to/AgentSH.app"
+[ $# -eq 1 ] || die "usage: $0 /path/to/AgentMon.app"
 
 APP="${1%/}"
 [ -f "$APP/Contents/Info.plist" ] || die "not an app bundle (no Contents/Info.plist): $APP"

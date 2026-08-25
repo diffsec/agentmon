@@ -1,4 +1,4 @@
-# Default Policy for agentsh
+# Default Policy for agentmon
 # This policy provides a balanced security posture for typical AI agent workloads
 
 version: 1

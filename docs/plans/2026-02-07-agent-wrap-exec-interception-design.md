@@ -7,14 +7,14 @@
 
 AI coding agents (Claude Code, Codex CLI, OpenCode, Amp, Cursor, Antigravity) spawn shell commands via `/bin/bash -c "..."` or similar. On developer machines — unlike containers — we cannot replace `/bin/bash` with a shim because that would break the underlying OS.
 
-We need a mechanism to intercept every `execve()` / `CreateProcess()` from a supervised agent and its descendants, routing each call through the full agentsh exec pipeline (policy check, approval workflow, audit logging, output capture) without modifying system binaries.
+We need a mechanism to intercept every `execve()` / `CreateProcess()` from a supervised agent and its descendants, routing each call through the full agentmon exec pipeline (policy check, approval workflow, audit logging, output capture) without modifying system binaries.
 
 ## Requirements
 
 - Works on Linux, macOS, and Windows
 - Does not modify system binaries (`/bin/bash`, `/bin/sh`, etc.)
 - Does not break the underlying OS — interception is scoped to the agent process tree only
-- Routes through the **full agentsh exec pipeline**, not just allow/deny
+- Routes through the **full agentmon exec pipeline**, not just allow/deny
 - Supports all decision types: allow, deny, approve, redirect
 - Minimal overhead for allowed commands (the common case)
 - Not blocked by enterprise EDR tools
@@ -26,7 +26,7 @@ We need a mechanism to intercept every `execve()` / `CreateProcess()` from a sup
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  Layer 1: agentsh wrap (CLI command)                │
+│  Layer 1: agentmon wrap (CLI command)                │
 │  Creates session, launches interceptor + agent      │
 ├─────────────────────────────────────────────────────┤
 │  Layer 2: OS-specific exec interceptor              │
@@ -39,7 +39,7 @@ We need a mechanism to intercept every `execve()` / `CreateProcess()` from a sup
 │  │             │              │  service     │      │
 │  └─────────────┴──────────────┴──────────────┘      │
 ├─────────────────────────────────────────────────────┤
-│  Layer 3: agentsh exec pipeline (existing)          │
+│  Layer 3: agentmon exec pipeline (existing)          │
 │  policy → approval → audit → execute → capture      │
 └─────────────────────────────────────────────────────┘
 ```
@@ -70,15 +70,15 @@ Result (exit code, stdout, stderr) proxied back to agent
 
 ### Recursion Guard
 
-When agentsh itself spawns the allowed command, that child exec must NOT be re-intercepted:
+When agentmon itself spawns the allowed command, that child exec must NOT be re-intercepted:
 
-- **Linux**: The agentsh server process runs **outside** the seccomp-filtered process tree (it is the supervisor, never a child of the wrapped agent). It maintains a kernel-side taint list via the seccomp notify fd — only PIDs descended from the agent root are in the filtered tree. Children spawned by the server are never subject to the filter because they inherit the server's (unfiltered) seccomp state, not the agent's.
-- **macOS**: `es_mute_process()` on any process spawned by the agentsh server. Muted processes and all descendants are invisible to the ES client.
-- **Windows**: Driver maintains a "muted PIDs" set. Processes spawned by `agentsh-svc.exe` are added to it and excluded from interception.
+- **Linux**: The agentmon server process runs **outside** the seccomp-filtered process tree (it is the supervisor, never a child of the wrapped agent). It maintains a kernel-side taint list via the seccomp notify fd — only PIDs descended from the agent root are in the filtered tree. Children spawned by the server are never subject to the filter because they inherit the server's (unfiltered) seccomp state, not the agent's.
+- **macOS**: `es_mute_process()` on any process spawned by the agentmon server. Muted processes and all descendants are invisible to the ES client.
+- **Windows**: Driver maintains a "muted PIDs" set. Processes spawned by `agentmon-svc.exe` are added to it and excluded from interception.
 
 ## Linux Implementation: seccomp user-notify
 
-Extends the existing `agentsh-unixwrap` from allow/deny to full pipeline routing.
+Extends the existing `agentmon-unixwrap` from allow/deny to full pipeline routing.
 
 ### Current Flow (today)
 
@@ -92,10 +92,10 @@ Extends the existing `agentsh-unixwrap` from allow/deny to full pipeline routing
 1. Same seccomp filter installation
 2. Supervisor receives execve notification
 3. Read target binary path and argv from `/proc/<pid>/mem` (requires `PTRACE_MODE_READ` — the supervisor must be the direct parent or `CAP_SYS_PTRACE` must be held; `process_vm_readv` is an alternative that works under Yama ptrace_scope=1 when the supervisor is the parent)
-4. Send to agentsh server API (`POST /sessions/{sid}/exec`)
+4. Send to agentmon server API (`POST /sessions/{sid}/exec`)
 5. Server runs full pipeline: policy → approval → audit → execute
 6. **If allowed (common case)**: `SECCOMP_IOCTL_NOTIF_SEND` continues the syscall in-place. Zero overhead.
-7. **If routed through pipeline (approve/redirect)**: Use `SECCOMP_ADDFD_FLAG_SEND` to inject an `agentsh-stub` binary fd, then respond with `SECCOMP_IOCTL_NOTIF_SEND` to continue the execve — but redirected to execute the stub instead of the original target. The stub inherits the original process's pid/ppid relationships and file descriptors, connects to the agentsh server over a pre-injected Unix socket fd, and proxies stdin/stdout/stderr from the server-spawned command. The stub exits with the proxied exit code, so `waitpid()` in the parent works correctly.
+7. **If routed through pipeline (approve/redirect)**: Use `SECCOMP_ADDFD_FLAG_SEND` to inject an `agentmon-stub` binary fd, then respond with `SECCOMP_IOCTL_NOTIF_SEND` to continue the execve — but redirected to execute the stub instead of the original target. The stub inherits the original process's pid/ppid relationships and file descriptors, connects to the agentmon server over a pre-injected Unix socket fd, and proxies stdin/stdout/stderr from the server-spawned command. The stub exits with the proxied exit code, so `waitpid()` in the parent works correctly.
 8. **If denied**: Fail the syscall with `EPERM`.
 
 > **Design note**: We do NOT fail the execve and attempt to replace fds post-failure. A failed execve returns control to the calling process (typically a shell `exec` path), which does not expect to continue. Instead, we redirect the execve to a cooperative stub that preserves normal process lifecycle semantics.
@@ -110,33 +110,33 @@ seccomp is a defensive kernel mechanism used by Docker, Flatpak, Chrome sandbox,
 
 ## macOS Implementation: Endpoint Security AUTH_EXEC
 
-New binary `agentsh-macwrap-es` using Apple's Endpoint Security framework.
+New binary `agentmon-macwrap-es` using Apple's Endpoint Security framework.
 
 ### Architecture
 
-- `agentsh-macwrap-es` is a privileged daemon that registers as an ES client
+- `agentmon-macwrap-es` is a privileged daemon that registers as an ES client
 - Subscribes to `ES_EVENT_TYPE_AUTH_EXEC` events
 - Runs as root (required by ES framework)
-- Communicates with the user-space agentsh server over local API
+- Communicates with the user-space agentmon server over local API
 
 ### Flow
 
-1. `agentsh wrap -- claude-code` launches the agent as a child process
-2. `agentsh-macwrap-es` records the agent's PID as the taint root
+1. `agentmon wrap -- claude-code` launches the agent as a child process
+2. `agentmon-macwrap-es` records the agent's PID as the taint root
 3. When any descendant calls execve, ES delivers an `AUTH_EXEC` event
-4. Handler checks if the process is in the tainted tree (via `es_process_t.ppid` chain or agentsh taint cache)
+4. Handler checks if the process is in the tainted tree (via `es_process_t.ppid` chain or agentmon taint cache)
 5. If tainted: extract target binary path and argv from `es_event_exec_arg_get()`
-6. Send to agentsh server API (`POST /sessions/{sid}/exec`)
+6. Send to agentmon server API (`POST /sessions/{sid}/exec`)
 7. Based on pipeline result:
    - **Allow**: `ES_AUTH_RESULT_ALLOW` — process runs natively, event is audited
    - **Deny**: `ES_AUTH_RESULT_DENY` — process gets `EPERM`
-   - **Redirect/Approve**: `ES_AUTH_RESULT_DENY` the original exec. The agentsh server then spawns `agentsh-stub` as a new child of the original parent process (using `posix_spawn` with the parent's context). The stub connects to the agentsh server via Unix socket, receives proxied stdout/stderr, and exits with the proxied exit code. The parent sees a failed exec followed by a successful stub child — agents handle this gracefully as they retry or read from the next child.
+   - **Redirect/Approve**: `ES_AUTH_RESULT_DENY` the original exec. The agentmon server then spawns `agentmon-stub` as a new child of the original parent process (using `posix_spawn` with the parent's context). The stub connects to the agentmon server via Unix socket, receives proxied stdout/stderr, and exits with the proxied exit code. The parent sees a failed exec followed by a successful stub child — agents handle this gracefully as they retry or read from the next child.
 
 > **Design note**: ES `AUTH_EXEC` does not support rewriting the target binary or argv of a pending exec. We cannot "replace" the binary mid-exec. The deny-then-respawn pattern is the correct approach for the ES framework.
 
 ### Recursion Guard
 
-`es_mute_process()` on any process spawned by the agentsh server. Muted processes and all descendants are invisible to the ES client — no events, no overhead.
+`es_mute_process()` on any process spawned by the agentmon server. Muted processes and all descendants are invisible to the ES client — no events, no overhead.
 
 ### Entitlements and Distribution
 
@@ -155,9 +155,9 @@ The ES framework IS the mechanism that EDR tools use. An ES client is never flag
 
 ### Components
 
-- **`agentsh-drv.sys`** — Kernel driver (C only, ~1500 lines). Registers process creation callbacks, maintains taint table, communicates with userspace via filter port.
-- **`agentsh-svc.exe`** — Windows service (Go). Communicates with the driver via IOCTL, routes intercepted execs through the agentsh server API, spawns allowed processes.
-- **`agentsh-stub.exe`** — I/O proxy stub (Go). Lightweight binary that proxies stdin/stdout/stderr from the agentsh-spawned command back to the original parent.
+- **`agentmon-drv.sys`** — Kernel driver (C only, ~1500 lines). Registers process creation callbacks, maintains taint table, communicates with userspace via filter port.
+- **`agentmon-svc.exe`** — Windows service (Go). Communicates with the driver via IOCTL, routes intercepted execs through the agentmon server API, spawns allowed processes.
+- **`agentmon-stub.exe`** — I/O proxy stub (Go). Lightweight binary that proxies stdin/stdout/stderr from the agentmon-spawned command back to the original parent.
 
 ### Kernel Driver Flow
 
@@ -173,22 +173,22 @@ The ES framework IS the mechanism that EDR tools use. An ES client is never flag
 6. Userspace decides:
    - **Allow**: Resume the suspended process via IOCTL (`PsResumeProcess`). Zero additional overhead.
    - **Deny**: Terminate the suspended process via `ZwTerminateProcess(STATUS_ACCESS_DENIED)`. Parent receives the expected error.
-   - **Redirect**: Terminate the suspended process, spawn `agentsh-stub.exe` as a child of the original parent (via `PROC_THREAD_ATTRIBUTE_PARENT_PROCESS`). Stub proxies I/O from the server-spawned command.
+   - **Redirect**: Terminate the suspended process, spawn `agentmon-stub.exe` as a child of the original parent (via `PROC_THREAD_ATTRIBUTE_PARENT_PROCESS`). Stub proxies I/O from the server-spawned command.
 
 > **Design note**: The suspend-then-decide pattern preserves a valid process handle for the parent. Unlike blocking `CreateProcess` with `STATUS_ACCESS_DENIED` (which prevents the parent from receiving any handle), suspending allows the parent's `CreateProcess` call to succeed, giving it a valid handle to wait on.
 
 ### Userspace Service Flow
 
-1. `agentsh-svc.exe` receives suspended-process notification via filter port
-2. Sends to agentsh server API (`POST /sessions/{sid}/exec`)
+1. `agentmon-svc.exe` receives suspended-process notification via filter port
+2. Sends to agentmon server API (`POST /sessions/{sid}/exec`)
 3. Pipeline runs: policy → approval → audit → execute
 4. If allowed: resumes the suspended process via driver IOCTL, proxies I/O back
 5. If denied: terminates the suspended process, returns denial status to parent
-6. If redirected: terminates the suspended process, spawns `agentsh-stub.exe` as child of original parent with `PROC_THREAD_ATTRIBUTE_PARENT_PROCESS`, proxies I/O from the actual command
+6. If redirected: terminates the suspended process, spawns `agentmon-stub.exe` as child of original parent with `PROC_THREAD_ATTRIBUTE_PARENT_PROCESS`, proxies I/O from the actual command
 
 ### Taint Tree Management
 
-- `agentsh wrap -- claude-code.exe` registers agent PID with driver via IOCTL
+- `agentmon wrap -- claude-code.exe` registers agent PID with driver via IOCTL
 - Driver adds PID to taint table
 - On process creation: if parent is tainted, child is automatically tainted
 - On process exit (`PsSetCreateProcessNotifyRoutine`): PID removed from taint table
@@ -202,7 +202,7 @@ The ES framework IS the mechanism that EDR tools use. An ES client is never flag
 
 ### EDR Whitelisting Documentation
 
-Ship documentation for whitelisting `agentsh-drv.sys` in:
+Ship documentation for whitelisting `agentmon-drv.sys` in:
 - CrowdStrike Falcon (IOA exclusion)
 - SentinelOne (process exclusion)
 - Microsoft Defender for Endpoint (ASR exclusion)
@@ -218,21 +218,21 @@ When an intercepted exec is routed through the pipeline (not just allowed in-pla
 
 ### The Problem
 
-An AI agent calls `subprocess.Popen(["bash", "-c", "ls -la"])`. The OS intercepts the execve, blocks it, and agentsh runs the command instead. But the agent is waiting on a child process with stdin/stdout/stderr pipes and an exit code.
+An AI agent calls `subprocess.Popen(["bash", "-c", "ls -la"])`. The OS intercepts the execve, blocks it, and agentmon runs the command instead. But the agent is waiting on a child process with stdin/stdout/stderr pipes and an exit code.
 
 ### Solution: Per-OS Stub Pattern
 
 **Linux (seccomp)**:
-The seccomp supervisor intercepts the execve via `SECCOMP_RET_USER_NOTIF`. For redirect/approve decisions, it uses `SECCOMP_ADDFD_FLAG_SEND` to inject a Unix socket fd into the target process, then responds to the notification by redirecting the execve to `agentsh-stub`. The stub:
-- Connects to the agentsh server over the injected Unix socket
-- Receives proxied stdout/stderr from the actual command running under the agentsh pipeline
+The seccomp supervisor intercepts the execve via `SECCOMP_RET_USER_NOTIF`. For redirect/approve decisions, it uses `SECCOMP_ADDFD_FLAG_SEND` to inject a Unix socket fd into the target process, then responds to the notification by redirecting the execve to `agentmon-stub`. The stub:
+- Connects to the agentmon server over the injected Unix socket
+- Receives proxied stdout/stderr from the actual command running under the agentmon pipeline
 - Exits with the proxied exit code
 
 The parent sees a child that exec'd, produced output, and exited — normal process lifecycle.
 
 **macOS (ES)**:
-The ES handler denies the original exec (`ES_AUTH_RESULT_DENY`). The agentsh server then spawns `agentsh-stub` as a new child process. The stub:
-- Connects to the agentsh server via Unix socket
+The ES handler denies the original exec (`ES_AUTH_RESULT_DENY`). The agentmon server then spawns `agentmon-stub` as a new child process. The stub:
+- Connects to the agentmon server via Unix socket
 - Receives proxied stdout/stderr from the actual command
 - Exits with the proxied exit code
 
@@ -241,7 +241,7 @@ The parent sees a failed exec but the agent framework retries or the wrapping sh
 > **Note**: ES `AUTH_EXEC` does not support rewriting exec targets. The deny-then-respawn pattern is the only viable approach.
 
 **Windows**:
-The driver suspends the newly created process. For redirect decisions, the service terminates the suspended process and spawns `agentsh-stub.exe` as the "child" of the original parent (using `PROC_THREAD_ATTRIBUTE_PARENT_PROCESS`), which proxies I/O from the actual command running under the agentsh pipeline. For allow decisions, the suspended process is simply resumed.
+The driver suspends the newly created process. For redirect decisions, the service terminates the suspended process and spawns `agentmon-stub.exe` as the "child" of the original parent (using `PROC_THREAD_ATTRIBUTE_PARENT_PROCESS`), which proxies I/O from the actual command running under the agentmon pipeline. For allow decisions, the suspended process is simply resumed.
 
 ### Common Case Optimization
 
@@ -256,30 +256,30 @@ The proxy path only activates for redirected or approval-required commands.
 
 ### CLI Command
 
-`agentsh wrap` is the single user-facing command across all OSes:
+`agentmon wrap` is the single user-facing command across all OSes:
 
 ```bash
 # CLI agents (identical on all OSes)
-agentsh wrap -- claude-code
-agentsh wrap -- codex
-agentsh wrap -- opencode
-agentsh wrap -- amp
-agentsh wrap -- antigravity
+agentmon wrap -- claude-code
+agentmon wrap -- codex
+agentmon wrap -- opencode
+agentmon wrap -- amp
+agentmon wrap -- antigravity
 
 # Cursor IDE
-agentsh wrap -- cursor                                              # Linux
-agentsh wrap -- open -a Cursor                                      # macOS
-agentsh wrap -- "C:\Users\%USERNAME%\AppData\Local\Programs\Cursor\Cursor.exe"  # Windows
+agentmon wrap -- cursor                                              # Linux
+agentmon wrap -- open -a Cursor                                      # macOS
+agentmon wrap -- "C:\Users\%USERNAME%\AppData\Local\Programs\Cursor\Cursor.exe"  # Windows
 
 # With explicit session and policy
-agentsh wrap --session my-dev --policy strict -- claude-code
-agentsh wrap --session pr-review --policy read-only -- cursor
+agentmon wrap --session my-dev --policy strict -- claude-code
+agentmon wrap --session pr-review --policy read-only -- cursor
 
 # With auto-created session
-agentsh wrap --root /home/dev/myproject --policy default -- claude-code
+agentmon wrap --root /home/dev/myproject --policy default -- claude-code
 ```
 
-### What `agentsh wrap` Does
+### What `agentmon wrap` Does
 
 1. Creates or reuses a session
 2. Starts the OS-specific interceptor (unixwrap / macwrap-es / drv+svc)
@@ -291,7 +291,7 @@ agentsh wrap --root /home/dev/myproject --policy default -- claude-code
 
 ### `agent-default.yaml`
 
-Ships with agentsh. Applied when no `--policy` is specified.
+Ships with agentmon. Applied when no `--policy` is specified.
 
 ```yaml
 name: agent-default
@@ -369,7 +369,7 @@ For high-security environments:
 
 Audit-only mode for initial profiling:
 - Everything allowed, everything logged
-- Use with `agentsh policy generate` to create a custom policy from observed behavior (profile-then-lock workflow)
+- Use with `agentmon policy generate` to create a custom policy from observed behavior (profile-then-lock workflow)
 
 ## EDR Compatibility Summary
 
@@ -395,16 +395,16 @@ Audit-only mode for initial profiling:
 
 ### Phase 1: Linux (4-6 weeks)
 
-- Extend `agentsh-unixwrap` from allow/deny to full pipeline routing
+- Extend `agentmon-unixwrap` from allow/deny to full pipeline routing
 - Implement stub process and I/O proxy for redirected commands
-- Add `agentsh wrap` CLI command
+- Add `agentmon wrap` CLI command
 - Ship default agent policies (`agent-default`, `agent-strict`, `agent-observe`)
 - Integration tests for proxy path: exit code fidelity, stdout/stderr ordering, waitpid semantics
 - Test with: Claude Code, Codex CLI, OpenCode, Amp, Cursor, Antigravity
 
 ### Phase 2: macOS (6-8 weeks)
 
-- Build `agentsh-macwrap-es` using Endpoint Security framework
+- Build `agentmon-macwrap-es` using Endpoint Security framework
 - Apply for ES entitlement from Apple
 - Implement System Extension packaging and installation flow
 - Port stub process pattern to macOS (deny-then-respawn)
@@ -414,17 +414,17 @@ Audit-only mode for initial profiling:
 
 ### Phase 3: Windows (10-14 weeks)
 
-- Build `agentsh-drv.sys` kernel driver in C
+- Build `agentmon-drv.sys` kernel driver in C
   - Process creation callback (`PsSetCreateProcessNotifyRoutineEx`)
   - Kernel-side taint hash table
   - Suspend-then-decide flow (not block-then-respawn)
   - Filter communication port (`FltSendMessage`)
-- Build `agentsh-svc.exe` Go service
+- Build `agentmon-svc.exe` Go service
   - Filter port communication with driver
-  - Pipeline routing via agentsh server API
+  - Pipeline routing via agentmon server API
   - Resume/terminate suspended processes via driver IOCTL
   - `CreateProcessAsUser` for spawning stub processes
-- Build `agentsh-stub.exe` I/O proxy
+- Build `agentmon-stub.exe` I/O proxy
 - Integration tests for proxy path: exit code fidelity, stdout/stderr ordering, handle/wait behavior, suspended-process lifecycle
 - EV code-sign driver
 - Document EDR whitelisting (CrowdStrike, SentinelOne, Defender, Cortex XDR)
@@ -438,6 +438,6 @@ Audit-only mode for initial profiling:
 
 ### Phase 4: Polish
 
-- `agentsh wrap --detect` — auto-detect agent type, apply recommended policy
-- VS Code / Cursor extension showing agentsh session status
+- `agentmon wrap --detect` — auto-detect agent type, apply recommended policy
+- VS Code / Cursor extension showing agentmon session status
 - Web dashboard for monitoring wrapped agents across a team

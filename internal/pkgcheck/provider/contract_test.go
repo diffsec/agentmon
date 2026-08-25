@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 // providerFactory builds a CheckProvider configured to talk to the given baseURL.

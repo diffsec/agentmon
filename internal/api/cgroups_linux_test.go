@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/limits"
-	ebpftrace "github.com/agentsh/agentsh/internal/netmonitor/ebpf"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/limits"
+	ebpftrace "github.com/diffsec/agentmon/internal/netmonitor/ebpf"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/cilium/ebpf"
 )
 
@@ -120,7 +120,7 @@ func TestApplyCgroupV2_CleansCgroupWhenRequiredEBPFUnsupported(t *testing.T) {
 	cfg.Sandbox.Cgroups.Enabled = true
 	cfg.Sandbox.Network.EBPF.Enabled = true
 	cfg.Sandbox.Network.EBPF.Required = true
-	cgPath := filepath.Join(t.TempDir(), "agentsh-test-cgroup")
+	cgPath := filepath.Join(t.TempDir(), "agentmon-test-cgroup")
 	app := newAppWithFakeCgroupManager(t, cfg, cgPath)
 
 	ebpfCheckSupport = func() ebpftrace.SupportStatus {
@@ -143,7 +143,7 @@ func TestApplyCgroupV2_CleansCgroupWhenRequiredAttachFails(t *testing.T) {
 	cfg.Sandbox.Cgroups.Enabled = true
 	cfg.Sandbox.Network.EBPF.Enabled = true
 	cfg.Sandbox.Network.EBPF.Required = true
-	cgPath := filepath.Join(t.TempDir(), "agentsh-test-cgroup")
+	cgPath := filepath.Join(t.TempDir(), "agentmon-test-cgroup")
 	app := newAppWithFakeCgroupManager(t, cfg, cgPath)
 
 	var startCollectorCalls atomic.Int32
@@ -180,7 +180,7 @@ func TestApplyCgroupV2_DetachesAndCleansCgroupWhenRequiredCollectorStartFails(t 
 	cfg.Sandbox.Cgroups.Enabled = true
 	cfg.Sandbox.Network.EBPF.Enabled = true
 	cfg.Sandbox.Network.EBPF.Required = true
-	cgPath := filepath.Join(t.TempDir(), "agentsh-test-cgroup")
+	cgPath := filepath.Join(t.TempDir(), "agentmon-test-cgroup")
 	app := newAppWithFakeCgroupManager(t, cfg, cgPath)
 
 	var detachCalls atomic.Int32
@@ -220,7 +220,7 @@ func TestApplyCgroupV2_CleansEBPFResourcesWhenOptionalEnforceCollectorStartFails
 	cfg.Sandbox.Network.EBPF.Enabled = true
 	cfg.Sandbox.Network.EBPF.Enforce = true
 	cfg.Sandbox.Network.EBPF.DNSRefreshSeconds = 1
-	cgPath := filepath.Join(t.TempDir(), "agentsh-test-cgroup")
+	cgPath := filepath.Join(t.TempDir(), "agentmon-test-cgroup")
 	app := newAppWithFakeCgroupManager(t, cfg, cgPath)
 	engine := networkPolicyEngineForCgroupTest(t)
 
@@ -283,7 +283,7 @@ func TestApplyCgroupV2_DetachesAndCleansCgroupWhenRequiredEnforceCgroupIDFails(t
 	cfg.Sandbox.Network.EBPF.Enabled = true
 	cfg.Sandbox.Network.EBPF.Required = true
 	cfg.Sandbox.Network.EBPF.Enforce = true
-	cgPath := filepath.Join(t.TempDir(), "agentsh-test-cgroup")
+	cgPath := filepath.Join(t.TempDir(), "agentmon-test-cgroup")
 	app := newAppWithFakeCgroupManager(t, cfg, cgPath)
 
 	var detachCalls atomic.Int32
@@ -336,7 +336,7 @@ func TestApplyCgroupV2_DetachesAndCleansCgroupWhenRequiredEnforcePopulateFails(t
 	cfg.Sandbox.Network.EBPF.Enabled = true
 	cfg.Sandbox.Network.EBPF.Required = true
 	cfg.Sandbox.Network.EBPF.Enforce = true
-	cgPath := filepath.Join(t.TempDir(), "agentsh-test-cgroup")
+	cgPath := filepath.Join(t.TempDir(), "agentmon-test-cgroup")
 	app := newAppWithFakeCgroupManager(t, cfg, cgPath)
 
 	var detachCalls atomic.Int32
@@ -399,7 +399,7 @@ func TestApplyCgroupV2_DetachesAndCleansCgroupWhenRequiredEnforcePopulateFails(t
 func TestApplyCgroupV2_AttachOnly_NoLimits_Succeeds(t *testing.T) {
 	withEBPFHooks(t)
 
-	cgPath := filepath.Join(t.TempDir(), "agentsh-test-cgroup")
+	cgPath := filepath.Join(t.TempDir(), "agentmon-test-cgroup")
 
 	cfg := &config.Config{}
 	cfg.Sandbox.Cgroups.Enabled = false // widened gate: ebpf.enabled alone is sufficient
@@ -439,7 +439,7 @@ func TestApplyCgroupV2_AttachOnly_NoLimits_Succeeds(t *testing.T) {
 func TestDefaultWrapCgroupSetup_AttachOnly_NoLimits_Succeeds(t *testing.T) {
 	withEBPFHooks(t)
 
-	cgPath := filepath.Join(t.TempDir(), "agentsh-test-cgroup")
+	cgPath := filepath.Join(t.TempDir(), "agentmon-test-cgroup")
 
 	cfg := &config.Config{}
 	cfg.Sandbox.Cgroups.Enabled = true

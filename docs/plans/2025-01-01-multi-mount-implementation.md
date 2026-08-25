@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Enable agentsh to mount multiple filesystem paths with independent policies per mount.
+**Goal:** Enable agentmon to mount multiple filesystem paths with independent policies per mount.
 
 **Architecture:** Mount profiles define collections of paths to mount, each with its own policy file. Sessions can use a profile instead of a single workspace+policy. Policy evaluation routes file checks to the appropriate mount's policy, then the base policy.
 
@@ -231,7 +231,7 @@ package session
 import (
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // ResolvedMount represents an active mount with its loaded policy.
@@ -375,8 +375,8 @@ package session
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestPolicyRouter_CheckFile(t *testing.T) {
@@ -447,8 +447,8 @@ Create `internal/session/policy_router.go`:
 package session
 
 import (
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // PolicyRouter routes policy checks to the appropriate mount's policy engine.
@@ -1191,14 +1191,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestMultiMountProfile(t *testing.T) {
 	ctx := context.Background()
 
-	bin := buildAgentshBinary(t)
+	bin := buildAgentmonBinary(t)
 	temp := t.TempDir()
 
 	policiesDir := filepath.Join(temp, "policies")

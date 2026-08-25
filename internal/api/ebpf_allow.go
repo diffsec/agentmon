@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/netmonitor/ebpf"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/netmonitor/ebpf"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 var (

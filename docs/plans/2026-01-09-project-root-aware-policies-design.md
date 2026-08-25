@@ -106,7 +106,7 @@ policies:
 ```json
 POST /api/v1/sessions
 {
-  "workspace": "/home/eran/work/agentsh",
+  "workspace": "/home/eran/work/agentmon",
   "policy": "dev-safe",
   "detect_project_root": false
 }
@@ -116,13 +116,13 @@ POST /api/v1/sessions
 
 ```bash
 # Use smart detection (default)
-agentsh exec my-session -- ls
+agentmon exec my-session -- ls
 
 # Disable detection, use workspace as-is
-agentsh exec --no-detect-root my-session -- ls
+agentmon exec --no-detect-root my-session -- ls
 
 # Explicit project root (skips detection)
-agentsh exec --project-root /custom/path my-session -- ls
+agentmon exec --project-root /custom/path my-session -- ls
 ```
 
 ### Precedence
@@ -226,19 +226,19 @@ file_rules:
 ### Data Flow
 
 ```
-1. Client: POST /sessions {workspace: "/home/eran/work/agentsh/cmd"}
+1. Client: POST /sessions {workspace: "/home/eran/work/agentmon/cmd"}
                               |
 2. Server: detectProjectRoots(workspace)
-           -> PROJECT_ROOT = /home/eran/work/agentsh (found go.mod)
-           -> GIT_ROOT = /home/eran/work/agentsh (found .git)
+           -> PROJECT_ROOT = /home/eran/work/agentmon (found go.mod)
+           -> GIT_ROOT = /home/eran/work/agentmon (found .git)
                               |
 3. Server: loadPolicy("dev-safe")
                               |
 4. Server: policy.ExpandVariables(map[string]string{
-               "PROJECT_ROOT": "/home/eran/work/agentsh",
-               "GIT_ROOT": "/home/eran/work/agentsh",
+               "PROJECT_ROOT": "/home/eran/work/agentmon",
+               "GIT_ROOT": "/home/eran/work/agentmon",
            })
-           -> "${PROJECT_ROOT}/**" becomes "/home/eran/work/agentsh/**"
+           -> "${PROJECT_ROOT}/**" becomes "/home/eran/work/agentmon/**"
                               |
 5. Server: NewEngine(expandedPolicy)
            -> Compiles globs for real paths
@@ -271,9 +271,9 @@ file_rules:
 ### Logging
 
 ```
-INFO  session created id=abc123 workspace=/home/eran/work/agentsh/cmd
-INFO  project detection project_root=/home/eran/work/agentsh git_root=/home/eran/work/agentsh
-DEBUG expanded policy variable var=PROJECT_ROOT value=/home/eran/work/agentsh
+INFO  session created id=abc123 workspace=/home/eran/work/agentmon/cmd
+INFO  project detection project_root=/home/eran/work/agentmon git_root=/home/eran/work/agentmon
+DEBUG expanded policy variable var=PROJECT_ROOT value=/home/eran/work/agentmon
 WARN  project detection found no markers, using workspace as project_root
 ```
 

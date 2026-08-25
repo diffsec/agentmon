@@ -549,7 +549,7 @@ Expected: Compiles, existing tests pass.
 git add internal/capabilities/security_caps.go internal/capabilities/detect_linux.go
 git commit -m "feat(detect): add fuse_mount_method to capabilities detection
 
-checkFUSE now includes new mount API probe. agentsh detect reports
+checkFUSE now includes new mount API probe. agentmon detect reports
 fuse_mount_method: fusermount|new-api|direct|none.
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"

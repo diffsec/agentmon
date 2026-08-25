@@ -432,7 +432,7 @@ func rewriteAnthropicResponse(body []byte, blockedNames []string) []byte {
 			// Replace with text block
 			replacement := map[string]string{
 				"type": "text",
-				"text": fmt.Sprintf("[agentsh] Tool '%s' blocked by policy", blockInfo.Name),
+				"text": fmt.Sprintf("[agentmon] Tool '%s' blocked by policy", blockInfo.Name),
 			}
 			b, _ := json.Marshal(replacement)
 			newContent = append(newContent, b)
@@ -503,7 +503,7 @@ func rewriteOpenAIResponse(body []byte, blockedNames []string) []byte {
 
 		if len(filtered) == 0 {
 			// All tool calls blocked — add a text content and change finish_reason
-			message["content"] = json.RawMessage(`"[agentsh] Tool calls blocked by policy"`)
+			message["content"] = json.RawMessage(`"[agentmon] Tool calls blocked by policy"`)
 			delete(message, "tool_calls")
 			choices[i]["finish_reason"] = json.RawMessage(`"stop"`)
 		} else {
@@ -522,7 +522,7 @@ func rewriteOpenAIResponse(body []byte, blockedNames []string) []byte {
 }
 ```
 
-Add imports: `"fmt"`, `"time"`, `"github.com/agentsh/agentsh/internal/mcpinspect"`, `"github.com/agentsh/agentsh/internal/mcpregistry"`.
+Add imports: `"fmt"`, `"time"`, `"github.com/diffsec/agentmon/internal/mcpinspect"`, `"github.com/diffsec/agentmon/internal/mcpregistry"`.
 
 **Step 4: Run test to verify it passes**
 
@@ -1218,7 +1218,7 @@ package session
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestStartLLMProxy_MCPOnlyMode(t *testing.T) {

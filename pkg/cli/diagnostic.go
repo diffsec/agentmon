@@ -277,7 +277,7 @@ func (d *DiagnosticCollector) GenerateReport(ctx context.Context, outputPath str
 
 	steps := []string{
 		"System information",
-		"agentsh configuration (secrets redacted)",
+		"agentmon configuration (secrets redacted)",
 		"Active policies",
 		"Metrics snapshot",
 		"Active sessions summary",

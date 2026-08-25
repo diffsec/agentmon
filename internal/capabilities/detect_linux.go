@@ -167,7 +167,7 @@ func buildLinuxDomains(caps *SecurityCapabilities) []ProtectionDomain {
 	}
 }
 
-// wrapperDependentBackends lists backends that require agentsh-unixwrap.
+// wrapperDependentBackends lists backends that require agentmon-unixwrap.
 // These are marked unavailable when the wrapper binary is not on PATH.
 var wrapperDependentBackends = map[string]bool{
 	"seccomp-notify":   true,
@@ -176,7 +176,7 @@ var wrapperDependentBackends = map[string]bool{
 	"landlock-network": true,
 }
 
-// applyWrapperAvailability checks if agentsh-unixwrap is on PATH and marks
+// applyWrapperAvailability checks if agentmon-unixwrap is on PATH and marks
 // wrapper-dependent backends as unavailable if it's missing. Also updates
 // secCaps.FileEnforcement and domain Active fields for consistency.
 // Returns true if the wrapper was found.
@@ -186,7 +186,7 @@ var wrapperDependentBackends = map[string]bool{
 // config-agnostic — it probes system capabilities, not config state. Config-aware
 // validation lives in CheckConfig().
 func applyWrapperAvailability(domains []ProtectionDomain, secCaps *SecurityCapabilities) bool {
-	_, err := wrapperLookPath("agentsh-unixwrap")
+	_, err := wrapperLookPath("agentmon-unixwrap")
 	if err == nil {
 		return true
 	}
@@ -314,7 +314,7 @@ func Detect() (*DetectResult, error) {
 	domains := buildLinuxDomains(secCaps)
 
 	// Check wrapper availability before scoring — marks seccomp/landlock
-	// backends unavailable if agentsh-unixwrap is not on PATH.
+	// backends unavailable if agentmon-unixwrap is not on PATH.
 	//
 	// This check lives in Detect() rather than DetectSecurityCapabilities()
 	// because the server already handles wrapper absence at runtime via
@@ -370,7 +370,7 @@ func Detect() (*DetectResult, error) {
 			Feature: "seccomp-wrapper",
 			Status:  "missing",
 			Impact:  "seccomp and Landlock enforcement disabled — processes run without kernel-level interception",
-			Action:  "install agentsh-unixwrap or rebuild the package with CGO_ENABLED=1",
+			Action:  "install agentmon-unixwrap or rebuild the package with CGO_ENABLED=1",
 		})
 	}
 

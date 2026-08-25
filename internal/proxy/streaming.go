@@ -9,9 +9,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/mcpinspect"
-	"github.com/agentsh/agentsh/internal/mcpregistry"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
 )
 
 // IsSSEResponse returns true if the response is a Server-Sent Events stream.

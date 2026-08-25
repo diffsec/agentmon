@@ -13,39 +13,39 @@
 ## Prerequisites
 
 - Phase 4 complete (registry interception)
-- Working in worktree: `/home/eran/work/agentsh/.worktrees/feature-windows-minifilter`
+- Working in worktree: `/home/eran/work/agentmon/.worktrees/feature-windows-minifilter`
 
 ---
 
 ## Task 1: Add Configuration Structures to Protocol
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/inc/protocol.h`
+- Modify: `drivers/windows/agentmon-minifilter/inc/protocol.h`
 
 **Step 1: Add fail mode and configuration enums**
 
-Add after `AGENTSH_REGISTRY_REQUEST` struct:
+Add after `AGENTMON_REGISTRY_REQUEST` struct:
 
 ```c
 // Fail mode configuration
-typedef enum _AGENTSH_FAIL_MODE {
+typedef enum _AGENTMON_FAIL_MODE {
     FAIL_MODE_OPEN = 0,     // Allow operations on failure (default)
     FAIL_MODE_CLOSED = 1,   // Deny operations on failure
-} AGENTSH_FAIL_MODE;
+} AGENTMON_FAIL_MODE;
 
 // Driver configuration (user-mode -> driver)
-typedef struct _AGENTSH_CONFIG {
-    AGENTSH_MESSAGE_HEADER Header;
-    AGENTSH_FAIL_MODE FailMode;
+typedef struct _AGENTMON_CONFIG {
+    AGENTMON_MESSAGE_HEADER Header;
+    AGENTMON_FAIL_MODE FailMode;
     ULONG PolicyQueryTimeoutMs;     // Default: 5000
     ULONG MaxConsecutiveFailures;   // Default: 10
     ULONG CacheMaxEntries;          // Default: 4096
     ULONG CacheDefaultTTLMs;        // Default: 5000
-} AGENTSH_CONFIG, *PAGENTSH_CONFIG;
+} AGENTMON_CONFIG, *PAGENTMON_CONFIG;
 
 // Driver metrics (driver -> user-mode)
-typedef struct _AGENTSH_METRICS {
-    AGENTSH_MESSAGE_HEADER Header;
+typedef struct _AGENTMON_METRICS {
+    AGENTMON_MESSAGE_HEADER Header;
     // Cache metrics
     ULONG CacheHitCount;
     ULONG CacheMissCount;
@@ -65,7 +65,7 @@ typedef struct _AGENTSH_METRICS {
     // Status
     BOOLEAN FailOpenMode;
     ULONG ConsecutiveFailures;
-} AGENTSH_METRICS, *PAGENTSH_METRICS;
+} AGENTMON_METRICS, *PAGENTMON_METRICS;
 
 // Message types for config and metrics
 #define MSG_SET_CONFIG      104
@@ -76,7 +76,7 @@ typedef struct _AGENTSH_METRICS {
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/inc/protocol.h
+git add drivers/windows/agentmon-minifilter/inc/protocol.h
 git commit -m "feat(windows): add configuration and metrics protocol structures"
 ```
 
@@ -85,47 +85,47 @@ git commit -m "feat(windows): add configuration and metrics protocol structures"
 ## Task 2: Create Metrics Module
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/inc/metrics.h`
-- Create: `drivers/windows/agentsh-minifilter/src/metrics.c`
+- Create: `drivers/windows/agentmon-minifilter/inc/metrics.h`
+- Create: `drivers/windows/agentmon-minifilter/src/metrics.c`
 
 **Step 1: Write metrics.h**
 
 ```c
 // metrics.h - Driver metrics collection
-#ifndef _AGENTSH_METRICS_H_
-#define _AGENTSH_METRICS_H_
+#ifndef _AGENTMON_METRICS_H_
+#define _AGENTMON_METRICS_H_
 
 #include <fltKernel.h>
 #include "protocol.h"
 
 // Initialize metrics
-VOID AgentshInitializeMetrics(VOID);
+VOID AgentmonInitializeMetrics(VOID);
 
 // Increment counters (thread-safe)
-VOID AgentshMetricsIncrementCacheHit(VOID);
-VOID AgentshMetricsIncrementCacheMiss(VOID);
-VOID AgentshMetricsIncrementCacheEviction(VOID);
-VOID AgentshMetricsIncrementFilePolicyQuery(VOID);
-VOID AgentshMetricsIncrementRegistryPolicyQuery(VOID);
-VOID AgentshMetricsIncrementPolicyTimeout(VOID);
-VOID AgentshMetricsIncrementPolicyFailure(VOID);
-VOID AgentshMetricsIncrementAllowDecision(VOID);
-VOID AgentshMetricsIncrementDenyDecision(VOID);
+VOID AgentmonMetricsIncrementCacheHit(VOID);
+VOID AgentmonMetricsIncrementCacheMiss(VOID);
+VOID AgentmonMetricsIncrementCacheEviction(VOID);
+VOID AgentmonMetricsIncrementFilePolicyQuery(VOID);
+VOID AgentmonMetricsIncrementRegistryPolicyQuery(VOID);
+VOID AgentmonMetricsIncrementPolicyTimeout(VOID);
+VOID AgentmonMetricsIncrementPolicyFailure(VOID);
+VOID AgentmonMetricsIncrementAllowDecision(VOID);
+VOID AgentmonMetricsIncrementDenyDecision(VOID);
 
 // Set/get values
-VOID AgentshMetricsSetActiveSessionCount(ULONG count);
-VOID AgentshMetricsSetTrackedProcessCount(ULONG count);
-VOID AgentshMetricsSetCacheEntryCount(ULONG count);
-VOID AgentshMetricsSetFailOpenMode(BOOLEAN enabled);
-VOID AgentshMetricsSetConsecutiveFailures(ULONG count);
+VOID AgentmonMetricsSetActiveSessionCount(ULONG count);
+VOID AgentmonMetricsSetTrackedProcessCount(ULONG count);
+VOID AgentmonMetricsSetCacheEntryCount(ULONG count);
+VOID AgentmonMetricsSetFailOpenMode(BOOLEAN enabled);
+VOID AgentmonMetricsSetConsecutiveFailures(ULONG count);
 
 // Get metrics snapshot
-VOID AgentshMetricsGet(_Out_ PAGENTSH_METRICS metrics);
+VOID AgentmonMetricsGet(_Out_ PAGENTMON_METRICS metrics);
 
 // Reset counters
-VOID AgentshMetricsReset(VOID);
+VOID AgentmonMetricsReset(VOID);
 
-#endif // _AGENTSH_METRICS_H_
+#endif // _AGENTMON_METRICS_H_
 ```
 
 **Step 2: Write metrics.c**
@@ -153,82 +153,82 @@ static struct {
     volatile LONG ConsecutiveFailures;
 } gMetrics;
 
-VOID AgentshInitializeMetrics(VOID)
+VOID AgentmonInitializeMetrics(VOID)
 {
     RtlZeroMemory(&gMetrics, sizeof(gMetrics));
 }
 
-VOID AgentshMetricsIncrementCacheHit(VOID)
+VOID AgentmonMetricsIncrementCacheHit(VOID)
 {
     InterlockedIncrement(&gMetrics.CacheHitCount);
 }
 
-VOID AgentshMetricsIncrementCacheMiss(VOID)
+VOID AgentmonMetricsIncrementCacheMiss(VOID)
 {
     InterlockedIncrement(&gMetrics.CacheMissCount);
 }
 
-VOID AgentshMetricsIncrementCacheEviction(VOID)
+VOID AgentmonMetricsIncrementCacheEviction(VOID)
 {
     InterlockedIncrement(&gMetrics.CacheEvictionCount);
 }
 
-VOID AgentshMetricsIncrementFilePolicyQuery(VOID)
+VOID AgentmonMetricsIncrementFilePolicyQuery(VOID)
 {
     InterlockedIncrement(&gMetrics.FilePolicyQueries);
 }
 
-VOID AgentshMetricsIncrementRegistryPolicyQuery(VOID)
+VOID AgentmonMetricsIncrementRegistryPolicyQuery(VOID)
 {
     InterlockedIncrement(&gMetrics.RegistryPolicyQueries);
 }
 
-VOID AgentshMetricsIncrementPolicyTimeout(VOID)
+VOID AgentmonMetricsIncrementPolicyTimeout(VOID)
 {
     InterlockedIncrement(&gMetrics.PolicyQueryTimeouts);
 }
 
-VOID AgentshMetricsIncrementPolicyFailure(VOID)
+VOID AgentmonMetricsIncrementPolicyFailure(VOID)
 {
     InterlockedIncrement(&gMetrics.PolicyQueryFailures);
 }
 
-VOID AgentshMetricsIncrementAllowDecision(VOID)
+VOID AgentmonMetricsIncrementAllowDecision(VOID)
 {
     InterlockedIncrement(&gMetrics.AllowDecisions);
 }
 
-VOID AgentshMetricsIncrementDenyDecision(VOID)
+VOID AgentmonMetricsIncrementDenyDecision(VOID)
 {
     InterlockedIncrement(&gMetrics.DenyDecisions);
 }
 
-VOID AgentshMetricsSetActiveSessionCount(ULONG count)
+VOID AgentmonMetricsSetActiveSessionCount(ULONG count)
 {
     InterlockedExchange(&gMetrics.ActiveSessions, count);
 }
 
-VOID AgentshMetricsSetTrackedProcessCount(ULONG count)
+VOID AgentmonMetricsSetTrackedProcessCount(ULONG count)
 {
     InterlockedExchange(&gMetrics.TrackedProcesses, count);
 }
 
-VOID AgentshMetricsSetCacheEntryCount(ULONG count)
+VOID AgentmonMetricsSetCacheEntryCount(ULONG count)
 {
     InterlockedExchange(&gMetrics.CacheEntryCount, count);
 }
 
-VOID AgentshMetricsSetFailOpenMode(BOOLEAN enabled)
+VOID AgentmonMetricsSetFailOpenMode(BOOLEAN enabled)
 {
     gMetrics.FailOpenMode = enabled;
 }
 
-VOID AgentshMetricsSetConsecutiveFailures(ULONG count)
+VOID AgentmonMetricsSetConsecutiveFailures(ULONG count)
 {
     InterlockedExchange(&gMetrics.ConsecutiveFailures, count);
 }
 
-VOID AgentshMetricsGet(_Out_ PAGENTSH_METRICS metrics)
+VOID AgentmonMetricsGet(_Out_ PAGENTMON_METRICS metrics)
 {
     metrics->CacheHitCount = gMetrics.CacheHitCount;
     metrics->CacheMissCount = gMetrics.CacheMissCount;
@@ -246,7 +246,7 @@ VOID AgentshMetricsGet(_Out_ PAGENTSH_METRICS metrics)
     metrics->ConsecutiveFailures = gMetrics.ConsecutiveFailures;
 }
 
-VOID AgentshMetricsReset(VOID)
+VOID AgentmonMetricsReset(VOID)
 {
     InterlockedExchange(&gMetrics.CacheHitCount, 0);
     InterlockedExchange(&gMetrics.CacheMissCount, 0);
@@ -263,8 +263,8 @@ VOID AgentshMetricsReset(VOID)
 **Step 3: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/inc/metrics.h
-git add drivers/windows/agentsh-minifilter/src/metrics.c
+git add drivers/windows/agentmon-minifilter/inc/metrics.h
+git add drivers/windows/agentmon-minifilter/src/metrics.c
 git commit -m "feat(windows): add metrics collection module"
 ```
 
@@ -273,15 +273,15 @@ git commit -m "feat(windows): add metrics collection module"
 ## Task 3: Create Configuration Module
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/inc/config.h`
-- Create: `drivers/windows/agentsh-minifilter/src/config.c`
+- Create: `drivers/windows/agentmon-minifilter/inc/config.h`
+- Create: `drivers/windows/agentmon-minifilter/src/config.c`
 
 **Step 1: Write config.h**
 
 ```c
 // config.h - Driver configuration
-#ifndef _AGENTSH_CONFIG_H_
-#define _AGENTSH_CONFIG_H_
+#ifndef _AGENTMON_CONFIG_H_
+#define _AGENTMON_CONFIG_H_
 
 #include <fltKernel.h>
 #include "protocol.h"
@@ -294,22 +294,22 @@ git commit -m "feat(windows): add metrics collection module"
 #define DEFAULT_CACHE_TTL_MS            5000
 
 // Initialize configuration with defaults
-VOID AgentshInitializeConfig(VOID);
+VOID AgentmonInitializeConfig(VOID);
 
 // Get current configuration
-VOID AgentshGetConfig(_Out_ PAGENTSH_CONFIG config);
+VOID AgentmonGetConfig(_Out_ PAGENTMON_CONFIG config);
 
 // Apply new configuration
-NTSTATUS AgentshSetConfig(_In_ PAGENTSH_CONFIG config);
+NTSTATUS AgentmonSetConfig(_In_ PAGENTMON_CONFIG config);
 
 // Query configuration values
-AGENTSH_FAIL_MODE AgentshGetFailMode(VOID);
-ULONG AgentshGetPolicyTimeoutMs(VOID);
-ULONG AgentshGetMaxConsecutiveFailures(VOID);
-ULONG AgentshGetCacheMaxEntries(VOID);
-ULONG AgentshGetCacheDefaultTTLMs(VOID);
+AGENTMON_FAIL_MODE AgentmonGetFailMode(VOID);
+ULONG AgentmonGetPolicyTimeoutMs(VOID);
+ULONG AgentmonGetMaxConsecutiveFailures(VOID);
+ULONG AgentmonGetCacheMaxEntries(VOID);
+ULONG AgentmonGetCacheDefaultTTLMs(VOID);
 
-#endif // _AGENTSH_CONFIG_H_
+#endif // _AGENTMON_CONFIG_H_
 ```
 
 **Step 2: Write config.c**
@@ -321,9 +321,9 @@ ULONG AgentshGetCacheDefaultTTLMs(VOID);
 
 // Global configuration (protected by lock)
 static EX_PUSH_LOCK gConfigLock;
-static AGENTSH_CONFIG gConfig;
+static AGENTMON_CONFIG gConfig;
 
-VOID AgentshInitializeConfig(VOID)
+VOID AgentmonInitializeConfig(VOID)
 {
     ExInitializePushLock(&gConfigLock);
 
@@ -334,18 +334,18 @@ VOID AgentshInitializeConfig(VOID)
     gConfig.CacheMaxEntries = DEFAULT_CACHE_MAX_ENTRIES;
     gConfig.CacheDefaultTTLMs = DEFAULT_CACHE_TTL_MS;
 
-    DbgPrint("AgentSH: Configuration initialized (FailMode=%d, Timeout=%lu)\n",
+    DbgPrint("AgentMon: Configuration initialized (FailMode=%d, Timeout=%lu)\n",
              gConfig.FailMode, gConfig.PolicyQueryTimeoutMs);
 }
 
-VOID AgentshGetConfig(_Out_ PAGENTSH_CONFIG config)
+VOID AgentmonGetConfig(_Out_ PAGENTMON_CONFIG config)
 {
     ExAcquirePushLockShared(&gConfigLock);
-    RtlCopyMemory(config, &gConfig, sizeof(AGENTSH_CONFIG));
+    RtlCopyMemory(config, &gConfig, sizeof(AGENTMON_CONFIG));
     ExReleasePushLockShared(&gConfigLock);
 }
 
-NTSTATUS AgentshSetConfig(_In_ PAGENTSH_CONFIG config)
+NTSTATUS AgentmonSetConfig(_In_ PAGENTMON_CONFIG config)
 {
     // Validate configuration values
     if (config->PolicyQueryTimeoutMs < 100 || config->PolicyQueryTimeoutMs > 60000) {
@@ -371,22 +371,22 @@ NTSTATUS AgentshSetConfig(_In_ PAGENTSH_CONFIG config)
 
     ExReleasePushLockExclusive(&gConfigLock);
 
-    DbgPrint("AgentSH: Configuration updated (FailMode=%d, Timeout=%lu, MaxFail=%lu)\n",
+    DbgPrint("AgentMon: Configuration updated (FailMode=%d, Timeout=%lu, MaxFail=%lu)\n",
              config->FailMode, config->PolicyQueryTimeoutMs, config->MaxConsecutiveFailures);
 
     return STATUS_SUCCESS;
 }
 
-AGENTSH_FAIL_MODE AgentshGetFailMode(VOID)
+AGENTMON_FAIL_MODE AgentmonGetFailMode(VOID)
 {
-    AGENTSH_FAIL_MODE mode;
+    AGENTMON_FAIL_MODE mode;
     ExAcquirePushLockShared(&gConfigLock);
     mode = gConfig.FailMode;
     ExReleasePushLockShared(&gConfigLock);
     return mode;
 }
 
-ULONG AgentshGetPolicyTimeoutMs(VOID)
+ULONG AgentmonGetPolicyTimeoutMs(VOID)
 {
     ULONG timeout;
     ExAcquirePushLockShared(&gConfigLock);
@@ -395,7 +395,7 @@ ULONG AgentshGetPolicyTimeoutMs(VOID)
     return timeout;
 }
 
-ULONG AgentshGetMaxConsecutiveFailures(VOID)
+ULONG AgentmonGetMaxConsecutiveFailures(VOID)
 {
     ULONG maxFail;
     ExAcquirePushLockShared(&gConfigLock);
@@ -404,7 +404,7 @@ ULONG AgentshGetMaxConsecutiveFailures(VOID)
     return maxFail;
 }
 
-ULONG AgentshGetCacheMaxEntries(VOID)
+ULONG AgentmonGetCacheMaxEntries(VOID)
 {
     ULONG maxEntries;
     ExAcquirePushLockShared(&gConfigLock);
@@ -413,7 +413,7 @@ ULONG AgentshGetCacheMaxEntries(VOID)
     return maxEntries;
 }
 
-ULONG AgentshGetCacheDefaultTTLMs(VOID)
+ULONG AgentmonGetCacheDefaultTTLMs(VOID)
 {
     ULONG ttl;
     ExAcquirePushLockShared(&gConfigLock);
@@ -426,8 +426,8 @@ ULONG AgentshGetCacheDefaultTTLMs(VOID)
 **Step 3: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/inc/config.h
-git add drivers/windows/agentsh-minifilter/src/config.c
+git add drivers/windows/agentmon-minifilter/inc/config.h
+git add drivers/windows/agentmon-minifilter/src/config.c
 git commit -m "feat(windows): add configurable fail modes and cache tuning"
 ```
 
@@ -436,7 +436,7 @@ git commit -m "feat(windows): add configurable fail modes and cache tuning"
 ## Task 4: Update Filesystem to Use Config and Metrics
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/src/filesystem.c`
+- Modify: `drivers/windows/agentmon-minifilter/src/filesystem.c`
 
 **Step 1: Add includes and update to use configuration**
 
@@ -456,9 +456,9 @@ static volatile LONG gConsecutiveFailures = 0;
 static volatile BOOLEAN gFailOpenMode = FALSE;
 ```
 
-**Step 2: Update AgentshQueryFilePolicy to use config and metrics**
+**Step 2: Update AgentmonQueryFilePolicy to use config and metrics**
 
-In `AgentshQueryFilePolicy`, replace:
+In `AgentmonQueryFilePolicy`, replace:
 
 ```c
     // Check fail-open mode
@@ -471,7 +471,7 @@ With:
 
 ```c
     // Check fail mode
-    AGENTSH_FAIL_MODE failMode = AgentshGetFailMode();
+    AGENTMON_FAIL_MODE failMode = AgentmonGetFailMode();
     if (gFailOpenMode) {
         // In fail-open mode, allow all
         if (failMode == FAIL_MODE_OPEN) {
@@ -479,7 +479,7 @@ With:
         }
         // In fail-closed mode, deny all
         *Decision = DECISION_DENY;
-        AgentshMetricsIncrementDenyDecision();
+        AgentmonMetricsIncrementDenyDecision();
         return TRUE;
     }
 ```
@@ -488,7 +488,7 @@ Replace timeout:
 
 ```c
     // Set timeout (negative = relative)
-    ULONG timeoutMs = AgentshGetPolicyTimeoutMs();
+    ULONG timeoutMs = AgentmonGetPolicyTimeoutMs();
     timeout.QuadPart = -((LONGLONG)timeoutMs * 10000);
 ```
 
@@ -498,18 +498,18 @@ Update success path:
     if (NT_SUCCESS(status) && replyLength >= sizeof(response)) {
         *Decision = response.Decision;
         InterlockedExchange(&gConsecutiveFailures, 0);
-        AgentshMetricsSetConsecutiveFailures(0);
-        AgentshMetricsSetFailOpenMode(FALSE);
+        AgentmonMetricsSetConsecutiveFailures(0);
+        AgentmonMetricsSetFailOpenMode(FALSE);
 
         if (response.Decision == DECISION_ALLOW) {
-            AgentshMetricsIncrementAllowDecision();
+            AgentmonMetricsIncrementAllowDecision();
         } else {
-            AgentshMetricsIncrementDenyDecision();
+            AgentmonMetricsIncrementDenyDecision();
         }
 
         // Update cache
-        ULONG ttl = response.CacheTTLMs > 0 ? response.CacheTTLMs : AgentshGetCacheDefaultTTLMs();
-        AgentshCacheInsert(SessionToken, Operation, Path, response.Decision, ttl);
+        ULONG ttl = response.CacheTTLMs > 0 ? response.CacheTTLMs : AgentmonGetCacheDefaultTTLMs();
+        AgentmonCacheInsert(SessionToken, Operation, Path, response.Decision, ttl);
 
         return TRUE;
     }
@@ -520,37 +520,37 @@ Update failure path:
 ```c
     // Handle failure
     LONG failures = InterlockedIncrement(&gConsecutiveFailures);
-    AgentshMetricsSetConsecutiveFailures(failures);
-    AgentshMetricsIncrementPolicyFailure();
+    AgentmonMetricsSetConsecutiveFailures(failures);
+    AgentmonMetricsIncrementPolicyFailure();
 
-    ULONG maxFail = AgentshGetMaxConsecutiveFailures();
+    ULONG maxFail = AgentmonGetMaxConsecutiveFailures();
     if (failures >= (LONG)maxFail && !gFailOpenMode) {
         gFailOpenMode = TRUE;
-        AgentshMetricsSetFailOpenMode(TRUE);
-        DbgPrint("AgentSH: Entering fail mode after %ld failures\n", failures);
+        AgentmonMetricsSetFailOpenMode(TRUE);
+        DbgPrint("AgentMon: Entering fail mode after %ld failures\n", failures);
     }
 
     // Apply fail mode policy
-    if (AgentshGetFailMode() == FAIL_MODE_CLOSED) {
+    if (AgentmonGetFailMode() == FAIL_MODE_CLOSED) {
         *Decision = DECISION_DENY;
-        AgentshMetricsIncrementDenyDecision();
+        AgentmonMetricsIncrementDenyDecision();
     } else {
-        AgentshMetricsIncrementAllowDecision();
+        AgentmonMetricsIncrementAllowDecision();
     }
 ```
 
 **Step 3: Add metric tracking to query path**
 
-At start of `AgentshQueryFilePolicy`:
+At start of `AgentmonQueryFilePolicy`:
 
 ```c
-    AgentshMetricsIncrementFilePolicyQuery();
+    AgentmonMetricsIncrementFilePolicyQuery();
 ```
 
 **Step 4: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/src/filesystem.c
+git add drivers/windows/agentmon-minifilter/src/filesystem.c
 git commit -m "feat(windows): integrate config and metrics into filesystem callbacks"
 ```
 
@@ -559,7 +559,7 @@ git commit -m "feat(windows): integrate config and metrics into filesystem callb
 ## Task 5: Update Registry to Use Config and Metrics
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/src/registry.c`
+- Modify: `drivers/windows/agentmon-minifilter/src/registry.c`
 
 **Step 1: Add includes**
 
@@ -570,20 +570,20 @@ Add after existing includes:
 #include "metrics.h"
 ```
 
-**Step 2: Update AgentshQueryRegistryPolicy similarly to filesystem**
+**Step 2: Update AgentmonQueryRegistryPolicy similarly to filesystem**
 
 Apply same changes as Task 4:
-- Use `AgentshGetFailMode()` for fail mode decisions
-- Use `AgentshGetPolicyTimeoutMs()` for timeout
-- Use `AgentshGetMaxConsecutiveFailures()` for threshold
-- Use `AgentshGetCacheDefaultTTLMs()` for cache TTL
-- Add `AgentshMetricsIncrementRegistryPolicyQuery()` at start
+- Use `AgentmonGetFailMode()` for fail mode decisions
+- Use `AgentmonGetPolicyTimeoutMs()` for timeout
+- Use `AgentmonGetMaxConsecutiveFailures()` for threshold
+- Use `AgentmonGetCacheDefaultTTLMs()` for cache TTL
+- Add `AgentmonMetricsIncrementRegistryPolicyQuery()` at start
 - Add decision metrics tracking
 
 **Step 3: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/src/registry.c
+git add drivers/windows/agentmon-minifilter/src/registry.c
 git commit -m "feat(windows): integrate config and metrics into registry callbacks"
 ```
 
@@ -592,8 +592,8 @@ git commit -m "feat(windows): integrate config and metrics into registry callbac
 ## Task 6: Update Driver Entry to Initialize Config and Metrics
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/inc/driver.h`
-- Modify: `drivers/windows/agentsh-minifilter/src/driver.c`
+- Modify: `drivers/windows/agentmon-minifilter/inc/driver.h`
+- Modify: `drivers/windows/agentmon-minifilter/src/driver.c`
 
 **Step 1: Add includes to driver.h**
 
@@ -606,21 +606,21 @@ Add after `#include "registry.h"`:
 
 **Step 2: Update DriverEntry in driver.c**
 
-After `RtlZeroMemory(&AgentshData, sizeof(AgentshData));`, add:
+After `RtlZeroMemory(&AgentmonData, sizeof(AgentmonData));`, add:
 
 ```c
     // Initialize configuration
-    AgentshInitializeConfig();
+    AgentmonInitializeConfig();
 
     // Initialize metrics
-    AgentshInitializeMetrics();
+    AgentmonInitializeMetrics();
 ```
 
 **Step 3: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/inc/driver.h
-git add drivers/windows/agentsh-minifilter/src/driver.c
+git add drivers/windows/agentmon-minifilter/inc/driver.h
+git add drivers/windows/agentmon-minifilter/src/driver.c
 git commit -m "feat(windows): initialize config and metrics in driver entry"
 ```
 
@@ -629,7 +629,7 @@ git commit -m "feat(windows): initialize config and metrics in driver entry"
 ## Task 7: Add Config and Metrics Message Handling
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/src/communication.c`
+- Modify: `drivers/windows/agentmon-minifilter/src/communication.c`
 
 **Step 1: Add handler for MSG_SET_CONFIG and MSG_GET_METRICS**
 
@@ -637,20 +637,20 @@ Add to message handling switch:
 
 ```c
     case MSG_SET_CONFIG:
-        if (InputBufferLength >= sizeof(AGENTSH_CONFIG)) {
-            PAGENTSH_CONFIG config = (PAGENTSH_CONFIG)InputBuffer;
-            status = AgentshSetConfig(config);
+        if (InputBufferLength >= sizeof(AGENTMON_CONFIG)) {
+            PAGENTMON_CONFIG config = (PAGENTMON_CONFIG)InputBuffer;
+            status = AgentmonSetConfig(config);
         }
         break;
 
     case MSG_GET_METRICS:
-        if (OutputBufferLength >= sizeof(AGENTSH_METRICS)) {
-            PAGENTSH_METRICS metrics = (PAGENTSH_METRICS)OutputBuffer;
-            RtlZeroMemory(metrics, sizeof(AGENTSH_METRICS));
+        if (OutputBufferLength >= sizeof(AGENTMON_METRICS)) {
+            PAGENTMON_METRICS metrics = (PAGENTMON_METRICS)OutputBuffer;
+            RtlZeroMemory(metrics, sizeof(AGENTMON_METRICS));
             metrics->Header.Type = MSG_METRICS_REPLY;
-            metrics->Header.Size = sizeof(AGENTSH_METRICS);
-            AgentshMetricsGet(metrics);
-            *ReturnOutputBufferLength = sizeof(AGENTSH_METRICS);
+            metrics->Header.Size = sizeof(AGENTMON_METRICS);
+            AgentmonMetricsGet(metrics);
+            *ReturnOutputBufferLength = sizeof(AGENTMON_METRICS);
         }
         break;
 ```
@@ -658,7 +658,7 @@ Add to message handling switch:
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/src/communication.c
+git add drivers/windows/agentmon-minifilter/src/communication.c
 git commit -m "feat(windows): handle config and metrics messages in communication"
 ```
 
@@ -667,7 +667,7 @@ git commit -m "feat(windows): handle config and metrics messages in communicatio
 ## Task 8: Update Visual Studio Project
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/agentsh.vcxproj`
+- Modify: `drivers/windows/agentmon-minifilter/agentmon.vcxproj`
 
 **Step 1: Add new files to project**
 
@@ -688,7 +688,7 @@ In the `<ItemGroup>` containing `.h` files, add:
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/agentsh.vcxproj
+git add drivers/windows/agentmon-minifilter/agentmon.vcxproj
 git commit -m "build(windows): add config and metrics files to VS project"
 ```
 
@@ -989,7 +989,7 @@ git commit -m "test(windows): add unit tests for config and metrics"
 
 ## Overview
 
-This guide covers deploying the agentsh Windows mini filter driver in production environments, including code signing requirements, installation procedures, and monitoring.
+This guide covers deploying the agentmon Windows mini filter driver in production environments, including code signing requirements, installation procedures, and monitoring.
 
 ## Requirements
 
@@ -1009,12 +1009,12 @@ This guide covers deploying the agentsh Windows mini filter driver in production
 
 1. Create a test certificate:
 ```cmd
-makecert -r -pe -ss PrivateCertStore -n "CN=AgentSH Test" agentsh-test.cer
+makecert -r -pe -ss PrivateCertStore -n "CN=AgentMon Test" agentmon-test.cer
 ```
 
 2. Sign the driver:
 ```cmd
-signtool sign /v /s PrivateCertStore /n "AgentSH Test" /t http://timestamp.digicert.com agentsh.sys
+signtool sign /v /s PrivateCertStore /n "AgentMon Test" /t http://timestamp.digicert.com agentmon.sys
 ```
 
 3. Enable test signing on target machine:
@@ -1029,7 +1029,7 @@ bcdedit /set testsigning on
 2. **Sign the driver catalog**:
 ```cmd
 inf2cat /driver:. /os:10_x64
-signtool sign /v /ac cross-cert.cer /n "Your Company" /tr http://timestamp.digicert.com /td sha256 /fd sha256 agentsh.cat
+signtool sign /v /ac cross-cert.cer /n "Your Company" /tr http://timestamp.digicert.com /td sha256 /fd sha256 agentmon.cat
 ```
 
 3. **Submit for attestation signing** (Windows 10 1607+):
@@ -1043,9 +1043,9 @@ signtool sign /v /ac cross-cert.cer /n "Your Company" /tr http://timestamp.digic
 
 ```cmd
 REM As Administrator
-copy agentsh.sys %SystemRoot%\System32\drivers\
-rundll32.exe setupapi.dll,InstallHinfSection DefaultInstall 132 agentsh.inf
-fltmc load agentsh
+copy agentmon.sys %SystemRoot%\System32\drivers\
+rundll32.exe setupapi.dll,InstallHinfSection DefaultInstall 132 agentmon.inf
+fltmc load agentmon
 ```
 
 ### Verify Installation
@@ -1058,15 +1058,15 @@ Expected output:
 ```
 Filter Name                     Num Instances    Altitude    Frame
 ------------------------------  -------------  ------------  -----
-AgentSH                               3          385200       0
+AgentMon                               3          385200       0
 ```
 
 ### Uninstallation
 
 ```cmd
-fltmc unload agentsh
-rundll32.exe setupapi.dll,InstallHinfSection DefaultUninstall 132 agentsh.inf
-del %SystemRoot%\System32\drivers\agentsh.sys
+fltmc unload agentmon
+rundll32.exe setupapi.dll,InstallHinfSection DefaultUninstall 132 agentmon.inf
+del %SystemRoot%\System32\drivers\agentmon.sys
 ```
 
 ## Configuration
@@ -1115,7 +1115,7 @@ Key metrics:
 
 Driver events appear in:
 - Event Viewer → Windows Logs → System
-- Source: AgentSH
+- Source: AgentMon
 
 ### Debug Output
 
@@ -1126,7 +1126,7 @@ In development, view DbgPrint output with DebugView (Sysinternals).
 ### Driver won't load
 
 1. Check test signing: `bcdedit | findstr testsigning`
-2. Verify driver signature: `signtool verify /v /pa agentsh.sys`
+2. Verify driver signature: `signtool verify /v /pa agentmon.sys`
 3. Check Event Viewer for errors
 
 ### High latency
@@ -1192,7 +1192,7 @@ git commit -m "docs: mark Phase 5 complete in design document"
 **Step 1: Run all tests**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feature-windows-minifilter
+cd /home/eran/work/agentmon/.worktrees/feature-windows-minifilter
 go test ./... -v
 go build ./...
 ```
@@ -1202,8 +1202,8 @@ Expected: All tests pass, build succeeds
 **Step 2: Verify driver files are complete**
 
 ```bash
-ls -la drivers/windows/agentsh-minifilter/src/
-ls -la drivers/windows/agentsh-minifilter/inc/
+ls -la drivers/windows/agentmon-minifilter/src/
+ls -la drivers/windows/agentmon-minifilter/inc/
 ```
 
 Expected: config.c, config.h, metrics.c, metrics.h present

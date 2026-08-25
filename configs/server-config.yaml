@@ -1,4 +1,4 @@
-# agentsh Server Configuration (container/production defaults)
+# agentmon Server Configuration (container/production defaults)
 
 server:
   http:
@@ -10,13 +10,13 @@ server:
 auth:
   type: "api_key"
   api_key:
-    keys_file: "/etc/agentsh/api_keys.yaml"
+    keys_file: "/etc/agentmon/api_keys.yaml"
     header_name: "X-API-Key"
 
 logging:
   level: "info"
   format: "json"
-  output: "/var/log/agentsh/server.log"
+  output: "/var/log/agentmon/server.log"
   rotation:
     max_size_mb: 100
     max_age_days: 7
@@ -25,17 +25,17 @@ logging:
 
 audit:
   enabled: true
-  output: "/var/log/agentsh/audit.jsonl"
+  output: "/var/log/agentmon/audit.jsonl"
   rotation:
     max_size_mb: 500
     max_age_days: 90
     max_backups: 10
     compress: true
   storage:
-    sqlite_path: "/var/lib/agentsh/events.db"
+    sqlite_path: "/var/lib/agentmon/events.db"
 
 sessions:
-  base_dir: "/var/lib/agentsh/sessions"
+  base_dir: "/var/lib/agentmon/sessions"
 
 # LLM Proxy configuration
 proxy:
@@ -59,7 +59,7 @@ dlp:
     api_keys: true
 
 policies:
-  dir: "/etc/agentsh/policies"
+  dir: "/etc/agentmon/policies"
   default: "default"
   # Project root detection (enabled by default)
   # When enabled, ${PROJECT_ROOT} and ${GIT_ROOT} are auto-detected
@@ -78,7 +78,7 @@ sandbox:
   # These bypass env policy filtering (operator-trusted)
   # Primary use: BASH_ENV to disable bash builtins that bypass seccomp
   env_inject:
-    BASH_ENV: "/usr/lib/agentsh/bash_startup.sh"
+    BASH_ENV: "/usr/lib/agentmon/bash_startup.sh"
     # Add custom vars as needed:
     # MY_CUSTOM_VAR: "value"
 

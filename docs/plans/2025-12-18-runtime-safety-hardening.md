@@ -4,7 +4,7 @@
 
 **Goal:** Fix approval hangs, ensure timed-out commands terminate whole process groups, and prevent host environment leakage into agent sessions.
 
-**Architecture:** Keep current agentsh API; tighten behaviors inside approvals manager and exec paths. Add deterministic tests for approvals and process-group cleanup; introduce explicit environment allow/deny logic before spawning commands.
+**Architecture:** Keep current agentmon API; tighten behaviors inside approvals manager and exec paths. Add deterministic tests for approvals and process-group cleanup; introduce explicit environment allow/deny logic before spawning commands.
 
 **Tech Stack:** Go 1.25+, stdlib os/exec/syscall/context, httptest, existing test helpers.
 
@@ -94,7 +94,7 @@ Expected: PASS.
 func TestMergeEnv_StripsHostSecrets(t *testing.T) {
     os.Setenv("AWS_SECRET_ACCESS_KEY", "hostsecret")
     got := mergeEnv(baseEnv, session, nil)
-    // assert sensitive keys not present; allowlist PATH, LANG, TERM, AGENTSH_*, proxy vars
+    // assert sensitive keys not present; allowlist PATH, LANG, TERM, AGENTMON_*, proxy vars
 }
 ```
 
@@ -106,7 +106,7 @@ Expected: FAIL (host vars still present).
 **Step 3: Implement env policy**
 
 ```go
-// start from minimal base (PATH + locale + TERM + HOME?), add session env, overrides, proxy vars, AGENTSH_* telemetry
+// start from minimal base (PATH + locale + TERM + HOME?), add session env, overrides, proxy vars, AGENTMON_* telemetry
 // drop known secret prefixes (AWS_, GCP_, AZURE_, SSH_AUTH_SOCK, DOCKER_*, GOOGLE_APPLICATION_CREDENTIALS, etc.)
 ```
 

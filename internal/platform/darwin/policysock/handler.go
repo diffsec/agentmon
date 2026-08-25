@@ -5,8 +5,8 @@ package policysock
 import (
 	"log/slog"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // SessionResolver looks up session ID for a process.

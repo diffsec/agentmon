@@ -1,4 +1,4 @@
-// Package secrets defines the SecretProvider interface that agentsh
+// Package secrets defines the SecretProvider interface that agentmon
 // uses to fetch real credentials from external secret stores at
 // session start, plus the URI grammar, sentinel errors, and the
 // provider Registry shared by all provider implementations.

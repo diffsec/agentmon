@@ -17,18 +17,18 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/api"
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/audit/kms"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/decisionctx"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/policy/signing"
-	"github.com/agentsh/agentsh/internal/store"
-	"github.com/agentsh/agentsh/internal/store/eventfilter"
-	"github.com/agentsh/agentsh/internal/store/watchtower"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/internal/api"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/audit/kms"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/decisionctx"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy/signing"
+	"github.com/diffsec/agentmon/internal/store"
+	"github.com/diffsec/agentmon/internal/store/eventfilter"
+	"github.com/diffsec/agentmon/internal/store/watchtower"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
 	wtpv1 "github.com/canyonroad/wtp-protos/gen/go/canyonroad/wtp/v1"
 )
 
@@ -64,7 +64,7 @@ func resolveLogGoawayMessage(cfgVal *bool, logger *slog.Logger) bool {
 //
 //  1. TrimSpace(cfg.AgentID) if non-empty.
 //  2. os.Hostname() + "-" + os.Getpid() — disambiguates multiple
-//     agentsh processes on the same host. A Hostname() error
+//     agentmon processes on the same host. A Hostname() error
 //     substitutes "unknown" for the host portion.
 //
 // This is called from buildWatchtowerStore. Keeping it as a small
@@ -90,7 +90,7 @@ func resolveAgentID(cfg config.AuditWatchtowerConfig) string {
 // from the key fingerprint so the WAL identity and SessionInit agree.
 //
 // AgentID: cfg.AgentID takes precedence; empty/whitespace-only falls
-// back to "<hostname>-<pid>" so multiple agentsh processes on the same
+// back to "<hostname>-<pid>" so multiple agentmon processes on the same
 // host receive distinct identities. A Hostname() error substitutes
 // "unknown" for the host portion. See resolveAgentID.
 func buildWatchtowerStore(
@@ -170,7 +170,7 @@ func buildWatchtowerStore(
 
 	// Resolve LogGoawayMessage three-state to the transport.Options bool.
 	// Defaulting MUST happen here (NOT in config.go's Validate/applyDefaults)
-	// so that non-daemon CLI subcommands like `agentsh config show` don't
+	// so that non-daemon CLI subcommands like `agentmon config show` don't
 	// emit operational startup logs.
 	logGoaway := resolveLogGoawayMessage(cfg.LogGoawayMessage, slog.Default())
 
@@ -455,7 +455,7 @@ func makePolicyInstallHook(
 		}
 		installMu.Unlock()
 		// Reload the trust store on every receipt. The set is small
-		// and operators can rotate keys without bouncing agentsh.
+		// and operators can rotate keys without bouncing agentmon.
 		ts, err := signing.LoadTrustStore(trustDir, false)
 		if err != nil {
 			slog.Warn("policy install: load trust store",
@@ -530,7 +530,7 @@ func makePolicyInstallHook(
 		//
 		// appHolder is nil until server.go finishes constructing the App
 		// and stores it; before that point we skip the swap and rely on
-		// the next agentsh restart (Manager.Get reads the file we just
+		// the next agentmon restart (Manager.Get reads the file we just
 		// installed) to pick up the policy.
 		if pm == nil || appHolder == nil {
 			return

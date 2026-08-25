@@ -41,7 +41,7 @@ Modify:
 - `internal/db/classify/postgres/libpgquery.go` - cgo parse/deparse implementation.
 - `internal/db/classify/postgres/wasm.go` - WASM parse/deparse implementation.
 - `internal/db/classify/postgres/rewrite_backend_test.go` - parse/deparse backend coverage.
-- `docs/agentsh-db-access-spec.md` - update statement rule decision docs from Phase 1 redirect rejection to Phase 2 redirect support.
+- `docs/agentmon-db-access-spec.md` - update statement rule decision docs from Phase 1 redirect rejection to Phase 2 redirect support.
 
 Do not modify:
 
@@ -57,7 +57,7 @@ Do not modify:
 
 - [ ] **Step 1: Create an isolated worktree**
 
-Run from `/home/eran/work/agentsh`:
+Run from `/home/eran/work/agentmon`:
 
 ```bash
 git status --short --branch
@@ -524,7 +524,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func catalogRead(schema, name string) effects.ClassifiedStatement {
@@ -964,8 +964,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/classify/postgres"
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/classify/postgres"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func testPlanner() Planner {
@@ -1090,7 +1090,7 @@ package redirect
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 )
 
@@ -1166,7 +1166,7 @@ package redirect
 import (
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func validateInput(in Input) error {
@@ -1717,12 +1717,12 @@ git commit -m "test: cover redirect planner safety boundaries"
 ## Task 7: Documentation And Final Verification
 
 **Files:**
-- Modify: `docs/agentsh-db-access-spec.md`
+- Modify: `docs/agentmon-db-access-spec.md`
 - Read: `docs/superpowers/specs/2026-05-15-db-plan-11-redirect-planner-design.md`
 
 - [ ] **Step 1: Update DB access spec statement-rule field table**
 
-In `docs/agentsh-db-access-spec.md`, update the statement rule `decision` row from:
+In `docs/agentmon-db-access-spec.md`, update the statement rule `decision` row from:
 
 ```markdown
 | `decision` | yes | `allow`, `deny`, `approve`, `audit`. |
@@ -1757,7 +1757,7 @@ Replace it with:
 - [ ] **Step 3: Run docs diff check**
 
 ```bash
-git diff -- docs/agentsh-db-access-spec.md
+git diff -- docs/agentmon-db-access-spec.md
 ```
 
 Expected: diff only updates redirect policy documentation. It must not describe Simple Query or Extended Query redirect execution as implemented in this plan.
@@ -1788,7 +1788,7 @@ Expected: output includes:
 - [ ] **Step 6: Commit**
 
 ```bash
-git add docs/agentsh-db-access-spec.md
+git add docs/agentmon-db-access-spec.md
 git commit -m "docs: update db redirect policy spec"
 ```
 

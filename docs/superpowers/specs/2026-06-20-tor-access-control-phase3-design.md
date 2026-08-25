@@ -7,7 +7,7 @@
 ## Summary
 
 Phase 2's onion gateway gives true per-`.onion` allow/deny, but only for Tor
-SOCKS connections that reach agentsh's transparent-TCP interceptor. In any
+SOCKS connections that reach agentmon's transparent-TCP interceptor. In any
 session where the app reaches a loopback Tor daemon that is **not** routed
 through that interceptor, allow-mode silently degrades to Phase-1 *unfiltered*
 allow: Tor is permitted and the `onion_rules` are never consulted. For a
@@ -17,12 +17,12 @@ worth closing.
 
 Phase 3 closes it from both ends:
 
-1. **Force-redirect (netns transparent mode):** agentsh itself guarantees the
+1. **Force-redirect (netns transparent mode):** agentmon itself guarantees the
    app's connection to the configured `socks_ports` lands in the gateway, by
    adding a loopback DNAT rule inside the session network namespace. The
    gateway "just works" — no operator routing required.
 2. **Fail-closed (every other mode):** when allow-mode `onion_rules` are
-   configured but the gateway cannot be wired for the session, agentsh denies
+   configured but the gateway cannot be wired for the session, agentmon denies
    Tor for that session (Phase-1 deny semantics) and emits an audit event,
    rather than allowing unfiltered Tor.
 

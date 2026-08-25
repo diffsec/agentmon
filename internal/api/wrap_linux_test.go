@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/ptrace"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/wraphandoff"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/ptrace"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/wraphandoff"
 	"golang.org/x/sys/unix"
 )
 

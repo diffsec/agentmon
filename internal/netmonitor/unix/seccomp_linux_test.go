@@ -5,7 +5,7 @@ package unix
 import (
 	"testing"
 
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
 	seccomp "github.com/seccomp/libseccomp-golang"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"

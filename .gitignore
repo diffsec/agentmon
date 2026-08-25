@@ -25,15 +25,15 @@ internal/netmonitor/ebpf/vmlinux.h
 .worktrees/
 
 .env
-/agentsh
+/agentmon
 
 # Build artifacts
 build/
-/agentsh-unixwrap
-/agentsh-stub
-/agentsh-shell-shim
-/agentsh-macwrap
-/agentsh-rlimit-exec
+/agentmon-unixwrap
+/agentmon-stub
+/agentmon-shell-shim
+/agentmon-macwrap
+/agentmon-rlimit-exec
 /dbclassify-pg
 /seccomp-probe
 /wtp-testserver

@@ -10,7 +10,7 @@ FUSE-T was a stopgap for file I/O monitoring on macOS. Now that the ESF system e
 
 On the network side, the Go server's HTTP proxy handles monitoring (working today), but processes that ignore `HTTP_PROXY` can bypass it. Linux uses eBPF enforce mode for defense-in-depth. macOS needs the same via the NetworkExtension content filter.
 
-**Canonical sysext bundle ID:** `ai.canyonroad.agentsh.SysExt` (case-sensitive, matches Info.plist and `systemextensionsctl` output). Note: `internal/platform/darwin/sysext.go` and its tests use lowercase `ai.canyonroad.agentsh.sysext` — these must be updated to match the canonical form.
+**Canonical sysext bundle ID:** `dev.diffsec.agentmon.SysExt` (case-sensitive, matches Info.plist and `systemextensionsctl` output). Note: `internal/platform/darwin/sysext.go` and its tests use lowercase `dev.diffsec.agentmon.SysExt` — these must be updated to match the canonical form.
 
 ## Workstreams
 
@@ -23,19 +23,19 @@ On the network side, the Go server's HTTP proxy handles monitoring (working toda
 - `internal/platform/darwin/permissions.go`:
   - Remove fields: `HasFuseT`, `FuseTVersion`, `HasMacFUSE`.
   - Remove functions: `checkFuseT()`, `checkMacFUSE()`.
-  - Add field: `HasSystemExtension` — detected via `systemextensionsctl list` checking for activated `ai.canyonroad.agentsh.SysExt`.
+  - Add field: `HasSystemExtension` — detected via `systemextensionsctl list` checking for activated `dev.diffsec.agentmon.SysExt`.
   - Collapse tier system from 5 to 3 tiers:
     - **Enterprise** (sysext installed, ESF + NE) — score 95
     - **Standard** (root + pf, no sysext) — score 50
     - **Minimal** (no root) — score 10
-  - Users currently at TierFull (had FUSE-T + root + pf, score 75) will fall to Standard (score 50) unless they install the sysext (which promotes them to Enterprise at 95). The `computeMissingPermissions()` output should include a tip: "Install the agentsh system extension to enable ESF-based file monitoring (replaces FUSE-T)."
+  - Users currently at TierFull (had FUSE-T + root + pf, score 75) will fall to Standard (score 50) unless they install the sysext (which promotes them to Enterprise at 95). The `computeMissingPermissions()` output should include a tip: "Install the agentmon system extension to enable ESF-based file monitoring (replaces FUSE-T)."
   - Update `AvailableFeatures()`: remove FUSE references, ESF-based features for Enterprise tier.
   - Update `LogStatus()`: remove FUSE section, add sysext status section.
 - `internal/platform/darwin/platform.go`:
   - Update doc comment (remove FUSE-T reference).
   - Map 3 tiers to capabilities: Enterprise gets `HasFUSE=true, FUSEImplementation="endpoint-security"`. Standard and Minimal get `HasFUSE=false`.
 - `internal/platform/darwin/sysext.go` and `internal/platform/darwin/sysext_test.go`:
-  - Update bundle ID from lowercase `ai.canyonroad.agentsh.sysext` to canonical `ai.canyonroad.agentsh.SysExt`.
+  - Update bundle ID from lowercase `dev.diffsec.agentmon.SysExt` to canonical `dev.diffsec.agentmon.SysExt`.
 - `internal/capabilities/detect_darwin.go`:
   - Remove `fuse_t` from caps map and `checkFuseT()` function.
   - Replace `checkESF()` with `checkSysExtInstalled()` — checks `systemextensionsctl list` for activated sysext. This is distinct from the old `checkESF()` which checked the running binary's entitlements (the CLI never has ESF entitlements; the sysext does).
@@ -48,7 +48,7 @@ On the network side, the Go server's HTTP proxy handles monitoring (working toda
 
 **What stays:** Linux native FUSE, Windows WinFsp, cgofuse dependency (used by Linux/Windows), `nofuse` build tag (less important but still available).
 
-**Graceful degradation:** Without the sysext installed, users land at Standard tier with no file interception. This is the same as the current TierNetworkOnly behavior. FSEvents observation is not preserved as a fallback — it was never enforcing, only observing, so it provides no security value for agentsh's use case. The tip system will guide users to install the sysext.
+**Graceful degradation:** Without the sysext installed, users land at Standard tier with no file interception. This is the same as the current TierNetworkOnly behavior. FSEvents observation is not preserved as a fallback — it was never enforcing, only observing, so it provides no security value for agentmon's use case. The tip system will guide users to install the sysext.
 
 ### 2. Rename XPC to policysock
 
@@ -77,20 +77,20 @@ On the network side, the Go server's HTTP proxy handles monitoring (working toda
 The current server sets the socket to mode `0666` so the `ApprovalDialog.app` (which runs as the logged-in user) can connect to fetch/submit approvals. With the new `0600` root-only socket, the approval dialog cannot connect directly.
 
 Solution: split into two sockets:
-- **Policy socket** (`/var/run/agentsh/policy.sock`, root:wheel 0600) — sysext ↔ server communication, secured with code signing validation.
-- **Approval socket** (user-accessible path, e.g., `~/Library/Application Support/agentsh/approval.sock` or the existing `data/agentsh.sock`) — approval dialog ↔ server communication. Only exposes approval-related operations (get pending, submit decision). No state-changing operations (register/unregister session).
+- **Policy socket** (`/var/run/agentmon/policy.sock`, root:wheel 0600) — sysext ↔ server communication, secured with code signing validation.
+- **Approval socket** (user-accessible path, e.g., `~/Library/Application Support/agentmon/approval.sock` or the existing `data/agentmon.sock`) — approval dialog ↔ server communication. Only exposes approval-related operations (get pending, submit decision). No state-changing operations (register/unregister session).
 
 This addresses the existing TODO in server.go about separating approval operations.
 
 **Wire into server startup:**
 
 - The server's main startup creates a `policysock.Server` listening on the configured socket path
-- Socket path is fixed at `/var/run/agentsh/policy.sock` (not configurable — the sysext hardcodes this path in `PolicySocketClient.swift` line 9, and sysext bundles cannot read server config files). If the path needs to change in the future, both sides must be updated together.
+- Socket path is fixed at `/var/run/agentmon/policy.sock` (not configurable — the sysext hardcodes this path in `PolicySocketClient.swift` line 9, and sysext bundles cannot read server config files). If the path needs to change in the future, both sides must be updated together.
 - Config in `config.yml`:
   ```yaml
   policy_socket:
-    path: "/var/run/agentsh/policy.sock"
-    team_id: "WCKWMMKJ35"
+    path: "/var/run/agentmon/policy.sock"
+    team_id: "LWSYS6YTUZ"
   ```
 - Server pushes session snapshots when sessions are created/updated/destroyed
 - Server receives events from the sysext and routes them to the session's event store
@@ -101,7 +101,7 @@ Three layers of trust validation, applied on every accepted connection:
 
 **Layer 1 — File permissions:**
 - Socket file created as `root:wheel` mode `0600`
-- Install script creates `/var/run/agentsh/` with matching ownership
+- Install script creates `/var/run/agentmon/` with matching ownership
 - Only root can connect
 
 **Layer 2 — Peer UID check:**
@@ -131,7 +131,7 @@ Future improvement: replace shell-out with `Security.framework` C API (`SecCodeC
 
 **Implementation files:**
 - New: `policysock/auth.go` — `ValidatePeer(conn *net.UnixConn) error`, called after `Accept()`
-- Modify: `macos/AgentSH/PolicySocketClient.swift` — add `validateServer()` method called after `connect()`
+- Modify: `macos/AgentMon/PolicySocketClient.swift` — add `validateServer()` method called after `connect()`
 
 ### 4. NE Proxy Enforcement (eBPF Parity)
 
@@ -209,18 +209,18 @@ Test sequence after implementation:
 **Setup:**
 1. Build Go binary + sysext, sign, notarize, install
 2. Enable Full Disk Access for the sysext
-3. Start server: `sudo ./agentsh server --config ./config.yml`
-4. Verify policy socket: confirm `/var/run/agentsh/policy.sock` exists, sysext connects (check server logs)
+3. Start server: `sudo ./agentmon server --config ./config.yml`
+4. Verify policy socket: confirm `/var/run/agentmon/policy.sock` exists, sysext connects (check server logs)
 
 **File I/O via ESF:**
-5. Create session: `./agentsh session create --policy agent-observe --workspace /tmp/test`
-6. Run file commands: `./agentsh exec $SID -- bash -c 'echo test > /tmp/test/file.txt'`
-7. Query events: `./agentsh events query $SID` — verify `fs_open`, `fs_close` events appear from ESF
+5. Create session: `./agentmon session create --policy agent-observe --workspace /tmp/test`
+6. Run file commands: `./agentmon exec $SID -- bash -c 'echo test > /tmp/test/file.txt'`
+7. Query events: `./agentmon events query $SID` — verify `fs_open`, `fs_close` events appear from ESF
 8. Switch to a policy with file deny rules, re-run — verify AUTH_OPEN blocks file access
 
 **Network via proxy + NE enforcement:**
-9. Run: `./agentsh exec $SID -- curl https://example.com` — verify `net_connect` event via proxy
-10. Test proxy bypass detection: `./agentsh exec $SID -- python3 -c "import urllib.request; urllib.request.urlopen('https://example.com')"` (Python's `urlopen` can bypass `HTTP_PROXY` depending on configuration). Verify NE filter blocks it and `proxy_bypass_blocked` event appears.
+9. Run: `./agentmon exec $SID -- curl https://example.com` — verify `net_connect` event via proxy
+10. Test proxy bypass detection: `./agentmon exec $SID -- python3 -c "import urllib.request; urllib.request.urlopen('https://example.com')"` (Python's `urlopen` can bypass `HTTP_PROXY` depending on configuration). Verify NE filter blocks it and `proxy_bypass_blocked` event appears.
 
 **Exec redirect:**
 11. Configure a policy with exec redirect rules

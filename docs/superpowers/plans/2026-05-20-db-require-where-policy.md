@@ -6,7 +6,7 @@
 
 **Architecture:** Capture top-level `WHERE` presence on the mutation `effects.Effect`, compile `require_where` into statement rules, and let the existing policy coverage model fail closed when a guarded rule does not match. Keep the feature Postgres-only and limited to `modify` and `delete` operation groups in v1.
 
-**Tech Stack:** Go, `github.com/pganalyze/pg_query_go/v5`, existing AgentSH DB classifier, DB policy evaluator, Postgres proxy tests, YAML policy config.
+**Tech Stack:** Go, `github.com/pganalyze/pg_query_go/v5`, existing AgentMon DB classifier, DB policy evaluator, Postgres proxy tests, YAML policy config.
 
 ---
 
@@ -23,11 +23,11 @@
 - `internal/db/policy/evaluate.go`: make `ruleMatchesEffectMeta` require `e.HasWhere` when compiled `requireWhere` is true.
 - `internal/db/policy/evaluate_require_where_test.go`: add focused evaluator tests for allow and implicit-deny behavior.
 - `internal/db/proxy/postgres/simplequery_test.go`: add a simple-query regression proving no-WHERE mutations are denied before forwarding.
-- `docs/agentsh-db-access-spec.md`: document the statement-rule field and semantics.
+- `docs/agentmon-db-access-spec.md`: document the statement-rule field and semantics.
 - `docs/operations/policies.md`: add an operator example.
-- `skills/agentsh-policy-shared/schema-reference.md`: add the field to the policy skill schema reference.
-- `skills/agentsh-policy-create/SKILL.md`: mention the guard during DB policy creation.
-- `skills/agentsh-policy-edit/SKILL.md`: mention the guard during DB policy edits.
+- `skills/agentmon-policy-shared/schema-reference.md`: add the field to the policy skill schema reference.
+- `skills/agentmon-policy-create/SKILL.md`: mention the guard during DB policy creation.
+- `skills/agentmon-policy-edit/SKILL.md`: mention the guard during DB policy edits.
 
 ### Task 1: Record WHERE Presence In Classified Effects
 
@@ -373,8 +373,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 )
 
 func mutationStmt(group effects.Group, hasWhere bool) effects.ClassifiedStatement {
@@ -673,15 +673,15 @@ git commit -m "Test require_where proxy enforcement"
 ### Task 4: Document Operator Semantics And Skill Guidance
 
 **Files:**
-- Modify: `docs/agentsh-db-access-spec.md`
+- Modify: `docs/agentmon-db-access-spec.md`
 - Modify: `docs/operations/policies.md`
-- Modify: `skills/agentsh-policy-shared/schema-reference.md`
-- Modify: `skills/agentsh-policy-create/SKILL.md`
-- Modify: `skills/agentsh-policy-edit/SKILL.md`
+- Modify: `skills/agentmon-policy-shared/schema-reference.md`
+- Modify: `skills/agentmon-policy-create/SKILL.md`
+- Modify: `skills/agentmon-policy-edit/SKILL.md`
 
 - [ ] **Step 1: Update the DB access spec field table**
 
-In `docs/agentsh-db-access-spec.md`, add this row after `match_object_resolution`:
+In `docs/agentmon-db-access-spec.md`, add this row after `match_object_resolution`:
 
 ```markdown
 | `require_where` | no | Boolean. When true, this rule covers Postgres `modify`/`delete` effects only if the top-level `UPDATE` or `DELETE` statement has a syntactic `WHERE` clause. Valid only when `operations` expands exclusively to `modify` and/or `delete`. |
@@ -695,7 +695,7 @@ After the paragraph beginning `` `objects` remains syntactic-only. ``, add:
 
 - [ ] **Step 2: Update the skill schema reference**
 
-In `skills/agentsh-policy-shared/schema-reference.md`, add this row after `match_object_resolution`:
+In `skills/agentmon-policy-shared/schema-reference.md`, add this row after `match_object_resolution`:
 
 ```markdown
 | require_where | bool | no | For Postgres `modify`/`delete` rules only: require the top-level `UPDATE` or `DELETE` statement to include a syntactic `WHERE` clause |
@@ -732,7 +732,7 @@ This allows `UPDATE public.users SET disabled = true WHERE id = 123` when the re
 
 - [ ] **Step 4: Update policy creation guidance**
 
-In `skills/agentsh-policy-create/SKILL.md`, add this bullet in the DB policy authoring guidance:
+In `skills/agentmon-policy-create/SKILL.md`, add this bullet in the DB policy authoring guidance:
 
 ```markdown
 - For Postgres `UPDATE`/`DELETE` access to sensitive relations, ask whether accidental full-table mutation should be blocked. Use `require_where: true` only on rules whose `operations` expand exclusively to `modify` and/or `delete`; explain that it is syntactic and `WHERE true` still satisfies it.
@@ -740,7 +740,7 @@ In `skills/agentsh-policy-create/SKILL.md`, add this bullet in the DB policy aut
 
 - [ ] **Step 5: Update policy edit guidance**
 
-In `skills/agentsh-policy-edit/SKILL.md`, add this bullet in the DB rule editing guidance:
+In `skills/agentmon-policy-edit/SKILL.md`, add this bullet in the DB rule editing guidance:
 
 ```markdown
 - When editing mutation allow/approve/audit rules, preserve or add `require_where: true` for sensitive Postgres `modify`/`delete` rules when the operator wants no-WHERE mutations to fail closed. Do not add it to `MUTATE`, `*`, `read`, DDL, session, transaction, or procedural rules.
@@ -751,8 +751,8 @@ In `skills/agentsh-policy-edit/SKILL.md`, add this bullet in the DB rule editing
 Run:
 
 ```bash
-python3 /home/eran/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/agentsh-policy-create
-python3 /home/eran/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/agentsh-policy-edit
+python3 /home/eran/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/agentmon-policy-create
+python3 /home/eran/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/agentmon-policy-edit
 ```
 
 Expected: both pass.
@@ -760,7 +760,7 @@ Expected: both pass.
 - [ ] **Step 7: Commit Task 4**
 
 ```bash
-git add docs/agentsh-db-access-spec.md docs/operations/policies.md skills/agentsh-policy-shared/schema-reference.md skills/agentsh-policy-create/SKILL.md skills/agentsh-policy-edit/SKILL.md
+git add docs/agentmon-db-access-spec.md docs/operations/policies.md skills/agentmon-policy-shared/schema-reference.md skills/agentmon-policy-create/SKILL.md skills/agentmon-policy-edit/SKILL.md
 git commit -m "Document require_where DB policy guard"
 ```
 

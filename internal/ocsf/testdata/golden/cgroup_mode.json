@@ -8,20 +8,20 @@
   "metadata": {
     "version": "1.8.0",
     "product": {
-      "name": "agentsh",
-      "vendor_name": "agentsh"
+      "name": "agentmon",
+      "vendor_name": "agentmon"
     },
     "logged_time": "1777118400000000000",
     "event_code": "cgroup_mode",
     "uid": "ev-cgroup-mode-1"
   },
-  "app_name": "agentsh",
+  "app_name": "agentmon",
   "agent_internal": true,
   "enrichments": {
     "io_available": "true",
     "leaf_moved": "false",
     "mode": "user_namespace",
-    "own_cgroup": "/user.slice/user-1000.slice/agentsh",
+    "own_cgroup": "/user.slice/user-1000.slice/agentmon",
     "reason": "no_root_cgroup_writable",
     "slice_dir": "/user.slice/user-1000.slice"
   }

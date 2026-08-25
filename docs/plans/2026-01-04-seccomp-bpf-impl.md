@@ -2,9 +2,9 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Extend agentsh's seccomp infrastructure to block dangerous syscalls with configurable blocklist/allowlist.
+**Goal:** Extend agentmon's seccomp infrastructure to block dangerous syscalls with configurable blocklist/allowlist.
 
-**Architecture:** Extend existing `agentsh-unixwrap` to install combined filters (user-notify for unix sockets, kill for blocked syscalls). Add new config types and audit events.
+**Architecture:** Extend existing `agentmon-unixwrap` to install combined filters (user-notify for unix sockets, kill for blocked syscalls). Add new config types and audit events.
 
 **Tech Stack:** Go, libseccomp-golang, seccomp user-notify, SIGSYS handling
 
@@ -403,15 +403,15 @@ git commit -m "feat(seccomp): add filter config and syscall resolution"
 
 ---
 
-## Task 4: Extend agentsh-unixwrap to Read Config
+## Task 4: Extend agentmon-unixwrap to Read Config
 
 **Files:**
-- Modify: `cmd/agentsh-unixwrap/main.go`
-- Create: `cmd/agentsh-unixwrap/config.go`
+- Modify: `cmd/agentmon-unixwrap/main.go`
+- Create: `cmd/agentmon-unixwrap/config.go`
 
 **Step 1: Write the test**
 
-Create `cmd/agentsh-unixwrap/config_test.go`:
+Create `cmd/agentmon-unixwrap/config_test.go`:
 
 ```go
 //go:build linux && cgo
@@ -453,12 +453,12 @@ func TestParseWrapperConfigFromEnv(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `go test ./cmd/agentsh-unixwrap -run TestParseWrapperConfig -v`
+Run: `go test ./cmd/agentmon-unixwrap -run TestParseWrapperConfig -v`
 Expected: FAIL (WrapperConfig undefined)
 
 **Step 3: Create config.go**
 
-Create `cmd/agentsh-unixwrap/config.go`:
+Create `cmd/agentmon-unixwrap/config.go`:
 
 ```go
 //go:build linux && cgo
@@ -471,7 +471,7 @@ import (
 	"os"
 )
 
-// WrapperConfig is the configuration passed via AGENTSH_SECCOMP_CONFIG env var.
+// WrapperConfig is the configuration passed via AGENTMON_SECCOMP_CONFIG env var.
 type WrapperConfig struct {
 	UnixSocketEnabled bool     `json:"unix_socket_enabled"`
 	BlockedSyscalls   []string `json:"blocked_syscalls"`
@@ -479,7 +479,7 @@ type WrapperConfig struct {
 
 // loadConfig reads the wrapper config from environment.
 func loadConfig() (*WrapperConfig, error) {
-	val := os.Getenv("AGENTSH_SECCOMP_CONFIG")
+	val := os.Getenv("AGENTMON_SECCOMP_CONFIG")
 	if val == "" {
 		// Default: unix socket monitoring only, no blocked syscalls
 		return &WrapperConfig{
@@ -493,7 +493,7 @@ func loadConfig() (*WrapperConfig, error) {
 func parseConfigJSON(data string) (*WrapperConfig, error) {
 	var cfg WrapperConfig
 	if err := json.Unmarshal([]byte(data), &cfg); err != nil {
-		return nil, fmt.Errorf("parse AGENTSH_SECCOMP_CONFIG: %w", err)
+		return nil, fmt.Errorf("parse AGENTMON_SECCOMP_CONFIG: %w", err)
 	}
 	return &cfg, nil
 }
@@ -501,13 +501,13 @@ func parseConfigJSON(data string) (*WrapperConfig, error) {
 
 **Step 4: Run test to verify it passes**
 
-Run: `go test ./cmd/agentsh-unixwrap -run TestParseWrapperConfig -v`
+Run: `go test ./cmd/agentmon-unixwrap -run TestParseWrapperConfig -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add cmd/agentsh-unixwrap/config.go cmd/agentsh-unixwrap/config_test.go
+git add cmd/agentmon-unixwrap/config.go cmd/agentmon-unixwrap/config_test.go
 git commit -m "feat(unixwrap): add config parsing from environment"
 ```
 
@@ -648,10 +648,10 @@ Add InstallFilterWithConfig that builds combined filter:
 
 ---
 
-## Task 6: Update agentsh-unixwrap to Use Extended Filter
+## Task 6: Update agentmon-unixwrap to Use Extended Filter
 
 **Files:**
-- Modify: `cmd/agentsh-unixwrap/main.go`
+- Modify: `cmd/agentmon-unixwrap/main.go`
 
 **Step 1: Read current main.go**
 
@@ -659,18 +659,18 @@ Review the existing main.go to understand the structure.
 
 **Step 2: Modify main.go to use config**
 
-Update `cmd/agentsh-unixwrap/main.go`:
+Update `cmd/agentmon-unixwrap/main.go`:
 
 ```go
 //go:build linux && cgo
 // +build linux,cgo
 
-// agentsh-unixwrap: installs seccomp user-notify for AF_UNIX sockets and blocks
+// agentmon-unixwrap: installs seccomp user-notify for AF_UNIX sockets and blocks
 // dangerous syscalls. Sends notify fd to the server over an inherited socketpair
 // (SCM_RIGHTS), then execs the target command.
-// Usage: agentsh-unixwrap -- <command> [args...]
-// Requires env AGENTSH_NOTIFY_SOCK_FD set to the fd number of the socketpair to the server.
-// Optional env AGENTSH_SECCOMP_CONFIG contains JSON config for syscall blocking.
+// Usage: agentmon-unixwrap -- <command> [args...]
+// Requires env AGENTMON_NOTIFY_SOCK_FD set to the fd number of the socketpair to the server.
+// Optional env AGENTMON_SECCOMP_CONFIG contains JSON config for syscall blocking.
 
 package main
 
@@ -681,8 +681,8 @@ import (
 	"strconv"
 	"syscall"
 
-	unixmon "github.com/agentsh/agentsh/internal/netmonitor/unix"
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
+	unixmon "github.com/diffsec/agentmon/internal/netmonitor/unix"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
 	"golang.org/x/sys/unix"
 )
 
@@ -745,13 +745,13 @@ func main() {
 }
 
 func notifySockFD() (int, error) {
-	val := os.Getenv("AGENTSH_NOTIFY_SOCK_FD")
+	val := os.Getenv("AGENTMON_NOTIFY_SOCK_FD")
 	if val == "" {
-		return 0, fmt.Errorf("AGENTSH_NOTIFY_SOCK_FD not set")
+		return 0, fmt.Errorf("AGENTMON_NOTIFY_SOCK_FD not set")
 	}
 	n, err := strconv.Atoi(val)
 	if err != nil || n <= 0 {
-		return 0, fmt.Errorf("invalid AGENTSH_NOTIFY_SOCK_FD=%q", val)
+		return 0, fmt.Errorf("invalid AGENTMON_NOTIFY_SOCK_FD=%q", val)
 	}
 	return n, nil
 }
@@ -765,16 +765,16 @@ func sendFD(sock int, fd int) error {
 
 **Step 3: Run build to verify it compiles**
 
-Run: `go build ./cmd/agentsh-unixwrap`
+Run: `go build ./cmd/agentmon-unixwrap`
 Expected: SUCCESS
 
 **Step 4: Commit**
 
 ```bash
-git add cmd/agentsh-unixwrap/main.go
+git add cmd/agentmon-unixwrap/main.go
 git commit -m "feat(unixwrap): use config for combined filter installation
 
-Load AGENTSH_SECCOMP_CONFIG from env, resolve syscall names,
+Load AGENTMON_SECCOMP_CONFIG from env, resolve syscall names,
 and install combined filter with both unix socket monitoring
 and blocked syscall rules."
 ```
@@ -788,11 +788,11 @@ and blocked syscall rules."
 
 **Step 1: Find command execution code**
 
-Run: `grep -r "AGENTSH_NOTIFY_SOCK_FD" internal/`
+Run: `grep -r "AGENTMON_NOTIFY_SOCK_FD" internal/`
 
 Look for where the wrapper is invoked and environment is set.
 
-**Step 2: Add AGENTSH_SECCOMP_CONFIG to environment**
+**Step 2: Add AGENTMON_SECCOMP_CONFIG to environment**
 
 Find the code that sets up the wrapper environment and add:
 
@@ -817,7 +817,7 @@ cfgJSON, err := json.Marshal(cfg)
 if err != nil {
 	return fmt.Errorf("marshal seccomp config: %w", err)
 }
-env = append(env, "AGENTSH_SECCOMP_CONFIG="+string(cfgJSON))
+env = append(env, "AGENTMON_SECCOMP_CONFIG="+string(cfgJSON))
 ```
 
 **Step 3: Test manually**
@@ -927,7 +927,7 @@ func TestSeccompBlocksPtrace(t *testing.T) {
 	}
 
 	// Build the wrapper
-	cmd := exec.Command("go", "build", "-o", "/tmp/test-unixwrap", "./cmd/agentsh-unixwrap")
+	cmd := exec.Command("go", "build", "-o", "/tmp/test-unixwrap", "./cmd/agentmon-unixwrap")
 	cmd.Dir = "../../.."
 	require.NoError(t, cmd.Run())
 
@@ -940,8 +940,8 @@ func TestSeccompBlocksPtrace(t *testing.T) {
 	// Run wrapper with ptrace blocked
 	wrapCmd := exec.Command("/tmp/test-unixwrap", "--", "/bin/strace", "-p", "1")
 	wrapCmd.Env = append(os.Environ(),
-		"AGENTSH_NOTIFY_SOCK_FD=3",
-		`AGENTSH_SECCOMP_CONFIG={"unix_socket_enabled":true,"blocked_syscalls":["ptrace"]}`,
+		"AGENTMON_NOTIFY_SOCK_FD=3",
+		`AGENTMON_SECCOMP_CONFIG={"unix_socket_enabled":true,"blocked_syscalls":["ptrace"]}`,
 	)
 	wrapCmd.ExtraFiles = []*os.File{os.NewFile(uintptr(fds[1]), "notify")}
 
@@ -982,12 +982,12 @@ Add after the existing shim tests (around line 325):
 
 ```bash
 # Test seccomp blocking (if seccomp available)
-if [[ -f ./bin/agentsh-unixwrap ]]; then
+if [[ -f ./bin/agentmon-unixwrap ]]; then
   echo "smoke: testing seccomp blocking..."
   # Try to run strace (which uses ptrace) - should fail if seccomp is working
   seccomp_out=""
   set +e
-  seccomp_out="$(./bin/agentsh exec "$sid" -- sh -c 'strace -V 2>&1 || echo strace_blocked' 2>&1 | tail -n 1)"
+  seccomp_out="$(./bin/agentmon exec "$sid" -- sh -c 'strace -V 2>&1 || echo strace_blocked' 2>&1 | tail -n 1)"
   seccomp_rc=$?
   set -e
 
@@ -1026,7 +1026,7 @@ Create `docs/seccomp.md`:
 ```markdown
 # Seccomp-BPF Syscall Filtering
 
-agentsh uses seccomp-bpf to enforce syscall-level security controls on agent processes.
+agentmon uses seccomp-bpf to enforce syscall-level security controls on agent processes.
 
 ## Overview
 
@@ -1149,9 +1149,9 @@ git commit -m "chore: seccomp-bpf implementation complete"
 | 1 | Config types | internal/config/config.go |
 | 2 | Event schema | internal/events/schema.go |
 | 3 | Filter builder | internal/seccomp/*.go |
-| 4 | Wrapper config | cmd/agentsh-unixwrap/config.go |
+| 4 | Wrapper config | cmd/agentmon-unixwrap/config.go |
 | 5 | Extended filter | internal/netmonitor/unix/seccomp_linux.go |
-| 6 | Wrapper integration | cmd/agentsh-unixwrap/main.go |
+| 6 | Wrapper integration | cmd/agentmon-unixwrap/main.go |
 | 7 | Session config passing | internal/session/exec.go |
 | 8 | SIGSYS detection | internal/session/process.go |
 | 9 | Integration test | internal/seccomp/integration_test.go |

@@ -27,7 +27,7 @@ func (e *extraProcConfig) closeWrapperLogPipe() {
 	}
 }
 
-// startWrapperLogDrain forwards agentsh-unixwrap diagnostic lines from
+// startWrapperLogDrain forwards agentmon-unixwrap diagnostic lines from
 // the wrapper log pipe into the server log (issue #415). The wrapper
 // sets FD_CLOEXEC on its end, so EOF arrives when it execs the real
 // command (or exits) — the goroutine is short-lived by construction.

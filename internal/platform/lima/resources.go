@@ -8,14 +8,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 const (
 	// cgroupBasePath is the base path for cgroups v2 inside the Lima VM
 	cgroupBasePath = "/sys/fs/cgroup"
-	// agentshCgroupDir is the subdirectory for agentsh cgroups
-	agentshCgroupDir = "agentsh"
+	// agentmonCgroupDir is the subdirectory for agentmon cgroups
+	agentmonCgroupDir = "agentmon"
 )
 
 // ResourceLimiter implements platform.ResourceLimiter for Lima.
@@ -37,9 +37,9 @@ func NewResourceLimiter(p *Platform) *ResourceLimiter {
 	r.available = r.checkAvailable()
 	r.supportedLimits = r.detectSupportedLimits()
 
-	// Ensure agentsh cgroup directory exists
+	// Ensure agentmon cgroup directory exists
 	if r.available {
-		r.ensureAgentshCgroup()
+		r.ensureAgentmonCgroup()
 	}
 
 	return r
@@ -90,9 +90,9 @@ func (r *ResourceLimiter) detectSupportedLimits() []platform.ResourceType {
 	return supported
 }
 
-// ensureAgentshCgroup creates the agentsh cgroup directory if it doesn't exist.
-func (r *ResourceLimiter) ensureAgentshCgroup() {
-	cgPath := fmt.Sprintf("%s/%s", cgroupBasePath, agentshCgroupDir)
+// ensureAgentmonCgroup creates the agentmon cgroup directory if it doesn't exist.
+func (r *ResourceLimiter) ensureAgentmonCgroup() {
+	cgPath := fmt.Sprintf("%s/%s", cgroupBasePath, agentmonCgroupDir)
 	// mkdir -p and enable controllers
 	_, _ = r.platform.RunInLima("sudo", "mkdir", "-p", cgPath)
 
@@ -126,7 +126,7 @@ func (r *ResourceLimiter) Apply(config platform.ResourceConfig) (platform.Resour
 		name = "default"
 	}
 
-	cgPath := fmt.Sprintf("%s/%s/%s", cgroupBasePath, agentshCgroupDir, name)
+	cgPath := fmt.Sprintf("%s/%s/%s", cgroupBasePath, agentmonCgroupDir, name)
 
 	// Create cgroup directory
 	if _, err := r.platform.RunInLima("sudo", "mkdir", "-p", cgPath); err != nil {

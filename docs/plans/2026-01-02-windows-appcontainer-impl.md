@@ -142,8 +142,8 @@ import (
 
 func TestAppContainerName(t *testing.T) {
 	name := appContainerName("test-sandbox-123")
-	if !strings.HasPrefix(name, "agentsh-sandbox-") {
-		t.Errorf("expected prefix 'agentsh-sandbox-', got %s", name)
+	if !strings.HasPrefix(name, "agentmon-sandbox-") {
+		t.Errorf("expected prefix 'agentmon-sandbox-', got %s", name)
 	}
 	if !strings.Contains(name, "test-sandbox-123") {
 		t.Errorf("expected to contain sandbox id, got %s", name)
@@ -198,7 +198,7 @@ var invalidChars = regexp.MustCompile(`[/\\:*?"<>|]`)
 func appContainerName(sandboxID string) string {
 	// Sanitize the ID for use in registry key names
 	sanitized := invalidChars.ReplaceAllString(sandboxID, "-")
-	return fmt.Sprintf("agentsh-sandbox-%s", sanitized)
+	return fmt.Sprintf("agentmon-sandbox-%s", sanitized)
 }
 
 // newAppContainer creates a new appContainer wrapper.
@@ -312,7 +312,7 @@ func (c *appContainer) create() error {
 
 	displayName := c.name
 	displayNamePtr, _ := syscall.UTF16PtrFromString(displayName)
-	description := "agentsh sandbox container"
+	description := "agentmon sandbox container"
 	descPtr, _ := syscall.UTF16PtrFromString(description)
 
 	var sidPtr uintptr
@@ -673,7 +673,7 @@ Expected: FAIL with "undefined: networkCapabilitySIDs"
 Add to `internal/platform/windows/appcontainer.go`:
 
 ```go
-import "github.com/agentsh/agentsh/internal/platform"
+import "github.com/diffsec/agentmon/internal/platform"
 
 // Well-known capability SIDs for network access
 // These are derived from Microsoft documentation
@@ -981,7 +981,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 func TestSandboxWithAppContainer(t *testing.T) {
@@ -1042,7 +1042,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // Sandbox represents a sandboxed execution environment on Windows.

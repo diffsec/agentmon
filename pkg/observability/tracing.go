@@ -12,7 +12,7 @@ import (
 
 const (
 	// TracerName is the OpenTelemetry tracer name.
-	TracerName = "agentsh"
+	TracerName = "agentmon"
 )
 
 // OperationType represents the type of intercepted operation.

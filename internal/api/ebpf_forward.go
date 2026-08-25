@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/metrics"
-	"github.com/agentsh/agentsh/internal/netmonitor/ebpf"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/metrics"
+	"github.com/diffsec/agentmon/internal/netmonitor/ebpf"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/google/uuid"
 )
 
-// forwardConnectEvents transforms raw BPF connect events into agentsh events.
+// forwardConnectEvents transforms raw BPF connect events into agentmon events.
 func forwardConnectEvents(ctx context.Context, in <-chan ebpf.ConnectEvent, emit storeEmitter, sessionID string, commandID string, metrics *metrics.Collector) {
 	for {
 		select {

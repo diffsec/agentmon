@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 func TestNewFilesystem(t *testing.T) {

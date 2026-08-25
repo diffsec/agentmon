@@ -1,6 +1,6 @@
 # Disaster Recovery
 
-This guide provides disaster recovery procedures for agentsh deployments.
+This guide provides disaster recovery procedures for agentmon deployments.
 
 ## Recovery Time Objectives
 
@@ -33,40 +33,40 @@ The following table defines recovery targets by scenario:
    # Ensure network connectivity to same subnet
    ```
 
-2. **Install agentsh**
+2. **Install agentmon**
    ```bash
-   curl -sSL https://agentsh.io/install.sh | bash
+   curl -sSL https://agentmon.io/install.sh | bash
    # Or use package manager
-   apt install agentsh  # Debian/Ubuntu
-   yum install agentsh  # RHEL/CentOS
+   apt install agentmon  # Debian/Ubuntu
+   yum install agentmon  # RHEL/CentOS
    ```
 
 3. **Restore from backup**
    ```bash
    # Download latest backup
-   aws s3 cp s3://backup-bucket/agentsh-latest.tar.gz /tmp/
+   aws s3 cp s3://backup-bucket/agentmon-latest.tar.gz /tmp/
 
    # Restore using CLI
-   agentsh restore --input /tmp/agentsh-latest.tar.gz
+   agentmon restore --input /tmp/agentmon-latest.tar.gz
    ```
 
 4. **Restore encryption keys from secure storage**
    ```bash
    # From HashiCorp Vault
-   vault kv get -field=integrity_key secret/agentsh/keys > /etc/agentsh/audit-integrity.key
-   vault kv get -field=encryption_key secret/agentsh/keys > /etc/agentsh/audit.key
-   chmod 600 /etc/agentsh/audit-*.key
+   vault kv get -field=integrity_key secret/agentmon/keys > /etc/agentmon/audit-integrity.key
+   vault kv get -field=encryption_key secret/agentmon/keys > /etc/agentmon/audit.key
+   chmod 600 /etc/agentmon/audit-*.key
    ```
 
 5. **Verify audit chain integrity**
    ```bash
-   agentsh audit verify --config /etc/agentsh/config.yaml /var/log/agentsh/audit.jsonl
+   agentmon audit verify --config /etc/agentmon/config.yaml /var/log/agentmon/audit.jsonl
    ```
 
 6. **Start service**
    ```bash
-   systemctl enable agentsh
-   systemctl start agentsh
+   systemctl enable agentmon
+   systemctl start agentmon
    ```
 
 7. **Verify health**
@@ -86,22 +86,22 @@ The following table defines recovery targets by scenario:
 
 **Recovery Steps**:
 
-1. **Stop agentsh immediately**
+1. **Stop agentmon immediately**
    ```bash
-   systemctl stop agentsh
+   systemctl stop agentmon
    ```
 
 2. **Preserve corrupted data for analysis**
    ```bash
-   mkdir -p /var/lib/agentsh-corrupted
-   mv /var/lib/agentsh/events.db /var/lib/agentsh-corrupted/
-   mv /var/log/agentsh/* /var/lib/agentsh-corrupted/
+   mkdir -p /var/lib/agentmon-corrupted
+   mv /var/lib/agentmon/events.db /var/lib/agentmon-corrupted/
+   mv /var/log/agentmon/* /var/lib/agentmon-corrupted/
    ```
 
 3. **Identify last known good backup**
    ```bash
    # List available backups
-   aws s3 ls s3://backup-bucket/agentsh-backups/ --recursive
+   aws s3 ls s3://backup-bucket/agentmon-backups/ --recursive
 
    # Check backup dates and select one before corruption occurred
    ```
@@ -109,33 +109,33 @@ The following table defines recovery targets by scenario:
 4. **Verify backup integrity before restore**
    ```bash
    # Download candidate backup
-   aws s3 cp s3://backup-bucket/agentsh-backups/20260105.tar.gz /tmp/
+   aws s3 cp s3://backup-bucket/agentmon-backups/20260105.tar.gz /tmp/
 
    # Extract and verify audit chain
    mkdir -p /tmp/verify
    tar -xzf /tmp/20260105.tar.gz -C /tmp/verify/
-   agentsh audit verify --config /etc/agentsh/config.yaml /tmp/verify/audit.jsonl
+   agentmon audit verify --config /etc/agentmon/config.yaml /tmp/verify/audit.jsonl
 
    # If verification passes, proceed with restore
    ```
 
 5. **Restore verified backup**
    ```bash
-   cp /tmp/verify/events.db /var/lib/agentsh/
-   cp /tmp/verify/config.yaml /etc/agentsh/
-   cp -r /tmp/verify/policies/ /etc/agentsh/
-   cp /tmp/verify/audit.jsonl* /var/log/agentsh/ 2>/dev/null || true
+   cp /tmp/verify/events.db /var/lib/agentmon/
+   cp /tmp/verify/config.yaml /etc/agentmon/
+   cp -r /tmp/verify/policies/ /etc/agentmon/
+   cp /tmp/verify/audit.jsonl* /var/log/agentmon/ 2>/dev/null || true
    ```
 
 6. **Investigate corruption cause before resuming**
-   - Check system logs: `journalctl -u agentsh`
+   - Check system logs: `journalctl -u agentmon`
    - Check disk health: `smartctl -a /dev/sda`
    - Check memory: `memtest` or `dmesg | grep -i memory`
    - Review recent changes: deployments, config updates, etc.
 
 7. **Resume operation**
    ```bash
-   systemctl start agentsh
+   systemctl start agentmon
    ```
 
 8. **Document incident**
@@ -158,13 +158,13 @@ The following table defines recovery targets by scenario:
 2. **Retrieve off-site backups**
    ```bash
    # Backups should be in different region/provider
-   aws s3 cp s3://dr-backup-bucket/agentsh-latest.tar.gz /tmp/ --region us-west-2
+   aws s3 cp s3://dr-backup-bucket/agentmon-latest.tar.gz /tmp/ --region us-west-2
    ```
 
 3. **Retrieve encryption keys from DR key storage**
    ```bash
    # Keys should be replicated to DR region
-   vault kv get -field=integrity_key secret/agentsh/keys > /etc/agentsh/audit-integrity.key
+   vault kv get -field=integrity_key secret/agentmon/keys > /etc/agentmon/audit-integrity.key
    # Using DR Vault endpoint
    ```
 
@@ -201,12 +201,12 @@ The following table defines recovery targets by scenario:
 2. **Generate new keys immediately**
    ```bash
    # Generate new integrity key
-   openssl rand -base64 32 > /etc/agentsh/audit-integrity.key.new
+   openssl rand -base64 32 > /etc/agentmon/audit-integrity.key.new
 
    # Generate new encryption key
-   openssl rand -base64 32 > /etc/agentsh/audit.key.new
+   openssl rand -base64 32 > /etc/agentmon/audit.key.new
 
-   chmod 600 /etc/agentsh/*.key.new
+   chmod 600 /etc/agentmon/*.key.new
    ```
 
 3. **If integrity key compromised**:
@@ -220,22 +220,22 @@ The following table defines recovery targets by scenario:
 
 5. **Rotate keys in production**
    ```bash
-   mv /etc/agentsh/audit-integrity.key.new /etc/agentsh/audit-integrity.key
-   mv /etc/agentsh/audit.key.new /etc/agentsh/audit.key
+   mv /etc/agentmon/audit-integrity.key.new /etc/agentmon/audit-integrity.key
+   mv /etc/agentmon/audit.key.new /etc/agentmon/audit.key
 
-   agentsh audit chain reset --config /etc/agentsh/config.yaml \
+   agentmon audit chain reset --config /etc/agentmon/config.yaml \
      --legacy-archive \
      --reason "rotated compromised audit integrity key" \
      --reason-code key_rotated
 
-   systemctl restart agentsh
+   systemctl restart agentmon
    ```
 
 6. **Update key storage**
    ```bash
-   vault kv put secret/agentsh/keys \
-     integrity_key=@/etc/agentsh/audit-integrity.key \
-     encryption_key=@/etc/agentsh/audit.key
+   vault kv put secret/agentmon/keys \
+     integrity_key=@/etc/agentmon/audit-integrity.key \
+     encryption_key=@/etc/agentmon/audit.key
    ```
 
 7. **Document and report**
@@ -249,15 +249,15 @@ After any recovery, complete this checklist before declaring recovery successful
 
 ### Service Health
 
-- [ ] Service starts without errors: `systemctl status agentsh`
+- [ ] Service starts without errors: `systemctl status agentmon`
 - [ ] Health endpoint returns 200: `curl -s localhost:18080/health`
-- [ ] No errors in logs: `journalctl -u agentsh --since "5 minutes ago"`
+- [ ] No errors in logs: `journalctl -u agentmon --since "5 minutes ago"`
 
 ### Audit Integrity
 
 - [ ] Audit log integrity verified:
   ```bash
-  agentsh audit verify --config /etc/agentsh/config.yaml /var/log/agentsh/audit.jsonl
+  agentmon audit verify --config /etc/agentmon/config.yaml /var/log/agentmon/audit.jsonl
   ```
 - [ ] Recent events are present and readable
 - [ ] Encryption/decryption working (if enabled)
@@ -271,23 +271,23 @@ If startup refuses because the sidecar and log no longer match, preserve the
 old files for review before reset:
 
 ```bash
-recovery_dir=/var/log/agentsh/recovery-$(date +%Y%m%d%H%M%S)
+recovery_dir=/var/log/agentmon/recovery-$(date +%Y%m%d%H%M%S)
 mkdir -p "$recovery_dir"
-cp /var/log/agentsh/audit.jsonl* "$recovery_dir"/ 2>/dev/null || true
+cp /var/log/agentmon/audit.jsonl* "$recovery_dir"/ 2>/dev/null || true
 ```
 
 Then start a fresh chain explicitly:
 
 ```bash
-agentsh audit chain reset --config /etc/agentsh/config.yaml \
+agentmon audit chain reset --config /etc/agentmon/config.yaml \
   --reason "restored audit log from backup after host failure" \
   --reason-code post_tamper_recovery
 ```
 
 ### Policy and Configuration
 
-- [ ] Policies loaded correctly: `agentsh policy list`
-- [ ] Configuration values correct: `agentsh config show`
+- [ ] Policies loaded correctly: `agentmon policy list`
+- [ ] Configuration values correct: `agentmon config show`
 - [ ] Network policies active (if configured)
 - [ ] File policies active (if configured)
 
@@ -324,7 +324,7 @@ Update this section with your organization's contacts:
 | SRE Team Lead | [sre-lead-contact] | After 30 min |
 | Security team | [security-contact] | Key compromise: Immediate |
 | Engineering Lead | [eng-lead-contact] | After 1 hour |
-| Vendor support | support@agentsh.io | After internal escalation |
+| Vendor support | support@agentmon.io | After internal escalation |
 
 ### Escalation Path
 
@@ -397,11 +397,11 @@ Regular DR testing is essential. Schedule these tests:
 ```bash
 # Weekly automated test
 #!/bin/bash
-BACKUP=$(ls -t /backup/agentsh-*.tar.gz | head -1)
+BACKUP=$(ls -t /backup/agentmon-*.tar.gz | head -1)
 TEMP_DIR=$(mktemp -d)
 
 tar -xzf "$BACKUP" -C "$TEMP_DIR"
-agentsh audit verify --config /etc/agentsh/config.yaml "$TEMP_DIR/audit.jsonl"
+agentmon audit verify --config /etc/agentmon/config.yaml "$TEMP_DIR/audit.jsonl"
 RESULT=$?
 
 rm -rf "$TEMP_DIR"
@@ -412,7 +412,7 @@ exit $RESULT
 
 ```bash
 # Monthly test on staging environment
-agentsh restore --input /backup/agentsh-latest.tar.gz --dry-run
+agentmon restore --input /backup/agentmon-latest.tar.gz --dry-run
 # Review output, then:
-agentsh restore --input /backup/agentsh-latest.tar.gz --verify
+agentmon restore --input /backup/agentmon-latest.tar.gz --verify
 ```

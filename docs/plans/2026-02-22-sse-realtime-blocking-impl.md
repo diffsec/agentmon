@@ -4,7 +4,7 @@
 
 **Goal:** Replace audit-only SSE MCP interception with real-time inline blocking that suppresses blocked tool calls mid-stream and emits replacement text blocks.
 
-**Architecture:** A stateful `SSEInterceptor` replaces `io.Copy` in the SSE transport's `RoundTrip`. It reads upstream line-by-line, evaluates policy on `content_block_start` (Anthropic) or first tool chunk (OpenAI), and either passes events through or replaces blocked tool_use blocks with `[agentsh] Tool 'X' blocked by policy` text blocks. When no policy is configured, the existing `io.Copy` fast path is preserved.
+**Architecture:** A stateful `SSEInterceptor` replaces `io.Copy` in the SSE transport's `RoundTrip`. It reads upstream line-by-line, evaluates policy on `content_block_start` (Anthropic) or first tool chunk (OpenAI), and either passes events through or replaces blocked tool_use blocks with `[agentmon] Tool 'X' blocked by policy` text blocks. When no policy is configured, the existing `io.Copy` fast path is preserved.
 
 **Tech Stack:** Go, `bufio.Scanner`, `encoding/json`, `mcpregistry.Registry`, `mcpinspect.PolicyEvaluator`
 
@@ -34,9 +34,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/mcpinspect"
-	"github.com/agentsh/agentsh/internal/mcpregistry"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
 )
 
 // anthropicSSEStream builds a well-formed Anthropic SSE stream from content blocks.
@@ -160,7 +160,7 @@ func TestSSEInterceptor_Anthropic_SingleBlocked(t *testing.T) {
 	}
 
 	// 2. A replacement text block should appear with the blocked message
-	if !strings.Contains(result, `[agentsh] Tool 'get_weather' blocked by policy`) {
+	if !strings.Contains(result, `[agentmon] Tool 'get_weather' blocked by policy`) {
 		t.Error("expected replacement text block with blocked message")
 	}
 
@@ -225,8 +225,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/mcpinspect"
-	"github.com/agentsh/agentsh/internal/mcpregistry"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
 )
 
 // SSEInterceptor inspects SSE events in-flight, suppressing blocked MCP tool
@@ -446,7 +446,7 @@ func (s *SSEInterceptor) processAnthropicEvent(originalLine string, data []byte)
 // emitAnthropicTextBlock generates 3 SSE data lines that form a complete
 // replacement text block for a blocked tool.
 func (s *SSEInterceptor) emitAnthropicTextBlock(index int, toolName string) []string {
-	msg := fmt.Sprintf("[agentsh] Tool '%s' blocked by policy", toolName)
+	msg := fmt.Sprintf("[agentmon] Tool '%s' blocked by policy", toolName)
 	return []string{
 		fmt.Sprintf(`data: {"type":"content_block_start","index":%d,"content_block":{"type":"text","text":""}}`, index),
 		fmt.Sprintf(`data: {"type":"content_block_delta","index":%d,"delta":{"type":"text_delta","text":"%s"}}`, index, msg),
@@ -536,7 +536,7 @@ func TestSSEInterceptor_Anthropic_SingleAllowed(t *testing.T) {
 	if !strings.Contains(result, `"name":"get_weather"`) {
 		t.Error("allowed tool should pass through")
 	}
-	if strings.Contains(result, "[agentsh]") {
+	if strings.Contains(result, "[agentmon]") {
 		t.Error("allowed tool should not have blocked message")
 	}
 	if !strings.Contains(result, `"stop_reason":"tool_use"`) {
@@ -584,7 +584,7 @@ func TestSSEInterceptor_Anthropic_Unregistered(t *testing.T) {
 	if !strings.Contains(result, `"name":"str_replace_editor"`) {
 		t.Error("unregistered tool should pass through")
 	}
-	if strings.Contains(result, "[agentsh]") {
+	if strings.Contains(result, "[agentmon]") {
 		t.Error("unregistered tool should not be blocked")
 	}
 
@@ -677,7 +677,7 @@ func TestSSEInterceptor_Anthropic_PartialBlock(t *testing.T) {
 	if strings.Contains(result, `"name":"delete_all"`) {
 		t.Error("blocked tool delete_all should be suppressed")
 	}
-	if !strings.Contains(result, `[agentsh] Tool 'delete_all' blocked by policy`) {
+	if !strings.Contains(result, `[agentmon] Tool 'delete_all' blocked by policy`) {
 		t.Error("expected replacement text block for delete_all")
 	}
 
@@ -774,10 +774,10 @@ func TestSSEInterceptor_Anthropic_AllBlocked(t *testing.T) {
 	result := output.String()
 
 	// Both tools should be replaced
-	if !strings.Contains(result, `[agentsh] Tool 'get_weather' blocked by policy`) {
+	if !strings.Contains(result, `[agentmon] Tool 'get_weather' blocked by policy`) {
 		t.Error("expected blocked message for get_weather")
 	}
-	if !strings.Contains(result, `[agentsh] Tool 'delete_all' blocked by policy`) {
+	if !strings.Contains(result, `[agentmon] Tool 'delete_all' blocked by policy`) {
 		t.Error("expected blocked message for delete_all")
 	}
 
@@ -854,7 +854,7 @@ func TestSSEInterceptor_OpenAI_SingleBlocked(t *testing.T) {
 	}
 
 	// Should contain the blocked message as content
-	if !strings.Contains(result, `[agentsh] Tool 'get_weather' blocked by policy`) {
+	if !strings.Contains(result, `[agentmon] Tool 'get_weather' blocked by policy`) {
 		t.Error("expected blocked message in content")
 	}
 
@@ -991,7 +991,7 @@ func (s *SSEInterceptor) processOpenAIFirstToolChunk(data []byte, toolCalls []st
 			s.blockedTools++
 			s.fireEvent(tc.Function.Name, tc.ID, "block", decision.Reason, entry)
 			blockedMessages = append(blockedMessages,
-				fmt.Sprintf("[agentsh] Tool '%s' blocked by policy", tc.Function.Name))
+				fmt.Sprintf("[agentmon] Tool '%s' blocked by policy", tc.Function.Name))
 		} else {
 			kept = append(kept, tc.Index)
 			s.fireEvent(tc.Function.Name, tc.ID, "allow", "", entry)
@@ -1270,7 +1270,7 @@ func TestSSEInterceptor_TextOnlyStream(t *testing.T) {
 	if !strings.Contains(result, `"stop_reason":"end_turn"`) {
 		t.Error("stop_reason should remain end_turn")
 	}
-	if strings.Contains(result, "[agentsh]") {
+	if strings.Contains(result, "[agentmon]") {
 		t.Error("no blocking should occur in text-only stream")
 	}
 }
@@ -1358,12 +1358,12 @@ func TestSSEProxyTransport_WithInterceptor(t *testing.T) {
 	if strings.Contains(result, `"name":"get_weather"`) {
 		t.Error("blocked tool should be suppressed in output")
 	}
-	if !strings.Contains(result, "[agentsh]") {
+	if !strings.Contains(result, "[agentmon]") {
 		t.Error("expected replacement text block")
 	}
 
 	// Callback should receive the modified body
-	if !bytes.Contains(callbackBody, []byte("[agentsh]")) {
+	if !bytes.Contains(callbackBody, []byte("[agentmon]")) {
 		t.Error("callback body should contain modified output")
 	}
 }
@@ -1381,8 +1381,8 @@ Modify `internal/llmproxy/streaming.go`. Add interception fields to `sseProxyTra
 ```go
 // Add imports at top:
 import (
-	"github.com/agentsh/agentsh/internal/mcpinspect"
-	"github.com/agentsh/agentsh/internal/mcpregistry"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
 )
 
 // Add fields to sseProxyTransport (after onComplete):
@@ -1650,7 +1650,7 @@ func TestProxy_SSEBlocking_Integration(t *testing.T) {
 	}
 
 	// 3. Replacement text block should be present
-	if !strings.Contains(result, `[agentsh] Tool 'get_weather' blocked by policy`) {
+	if !strings.Contains(result, `[agentmon] Tool 'get_weather' blocked by policy`) {
 		t.Error("expected replacement text block for blocked tool")
 	}
 
@@ -1741,7 +1741,7 @@ New assertions:
 	if strings.Contains(string(respBody), `"type":"tool_use"`) {
 		t.Error("blocked tool_use should be suppressed in SSE output")
 	}
-	if !strings.Contains(string(respBody), `[agentsh] Tool 'get_weather' blocked by policy`) {
+	if !strings.Contains(string(respBody), `[agentmon] Tool 'get_weather' blocked by policy`) {
 		t.Error("expected replacement text block for blocked tool")
 	}
 ```

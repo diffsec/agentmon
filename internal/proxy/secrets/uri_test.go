@@ -13,8 +13,8 @@ func TestParseRef_HappyPath_AllSchemes(t *testing.T) {
 	}{
 		{
 			name: "keyring",
-			uri:  "keyring://agentsh/vault_token",
-			want: SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault_token"},
+			uri:  "keyring://agentmon/vault_token",
+			want: SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault_token"},
 		},
 		{
 			name: "vault with field",
@@ -95,14 +95,14 @@ func TestParseRef_NoHost(t *testing.T) {
 }
 
 func TestParseRef_QueryStringRejected(t *testing.T) {
-	_, err := ParseRef("keyring://agentsh/token?version=2")
+	_, err := ParseRef("keyring://agentmon/token?version=2")
 	if !errors.Is(err, ErrInvalidURI) {
 		t.Errorf("ParseRef with query = %v, want wrapping ErrInvalidURI", err)
 	}
 }
 
 func TestParseRef_BareTrailingQuestionMarkRejected(t *testing.T) {
-	_, err := ParseRef("keyring://agentsh/token?")
+	_, err := ParseRef("keyring://agentmon/token?")
 	if !errors.Is(err, ErrInvalidURI) {
 		t.Errorf("ParseRef with trailing ? = %v, want wrapping ErrInvalidURI", err)
 	}
@@ -193,7 +193,7 @@ func TestSecretRef_String_RoundTrip(t *testing.T) {
 		name string
 		uri  string
 	}{
-		{name: "keyring", uri: "keyring://agentsh/vault_token"},
+		{name: "keyring", uri: "keyring://agentmon/vault_token"},
 		{name: "vault with field", uri: "vault://kv/data/github#token"},
 		{name: "aws-sm", uri: "aws-sm://prod/api-keys/anthropic"},
 		{name: "op", uri: "op://Personal/Stripe/credential"},
@@ -226,9 +226,9 @@ func TestSecretRef_String_RoundTrip(t *testing.T) {
 }
 
 func TestSecretRef_String_NoPath(t *testing.T) {
-	ref := SecretRef{Scheme: "keyring", Host: "agentsh"}
-	if got := ref.String(); got != "keyring://agentsh" {
-		t.Errorf("String() = %q, want %q", got, "keyring://agentsh")
+	ref := SecretRef{Scheme: "keyring", Host: "agentmon"}
+	if got := ref.String(); got != "keyring://agentmon" {
+		t.Errorf("String() = %q, want %q", got, "keyring://agentmon")
 	}
 }
 

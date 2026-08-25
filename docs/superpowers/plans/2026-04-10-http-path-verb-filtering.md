@@ -702,7 +702,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func newTestEngineForHTTP(t *testing.T, svcs []HTTPService) *Engine {
@@ -796,7 +796,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 ```
 
@@ -1055,7 +1055,7 @@ Read `internal/proxy/proxy.go` around line 672 (where the summary says `EnvVars(
 grep -n "func (p \*Proxy) EnvVars" internal/proxy/proxy.go
 ```
 
-The method currently returns a map with `ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, and `AGENTSH_SESSION_ID`. You will extend it to also include per-service entries from the policy engine.
+The method currently returns a map with `ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, and `AGENTMON_SESSION_ID`. You will extend it to also include per-service entries from the policy engine.
 
 - [ ] **Step 6.2: Add an accessor method on Proxy for the policy engine**
 
@@ -1193,7 +1193,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func newTestProxyWithHTTPService(t *testing.T, upstream string, rules []policy.HTTPServiceRule) *Proxy {
@@ -1256,7 +1256,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 const declaredServicePathPrefix = "/svc/"
@@ -2001,8 +2001,8 @@ import (
 	"context"
 	// ... existing imports ...
 
-	"github.com/agentsh/agentsh/internal/approvals"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/approvals"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/google/uuid"
 )
 
@@ -2201,7 +2201,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func newTestEngineWithGitHubService(t *testing.T) *policy.Engine {
@@ -2782,7 +2782,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // FuzzCheckHTTPServicePath feeds random method/path combinations into the
@@ -2946,7 +2946,7 @@ http_services:
         paths: [/repos/*/*/issues]
         decision: allow
 EOF
-go run ./cmd/agentsh-... -config /tmp/smoke-http-services.yaml --validate-only  # or whatever the CLI entrypoint is
+go run ./cmd/agentmon-... -config /tmp/smoke-http-services.yaml --validate-only  # or whatever the CLI entrypoint is
 ```
 
 Confirm the CLI prints no validation errors. (If the CLI doesn't have a `--validate-only` flag, skip this step — it's a nice-to-have, not a gate.)

@@ -9,11 +9,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	dbevents "github.com/agentsh/agentsh/internal/db/events"
-	dbservice "github.com/agentsh/agentsh/internal/db/service"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/pkg/types"
+	dbevents "github.com/diffsec/agentmon/internal/db/events"
+	dbservice "github.com/diffsec/agentmon/internal/db/service"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Pure policy/netEvent helpers coverage; doesn't open sockets.
@@ -249,7 +249,7 @@ func newTransparentDBRedirectEngine(t *testing.T, includeRedirectMetadata bool) 
 			{
 				Name:           "db-unix-redirect",
 				Match:          `^db\.internal:5432$`,
-				RedirectToUnix: filepath.Join(t.TempDir(), "agentsh-db.sock"),
+				RedirectToUnix: filepath.Join(t.TempDir(), "agentmon-db.sock"),
 				Visibility:     "audit_only",
 			},
 		},

@@ -22,6 +22,6 @@ func TestCreateStubSocketPair(t *testing.T) {
 }
 
 func TestSetStubBinaryPath(t *testing.T) {
-	SetStubBinaryPath("/usr/local/bin/agentsh-stub")
-	require.Equal(t, "/usr/local/bin/agentsh-stub", stubBinaryPath)
+	SetStubBinaryPath("/usr/local/bin/agentmon-stub")
+	require.Equal(t, "/usr/local/bin/agentmon-stub", stubBinaryPath)
 }

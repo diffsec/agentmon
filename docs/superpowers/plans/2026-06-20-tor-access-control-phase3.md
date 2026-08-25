@@ -16,7 +16,7 @@
 - **Force-redirect is all-or-nothing.** If any force-redirect step fails to install, the session must NOT proceed with interceptor-up-but-unfiltered-Tor; `SetupNetNS` already `rollbackAll()`s on any rule failure and returns an error, which routes the session to the fail-closed branch.
 - **Rule ordering invariant:** the loopback-DNAT rules for `socks_ports` MUST be emitted before the `127.0.0.0/8 -j RETURN` rule, or the RETURN short-circuits them.
 - **Cross-compile:** `internal/netmonitor/netns_linux.go` is linux-only with a `netns_other.go` stub; any `SetupNetNS` signature change updates BOTH. `GOOS=windows go build ./...` must stay clean.
-- **Staging discipline:** stage only changed files by explicit path; never `git add -A`/`git add .` (the repo carries untracked `.claude/worktrees/*`, `*.key.json`, `.agentsh/`, `.superpowers/sdd/*`).
+- **Staging discipline:** stage only changed files by explicit path; never `git add -A`/`git add .` (the repo carries untracked `.claude/worktrees/*`, `*.key.json`, `.agentmon/`, `.superpowers/sdd/*`).
 - **Branch:** `feat-tor-phase3-gateway-failopen` (already created; design committed at `d797cf26`).
 
 ## File Structure
@@ -56,9 +56,9 @@ package api
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/tor"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/tor"
 )
 
 func newDenyTorPolicy(t *testing.T) *tor.Policy {
@@ -114,7 +114,7 @@ Expected: FAIL — `a.attachSessionTor` undefined.
 
 - [ ] **Step 3: Write minimal implementation**
 
-Add to `internal/api/session_policy.go` (add `"github.com/agentsh/agentsh/internal/tor"` to imports):
+Add to `internal/api/session_policy.go` (add `"github.com/diffsec/agentmon/internal/tor"` to imports):
 
 ```go
 // attachSessionTor installs the shared Tor coordinator on a per-session engine.
@@ -488,10 +488,10 @@ package api
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/tor"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/tor"
 )
 
 func TestGatewayBranchFor(t *testing.T) {
@@ -639,7 +639,7 @@ In `internal/api/app.go` `tryStartTransparentNetwork`, after `SetupNetNS` succee
 	}
 ```
 
-(Add `"github.com/agentsh/agentsh/internal/tor"` to app.go imports if not already present.)
+(Add `"github.com/diffsec/agentmon/internal/tor"` to app.go imports if not already present.)
 
 - [ ] **Step 6: Call `applyTorFailClosed` from core.go**
 

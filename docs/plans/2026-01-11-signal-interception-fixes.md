@@ -23,7 +23,7 @@ The `internal/policy/engine.go` imports `internal/signal` unconditionally, but `
 
 Create a simple build verification test that imports the policy package. Since we can't run Windows tests, we'll verify the code compiles with build tags.
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && GOOS=windows go build ./internal/policy/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && GOOS=windows go build ./internal/policy/...`
 Expected: FAIL with import errors for signal package
 
 **Step 2: Create signal-specific engine file with build tag**
@@ -38,7 +38,7 @@ package policy
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/signal"
+	"github.com/diffsec/agentmon/internal/signal"
 )
 
 // compileSignalRules compiles signal rules into a signal engine.
@@ -98,7 +98,7 @@ type signalEngineType = interface{}
 **Step 4: Update engine.go to use the helper**
 
 In `internal/policy/engine.go`:
-- Remove the `"github.com/agentsh/agentsh/internal/signal"` import
+- Remove the `"github.com/diffsec/agentmon/internal/signal"` import
 - Change `signalEngine *signal.Engine` to `signalEngine signalEngineType`
 - Replace the signal compilation block (lines 265-291) with:
   ```go
@@ -112,17 +112,17 @@ In `internal/policy/engine.go`:
 
 **Step 5: Verify Windows build passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && GOOS=windows go build ./internal/policy/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && GOOS=windows go build ./internal/policy/...`
 Expected: PASS (no errors)
 
 **Step 6: Verify Linux build still works**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go build ./internal/policy/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go build ./internal/policy/...`
 Expected: PASS
 
 **Step 7: Run tests**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/policy/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/policy/... -v`
 Expected: PASS
 
 **Step 8: Commit**
@@ -163,7 +163,7 @@ Delete the `TestSignalSyscalls` function from `internal/signal/seccomp_linux_tes
 
 **Step 3: Verify tests pass**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -v`
 Expected: PASS
 
 **Step 4: Commit**
@@ -210,7 +210,7 @@ func TestClassifyTargetSameUser(t *testing.T) {
 }
 ```
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -run TestClassifyTargetSameUser -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -run TestClassifyTargetSameUser -v`
 Expected: FAIL (RegisterWithUID doesn't exist)
 
 **Step 2: Add UID tracking to registry**
@@ -324,12 +324,12 @@ func (r *PIDRegistry) Unregister(pid int) {
 
 **Step 5: Run tests**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -run TestClassifyTargetSameUser -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -run TestClassifyTargetSameUser -v`
 Expected: PASS
 
 **Step 6: Run all registry tests**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -run Registry -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -run Registry -v`
 Expected: PASS
 
 **Step 7: Commit**
@@ -380,7 +380,7 @@ func TestTargetSystemMatching(t *testing.T) {
 }
 ```
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -run TestTargetSystemMatching -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -run TestTargetSystemMatching -v`
 Expected: FAIL (PID 50 incorrectly matches)
 
 **Step 2: Fix TargetSystem matching**
@@ -403,12 +403,12 @@ case TargetSystem:
 
 **Step 3: Run test**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -run TestTargetSystemMatching -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -run TestTargetSystemMatching -v`
 Expected: PASS
 
 **Step 4: Run all target tests**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -run Target -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -run Target -v`
 Expected: PASS
 
 **Step 5: Update documentation**
@@ -570,7 +570,7 @@ func (c *SignalContext) ProcessGroupID() int {
 
 **Step 5: Run tests**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -v`
 Expected: PASS
 
 **Step 6: Commit**
@@ -692,7 +692,7 @@ canBlock := CanBlockSignals()
 
 **Step 4: Run tests**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -v`
 Expected: PASS
 
 **Step 5: Commit**
@@ -713,27 +713,27 @@ git commit -m "fix(signal): use platform detection for blocking capability
 
 **Step 1: Run all signal tests**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -v`
 Expected: PASS
 
 **Step 2: Run policy tests**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/policy/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/policy/... -v`
 Expected: PASS
 
 **Step 3: Verify Windows cross-compilation**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && GOOS=windows go build ./...`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && GOOS=windows go build ./...`
 Expected: PASS (no errors)
 
 **Step 4: Verify ARM64 cross-compilation**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && GOARCH=arm64 go build ./...`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && GOARCH=arm64 go build ./...`
 Expected: PASS (no errors)
 
 **Step 5: Run full test suite**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./... -v 2>&1 | head -100`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./... -v 2>&1 | head -100`
 Expected: All tests pass
 
 ---

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add `GOAWAY_CODE_PROTOCOL_ERROR = 6` to the agentsh-side WTP wire schema, refresh the validator docstring to reflect the new posture, and add the receive-side log-format assertion that proves the new code surfaces correctly. No behavior changes; this is the agentsh half of a two-repo enum addition.
+**Goal:** Add `GOAWAY_CODE_PROTOCOL_ERROR = 6` to the agentmon-side WTP wire schema, refresh the validator docstring to reflect the new posture, and add the receive-side log-format assertion that proves the new code surfaces correctly. No behavior changes; this is the agentmon half of a two-repo enum addition.
 
 **Architecture:** Single new enum value in `proto/canyonroad/wtp/v1/wtp.proto`, regenerated via `make proto` into `wtp.pb.go`. `ValidateGoaway` keeps accepting any non-nil Goaway (v0.4 compat); only its docstring is rewritten. Tests extend existing accepted-code tables and add one log-format assertion. Spec: `docs/superpowers/specs/2026-05-22-issue-353-goaway-protocol-error-design.md`.
 
@@ -72,8 +72,8 @@ Expected: clean run, no errors. `proto/canyonroad/wtp/v1/wtp.pb.go` is regenerat
 
 If `make proto` is unavailable in your environment, fall back to:
 ```bash
-protoc -I proto --go_out=. --go_opt=module=github.com/agentsh/agentsh \
-  --go-grpc_out=. --go-grpc_opt=module=github.com/agentsh/agentsh \
+protoc -I proto --go_out=. --go_opt=module=github.com/diffsec/agentmon \
+  --go-grpc_out=. --go-grpc_opt=module=github.com/diffsec/agentmon \
   proto/canyonroad/wtp/v1/wtp.proto
 ```
 
@@ -345,10 +345,10 @@ Open `docs/superpowers/specs/2026-05-22-issue-353-goaway-protocol-error-design.m
 - §2 validator docstring rewrite → Task 2 ✓
 - §3 watchtower call-site migration (45 sites) → Stage 2, NOT in this plan ✓
 - §4 watchtower spec doc updates → Stage 2, NOT in this plan ✓
-- Testing — agentsh side bullet 1 (extend accepted-code table) → Task 3 ✓
-- Testing — agentsh side bullet 2 (parity test stays green) → Task 5 Step 3 ✓
-- Testing — agentsh side bullet 3 (recv log-format sub-test) → Task 4 ✓
-- Testing — agentsh side bullet 4 (no new metric reason needed) → Task 5 Step 3 ✓
+- Testing — agentmon side bullet 1 (extend accepted-code table) → Task 3 ✓
+- Testing — agentmon side bullet 2 (parity test stays green) → Task 5 Step 3 ✓
+- Testing — agentmon side bullet 3 (recv log-format sub-test) → Task 4 ✓
+- Testing — agentmon side bullet 4 (no new metric reason needed) → Task 5 Step 3 ✓
 
 If any spec requirement is unimplemented, open a new task here and address it before merging.
 

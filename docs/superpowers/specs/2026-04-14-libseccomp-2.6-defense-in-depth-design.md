@@ -88,7 +88,7 @@ package unix
 import "C"
 ```
 
-Duplicate in `cmd/agentsh-unixwrap/seccomp_version_check.go` — the wrapper binary links libseccomp independently through the `unix` package, but a standalone guard ensures the error surfaces even if the import graph changes.
+Duplicate in `cmd/agentmon-unixwrap/seccomp_version_check.go` — the wrapper binary links libseccomp independently through the `unix` package, but a standalone guard ensures the error surfaces even if the import graph changes.
 
 Effect: any local dev / vendor build / CI regression against pre-2.6 headers fails compilation with a pointer to the fix script. No silent Layer 1 loss possible.
 
@@ -159,7 +159,7 @@ Write the runbook doc as part of this work.
 ## Rollout (single PR)
 
 1. Add `scripts/build-libseccomp.sh`
-2. Add `internal/netmonitor/unix/seccomp_version_check.go` + duplicate in `cmd/agentsh-unixwrap/seccomp_version_check.go`
+2. Add `internal/netmonitor/unix/seccomp_version_check.go` + duplicate in `cmd/agentmon-unixwrap/seccomp_version_check.go`
 3. Update `.github/workflows/release.yml`:
    - Run `build-libseccomp.sh` for amd64 and arm64 before the Go build
    - Add `CGO_LDFLAGS="-static -lseccomp"` to unixwrap-linux-{amd64,arm64} build steps

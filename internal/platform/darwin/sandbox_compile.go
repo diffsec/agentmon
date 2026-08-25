@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/platform/darwin/sbpl"
-	"github.com/agentsh/agentsh/internal/platform/darwin/sandboxext"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/platform/darwin/sbpl"
+	"github.com/diffsec/agentmon/internal/platform/darwin/sandboxext"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // SandboxConfig holds the compiled SBPL profile and extension tokens.

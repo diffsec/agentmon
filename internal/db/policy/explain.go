@@ -1,6 +1,6 @@
 package policy
 
-import "github.com/agentsh/agentsh/internal/db/effects"
+import "github.com/diffsec/agentmon/internal/db/effects"
 
 type StatementExplanation struct {
 	Decision        Decision

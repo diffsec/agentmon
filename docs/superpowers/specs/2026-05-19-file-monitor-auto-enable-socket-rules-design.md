@@ -1,6 +1,6 @@
 # Skip file_monitor auto-enable when socket_rules are configured
 
-**Issue:** [#304](https://github.com/canyonroad/agentsh/issues/304)
+**Issue:** [#304](https://github.com/diffsec/agentmon/issues/304)
 **Date:** 2026-05-19
 
 ## Problem
@@ -10,7 +10,7 @@ is omitted (nil), `applyDefaults` in `internal/config/config.go` auto-enables
 file monitoring. The auto-enable installs `SECCOMP_RET_USER_NOTIF` rules for
 file syscalls in the unixwrap's seccomp filter.
 
-When `socket_rules` are also configured, this causes `agentsh wrap -- COMMAND`
+When `socket_rules` are also configured, this causes `agentmon wrap -- COMMAND`
 to deadlock during seccomp setup:
 
 1. Unixwrap installs the filter (with file-notify rules from auto-enable).

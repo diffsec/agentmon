@@ -11,7 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 // upstreamResult collects counters and final state from one Q...Z round-trip.

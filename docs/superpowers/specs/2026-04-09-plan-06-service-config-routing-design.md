@@ -69,7 +69,7 @@ providers:
     namespace: engineering
     auth:
       method: token
-      token_ref: keyring://agentsh/vault_token
+      token_ref: keyring://agentmon/vault_token
 ```
 
 A resolver function decodes each `yaml.Node` into the appropriate `ProviderConfig` based on `type`:
@@ -144,7 +144,7 @@ services:
     match:
       hosts: ["api.anthropic.com"]
     secret:
-      ref: keyring://agentsh/anthropic_key
+      ref: keyring://agentmon/anthropic_key
       on_missing: fail
     fake:
       format: "sk-ant-{rand:93}"

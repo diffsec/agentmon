@@ -5,9 +5,9 @@ package api
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	unixmon "github.com/agentsh/agentsh/internal/netmonitor/unix"
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/config"
+	unixmon "github.com/diffsec/agentmon/internal/netmonitor/unix"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
 	"github.com/stretchr/testify/require"
 	gounix "golang.org/x/sys/unix"
 )

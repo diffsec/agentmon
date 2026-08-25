@@ -21,7 +21,7 @@ Downstream consequences:
 
 1. Setting `on_block: kill` does nothing. Operators get silent EPERM.
 2. Setting `on_block: log_and_kill` does nothing. No audit record, no kill.
-3. Kill-list denials never reach `OnBlocked` hooks (RET_ERRNO is kernel-side; user-notify never fires for these rules), so agentsh's own event store has no record of a blocked `ptrace`/`mount`/etc.
+3. Kill-list denials never reach `OnBlocked` hooks (RET_ERRNO is kernel-side; user-notify never fires for these rules), so agentmon's own event store has no record of a blocked `ptrace`/`mount`/etc.
 4. `docs/seccomp.md:11` still claims "Immediately terminates processes that attempt blocked syscalls" — inaccurate since commit `b6708353` (Mar 26, 2026) deliberately switched to EPERM for Docker-profile compatibility.
 
 The intent of `b6708353` (graceful EPERM for block-list) was correct as a default, but the config surface was not updated to reflect it and no alternative action (hard kill, audit) was made reachable.
@@ -36,7 +36,7 @@ The intent of `b6708353` (graceful EPERM for block-list) was correct as a defaul
 
 ## Non-goals
 
-- Kernel audit-subsystem (`auditd`) integration. `SCMP_ACT_LOG` is not used. The audit surface is agentsh's own event store.
+- Kernel audit-subsystem (`auditd`) integration. `SCMP_ACT_LOG` is not used. The audit surface is agentmon's own event store.
 - Per-syscall action overrides (`ptrace: kill, mount: errno`). Single global `on_block`.
 - Refactoring `BlockedSyscalls` from `[]int` to a richer struct.
 - Changes to unix-socket, file-monitor, signal, or metadata filter paths.

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Enforce env `allow`/`deny` on the client-spawned wrap path (shell shim / kernel-install / `agentsh wrap`) by plumbing the resolved policy through `WrapInitResponse` and applying a subtractive `policy.BuildEnv` filter client-side — gated behind `sandbox.wrap_env_policy.enabled` (default off), fail-open. (`max_*`/`block_iteration` are out of scope — see the spec Non-Goals.)
+**Goal:** Enforce env `allow`/`deny` on the client-spawned wrap path (shell shim / kernel-install / `agentmon wrap`) by plumbing the resolved policy through `WrapInitResponse` and applying a subtractive `policy.BuildEnv` filter client-side — gated behind `sandbox.wrap_env_policy.enabled` (default off), fail-open. (`max_*`/`block_iteration` are out of scope — see the spec Non-Goals.)
 
-**Architecture:** Server resolves the env policy for the wrapped command and (only when the flag is on) sends it as a new `EnvPolicyWire` field on `WrapInitResponse`. A new `internal/wrapenv.Filter` helper maps the wire type to `policy.ResolvedEnvPolicy` and runs `policy.BuildEnv` over the **inherited** launcher env (subtractive), fail-open. Both client launch sites filter the inherited base *before* adding agentsh markers / `env_inject`, so those always survive.
+**Architecture:** Server resolves the env policy for the wrapped command and (only when the flag is on) sends it as a new `EnvPolicyWire` field on `WrapInitResponse`. A new `internal/wrapenv.Filter` helper maps the wire type to `policy.ResolvedEnvPolicy` and runs `policy.BuildEnv` over the **inherited** launcher env (subtractive), fail-open. Both client launch sites filter the inherited base *before* adding agentmon markers / `env_inject`, so those always survive.
 
 **Tech Stack:** Go; `pkg/types`, `internal/config`, `internal/policy`, `internal/wrapenv` (new), `internal/api`, `internal/cli`, `internal/shim/kernelinstall`.
 
@@ -18,7 +18,7 @@
 - The wrap handler `wrapInitCore` (`internal/api/wrap.go:124`) sets `EnvInject: mergeEnvInject(a.cfg, a.policyEngineFor(s))` at two response sites: ptrace (`wrap.go:283`) and seccomp (`wrap.go:519`, the final `return types.WrapInitResponse{`). `dec` at `wrap.go:164` is scoped to the `req.Mode == "shim"` block — NOT in scope at those sites; resolve via a helper instead.
 - `a.policyEngineFor(s)` returns `*policy.Engine` (or nil). `engine.CheckCommandWithExecve(cmd, args, a.execveEnforcementActive(), a.shellCOpaqueMode()).EnvPolicy` yields the resolved `policy.ResolvedEnvPolicy`. `App` (package `api`) has unexported fields `cfg *config.Config` and `policy *policy.Engine` (settable in-package tests); `policyEngineFor(nil)` falls back to `a.policy`.
 - `internal/cli/wrap_linux.go` imports `internal/envinject`, `pkg/types`. Both env builds are `env := buildWrapEnv(os.Environ(), sessID, cfg.serverAddr, wrapResp.SafeToBypassShellShim)` — ptrace branch (~L33) and seccomp branch (~L138).
-- `internal/shim/kernelinstall/install_linux.go` imports `internal/envinject`, `pkg/types`. Site (L200): `env := assembleWrapperEnv(filterShimInternalEnv(p.Env), p.Argv0, resp.WrapperEnv, resp.EnvInject)`. `assembleWrapperEnv(base []string, argv0 string, wrapperEnv, envInject map[string]string) []string` (L388) is a pure function that overlays `envInject` then appends `AGENTSH_*` markers.
+- `internal/shim/kernelinstall/install_linux.go` imports `internal/envinject`, `pkg/types`. Site (L200): `env := assembleWrapperEnv(filterShimInternalEnv(p.Env), p.Argv0, resp.WrapperEnv, resp.EnvInject)`. `assembleWrapperEnv(base []string, argv0 string, wrapperEnv, envInject map[string]string) []string` (L388) is a pure function that overlays `envInject` then appends `AGENTMON_*` markers.
 
 ---
 
@@ -110,7 +110,7 @@ In `internal/config/config.go`, add the struct (near the other `Sandbox*` sub-st
 
 ```go
 // SandboxWrapEnvPolicyConfig opts into enforcing env_policy (allow/deny/max_*)
-// on the client-spawned wrap path (shell shim / kernel-install / agentsh wrap).
+// on the client-spawned wrap path (shell shim / kernel-install / agentmon wrap).
 // Default off; fail-open. Issue #379.
 type SandboxWrapEnvPolicyConfig struct {
 	Enabled bool `yaml:"enabled"`
@@ -156,7 +156,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func has(env []string, kv string) bool { return slices.Contains(env, kv) }
@@ -228,15 +228,15 @@ Create `internal/wrapenv/wrapenv.go`:
 
 ```go
 // Package wrapenv applies env_policy filtering to the inherited environment on
-// the client-spawned wrap path (shell shim / kernel-install / agentsh wrap),
+// the client-spawned wrap path (shell shim / kernel-install / agentmon wrap),
 // the counterpart to server-side buildPolicyEnv. Issue #379.
 package wrapenv
 
 import (
 	"log/slog"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Filter applies the wrapped command's env policy subtractively over the
@@ -292,9 +292,9 @@ package api
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func newWrapEnvTestApp(t *testing.T, enabled bool, p *policy.Policy) *App {
@@ -425,11 +425,11 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/wrapenv"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/wrapenv"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
-// Issue #379: filtering applies to the inherited base BEFORE agentsh markers and
+// Issue #379: filtering applies to the inherited base BEFORE agentmon markers and
 // env_inject are added, so a denied var is dropped while markers and injected
 // values survive.
 func TestAssembleWrapperEnv_FiltersBaseKeepsMarkersAndInject(t *testing.T) {
@@ -447,8 +447,8 @@ func TestAssembleWrapperEnv_FiltersBaseKeepsMarkersAndInject(t *testing.T) {
 	if !slices.Contains(env, "INJECTED=1") {
 		t.Error("env_inject value must survive (applied after filter)")
 	}
-	if !slices.Contains(env, "AGENTSH_NOTIFY_SOCK_FD=3") {
-		t.Error("agentsh marker must survive (appended after filter)")
+	if !slices.Contains(env, "AGENTMON_NOTIFY_SOCK_FD=3") {
+		t.Error("agentmon marker must survive (appended after filter)")
 	}
 	if !slices.Contains(env, "PATH=/bin") {
 		t.Error("non-denied inherited var must survive")
@@ -465,7 +465,7 @@ Expected: FAIL — `internal/wrapenv` not yet imported here / test references co
 
 - [ ] **Step 3: Wire kernelinstall**
 
-In `internal/shim/kernelinstall/install_linux.go`, add `"github.com/agentsh/agentsh/internal/wrapenv"` to the import block, and change the base at L200 from:
+In `internal/shim/kernelinstall/install_linux.go`, add `"github.com/diffsec/agentmon/internal/wrapenv"` to the import block, and change the base at L200 from:
 
 ```go
 	env := assembleWrapperEnv(filterShimInternalEnv(p.Env), p.Argv0, resp.WrapperEnv, resp.EnvInject)
@@ -479,7 +479,7 @@ to:
 
 - [ ] **Step 4: Wire cli/wrap_linux.go (both branches)**
 
-In `internal/cli/wrap_linux.go`, add `"github.com/agentsh/agentsh/internal/wrapenv"` to the import block. In BOTH the ptrace branch (~L33) and seccomp branch (~L138), change:
+In `internal/cli/wrap_linux.go`, add `"github.com/diffsec/agentmon/internal/wrapenv"` to the import block. In BOTH the ptrace branch (~L33) and seccomp branch (~L138), change:
 
 ```go
 	env := buildWrapEnv(os.Environ(), sessID, cfg.serverAddr, wrapResp.SafeToBypassShellShim)

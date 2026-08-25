@@ -1,18 +1,18 @@
 # Windows Minifilter Driver
 
-This document describes how to build, install, and test the AgentSH Windows minifilter driver.
+This document describes how to build, install, and test the AgentMon Windows minifilter driver.
 
 ## Overview
 
-The AgentSH minifilter is a Windows kernel driver that intercepts filesystem operations for policy enforcement. It communicates with the usermode `agentsh.exe` process via a filter communication port.
+The AgentMon minifilter is a Windows kernel driver that intercepts filesystem operations for policy enforcement. It communicates with the usermode `agentmon.exe` process via a filter communication port.
 
 ### Behavior
 
 | Scenario | Behavior |
 |----------|----------|
-| agentsh not running | All filesystem operations allowed (fail-open) |
-| agentsh running, session registered | Policy enforced |
-| agentsh crashes mid-session | Fail-open after timeout |
+| agentmon not running | All filesystem operations allowed (fail-open) |
+| agentmon running, session registered | Policy enforced |
+| agentmon crashes mid-session | Fail-open after timeout |
 
 The driver only monitors processes explicitly registered as sessions. Non-session processes are always allowed (fast path).
 
@@ -22,7 +22,7 @@ The driver only monitors processes explicitly registered as sessions. Non-sessio
 
 | Component | Purpose | Download |
 |-----------|---------|----------|
-| Go 1.25+ | Build agentsh.exe | https://go.dev/dl/ |
+| Go 1.25+ | Build agentmon.exe | https://go.dev/dl/ |
 | Visual Studio 2022 Build Tools | MSBuild + C++ compiler | https://visualstudio.microsoft.com/ |
 | Windows SDK | Windows headers/libs | Included with VS |
 | Windows Driver Kit (WDK) | Kernel driver toolset | https://learn.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk |
@@ -57,7 +57,7 @@ Test-Path "C:\Program Files (x86)\Windows Kits\10\build\WindowsDriver.common.tar
 ### From Windows (Native)
 
 ```cmd
-cd drivers\windows\agentsh-minifilter
+cd drivers\windows\agentmon-minifilter
 
 # Build Release
 scripts\build.cmd Release x64
@@ -65,25 +65,25 @@ scripts\build.cmd Release x64
 # Build Debug
 scripts\build.cmd Debug x64
 
-# Output: bin\x64\Release\agentsh.sys (or Debug)
+# Output: bin\x64\Release\agentmon.sys (or Debug)
 ```
 
 ### From WSL2
 
 ```bash
 # Build Go binary for Windows
-GOOS=windows GOARCH=amd64 go build -o bin/agentsh.exe ./cmd/agentsh
+GOOS=windows GOARCH=amd64 go build -o bin/agentmon.exe ./cmd/agentmon
 
 # Build driver via PowerShell + MSBuild
-powershell.exe -Command "& 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe' '\\wsl.localhost\Ubuntu\$PWD\drivers\windows\agentsh-minifilter\agentsh.sln' /p:Configuration=Release /p:Platform=x64 /p:SignMode=Off /t:Build /v:minimal"
+powershell.exe -Command "& 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe' '\\wsl.localhost\Ubuntu\$PWD\drivers\windows\agentmon-minifilter\agentmon.sln' /p:Configuration=Release /p:Platform=x64 /p:SignMode=Off /t:Build /v:minimal"
 ```
 
 ### Build Outputs
 
 | File | Description |
 |------|-------------|
-| `bin\x64\Release\agentsh.sys` | Kernel driver |
-| `bin\x64\Release\agentsh.pdb` | Debug symbols |
+| `bin\x64\Release\agentmon.sys` | Kernel driver |
+| `bin\x64\Release\agentmon.pdb` | Debug symbols |
 
 ## Installing
 
@@ -103,10 +103,10 @@ Restart-Computer
 
 ```powershell
 # Run as Administrator
-cd drivers\windows\agentsh-minifilter
+cd drivers\windows\agentmon-minifilter
 
 # Install (copies to System32\drivers and loads)
-.\scripts\install.cmd bin\x64\Release\agentsh.sys
+.\scripts\install.cmd bin\x64\Release\agentmon.sys
 ```
 
 ### Verify Installation
@@ -115,15 +115,15 @@ cd drivers\windows\agentsh-minifilter
 # List loaded minifilters
 fltmc filters
 
-# Check agentsh filter instances
-fltmc instances -f agentsh
+# Check agentmon filter instances
+fltmc instances -f agentmon
 ```
 
 ## Uninstalling
 
 ```powershell
 # Run as Administrator
-cd drivers\windows\agentsh-minifilter
+cd drivers\windows\agentmon-minifilter
 
 # Uninstall (unloads and removes)
 .\scripts\uninstall.cmd
@@ -135,10 +135,10 @@ For development, you can load and unload the driver without full install/uninsta
 
 ```powershell
 # Load driver (must be in System32\drivers or specify full path)
-fltmc load agentsh
+fltmc load agentmon
 
 # Unload driver
-fltmc unload agentsh
+fltmc unload agentmon
 
 # Check status
 fltmc filters
@@ -155,13 +155,13 @@ fltmc filters
 
 2. Install and load:
    ```powershell
-   scripts\install.cmd bin\x64\Release\agentsh.sys
+   scripts\install.cmd bin\x64\Release\agentmon.sys
    fltmc filters  # Verify loaded
    ```
 
-3. Run agentsh and create a session:
+3. Run agentmon and create a session:
    ```powershell
-   .\agentsh.exe serve --config configs\server-config.yaml
+   .\agentmon.exe serve --config configs\server-config.yaml
    ```
 
 4. In another terminal, create a session and test policy enforcement.
@@ -180,8 +180,8 @@ View driver debug messages using DebugView or WinDbg:
 # Run as Administrator, enable "Capture Kernel" option
 
 # Driver outputs messages like:
-# AgentSH: Client connected (PID: 1234, Version: 0x00010000)
-# AgentSH: Session registration failed: 0x80000001
+# AgentMon: Client connected (PID: 1234, Version: 0x00010000)
+# AgentMon: Session registration failed: 0x80000001
 ```
 
 ### Driver Verifier
@@ -189,8 +189,8 @@ View driver debug messages using DebugView or WinDbg:
 For development, enable Driver Verifier to catch bugs:
 
 ```powershell
-# Enable verifier for agentsh driver
-verifier /standard /driver agentsh.sys
+# Enable verifier for agentmon driver
+verifier /standard /driver agentmon.sys
 
 # Reboot required
 Restart-Computer
@@ -234,7 +234,7 @@ verifier /reset
 ┌─────────────────────────────────────────────────────────────┐
 │                     User Mode                                │
 │  ┌─────────────┐     Filter Port      ┌──────────────────┐  │
-│  │ agentsh.exe │◄────────────────────►│ Policy Engine    │  │
+│  │ agentmon.exe │◄────────────────────►│ Policy Engine    │  │
 │  └─────────────┘                      └──────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
                           │
@@ -243,7 +243,7 @@ verifier /reset
 ┌─────────────────────────────────────────────────────────────┐
 │                    Kernel Mode                               │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │                  agentsh.sys                         │    │
+│  │                  agentmon.sys                         │    │
 │  │  ┌──────────┐  ┌──────────┐  ┌──────────────────┐   │    │
 │  │  │ Process  │  │ Policy   │  │ File Operations  │   │    │
 │  │  │ Tracking │  │ Cache    │  │ Callbacks        │   │    │
@@ -362,7 +362,7 @@ Processes running in an AppContainer with `NetworkNone` cannot make any network 
 
 ### Strong Protection Without WinDivert
 
-Even without WinDivert installed, AgentSH provides strong network protection:
+Even without WinDivert installed, AgentMon provides strong network protection:
 
 1. **AppContainer with `NetworkNone`**: Sandboxed processes have zero network access - they cannot connect to any IP address, resolve DNS, or communicate externally. This is enforced by the Windows kernel.
 

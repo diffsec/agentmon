@@ -92,7 +92,7 @@ func cpuMaxFromPct(pct int) (quota int, period int) {
 func sanitizeCgroupName(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return "agentsh"
+		return "agentmon"
 	}
 	var b strings.Builder
 	for _, r := range s {
@@ -112,7 +112,7 @@ func sanitizeCgroupName(s string) string {
 	out := b.String()
 	out = strings.Trim(out, "._-")
 	if out == "" {
-		return "agentsh"
+		return "agentmon"
 	}
 	return out
 }

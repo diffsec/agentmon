@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/pathutil"
+	"github.com/diffsec/agentmon/internal/pathutil"
 )
 
 // resolveRealPathUnderRoot maps a virtual path (under virtualRoot) to a real path under realRoot and verifies
@@ -74,7 +74,7 @@ func resolveRealPathUnderRoot(realRoot string, virtPath string, mustExist bool, 
 // symlink whose target is outside the workspace. Lets a policy
 // explicitly govern common system symlink targets (e.g. /usr/bin/python3
 // for Python venvs, /usr/lib for venv/lib64) via the usual file_rules
-// instead of agentsh's hardcoded blanket deny.
+// instead of agentmon's hardcoded blanket deny.
 //
 // Important: only *symlink-target* escapes fall through. A "..":-style
 // path escape (e.g. /workspace/../outside/secret) must NOT, even when

@@ -5,7 +5,7 @@ package redirect
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestDNSRedirectIntegration(t *testing.T) {

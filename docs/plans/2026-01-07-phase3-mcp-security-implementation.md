@@ -97,7 +97,7 @@ package mcpinspect
 import (
     "testing"
 
-    "github.com/agentsh/agentsh/internal/config"
+    "github.com/diffsec/agentmon/internal/config"
 )
 
 func TestPolicyEvaluator_AllowlistMode(t *testing.T) {
@@ -199,7 +199,7 @@ package mcpinspect
 import (
     "strings"
 
-    "github.com/agentsh/agentsh/internal/config"
+    "github.com/diffsec/agentmon/internal/config"
 )
 
 // PolicyDecision represents the result of a policy evaluation.
@@ -668,8 +668,8 @@ import (
 func TestMCPPinsListCmd(t *testing.T) {
     tmpDir := t.TempDir()
     pinPath := filepath.Join(tmpDir, "pins.db")
-    os.Setenv("AGENTSH_PINS_PATH", pinPath)
-    defer os.Unsetenv("AGENTSH_PINS_PATH")
+    os.Setenv("AGENTMON_PINS_PATH", pinPath)
+    defer os.Unsetenv("AGENTMON_PINS_PATH")
 
     cmd := newMCPPinsCmd()
     cmd.SetArgs([]string{"list"})
@@ -702,7 +702,7 @@ import (
     "fmt"
     "os"
 
-    "github.com/agentsh/agentsh/internal/mcpinspect"
+    "github.com/diffsec/agentmon/internal/mcpinspect"
     "github.com/spf13/cobra"
 )
 
@@ -721,9 +721,9 @@ func newMCPPinsCmd() *cobra.Command {
 }
 
 func getPinStore() (*mcpinspect.PinStore, error) {
-    path := os.Getenv("AGENTSH_PINS_PATH")
+    path := os.Getenv("AGENTMON_PINS_PATH")
     if path == "" {
-        path = getenvDefault("AGENTSH_DATA_DIR", "./data") + "/mcp_pins.db"
+        path = getenvDefault("AGENTMON_DATA_DIR", "./data") + "/mcp_pins.db"
     }
     return mcpinspect.NewPinStore(path)
 }
@@ -850,7 +850,7 @@ func newMCPPinsDiffCmd() *cobra.Command {
 
             cmd.Printf("Pinned hash: %s\n", pin.Hash)
             cmd.Printf("Trusted at:  %s\n", pin.TrustedAt.Format("2006-01-02 15:04:05"))
-            cmd.Println("\nNote: To see current hash, use 'agentsh mcp tools --server <server>'")
+            cmd.Println("\nNote: To see current hash, use 'agentmon mcp tools --server <server>'")
             return nil
         },
     }
@@ -952,7 +952,7 @@ package mcpinspect
 import (
     "testing"
 
-    "github.com/agentsh/agentsh/internal/config"
+    "github.com/diffsec/agentmon/internal/config"
 )
 
 func TestRateLimiterRegistry_DefaultLimits(t *testing.T) {
@@ -1039,8 +1039,8 @@ package mcpinspect
 import (
     "sync"
 
-    "github.com/agentsh/agentsh/internal/config"
-    "github.com/agentsh/agentsh/pkg/ratelimit"
+    "github.com/diffsec/agentmon/internal/config"
+    "github.com/diffsec/agentmon/pkg/ratelimit"
 )
 
 // RateLimiterRegistry manages rate limiters for MCP servers.
@@ -1199,7 +1199,7 @@ package mcpinspect
 import (
     "time"
 
-    "github.com/agentsh/agentsh/internal/config"
+    "github.com/diffsec/agentmon/internal/config"
 )
 
 // Inspector processes MCP messages and emits audit events.
@@ -1330,7 +1330,7 @@ package netmonitor
 import (
     "testing"
 
-    "github.com/agentsh/agentsh/internal/config"
+    "github.com/diffsec/agentmon/internal/config"
 )
 
 func TestDomainRateLimiter_PerDomainLimits(t *testing.T) {
@@ -1378,8 +1378,8 @@ package netmonitor
 import (
     "sync"
 
-    "github.com/agentsh/agentsh/internal/config"
-    "github.com/agentsh/agentsh/pkg/ratelimit"
+    "github.com/diffsec/agentmon/internal/config"
+    "github.com/diffsec/agentmon/pkg/ratelimit"
 )
 
 // DomainRateLimiter manages rate limits for network domains.
@@ -1505,7 +1505,7 @@ Add MCP Security section to SECURITY.md:
 
 ### Tool Whitelisting
 
-agentsh supports policy-based control over which MCP tools can be invoked:
+agentmon supports policy-based control over which MCP tools can be invoked:
 
 ```yaml
 sandbox:
@@ -1541,9 +1541,9 @@ sandbox:
 
 CLI management:
 ```bash
-agentsh mcp pins list
-agentsh mcp pins trust --server github --tool create_issue --hash sha256:...
-agentsh mcp pins reset --server github --tool create_issue
+agentmon mcp pins list
+agentmon mcp pins trust --server github --tool create_issue --hash sha256:...
+agentmon mcp pins reset --server github --tool create_issue
 ```
 
 ### Rate Limiting

@@ -73,7 +73,7 @@ func TestLandlockResult_String(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/capabilities/... -run TestDetectLandlock -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/capabilities/... -run TestDetectLandlock -v`
 Expected: FAIL with "undefined: DetectLandlock"
 
 **Step 3: Write minimal implementation**
@@ -205,7 +205,7 @@ func DetectLandlock() LandlockResult {
 
 **Step 5: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/capabilities/... -run TestDetectLandlock -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/capabilities/... -run TestDetectLandlock -v`
 Expected: PASS
 
 **Step 6: Commit**
@@ -300,7 +300,7 @@ func TestSecurityCapabilities_SelectMode(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/capabilities/... -run "TestDetectSecurityCapabilities|TestSecurityCapabilities_SelectMode" -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/capabilities/... -run "TestDetectSecurityCapabilities|TestSecurityCapabilities_SelectMode" -v`
 Expected: FAIL with "undefined: SecurityCapabilities"
 
 **Step 3: Write minimal implementation**
@@ -394,7 +394,7 @@ func checkPIDNamespace() bool {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/capabilities/... -run "TestDetectSecurityCapabilities|TestSecurityCapabilities_SelectMode" -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/capabilities/... -run "TestDetectSecurityCapabilities|TestSecurityCapabilities_SelectMode" -v`
 Expected: PASS
 
 **Step 5: Commit**
@@ -484,7 +484,7 @@ capabilities:
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/config/... -run TestSecurityConfig_Unmarshal -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/config/... -run TestSecurityConfig_Unmarshal -v`
 Expected: FAIL with "cfg.Security undefined" or similar
 
 **Step 3: Add config structs to config.go**
@@ -536,7 +536,7 @@ type Config struct {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/config/... -run TestSecurityConfig_Unmarshal -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/config/... -run TestSecurityConfig_Unmarshal -v`
 Expected: PASS
 
 **Step 5: Commit**
@@ -626,7 +626,7 @@ func TestValidateAllowList(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/capabilities/... -run "TestAlwaysDropCaps|TestValidateAllowList" -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/capabilities/... -run "TestAlwaysDropCaps|TestValidateAllowList" -v`
 Expected: FAIL with "undefined: isAlwaysDrop"
 
 **Step 3: Write minimal implementation**
@@ -791,7 +791,7 @@ func DropCapabilities(allow []string) error {
 
 **Step 5: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/capabilities/... -run "TestAlwaysDropCaps|TestValidateAllowList" -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/capabilities/... -run "TestAlwaysDropCaps|TestValidateAllowList" -v`
 Expected: PASS
 
 **Step 6: Commit**
@@ -863,7 +863,7 @@ func TestRulesetBuilder_WorkspacePath(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/landlock/... -run TestRulesetBuilder -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/landlock/... -run TestRulesetBuilder -v`
 Expected: FAIL with "cannot find package"
 
 **Step 3: Write minimal implementation**
@@ -1156,7 +1156,7 @@ func Enforce(rulesetFd int) error                               { return errors.
 
 **Step 5: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/landlock/... -run TestRulesetBuilder -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/landlock/... -run TestRulesetBuilder -v`
 Expected: PASS
 
 **Step 6: Commit**
@@ -1183,7 +1183,7 @@ package landlock
 import (
     "testing"
 
-    "github.com/agentsh/agentsh/internal/policy"
+    "github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestDeriveExecutePathsFromPolicy(t *testing.T) {
@@ -1236,7 +1236,7 @@ func TestDeriveExecutePathsFromGlobs(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/landlock/... -run TestDeriveExecutePaths -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/landlock/... -run TestDeriveExecutePaths -v`
 Expected: FAIL with "undefined: DeriveExecutePathsFromRules"
 
 **Step 3: Write minimal implementation**
@@ -1249,7 +1249,7 @@ import (
     "path/filepath"
     "strings"
 
-    "github.com/agentsh/agentsh/internal/policy"
+    "github.com/diffsec/agentmon/internal/policy"
 )
 
 // DeriveExecutePathsFromRules extracts directory paths from policy command rules.
@@ -1374,7 +1374,7 @@ type NetworkConfig struct {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/landlock/... -run TestDeriveExecutePaths -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/landlock/... -run TestDeriveExecutePaths -v`
 Expected: PASS
 
 **Step 5: Commit**
@@ -1404,9 +1404,9 @@ package api
 import (
     "testing"
 
-    "github.com/agentsh/agentsh/internal/capabilities"
-    "github.com/agentsh/agentsh/internal/config"
-    "github.com/agentsh/agentsh/internal/landlock"
+    "github.com/diffsec/agentmon/internal/capabilities"
+    "github.com/diffsec/agentmon/internal/config"
+    "github.com/diffsec/agentmon/internal/landlock"
 )
 
 func TestCreateLandlockHook(t *testing.T) {
@@ -1465,7 +1465,7 @@ func TestCreateLandlockHook_Unavailable(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/api/... -run TestCreateLandlockHook -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/api/... -run TestCreateLandlockHook -v`
 Expected: FAIL with "undefined: CreateLandlockHook"
 
 **Step 3: Write minimal implementation**
@@ -1480,10 +1480,10 @@ import (
     "fmt"
     "log/slog"
 
-    "github.com/agentsh/agentsh/internal/capabilities"
-    "github.com/agentsh/agentsh/internal/config"
-    "github.com/agentsh/agentsh/internal/landlock"
-    "github.com/agentsh/agentsh/internal/policy"
+    "github.com/diffsec/agentmon/internal/capabilities"
+    "github.com/diffsec/agentmon/internal/config"
+    "github.com/diffsec/agentmon/internal/landlock"
+    "github.com/diffsec/agentmon/internal/policy"
 )
 
 // LandlockHook is a post-fork hook that applies Landlock restrictions.
@@ -1577,9 +1577,9 @@ func (h *LandlockHook) Apply() error {
 package api
 
 import (
-    "github.com/agentsh/agentsh/internal/capabilities"
-    "github.com/agentsh/agentsh/internal/config"
-    "github.com/agentsh/agentsh/internal/policy"
+    "github.com/diffsec/agentmon/internal/capabilities"
+    "github.com/diffsec/agentmon/internal/config"
+    "github.com/diffsec/agentmon/internal/policy"
 )
 
 type LandlockHook struct{}
@@ -1600,7 +1600,7 @@ func (h *LandlockHook) Apply() error {
 
 **Step 5: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/api/... -run TestCreateLandlockHook -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/api/... -run TestCreateLandlockHook -v`
 Expected: PASS
 
 **Step 6: Commit**
@@ -1731,7 +1731,7 @@ func TestValidateMinimumMode(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/capabilities/... -run "TestValidateStrictMode|TestValidateMinimumMode" -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/capabilities/... -run "TestValidateStrictMode|TestValidateMinimumMode" -v`
 Expected: FAIL with "undefined: ValidateStrictMode"
 
 **Step 3: Write minimal implementation**
@@ -1846,7 +1846,7 @@ func ValidatePolicyForMode(caps *SecurityCapabilities, hasUnixSocketRules, hasSi
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/capabilities/... -run "TestValidateStrictMode|TestValidateMinimumMode" -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/capabilities/... -run "TestValidateStrictMode|TestValidateMinimumMode" -v`
 Expected: PASS
 
 **Step 5: Commit**
@@ -2008,16 +2008,16 @@ In `runCommandWithResources` or the wrapper setup, pass Landlock config via envi
 // In setupSeccompWrapper or similar
 if a.securityCaps.Landlock {
     // Pass Landlock config to wrapper via env var
-    env = append(env, "AGENTSH_LANDLOCK_CONFIG="+encodeLandlockConfig(cfg))
+    env = append(env, "AGENTMON_LANDLOCK_CONFIG="+encodeLandlockConfig(cfg))
 }
 ```
 
-Then in `agentsh-unixwrap` or a new wrapper, apply Landlock before exec.
+Then in `agentmon-unixwrap` or a new wrapper, apply Landlock before exec.
 
 **Step 4: Update wrapper to apply Landlock**
 
 The wrapper binary needs to:
-1. Read `AGENTSH_LANDLOCK_CONFIG` env var
+1. Read `AGENTMON_LANDLOCK_CONFIG` env var
 2. Build and apply Landlock ruleset
 3. Drop capabilities
 4. Exec the actual command
@@ -2122,7 +2122,7 @@ func TestLandlockEnforcement_AllowsWorkspace(t *testing.T) {
 
 **Step 2: Run integration tests**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/landlock-fallback && go test ./internal/landlock/... -tags=integration -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/landlock-fallback && go test ./internal/landlock/... -tags=integration -v`
 
 **Step 3: Commit**
 
@@ -2144,7 +2144,7 @@ git commit -m "test(landlock): add integration tests for Landlock enforcement"
 ```markdown
 # Security Modes
 
-agentsh supports multiple security modes depending on available kernel features.
+agentmon supports multiple security modes depending on available kernel features.
 
 ## Modes
 

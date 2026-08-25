@@ -179,8 +179,8 @@ func newDBUnavoidabilityIPEngine(t *testing.T) *policy.Engine {
 			{RuleName: "db-appdb-deny-http", Source: dbservice.RuleSourceDBUnavoidability, DBService: "appdb", BypassMode: dbservice.BypassModeTCPDirect, Destination: "127.0.0.1:80"},
 		},
 		NetworkRules: []policy.NetworkRule{
-			{Name: "db-appdb-deny-direct", Domains: []string{"127.0.0.1"}, Ports: []int{5432}, Decision: "deny", Message: "Direct database egress is blocked; use the AgentSH DB proxy"},
-			{Name: "db-appdb-deny-http", Domains: []string{"127.0.0.1"}, Ports: []int{80}, Decision: "deny", Message: "Direct database egress is blocked; use the AgentSH DB proxy"},
+			{Name: "db-appdb-deny-direct", Domains: []string{"127.0.0.1"}, Ports: []int{5432}, Decision: "deny", Message: "Direct database egress is blocked; use the AgentMon DB proxy"},
+			{Name: "db-appdb-deny-http", Domains: []string{"127.0.0.1"}, Ports: []int{80}, Decision: "deny", Message: "Direct database egress is blocked; use the AgentMon DB proxy"},
 		},
 	}
 	engine, err := policy.NewEngine(p, false, true)

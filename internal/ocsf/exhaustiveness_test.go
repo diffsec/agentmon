@@ -296,7 +296,7 @@ func TestExhaustiveness_PendingTypesShrinking(t *testing.T) {
 	}
 }
 
-// repoRoot returns the agentsh repo root via go.mod search starting
+// repoRoot returns the agentmon repo root via go.mod search starting
 // from this file's directory.
 func repoRoot(t *testing.T) string {
 	t.Helper()
@@ -330,8 +330,8 @@ func TestExhaustiveness_DetectsStringConversionForm(t *testing.T) {
 			name: "qualified events.EventX in composite literal",
 			src: `package x
 import (
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 var _ = types.Event{Type: string(events.EventCgroupMode)}
 `,
@@ -341,8 +341,8 @@ var _ = types.Event{Type: string(events.EventCgroupMode)}
 			name: "qualified events.EventX in ev.Type assignment",
 			src: `package x
 import (
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 func f(ev *types.Event) { ev.Type = string(events.EventCgroupMode) }
 `,
@@ -377,7 +377,7 @@ var _ = Event{Type: string(EventCgroupMode)}
 // in `string(...)`) are NOT recorded by the conversion-form branch.
 func TestExhaustiveness_DoesNotOverDetect(t *testing.T) {
 	src := `package x
-import "github.com/agentsh/agentsh/internal/events"
+import "github.com/diffsec/agentmon/internal/events"
 var _ = events.EventCgroupMode
 `
 	consts := loadEventConstants(t, repoRoot(t))

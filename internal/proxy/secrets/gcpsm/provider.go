@@ -15,7 +15,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // smClient is the subset of the GCP Secret Manager API that the
@@ -77,7 +77,7 @@ func New(ctx context.Context, cfg Config, _ secrets.RefResolver) (*Provider, err
 		return nil, fmt.Errorf("gcp-sm: creating client: %w", err)
 	}
 
-	probeName := fmt.Sprintf("projects/%s/secrets/agentsh-probe-nonexistent/versions/latest", cfg.ProjectID)
+	probeName := fmt.Sprintf("projects/%s/secrets/agentmon-probe-nonexistent/versions/latest", cfg.ProjectID)
 	_, probeErr := client.AccessSecretVersion(ctx, &secretmanagerpb.AccessSecretVersionRequest{
 		Name: probeName,
 	})

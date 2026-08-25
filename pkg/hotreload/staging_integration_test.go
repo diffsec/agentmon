@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/policy/signing"
+	"github.com/diffsec/agentmon/internal/policy/signing"
 )
 
 // signingLoader implements PolicyLoader with real Ed25519 signature verification.

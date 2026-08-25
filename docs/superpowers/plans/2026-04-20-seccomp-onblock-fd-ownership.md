@@ -43,9 +43,9 @@ import (
 	"testing"
 	"time"
 
-	unixmon "github.com/agentsh/agentsh/internal/netmonitor/unix"
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
-	"github.com/agentsh/agentsh/pkg/types"
+	unixmon "github.com/diffsec/agentmon/internal/netmonitor/unix"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 )
@@ -54,7 +54,7 @@ import (
 Then add this constant and test just above `TestSeccompOnBlock_Errno`:
 
 ```go
-const seccompOnBlockGCPressureEnv = "AGENTSH_TEST_SECCOMP_ONBLOCK_GC_PRESSURE"
+const seccompOnBlockGCPressureEnv = "AGENTMON_TEST_SECCOMP_ONBLOCK_GC_PRESSURE"
 
 func TestSeccompOnBlock_LogAndKill_GCPressure(t *testing.T) {
 	cfgJSON := `{
@@ -196,7 +196,7 @@ go test -tags=integration ./internal/integration -run '^TestSeccompOnBlock_LogAn
 Expected:
 
 - command exits zero
-- test output shows `ok  	github.com/agentsh/agentsh/internal/integration`
+- test output shows `ok  	github.com/diffsec/agentmon/internal/integration`
 
 - [ ] **Step 3: Re-run the original stress reproduction command**
 

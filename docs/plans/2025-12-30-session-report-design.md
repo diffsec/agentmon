@@ -5,12 +5,12 @@
 
 ## Overview
 
-Add a CLI command to generate markdown reports summarizing agentsh sessions. Reports are designed for human operators reviewing agent activity after CI/CD runs or for security audits.
+Add a CLI command to generate markdown reports summarizing agentmon sessions. Reports are designed for human operators reviewing agent activity after CI/CD runs or for security audits.
 
 ## CLI Interface
 
 ```
-agentsh report <session-id|latest> --level=<summary|detailed> [--output=<path>]
+agentmon report <session-id|latest> --level=<summary|detailed> [--output=<path>]
 ```
 
 **Arguments:**
@@ -21,17 +21,17 @@ agentsh report <session-id|latest> --level=<summary|detailed> [--output=<path>]
 **Examples:**
 ```bash
 # Quick check on latest session
-agentsh report latest --level=summary
+agentmon report latest --level=summary
 
 # Full investigation, save to file
-agentsh report abc123 --level=detailed --output=./session-report.md
+agentmon report abc123 --level=detailed --output=./session-report.md
 
 # Pipe summary to another tool
-agentsh report latest --level=summary | less
+agentmon report latest --level=summary | less
 ```
 
 **Errors:**
-- Session not found → clear error with suggestion to run `agentsh session list`
+- Session not found → clear error with suggestion to run `agentmon session list`
 - No sessions exist → "No sessions found"
 - Invalid level → show valid options
 
@@ -65,7 +65,7 @@ agentsh report latest --level=summary | less
 ⚠️ **3 operations blocked** - file writes outside workspace
 ⚠️ **1 approval denied** - attempted `curl` to external API
 ℹ️ **12 redirects** - commands substituted per policy
-ℹ️ **2 files soft-deleted** - recoverable via `agentsh trash`
+ℹ️ **2 files soft-deleted** - recoverable via `agentmon trash`
 
 ## Top Activity
 **Files (156 ops):** `/workspace/src/` (89), `/workspace/tests/` (42), `/tmp/` (25)

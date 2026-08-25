@@ -388,7 +388,7 @@ package darwin
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 func TestResourceHandleGetRlimits(t *testing.T) {
@@ -453,7 +453,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // RlimitAS is the syscall constant for RLIMIT_AS (address space limit).
@@ -608,7 +608,7 @@ package darwin
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 func TestResourceLimiterAvailable(t *testing.T) {
@@ -719,7 +719,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // ResourceLimiter implements platform.ResourceLimiter for macOS.

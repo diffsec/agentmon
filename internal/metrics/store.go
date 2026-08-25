@@ -3,8 +3,8 @@ package metrics
 import (
 	"context"
 
-	"github.com/agentsh/agentsh/internal/store"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/store"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type wrappedEventStore struct {

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // fakeEventStore captures events for testing.

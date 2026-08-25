@@ -1019,12 +1019,12 @@ policies:
 
 Per-session:
 ```bash
-agentsh exec --no-detect-root SESSION -- cmd
+agentmon exec --no-detect-root SESSION -- cmd
 ```
 
 Explicit root:
 ```bash
-agentsh exec --project-root /path/to/project SESSION -- cmd
+agentmon exec --project-root /path/to/project SESSION -- cmd
 ```
 ```
 

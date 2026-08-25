@@ -4,7 +4,7 @@
 
 **Goal:** Enforce and monitor AF_UNIX socket operations (connect/bind/listen/sendto) via seccomp user-notify with policy-based allow/deny, emitting events and guidance.
 
-**Architecture:** Commands run through a wrapper that installs a seccomp user-notify filter, sends the notify fd to the agentsh server via socketpair (SCM_RIGHTS), and execs the real command. The server listens on the notify fd, uses `CheckUnixSocket` policy to allow/deny, and emits `unix_socket_op` events. Privileged integration tests verify allow/deny/abstract behavior and skip gracefully when user-notify is unavailable.
+**Architecture:** Commands run through a wrapper that installs a seccomp user-notify filter, sends the notify fd to the agentmon server via socketpair (SCM_RIGHTS), and execs the real command. The server listens on the notify fd, uses `CheckUnixSocket` policy to allow/deny, and emits `unix_socket_op` events. Privileged integration tests verify allow/deny/abstract behavior and skip gracefully when user-notify is unavailable.
 
 **Tech Stack:** Go 1.25; seccomp/libseccomp-golang; testcontainers; Linux-only enforcement; socketpair fd passing; SCM_RIGHTS.
 
@@ -13,7 +13,7 @@
 ### Task 1: Add wrapper binary to install filter and hand off notify fd
 
 **Files:**
-- Create: `cmd/agentsh-unixwrap/main.go`
+- Create: `cmd/agentmon-unixwrap/main.go`
 - Modify: `go.mod`, `go.sum` (already include seccomp dep)
 
 **Steps:**
@@ -35,7 +35,7 @@
 
 **Steps:**
 1) Add helper to receive an fd over a socketpair (SCM_RIGHTS) and return `*os.File` or int.
-2) In exec/pty paths, create socketpair, set child env `AGENTSH_NOTIFY_SOCK_FD=<n>`, pass one end via `ExtraFiles` to wrapper.
+2) In exec/pty paths, create socketpair, set child env `AGENTMON_NOTIFY_SOCK_FD=<n>`, pass one end via `ExtraFiles` to wrapper.
 3) After `cmd.Start`, close child end; receive notify fd via helper and start handler loop (reuse existing handler) with session policy and emitter.
 4) Ensure handler cleanup on command completion; guard if notify fd not received.
 5) `go test ./internal/api -run TestPlaceholder` (no new tests yet) then full `go test ./...` to ensure build.
@@ -48,7 +48,7 @@
 
 **Steps:**
 1) Add config flag `sandbox.unix_sockets.enabled` (bool) default false.
-2) When enabled, change command invocation to `/usr/local/bin/agentsh-unixwrap -- <cmd> ...` (binary path configurable via env `AGENTSH_UNIXWRAP_BIN`, default `agentsh-unixwrap` on PATH).
+2) When enabled, change command invocation to `/usr/local/bin/agentmon-unixwrap -- <cmd> ...` (binary path configurable via env `AGENTMON_UNIXWRAP_BIN`, default `agentmon-unixwrap` on PATH).
 3) If wrapper not found or user-notify unsupported, set guidance note but allow command (monitor-only) or fail based on config; choose monitor-only default.
 4) Run `go test ./internal/api/...` and `go test ./...`.
 
@@ -66,11 +66,11 @@
 ### Task 5: Privileged integration test
 
 **Files:**
-- Add: `internal/integration/agentsh_unix_socket_test.go`
+- Add: `internal/integration/agentmon_unix_socket_test.go`
 - Modify: `.github/workflows/ci.yml` if needed (already privileged for FUSE; ensure linux job runs this test)
 
 **Test steps (in code):**
-- Build agentsh + agentsh-unixwrap.
+- Build agentmon + agentmon-unixwrap.
 - Start testcontainer (privileged, SYS_ADMIN) with policy: allow `/workspace/ok.sock`, deny `/workspace/no.sock`, deny abstract `@bad`.
 - In session, start a Unix listener on allowed path and connect (should succeed), attempt connect to denied path (expect 403 blocked), attempt abstract socket (expect block or skip if unsupported).
 - Skip test if `DetectSupport` returns unsupported.
@@ -95,7 +95,7 @@
 3) Push branch.
 
 ## Current Status (Jan 2026)
-- Seccomp user-notify wrapper (`agentsh-unixwrap`) is in place and ships the notify fd back to the server.
+- Seccomp user-notify wrapper (`agentmon-unixwrap`) is in place and ships the notify fd back to the server.
 - Enforcement is now fully wired: parent socket is passed to `runCommandWithResources`, which starts `ServeNotify` after process start.
 - Policy model includes unix socket rules; `ServeNotify` checks policy via `CheckUnixSocket` and emits `unix_socket_op` events.
 - Requires `sandbox.unix_sockets.enabled: true` in config to activate.

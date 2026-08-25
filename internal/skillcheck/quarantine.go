@@ -1,7 +1,7 @@
 package skillcheck
 
 import (
-	"github.com/agentsh/agentsh/internal/trash"
+	"github.com/diffsec/agentmon/internal/trash"
 )
 
 // trashQuarantiner adapts internal/trash to the Quarantiner interface.
@@ -10,7 +10,7 @@ type trashQuarantiner struct {
 }
 
 // NewTrashQuarantiner returns a Quarantiner backed by internal/trash. The
-// trashDir is the soft-delete store (typically ~/.agentsh/skillcheck/trash).
+// trashDir is the soft-delete store (typically ~/.agentmon/skillcheck/trash).
 func NewTrashQuarantiner(trashDir string) Quarantiner {
 	return &trashQuarantiner{trashDir: trashDir}
 }

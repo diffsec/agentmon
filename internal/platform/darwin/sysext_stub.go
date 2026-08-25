@@ -18,7 +18,7 @@ type SysExtStatus struct {
 	Error       string `json:"error,omitempty"`
 }
 
-// SysExtManager manages the agentsh System Extension lifecycle.
+// SysExtManager manages the agentmon System Extension lifecycle.
 type SysExtManager struct{}
 
 // NewSysExtManager creates a new System Extension manager.

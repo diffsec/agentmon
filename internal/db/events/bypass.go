@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	dbservice "github.com/agentsh/agentsh/internal/db/service"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	dbservice "github.com/diffsec/agentmon/internal/db/service"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/google/uuid"
 )
 

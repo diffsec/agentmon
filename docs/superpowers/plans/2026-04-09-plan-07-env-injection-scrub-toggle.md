@@ -49,7 +49,7 @@ func TestResolveServiceConfigs_InjectEnv(t *testing.T) {
 		{
 			Name:   "github",
 			Match:  policy.ServiceMatchYAML{Hosts: []string{"api.github.com"}},
-			Secret: policy.ServiceSecretYAML{Ref: "keyring://agentsh/gh"},
+			Secret: policy.ServiceSecretYAML{Ref: "keyring://agentmon/gh"},
 			Fake:   policy.ServiceFakeYAML{Format: "ghp_{rand:36}"},
 			Inject: policy.ServiceInjectYAML{
 				Env: []policy.ServiceInjectEnvYAML{{Name: "GITHUB_TOKEN"}},
@@ -76,14 +76,14 @@ func TestResolveServiceConfigs_ScrubResponse(t *testing.T) {
 		{
 			Name:          "github",
 			Match:         policy.ServiceMatchYAML{Hosts: []string{"api.github.com"}},
-			Secret:        policy.ServiceSecretYAML{Ref: "keyring://agentsh/gh"},
+			Secret:        policy.ServiceSecretYAML{Ref: "keyring://agentmon/gh"},
 			Fake:          policy.ServiceFakeYAML{Format: "ghp_{rand:36}"},
 			ScrubResponse: true,
 		},
 		{
 			Name:   "stripe",
 			Match:  policy.ServiceMatchYAML{Hosts: []string{"api.stripe.com"}},
-			Secret: policy.ServiceSecretYAML{Ref: "keyring://agentsh/stripe"},
+			Secret: policy.ServiceSecretYAML{Ref: "keyring://agentmon/stripe"},
 			Fake:   policy.ServiceFakeYAML{Format: "xk_test_{rand:24}"},
 		},
 	}
@@ -241,8 +241,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/proxy/credsub"
-	"github.com/agentsh/agentsh/internal/proxy/secrets"
+	"github.com/diffsec/agentmon/internal/proxy/credsub"
+	"github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 ```
 
@@ -278,7 +278,7 @@ func BuildServiceEnvVars(envVars []ServiceEnvVar, table *credsub.Table) map[stri
 }
 ```
 
-Add `"github.com/agentsh/agentsh/internal/proxy/credsub"` to the imports if not already present (it already is via the `credsub.New()` usage in `BootstrapCredentials`).
+Add `"github.com/diffsec/agentmon/internal/proxy/credsub"` to the imports if not already present (it already is via the `credsub.New()` usage in `BootstrapCredentials`).
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -313,7 +313,7 @@ func TestValidateSecrets_InjectEnvEmptyName(t *testing.T) {
 		{
 			Name:   "github",
 			Match:  policy.ServiceMatchYAML{Hosts: []string{"api.github.com"}},
-			Secret: policy.ServiceSecretYAML{Ref: "keyring://agentsh/gh"},
+			Secret: policy.ServiceSecretYAML{Ref: "keyring://agentmon/gh"},
 			Fake:   policy.ServiceFakeYAML{Format: "ghp_{rand:36}"},
 			Inject: policy.ServiceInjectYAML{
 				Env: []policy.ServiceInjectEnvYAML{{Name: ""}},
@@ -334,7 +334,7 @@ func TestValidateSecrets_InjectEnvDuplicateAcrossServices(t *testing.T) {
 		{
 			Name:   "github",
 			Match:  policy.ServiceMatchYAML{Hosts: []string{"api.github.com"}},
-			Secret: policy.ServiceSecretYAML{Ref: "keyring://agentsh/gh"},
+			Secret: policy.ServiceSecretYAML{Ref: "keyring://agentmon/gh"},
 			Fake:   policy.ServiceFakeYAML{Format: "ghp_{rand:36}"},
 			Inject: policy.ServiceInjectYAML{
 				Env: []policy.ServiceInjectEnvYAML{{Name: "MY_TOKEN"}},
@@ -343,7 +343,7 @@ func TestValidateSecrets_InjectEnvDuplicateAcrossServices(t *testing.T) {
 		{
 			Name:   "stripe",
 			Match:  policy.ServiceMatchYAML{Hosts: []string{"api.stripe.com"}},
-			Secret: policy.ServiceSecretYAML{Ref: "keyring://agentsh/stripe"},
+			Secret: policy.ServiceSecretYAML{Ref: "keyring://agentmon/stripe"},
 			Fake:   policy.ServiceFakeYAML{Format: "xk_test_{rand:24}"},
 			Inject: policy.ServiceInjectYAML{
 				Env: []policy.ServiceInjectEnvYAML{{Name: "MY_TOKEN"}},
@@ -364,7 +364,7 @@ func TestValidateSecrets_InjectEnvValid(t *testing.T) {
 		{
 			Name:   "github",
 			Match:  policy.ServiceMatchYAML{Hosts: []string{"api.github.com"}},
-			Secret: policy.ServiceSecretYAML{Ref: "keyring://agentsh/gh"},
+			Secret: policy.ServiceSecretYAML{Ref: "keyring://agentmon/gh"},
 			Fake:   policy.ServiceFakeYAML{Format: "ghp_{rand:36}"},
 			Inject: policy.ServiceInjectYAML{
 				Env: []policy.ServiceInjectEnvYAML{{Name: "GITHUB_TOKEN"}},
@@ -941,7 +941,7 @@ func TestIntegration_EnvVarInjection_FullFlow(t *testing.T) {
 		{
 			Name:          "github",
 			Match:         policy.ServiceMatchYAML{Hosts: []string{"api.github.com"}},
-			Secret:        policy.ServiceSecretYAML{Ref: "keyring://agentsh/gh"},
+			Secret:        policy.ServiceSecretYAML{Ref: "keyring://agentmon/gh"},
 			Fake:          policy.ServiceFakeYAML{Format: "ghp_{rand:36}"},
 			ScrubResponse: true,
 			Inject: policy.ServiceInjectYAML{
@@ -957,7 +957,7 @@ func TestIntegration_EnvVarInjection_FullFlow(t *testing.T) {
 		{
 			Name:   "stripe",
 			Match:  policy.ServiceMatchYAML{Hosts: []string{"api.stripe.com"}},
-			Secret: policy.ServiceSecretYAML{Ref: "keyring://agentsh/stripe"},
+			Secret: policy.ServiceSecretYAML{Ref: "keyring://agentmon/stripe"},
 			Fake:   policy.ServiceFakeYAML{Format: "xk_test_{rand:24}"},
 			Inject: policy.ServiceInjectYAML{
 				Env: []policy.ServiceInjectEnvYAML{
@@ -990,8 +990,8 @@ func TestIntegration_EnvVarInjection_FullFlow(t *testing.T) {
 	// 3. Bootstrap credentials with a memory provider.
 	mp := &memoryProvider{
 		secrets: map[string][]byte{
-			"agentsh/gh":     []byte("ghp_realABCDEFGHIJKLMNOPQRSTUVWXYZ123456"),
-			"agentsh/stripe": []byte("xk_test_realABCDEFGHIJKLMNOPQRST"),
+			"agentmon/gh":     []byte("ghp_realABCDEFGHIJKLMNOPQRSTUVWXYZ123456"),
+			"agentmon/stripe": []byte("xk_test_realABCDEFGHIJKLMNOPQRST"),
 		},
 	}
 	table, cleanup, err := BootstrapCredentials(context.Background(), mp, resolved.ServiceConfigs)

@@ -216,7 +216,7 @@ func probeMountSyscall() bool {
 	}
 	ch := make(chan result, 1)
 	go func() {
-		err := unix.Mount("", "", "agentsh-probe", 0, "")
+		err := unix.Mount("", "", "agentmon-probe", 0, "")
 		ch <- result{err: err}
 	}()
 

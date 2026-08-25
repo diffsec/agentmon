@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/proxy/credsub"
+	"github.com/diffsec/agentmon/internal/proxy/credsub"
 )
 
 // CredsSubHook performs credential substitution using a credsub.Table.

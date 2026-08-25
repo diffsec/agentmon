@@ -8,7 +8,7 @@
 
 `internal/config/config.go` defines `LandlockNetworkConfig` with YAML-tagged `allow_connect_tcp`, `allow_bind_tcp`, and `bind_ports` fields. The YAML is parsed, but nothing on the production enforcement path reads the parsed values.
 
-The sole production path that applies Landlock is the wrapper (`cmd/agentsh-unixwrap`), which receives its config as a JSON blob in `AGENTSH_SECCOMP_CONFIG`. The server builds that blob at two sites, both of which hardcode the TCP allow flags to `true`:
+The sole production path that applies Landlock is the wrapper (`cmd/agentmon-unixwrap`), which receives its config as a JSON blob in `AGENTMON_SECCOMP_CONFIG`. The server builds that blob at two sites, both of which hardcode the TCP allow flags to `true`:
 
 - `internal/api/wrap.go:177-178` — `seccompCfg.AllowNetwork = true; seccompCfg.AllowBind = true`
 - `internal/api/core.go:245-246` — same
@@ -25,7 +25,7 @@ Make `landlock.network.allow_connect_tcp` and `landlock.network.allow_bind_tcp` 
 
 - Port-scoped bind rules (`bind_ports` enforcement). Requires `LANDLOCK_RULE_NET_PORT` support in `internal/landlock/ruleset.go`; tracked as a follow-up.
 - Resurrecting the dead in-process path (`LandlockHook.Apply`, `MakeLandlockPostStartHook`). Tangential; left in place as-is.
-- UDP support. Landlock ABI does not yet offer UDP access controls in the versions agentsh targets.
+- UDP support. Landlock ABI does not yet offer UDP access controls in the versions agentmon targets.
 
 ## Architecture
 
@@ -39,8 +39,8 @@ YAML config
   → api/core.go + api/wrap.go build seccompWrapperConfig:
         AllowNetwork = *cfg.Landlock.Network.AllowConnectTCP
         AllowBind    = *cfg.Landlock.Network.AllowBindTCP
-  → json.Marshal → AGENTSH_SECCOMP_CONFIG env var
-  → cmd/agentsh-unixwrap: cfg.AllowNetwork, cfg.AllowBind
+  → json.Marshal → AGENTMON_SECCOMP_CONFIG env var
+  → cmd/agentmon-unixwrap: cfg.AllowNetwork, cfg.AllowBind
   → builder.SetNetworkAccess(cfg.AllowNetwork, cfg.AllowBind)
   → Landlock ruleset applied in child, pre-exec
 ```
@@ -107,7 +107,7 @@ if cfg.Landlock.Enabled &&
     cfg.Sandbox.Network.Enabled {
     return fmt.Errorf(
         "landlock.network.allow_connect_tcp is false but sandbox.network.enabled " +
-        "is true: agent processes cannot reach the agentsh proxy without outbound TCP. " +
+        "is true: agent processes cannot reach the agentmon proxy without outbound TCP. " +
         "Either set landlock.network.allow_connect_tcp to true, or set " +
         "sandbox.network.enabled to false.")
 }
@@ -133,7 +133,7 @@ One-time warning at config load so users aren't silently ignored.
 
 **Before:**
 ```go
-// Allow all network by default — agentsh proxy handles network policy.
+// Allow all network by default — agentmon proxy handles network policy.
 // Without this, Landlock ABI v4+ blocks ALL TCP connections.
 seccompCfg.AllowNetwork = true
 seccompCfg.AllowBind = true
@@ -152,7 +152,7 @@ seccompCfg.AllowBind = *a.cfg.Landlock.Network.AllowBindTCP
 
 Same replacement.
 
-### `cmd/agentsh-unixwrap/main.go:313`
+### `cmd/agentmon-unixwrap/main.go:313`
 
 No change. `builder.SetNetworkAccess(cfg.AllowNetwork, cfg.AllowBind)` already consumes the JSON-passed values correctly.
 

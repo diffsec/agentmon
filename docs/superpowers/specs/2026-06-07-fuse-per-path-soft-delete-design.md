@@ -1,7 +1,7 @@
 # FUSE per-path soft-delete (#417)
 
 **Date:** 2026-06-07
-**Issue:** #417 — FUSE soft-delete not active for shimmed `rm`; `unlink` not captured, `agentsh trash list` empty.
+**Issue:** #417 — FUSE soft-delete not active for shimmed `rm`; `unlink` not captured, `agentmon trash list` empty.
 **Status:** Design approved, pending spec review.
 
 ## Problem
@@ -16,7 +16,7 @@ file_rules:
 ```
 
 With `/workspace` FUSE-mounted, `rm /workspace/<file>` deletes the file outright and
-`agentsh trash list` stays empty. Reads, writes, and creates through FUSE work
+`agentmon trash list` stays empty. Reads, writes, and creates through FUSE work
 normally — only delete fails to divert.
 
 ## Root cause
@@ -94,7 +94,7 @@ Alternatives considered and rejected:
 - In `core.go`, populate `FSConfig.TrashConfig` + `NotifySoftDelete` when trash is usable:
   global mode is `soft_delete` **or** the session's policy contains at least one
   `soft_delete` file rule. Trash dir resolves from the existing
-  `Sandbox.FUSE.Audit.TrashPath` (default `.agentsh_trash`), the same source ptrace uses via
+  `Sandbox.FUSE.Audit.TrashPath` (default `.agentmon_trash`), the same source ptrace uses via
   `resolveTrashPath`. Gating on "policy has a soft_delete rule" avoids paying trash setup for
   sessions that can never soft-delete.
   - The engine has no such predicate today. Add `HasSoftDeleteFileRule() bool` on
@@ -135,7 +135,7 @@ deployments. Warning only; never fails startup.
 - **applyAuditPolicy unit test**: explicit `opMode == "soft_delete"` diverts even when
   `Config.Mode == "monitor"`; strict-on-failure still sourced from `Config`.
 - **Regression**: existing global `audit.mode: soft_delete` integration test
-  (`internal/integration/agentsh_soft_delete_test.go`) still passes.
+  (`internal/integration/agentmon_soft_delete_test.go`) still passes.
 - **New integration test**: mirror the existing soft-delete integration test but drive it with
   a per-path `decision: soft_delete` rule and the global mode left at default — reproduces
   #417 and proves the fix.

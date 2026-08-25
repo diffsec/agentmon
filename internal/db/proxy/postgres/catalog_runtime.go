@@ -11,9 +11,9 @@ import (
 	"github.com/jackc/pgx/v5/pgproto3"
 	"golang.org/x/sync/singleflight"
 
-	"github.com/agentsh/agentsh/internal/db/catalog"
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/catalog"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/events"
 )
 
 type catalogRuntimeContext struct {

@@ -134,7 +134,7 @@ func TestCapsDropped_BoundingOnlyReduced(t *testing.T) {
 	}
 }
 
-// TestCapsDropped_PermittedOnlyReduced covers the agentsh default drop
+// TestCapsDropped_PermittedOnlyReduced covers the agentmon default drop
 // path for children (capset with reduced Permitted): CapBnd may still be
 // full but Permitted is lowered, so future capset attempts are bounded.
 func TestCapsDropped_PermittedOnlyReduced(t *testing.T) {

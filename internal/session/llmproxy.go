@@ -8,10 +8,10 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/mcpregistry"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/proxy"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/proxy"
 	"gopkg.in/yaml.v3"
 )
 
@@ -200,7 +200,7 @@ func (s *Session) LLMProxyEnvVars() map[string]string {
 	return map[string]string{
 		"ANTHROPIC_BASE_URL": proxyURL,
 		"OPENAI_BASE_URL":    proxyURL,
-		"AGENTSH_SESSION_ID": sessID,
+		"AGENTMON_SESSION_ID": sessID,
 	}
 }
 

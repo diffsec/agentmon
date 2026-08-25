@@ -18,7 +18,7 @@
 |---|---|---|
 | `scripts/build-libseccomp.sh` | Create | Source-build libseccomp 2.6.0 statically for amd64 or arm64 |
 | `internal/netmonitor/unix/seccomp_version_check.go` | Create | CGo `#error` guard in the shared package |
-| `cmd/agentsh-unixwrap/seccomp_version_check.go` | Create | Duplicate guard so the wrapper binary fails independently |
+| `cmd/agentmon-unixwrap/seccomp_version_check.go` | Create | Duplicate guard so the wrapper binary fails independently |
 | `internal/netmonitor/unix/seccomp_linux.go` | Modify (lines ~236–242, 359–375) | Warn on unexpected Layer 1 disable; extract `loadWithRetryOnWaitKillFailure` helper |
 | `internal/netmonitor/unix/seccomp_retry_test.go` | Create | Unit test for the retry-without-WaitKill fallback helper |
 | `internal/netmonitor/unix/seccomp_waitkill_test.go` | Create | White-box test: install filter, `GetWaitKill()` readback == true on kernel ≥6.0 |
@@ -240,14 +240,14 @@ git commit -m "seccomp: add #error guard for pre-2.6 libseccomp headers"
 
 ---
 
-## Task 3: Duplicate guard in `cmd/agentsh-unixwrap`
+## Task 3: Duplicate guard in `cmd/agentmon-unixwrap`
 
 **Files:**
-- Create: `cmd/agentsh-unixwrap/seccomp_version_check.go`
+- Create: `cmd/agentmon-unixwrap/seccomp_version_check.go`
 
 - [ ] **Step 1: Create the duplicate guard**
 
-Write `cmd/agentsh-unixwrap/seccomp_version_check.go`:
+Write `cmd/agentmon-unixwrap/seccomp_version_check.go`:
 
 ```go
 //go:build linux && cgo
@@ -269,15 +269,15 @@ import "C"
 - [ ] **Step 2: Verify the wrapper builds with it**
 
 ```bash
-PKG_CONFIG_PATH=/opt/libseccomp/amd64/lib/pkgconfig CGO_ENABLED=1 go build -o /tmp/agentsh-unixwrap ./cmd/agentsh-unixwrap
+PKG_CONFIG_PATH=/opt/libseccomp/amd64/lib/pkgconfig CGO_ENABLED=1 go build -o /tmp/agentmon-unixwrap ./cmd/agentmon-unixwrap
 ```
 
-Expected: success; `/tmp/agentsh-unixwrap` exists.
+Expected: success; `/tmp/agentmon-unixwrap` exists.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add cmd/agentsh-unixwrap/seccomp_version_check.go
+git add cmd/agentmon-unixwrap/seccomp_version_check.go
 git commit -m "seccomp: duplicate #error guard in unixwrap main package"
 ```
 
@@ -720,8 +720,8 @@ Use the Edit tool to change the `unixwrap-linux-amd64` env block from:
 
 ```yaml
   - id: unixwrap-linux-amd64
-    main: ./cmd/agentsh-unixwrap
-    binary: agentsh-unixwrap
+    main: ./cmd/agentmon-unixwrap
+    binary: agentmon-unixwrap
     env:
       - CGO_ENABLED=1
     goos:
@@ -734,8 +734,8 @@ to:
 
 ```yaml
   - id: unixwrap-linux-amd64
-    main: ./cmd/agentsh-unixwrap
-    binary: agentsh-unixwrap
+    main: ./cmd/agentmon-unixwrap
+    binary: agentmon-unixwrap
     env:
       - CGO_ENABLED=1
       # Link the static libseccomp 2.6 built by scripts/build-libseccomp.sh.
@@ -755,8 +755,8 @@ Change from:
 
 ```yaml
   - id: unixwrap-linux-arm64
-    main: ./cmd/agentsh-unixwrap
-    binary: agentsh-unixwrap
+    main: ./cmd/agentmon-unixwrap
+    binary: agentmon-unixwrap
     env:
       - CGO_ENABLED=1
       - CC=aarch64-linux-gnu-gcc
@@ -771,8 +771,8 @@ to:
 
 ```yaml
   - id: unixwrap-linux-arm64
-    main: ./cmd/agentsh-unixwrap
-    binary: agentsh-unixwrap
+    main: ./cmd/agentmon-unixwrap
+    binary: agentmon-unixwrap
     env:
       - CGO_ENABLED=1
       - CC=aarch64-linux-gnu-gcc
@@ -877,11 +877,11 @@ Open `Dockerfile.test.ubuntu2204` and change:
 
 Line 1 comment:
 ```
-# Self-contained integration test for agentsh on Ubuntu 24.04.
+# Self-contained integration test for agentmon on Ubuntu 24.04.
 ```
 to:
 ```
-# Self-contained integration test for agentsh on Ubuntu 22.04.
+# Self-contained integration test for agentmon on Ubuntu 22.04.
 # Exercises the production sandbox on the oldest supported LTS
 # userspace: glibc 2.35 and (pre-installed) libseccomp 2.5.3. Our
 # unixwrap binary must work here because we statically link libseccomp
@@ -905,8 +905,8 @@ If you have a published release tag, you can build the image locally:
 
 ```bash
 docker build -f Dockerfile.test.ubuntu2204 \
-  --build-arg AGENTSH_TAG=v0.10.1 \
-  -t agentsh-test-ubuntu2204:latest . || echo "(skipping if tag missing)"
+  --build-arg AGENTMON_TAG=v0.10.1 \
+  -t agentmon-test-ubuntu2204:latest . || echo "(skipping if tag missing)"
 ```
 
 This will fail if that tag doesn't exist yet. Not required for the plan — CI will exercise it on the next release.
@@ -979,7 +979,7 @@ Write `docs/testing/arm64-sigurg-reproducer.md`:
 Manual regression test for the Go SIGURG / seccomp user-notify interaction
 fixed in PR #225 and hardened in the libseccomp 2.6 defense-in-depth
 change. Run this before cutting any release that touches `internal/netmonitor/unix/`
-or `cmd/agentsh-unixwrap/`.
+or `cmd/agentmon-unixwrap/`.
 
 ## What this verifies
 
@@ -992,7 +992,7 @@ or `cmd/agentsh-unixwrap/`.
 
 - arm64 Linux VM (bare-metal or qemu-system-aarch64).
 - Kernel ≥6.0 (`uname -r` to confirm).
-- agentsh binaries built by the release workflow (deb or tar.gz for arm64).
+- agentmon binaries built by the release workflow (deb or tar.gz for arm64).
 
 A suitable test host is a stock Ubuntu 24.04 arm64 cloud instance — the
 Docker test matrix does not exercise this case because GitHub does not
@@ -1004,15 +1004,15 @@ same image.
 1. Install the release deb:
 
    ```bash
-   sudo dpkg -i agentsh_<version>_linux_arm64.deb
+   sudo dpkg -i agentmon_<version>_linux_arm64.deb
    ```
 
 2. Install the shell shim:
 
    ```bash
-   sudo agentsh shim install-shell \
+   sudo agentmon shim install-shell \
      --root / \
-     --shim /usr/bin/agentsh-shell-shim \
+     --shim /usr/bin/agentmon-shell-shim \
      --bash \
      --i-understand-this-modifies-the-host
    ```
@@ -1020,14 +1020,14 @@ same image.
 3. Start a server with seccomp execve enabled:
 
    ```bash
-   sudo agentsh server --config /etc/agentsh/config.yaml &
+   sudo agentmon server --config /etc/agentmon/config.yaml &
    ```
 
 4. Create a session and run a Go workload that stresses preemption:
 
    ```bash
-   sid=$(agentsh session create --workspace /tmp --json | jq -r .id)
-   agentsh exec "$sid" -- go run -gcflags=all=-N ./cmd/agentsh --help
+   sid=$(agentmon session create --workspace /tmp --json | jq -r .id)
+   agentmon exec "$sid" -- go run -gcflags=all=-N ./cmd/agentmon --help
    ```
 
    Expected: completes in well under 10 seconds with exit code 0.
@@ -1036,7 +1036,7 @@ same image.
 
    ```bash
    for i in $(seq 1 100); do
-     agentsh exec "$sid" -- /bin/true >/dev/null || { echo "FAIL iter $i"; exit 1; }
+     agentmon exec "$sid" -- /bin/true >/dev/null || { echo "FAIL iter $i"; exit 1; }
    done
    echo "PASS: 100 iterations"
    ```
@@ -1085,7 +1085,7 @@ Add immediately after the sentence mentioning "libseccomp >= 2.6.0":
 ```markdown
 > **Follow-up (2026-04-14):** The libseccomp version requirement is now enforced at
 > build time via the `#error` guards in `internal/netmonitor/unix/seccomp_version_check.go`
-> and `cmd/agentsh-unixwrap/seccomp_version_check.go`, and CI builds a static libseccomp
+> and `cmd/agentmon-unixwrap/seccomp_version_check.go`, and CI builds a static libseccomp
 > 2.6 via `scripts/build-libseccomp.sh`. See
 > `docs/superpowers/specs/2026-04-14-libseccomp-2.6-defense-in-depth-design.md`
 > for the hardening rationale.
@@ -1136,9 +1136,9 @@ Expected: success (unixwrap is Linux-only, so it's not built for Windows — but
 - [ ] **Step 4: Verify the built unixwrap binary links libseccomp statically**
 
 ```bash
-PKG_CONFIG_PATH=/opt/libseccomp/amd64/lib/pkgconfig CGO_ENABLED=1 go build -o /tmp/agentsh-unixwrap ./cmd/agentsh-unixwrap
-ldd /tmp/agentsh-unixwrap | grep -i seccomp || echo "OK: libseccomp statically linked (not listed in ldd)"
-nm /tmp/agentsh-unixwrap 2>/dev/null | grep -c seccomp_ | head -1
+PKG_CONFIG_PATH=/opt/libseccomp/amd64/lib/pkgconfig CGO_ENABLED=1 go build -o /tmp/agentmon-unixwrap ./cmd/agentmon-unixwrap
+ldd /tmp/agentmon-unixwrap | grep -i seccomp || echo "OK: libseccomp statically linked (not listed in ldd)"
+nm /tmp/agentmon-unixwrap 2>/dev/null | grep -c seccomp_ | head -1
 ```
 
 Expected: `OK: libseccomp statically linked (not listed in ldd)` and a non-zero count of `seccomp_` symbols in the binary (proving the static lib was pulled in).

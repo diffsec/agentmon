@@ -6,7 +6,7 @@ package api
 import (
 	"context"
 
-	unixmon "github.com/agentsh/agentsh/internal/netmonitor/unix"
+	unixmon "github.com/diffsec/agentmon/internal/netmonitor/unix"
 )
 
 // waitKillableProbeIterations is the spec-recommended iteration count for

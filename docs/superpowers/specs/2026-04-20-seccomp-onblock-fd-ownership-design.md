@@ -27,7 +27,7 @@ unambiguous during the notify-fd handoff and ACK exchange, so the
 
 ## Non-Goals
 
-- Do not change runtime product behavior in `agentsh-unixwrap`,
+- Do not change runtime product behavior in `agentmon-unixwrap`,
   `internal/cli/wrap_linux.go`, or server notify handling.
 - Do not change the fd-passing API in `internal/netmonitor/unix/fdpass.go`
   unless the local refactor proves insufficient.

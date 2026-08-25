@@ -12,20 +12,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/internal/report"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/internal/report"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // TestReportEndToEnd tests the full flow:
-// 1. Start agentsh server in container with mixed policy (allow/deny/redirect)
+// 1. Start agentmon server in container with mixed policy (allow/deny/redirect)
 // 2. Create session and run commands that trigger different decisions
 // 3. Query events from the API
 // 4. Generate a report and verify it reflects actual activity
 func TestReportEndToEnd(t *testing.T) {
 	ctx := context.Background()
 
-	bin := buildAgentshBinary(t)
+	bin := buildAgentmonBinary(t)
 	temp := t.TempDir()
 
 	policiesDir := filepath.Join(temp, "policies")

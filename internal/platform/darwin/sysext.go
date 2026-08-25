@@ -1,6 +1,6 @@
 //go:build darwin
 
-// Package darwin provides the macOS platform implementation for agentsh.
+// Package darwin provides the macOS platform implementation for agentmon.
 package darwin
 
 import (
@@ -23,7 +23,7 @@ type SysExtStatus struct {
 	Error       string `json:"error,omitempty"`
 }
 
-// SysExtManager manages the agentsh System Extension lifecycle.
+// SysExtManager manages the agentmon System Extension lifecycle.
 type SysExtManager struct {
 	bundlePath string
 	bundleID   string
@@ -41,7 +41,7 @@ func NewSysExtManager() *SysExtManager {
 	}
 }
 
-// findAppBundle locates the AgentSH.app bundle.
+// findAppBundle locates the AgentMon.app bundle.
 func findAppBundle(execPath string) string {
 	// If running from within .app bundle
 	if idx := strings.Index(execPath, ".app/"); idx >= 0 {
@@ -50,9 +50,9 @@ func findAppBundle(execPath string) string {
 
 	// Check common locations
 	candidates := []string{
-		"/Applications/AgentSH.app",
-		filepath.Join(filepath.Dir(execPath), "AgentSH.app"),
-		filepath.Join(filepath.Dir(execPath), "..", "AgentSH.app"),
+		"/Applications/AgentMon.app",
+		filepath.Join(filepath.Dir(execPath), "AgentMon.app"),
+		filepath.Join(filepath.Dir(execPath), "..", "AgentMon.app"),
 	}
 
 	for _, c := range candidates {
@@ -84,7 +84,7 @@ func (m *SysExtManager) Status() (*SysExtStatus, error) {
 	}
 
 	if m.bundlePath == "" {
-		status.Error = "AgentSH.app bundle not found"
+		status.Error = "AgentMon.app bundle not found"
 		return status, nil
 	}
 
@@ -108,7 +108,7 @@ func (m *SysExtManager) Status() (*SysExtStatus, error) {
 // Install requests installation of the System Extension.
 func (m *SysExtManager) Install() error {
 	if m.bundlePath == "" {
-		return fmt.Errorf("AgentSH.app bundle not found; install it first")
+		return fmt.Errorf("AgentMon.app bundle not found; install it first")
 	}
 
 	extPath := filepath.Join(m.bundlePath, "Contents", "Library", "SystemExtensions",
@@ -126,7 +126,7 @@ func (m *SysExtManager) Install() error {
 // entitlement on the calling binary.
 func (m *SysExtManager) Activate() (ActivateResult, error) {
 	if m.bundlePath == "" {
-		return ActivateFailed, fmt.Errorf("AgentSH.app bundle not found; install it first")
+		return ActivateFailed, fmt.Errorf("AgentMon.app bundle not found; install it first")
 	}
 	return activateExtension()
 }

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/platform"
-	_ "github.com/agentsh/agentsh/internal/platform/linux"
+	"github.com/diffsec/agentmon/internal/platform"
+	_ "github.com/diffsec/agentmon/internal/platform/linux"
 )
 
 // TestPlatformCapabilities verifies platform detection and capability reporting.

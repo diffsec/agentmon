@@ -33,7 +33,7 @@ func TestOpenStateLogFile_CreatesDirAndAppends(t *testing.T) {
 	}
 	f2.Close()
 
-	got, err := os.ReadFile(filepath.Join(stateHome, "agentsh", "logs", "unixwrap.log"))
+	got, err := os.ReadFile(filepath.Join(stateHome, "agentmon", "logs", "unixwrap.log"))
 	if err != nil {
 		t.Fatalf("read log: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestOpenStateLogFile_CreatesDirAndAppends(t *testing.T) {
 func TestEnvKey_Value(t *testing.T) {
 	// The wrapper and all three parents must agree on this string;
 	// pin it so a rename can't silently desynchronize them.
-	if EnvKey != "AGENTSH_WRAPPER_LOG_FD" {
+	if EnvKey != "AGENTMON_WRAPPER_LOG_FD" {
 		t.Fatalf("EnvKey = %q", EnvKey)
 	}
 }

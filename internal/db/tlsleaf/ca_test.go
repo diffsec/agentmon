@@ -43,8 +43,8 @@ func TestLoadOrCreate_FirstCallGenerates(t *testing.T) {
 			t.Errorf("crt perms = %#o, want 0644", crtFI.Mode()&0o777)
 		}
 	}
-	if ca.Cert().Subject.CommonName != "AgentSH DB Proxy CA" {
-		t.Errorf("CN = %q, want \"AgentSH DB Proxy CA\"", ca.Cert().Subject.CommonName)
+	if ca.Cert().Subject.CommonName != "AgentMon DB Proxy CA" {
+		t.Errorf("CN = %q, want \"AgentMon DB Proxy CA\"", ca.Cert().Subject.CommonName)
 	}
 	if !ca.Cert().IsCA {
 		t.Error("CA cert IsCA = false; want true")

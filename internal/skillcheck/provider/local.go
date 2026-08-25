@@ -7,7 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 type localProvider struct{}

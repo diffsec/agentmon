@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	seccompPkg "github.com/agentsh/agentsh/internal/seccomp"
+	seccompPkg "github.com/diffsec/agentmon/internal/seccomp"
 	"gopkg.in/yaml.v3"
 )
 
@@ -115,7 +115,7 @@ type AuthAPIKeyConfig struct {
 // OIDCConfig configures OpenID Connect authentication.
 type OIDCConfig struct {
 	Issuer           string            `yaml:"issuer"`            // e.g., "https://corp.okta.com"
-	ClientID         string            `yaml:"client_id"`         // e.g., "agentsh-server"
+	ClientID         string            `yaml:"client_id"`         // e.g., "agentmon-server"
 	Audience         string            `yaml:"audience"`          // Expected audience claim
 	JWKSCacheTTL     string            `yaml:"jwks_cache_ttl"`    // e.g., "1h"
 	DiscoveryTimeout string            `yaml:"discovery_timeout"` // Timeout for OIDC discovery (default: "5s")
@@ -125,7 +125,7 @@ type OIDCConfig struct {
 	GroupRoleMap     map[string]string `yaml:"group_role_map"`   // group -> role (admin, approver, agent)
 }
 
-// OIDCClaimMappings maps OIDC claims to agentsh fields.
+// OIDCClaimMappings maps OIDC claims to agentmon fields.
 type OIDCClaimMappings struct {
 	OperatorID string `yaml:"operator_id"` // Claim for operator ID (default: "sub")
 	Groups     string `yaml:"groups"`      // Claim for groups (default: "groups")
@@ -143,7 +143,7 @@ type AuditConfig struct {
 	Output   string         `yaml:"output"`
 	Rotation RotationConfig `yaml:"rotation"`
 
-	// Storage is agentsh-specific (not in spec config yet): local DB path.
+	// Storage is agentmon-specific (not in spec config yet): local DB path.
 	Storage AuditStorageConfig `yaml:"storage"`
 
 	// Optional: ship events to an HTTP webhook.
@@ -225,7 +225,7 @@ type HashiCorpVaultConfig struct {
 	K8sRole    string `yaml:"kubernetes_role"` // Role name (for kubernetes auth)
 	AppRoleID  string `yaml:"approle_id"`      // Role ID (for approle auth)
 	SecretID   string `yaml:"secret_id"`       // Secret ID (for approle auth, or use VAULT_SECRET_ID env)
-	SecretPath string `yaml:"secret_path"`     // Path to secret (e.g., secret/data/agentsh/audit-key)
+	SecretPath string `yaml:"secret_path"`     // Path to secret (e.g., secret/data/agentmon/audit-key)
 	KeyField   string `yaml:"key_field"`       // Field name within secret (default: "key")
 }
 
@@ -366,7 +366,7 @@ type SandboxConfig struct {
 }
 
 // SandboxWrapEnvPolicyConfig opts into enforcing env_policy (allow/deny) on the
-// client-spawned wrap path (shell shim / kernel-install / agentsh wrap).
+// client-spawned wrap path (shell shim / kernel-install / agentmon wrap).
 // Default off; fail-open. Issue #379.
 type SandboxWrapEnvPolicyConfig struct {
 	Enabled bool `yaml:"enabled"`
@@ -415,7 +415,7 @@ type SandboxFUSEConfig struct {
 	DeferredEnableCommand []string `yaml:"deferred_enable_command"`
 	// MaxBackground is the kernel-side per-mount FUSE async request queue
 	// depth (the FUSE_INIT max_background value go-fuse passes to the
-	// kernel). When unset or 0, agentsh leaves go-fuse's default in place
+	// kernel). When unset or 0, agentmon leaves go-fuse's default in place
 	// (12). Raising it gives the kernel more headroom for multi-mount
 	// daemons under heavy ptrace+seccomp syscall traffic; common tuned
 	// values are 32-128.
@@ -489,7 +489,7 @@ type SandboxEBPFConfig struct {
 type SandboxCgroupsConfig struct {
 	Enabled bool `yaml:"enabled"`
 	// BasePath is a cgroupfs directory under which per-command cgroups will be created.
-	// If empty, agentsh will default to the current process cgroup.
+	// If empty, agentmon will default to the current process cgroup.
 	// Note: this should be a path under /sys/fs/cgroup (or relative to the current process cgroup dir).
 	BasePath string `yaml:"base_path"`
 	// BestEffort, when true, degrades unenforceable per-command resource limits
@@ -503,7 +503,7 @@ type SandboxCgroupsConfig struct {
 
 type SandboxUnixSocketsConfig struct {
 	Enabled    *bool  `yaml:"enabled"`     // defaults to true for seccomp enforcement
-	WrapperBin string `yaml:"wrapper_bin"` // optional override; defaults to "agentsh-unixwrap" in PATH
+	WrapperBin string `yaml:"wrapper_bin"` // optional override; defaults to "agentmon-unixwrap" in PATH
 }
 
 // SandboxSeccompConfig configures seccomp-bpf filtering.
@@ -631,7 +631,7 @@ type SandboxXPCESFConfig struct {
 }
 
 // PolicySocketConfig configures the macOS policy socket server (IPC bridge
-// between the agentsh daemon and the system extension).
+// between the agentmon daemon and the system extension).
 type PolicySocketConfig struct {
 	Path   string `yaml:"path" json:"path"`
 	TeamID string `yaml:"team_id" json:"team_id"`
@@ -897,8 +897,8 @@ type EnvPolicyConfig struct {
 
 // WebAuthnConfig configures WebAuthn/FIDO2 authentication.
 type WebAuthnConfig struct {
-	RPID             string   `yaml:"rp_id"`             // e.g., "agentsh.local"
-	RPName           string   `yaml:"rp_name"`           // e.g., "agentsh"
+	RPID             string   `yaml:"rp_id"`             // e.g., "agentmon.local"
+	RPName           string   `yaml:"rp_name"`           // e.g., "agentmon"
 	RPOrigins        []string `yaml:"rp_origins"`        // e.g., ["http://localhost:18080"]
 	UserVerification string   `yaml:"user_verification"` // preferred, required, discouraged
 }
@@ -946,7 +946,7 @@ type AuditWatchtowerConfig struct {
 	//
 	// Mirrors SessionID: optional in YAML, resolved at store-construction
 	// time (NOT in applyDefaults — non-daemon CLI subcommands like
-	// `agentsh config show` must not trigger hostname lookup).
+	// `agentmon config show` must not trigger hostname lookup).
 	AgentID       string `yaml:"agent_id"`
 	StateDir      string `yaml:"state_dir"` // default GetUserStateDir() + "/wtp"; per-OS path differs (XDG_STATE_HOME on Linux, LOCALAPPDATA on Windows). See defaultWatchtowerStateDir.
 	EphemeralMode bool   `yaml:"ephemeral_mode"`
@@ -1191,7 +1191,7 @@ func (w *AuditWatchtowerConfig) applyDefaults() {
 func defaultWatchtowerStateDir() string {
 	base := GetUserStateDir()
 	if base == "" {
-		base = filepath.Join(os.TempDir(), "agentsh")
+		base = filepath.Join(os.TempDir(), "agentmon")
 	}
 	return filepath.Join(base, "wtp")
 }
@@ -1660,8 +1660,8 @@ func seedPoliciesFromBundle(bundleDir, userDir string) {
 
 // applyDefaultsWithSource applies default values based on the config source.
 // This enables source-aware default path resolution:
-// - User config: defaults use ~/.local/share/agentsh/ and ~/.config/agentsh/
-// - System config: defaults use /var/lib/agentsh/ and /etc/agentsh/
+// - User config: defaults use ~/.local/share/agentmon/ and ~/.config/agentmon/
+// - System config: defaults use /var/lib/agentmon/ and /etc/agentmon/
 // - Env config: defaults use the directory containing the config file
 func applyDefaultsWithSource(cfg *Config, source ConfigSource, configPath string) {
 	dataDir := getDefaultDataDir(source, configPath)
@@ -1672,10 +1672,10 @@ func applyDefaultsWithSource(cfg *Config, source ConfigSource, configPath string
 		cfg.Platform.Mode = "auto"
 	}
 	if cfg.Platform.MountPoints.Linux == "" {
-		cfg.Platform.MountPoints.Linux = "/tmp/agentsh/workspace"
+		cfg.Platform.MountPoints.Linux = "/tmp/agentmon/workspace"
 	}
 	if cfg.Platform.MountPoints.Darwin == "" {
-		cfg.Platform.MountPoints.Darwin = "/tmp/agentsh/workspace"
+		cfg.Platform.MountPoints.Darwin = "/tmp/agentmon/workspace"
 	}
 
 	if cfg.Server.HTTP.Addr == "" {
@@ -1717,7 +1717,7 @@ func applyDefaultsWithSource(cfg *Config, source ConfigSource, configPath string
 		cfg.Sandbox.FUSE.Audit.Mode = "monitor"
 	}
 	if cfg.Sandbox.FUSE.Audit.TrashPath == "" {
-		cfg.Sandbox.FUSE.Audit.TrashPath = ".agentsh_trash"
+		cfg.Sandbox.FUSE.Audit.TrashPath = ".agentmon_trash"
 	}
 	if cfg.Sandbox.FUSE.Audit.TTL == "" {
 		cfg.Sandbox.FUSE.Audit.TTL = "7d"
@@ -1796,7 +1796,7 @@ func applyDefaultsWithSource(cfg *Config, source ConfigSource, configPath string
 	}
 
 	// Unix sockets wrapper defaults to enabled for seccomp enforcement in shim mode.
-	// This wraps commands with agentsh-unixwrap which applies seccomp-bpf filters.
+	// This wraps commands with agentmon-unixwrap which applies seccomp-bpf filters.
 	if cfg.Sandbox.UnixSockets.Enabled == nil {
 		t := true
 		cfg.Sandbox.UnixSockets.Enabled = &t
@@ -1812,7 +1812,7 @@ func applyDefaultsWithSource(cfg *Config, source ConfigSource, configPath string
 
 	// seccompActive is true when the seccomp wrapper will run — either because
 	// seccomp is explicitly enabled, or because unix_sockets wrapping is on
-	// (which runs agentsh-unixwrap that installs the BPF filter).
+	// (which runs agentmon-unixwrap that installs the BPF filter).
 	wrapperEnabled := cfg.Sandbox.UnixSockets.Enabled != nil && *cfg.Sandbox.UnixSockets.Enabled
 	seccompActive := cfg.Sandbox.Seccomp.Enabled || wrapperEnabled
 
@@ -2042,7 +2042,7 @@ func applyDefaultsWithSource(cfg *Config, source ConfigSource, configPath string
 		cfg.Audit.OTEL.Batch.Timeout = "5s"
 	}
 	if cfg.Audit.OTEL.Resource.ServiceName == "" {
-		cfg.Audit.OTEL.Resource.ServiceName = "agentsh"
+		cfg.Audit.OTEL.Resource.ServiceName = "agentmon"
 	}
 	if cfg.Approvals.Timeout == "" {
 		cfg.Approvals.Timeout = "5m"
@@ -2195,10 +2195,10 @@ func applyDefaultsWithSource(cfg *Config, source ConfigSource, configPath string
 
 	// Policy socket defaults (macOS system extension IPC)
 	if cfg.PolicySocket.Path == "" {
-		cfg.PolicySocket.Path = "/tmp/agentsh-policy.sock"
+		cfg.PolicySocket.Path = "/tmp/agentmon-policy.sock"
 	}
 	if cfg.PolicySocket.TeamID == "" {
-		cfg.PolicySocket.TeamID = "WCKWMMKJ35"
+		cfg.PolicySocket.TeamID = "LWSYS6YTUZ"
 	}
 
 	// WTP (Watchtower Transport Protocol) defaults
@@ -2211,41 +2211,41 @@ func applyDefaults(cfg *Config) {
 }
 
 func applyEnvOverrides(cfg *Config) {
-	if v := os.Getenv("AGENTSH_PLATFORM_MODE"); v != "" {
+	if v := os.Getenv("AGENTMON_PLATFORM_MODE"); v != "" {
 		cfg.Platform.Mode = v
 	}
-	if v := os.Getenv("AGENTSH_HTTP_ADDR"); v != "" {
+	if v := os.Getenv("AGENTMON_HTTP_ADDR"); v != "" {
 		cfg.Server.HTTP.Addr = v
 	}
-	if v := os.Getenv("AGENTSH_GRPC_ADDR"); v != "" {
+	if v := os.Getenv("AGENTMON_GRPC_ADDR"); v != "" {
 		cfg.Server.GRPC.Addr = v
 	}
-	if v := os.Getenv("AGENTSH_LOG_LEVEL"); v != "" {
+	if v := os.Getenv("AGENTMON_LOG_LEVEL"); v != "" {
 		cfg.Logging.Level = v
 	}
-	if v := os.Getenv("AGENTSH_DATA_DIR"); v != "" {
+	if v := os.Getenv("AGENTMON_DATA_DIR"); v != "" {
 		cfg.Sessions.BaseDir = filepath.Join(v, "sessions")
 		cfg.Audit.Storage.SQLitePath = filepath.Join(v, "events.db")
 	}
 	// Proxy-specific overrides
-	if v := os.Getenv("AGENTSH_PROXY_MODE"); v != "" {
+	if v := os.Getenv("AGENTMON_PROXY_MODE"); v != "" {
 		cfg.Proxy.Mode = v
 	}
-	if v := os.Getenv("AGENTSH_DLP_MODE"); v != "" {
+	if v := os.Getenv("AGENTMON_DLP_MODE"); v != "" {
 		cfg.DLP.Mode = v
 	}
-	if v := os.Getenv("AGENTSH_PROXY_PORT"); v != "" {
+	if v := os.Getenv("AGENTMON_PROXY_PORT"); v != "" {
 		if port, err := strconv.Atoi(v); err == nil {
 			cfg.Proxy.Port = port
 		}
 	}
 	// OTEL overrides
-	if v := os.Getenv("AGENTSH_OTEL_ENDPOINT"); v != "" {
+	if v := os.Getenv("AGENTMON_OTEL_ENDPOINT"); v != "" {
 		cfg.Audit.OTEL.Endpoint = v
 	} else if v := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); v != "" {
 		cfg.Audit.OTEL.Endpoint = v
 	}
-	if v := os.Getenv("AGENTSH_OTEL_PROTOCOL"); v != "" {
+	if v := os.Getenv("AGENTMON_OTEL_PROTOCOL"); v != "" {
 		cfg.Audit.OTEL.Protocol = v
 	}
 }
@@ -2522,7 +2522,7 @@ func validateConfig(cfg *Config) error {
 		cfg.Sandbox.Network.Enabled {
 		return fmt.Errorf(
 			"landlock.network.allow_connect_tcp is false but sandbox.network.enabled " +
-				"is true: agent processes cannot reach the agentsh proxy without " +
+				"is true: agent processes cannot reach the agentmon proxy without " +
 				"outbound TCP. Either set landlock.network.allow_connect_tcp to true, " +
 				"or set sandbox.network.enabled to false")
 	}
@@ -2562,7 +2562,7 @@ func validateConfig(cfg *Config) error {
 			"syscalls", loaded.Syscalls)
 	}
 	// Config-schema cross-field invariants that the server also enforces at
-	// startup. Validated here so `agentsh config validate` (and the shim's
+	// startup. Validated here so `agentmon config validate` (and the shim's
 	// auto-start path) catch them before deploy rather than surfacing as a
 	// generic "server unreachable" at runtime (issue #376). Host/environment
 	// checks (capabilities, etc.) intentionally stay at server startup.

@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/policy/pattern"
+	"github.com/diffsec/agentmon/internal/policy/pattern"
 )
 
 // ProcessIdentity defines how to identify a process across platforms.

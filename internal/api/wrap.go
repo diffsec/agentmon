@@ -17,13 +17,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/landlock"
-	"github.com/agentsh/agentsh/internal/limits"
-	"github.com/agentsh/agentsh/internal/policy"
-	seccomppkg "github.com/agentsh/agentsh/internal/seccomp"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/landlock"
+	"github.com/diffsec/agentmon/internal/limits"
+	"github.com/diffsec/agentmon/internal/policy"
+	seccomppkg "github.com/diffsec/agentmon/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -128,7 +128,7 @@ func (a *App) wrapInitCore(s *session.Session, sessionID string, req types.WrapI
 
 	// Shim mode: pre-check the agent command against policy before issuing
 	// the wrapper. The shim's kernel-install path replaces the existing
-	// `agentsh exec` flow with `wrap-init` + direct wrapper exec, which
+	// `agentmon exec` flow with `wrap-init` + direct wrapper exec, which
 	// bypasses the Exec endpoint's CheckCommand pre-check that surfaces
 	// `command denied by policy` to the user. Without this guard, a denied
 	// command (e.g. `sh -c "shutdown now"`) routes around policy entirely:
@@ -143,11 +143,11 @@ func (a *App) wrapInitCore(s *session.Session, sessionID string, req types.WrapI
 	// semantics the shim wrap path does NOT implement — approval gating,
 	// command rewriting, redirect target validation. For those we return
 	// 403 so the shim's ModeAuto branch falls through to the existing
-	// `agentsh exec` path, which has full pre-exec policy semantics
+	// `agentmon exec` path, which has full pre-exec policy semantics
 	// (approval prompt, redirect rewrite, deny + user-visible message).
 	// ModeOn still fail-closes via the same path.
 	//
-	// Agent mode (`agentsh wrap`) intentionally retains pre-existing
+	// Agent mode (`agentmon wrap`) intentionally retains pre-existing
 	// behavior — it is invoked by an operator with explicit intent and
 	// has its own integration with policy elsewhere.
 	if req.Mode == "shim" {
@@ -169,7 +169,7 @@ func (a *App) wrapInitCore(s *session.Session, sessionID string, req types.WrapI
 		//
 		//   - soft_delete: PolicyDecision=soft_delete, Effective=allow.
 		//     The wrapper would not redirect rm to trash; we must defer
-		//     to agentsh-exec which performs the rewrite.
+		//     to agentmon-exec which performs the rewrite.
 		//   - approve with enforce_approvals=false (monitor mode):
 		//     PolicyDecision=approve, Effective=allow. Same reasoning.
 		//   - redirect with enforce_redirects=false: PolicyDecision=
@@ -206,7 +206,7 @@ func (a *App) wrapInitCore(s *session.Session, sessionID string, req types.WrapI
 			return types.WrapInitResponse{}, http.StatusServiceUnavailable,
 				fmt.Errorf("ptrace tracer is not healthy; refusing wrap-init")
 		}
-		notifyDir, err := os.MkdirTemp("", "agentsh-wrap-*")
+		notifyDir, err := os.MkdirTemp("", "agentmon-wrap-*")
 		if err != nil {
 			return types.WrapInitResponse{}, http.StatusInternalServerError, err
 		}
@@ -287,7 +287,7 @@ func (a *App) wrapInitCore(s *session.Session, sessionID string, req types.WrapI
 
 	// Refuse wrap-init when sandbox.unix_sockets.enabled has been explicitly
 	// set to false. Without this gate, the shim's kernel-install path
-	// launches agentsh-unixwrap, which loads its seccomp filter and tries
+	// launches agentmon-unixwrap, which loads its seccomp filter and tries
 	// to forward the notify FD to a server that has no live handler — the
 	// handshake aborts and the user's command silently exits with empty
 	// stdout / exit 1. Returning 503 makes the shim's ModeAuto branch fall
@@ -315,7 +315,7 @@ func (a *App) wrapInitCore(s *session.Session, sessionID string, req types.WrapI
 	// Resolve wrapper binary
 	wrapperBin := strings.TrimSpace(a.cfg.Sandbox.UnixSockets.WrapperBin)
 	if wrapperBin == "" {
-		wrapperBin = "agentsh-unixwrap"
+		wrapperBin = "agentmon-unixwrap"
 	}
 
 	// Resolve to absolute path
@@ -325,7 +325,7 @@ func (a *App) wrapInitCore(s *session.Session, sessionID string, req types.WrapI
 	}
 
 	// Resolve stub binary (optional, for redirect support)
-	stubBin := "agentsh-stub"
+	stubBin := "agentmon-stub"
 	stubPath, _ := exec.LookPath(stubBin)
 
 	execveEnabled := a.cfg.Sandbox.Seccomp.Execve.Enabled
@@ -334,7 +334,7 @@ func (a *App) wrapInitCore(s *session.Session, sessionID string, req types.WrapI
 	// other local users from connecting first (security: socket path injection).
 	// Sanitize session ID to a safe basename to prevent path traversal.
 	safeID := filepath.Base(sessionID)
-	notifyDir, err := os.MkdirTemp("", "agentsh-wrap-*")
+	notifyDir, err := os.MkdirTemp("", "agentmon-wrap-*")
 	if err != nil {
 		return types.WrapInitResponse{}, http.StatusInternalServerError, err
 	}
@@ -480,10 +480,10 @@ func (a *App) wrapInitCore(s *session.Session, sessionID string, req types.WrapI
 
 	// Build wrapper env
 	wrapperEnv := map[string]string{
-		"AGENTSH_SECCOMP_CONFIG": string(cfgJSON),
+		"AGENTMON_SECCOMP_CONFIG": string(cfgJSON),
 	}
 	if signalSocketPath != "" {
-		wrapperEnv["AGENTSH_SIGNAL_SOCK_FD"] = "4" // fd 4 = ExtraFiles[1]
+		wrapperEnv["AGENTMON_SIGNAL_SOCK_FD"] = "4" // fd 4 = ExtraFiles[1]
 	}
 
 	// Emit wrap_init event
@@ -551,7 +551,7 @@ func (a *App) wrapEnvPolicyWire(s *session.Session, req types.WrapInitRequest) *
 // nil slices are safe to append() to, so callers can unconditionally tack
 // on config-derived paths afterwards.
 //
-// This helper is the regression boundary for canyonroad/agentsh#191: it
+// This helper is the regression boundary for diffsec/agentmon#191: it
 // was extracted from wrapInitCore specifically so the derivation path can
 // be tested end-to-end without standing up seccomp. See
 // TestWrap_LandlockDerivationUsesSessionPolicy.
@@ -572,7 +572,7 @@ func (a *App) deriveLandlockAllowPaths(s *session.Session) (execute, read, write
 // filter socket for this session. It consults the session's effective
 // policy engine (per-session engine if set, otherwise the global engine)
 // so per-session signal rules are honored — reading a.policy directly
-// silently ignores non-default policy files (canyonroad/agentsh#191).
+// silently ignores non-default policy files (diffsec/agentmon#191).
 //
 // Signal filtering is disabled whenever the main seccomp filter already
 // uses SECCOMP_RET_USER_NOTIF (for execve interception, unix socket
@@ -607,7 +607,7 @@ func (a *App) signalFilterEnabledForMainFilter(s *session.Session, execveEnabled
 }
 
 // mainFilterUsesUserNotify reports whether the main seccomp filter
-// installed by agentsh-unixwrap will use SECCOMP_RET_USER_NOTIF for any
+// installed by agentmon-unixwrap will use SECCOMP_RET_USER_NOTIF for any
 // reason. This mirrors the feature gates in
 // unixmon.InstallFilterWithConfig: each of these flags causes the
 // wrapper to register ActNotify rules in the main filter. Callers use

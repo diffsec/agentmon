@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -199,13 +199,13 @@ Supported log types:
 
 When no type is specified, all log types are shown.`,
 		Example: `  # View all logs for a session
-  agentsh session logs abc123
+  agentmon session logs abc123
 
   # View only LLM request/response logs
-  agentsh session logs abc123 --type=llm
+  agentmon session logs abc123 --type=llm
 
   # View only filesystem logs
-  agentsh session logs abc123 --type=fs`,
+  agentmon session logs abc123 --type=fs`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sessionID := args[0]

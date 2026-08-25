@@ -3,8 +3,8 @@ package api
 import (
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/mcpinspect"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/google/uuid"
 )
 

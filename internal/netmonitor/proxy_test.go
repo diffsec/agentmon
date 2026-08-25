@@ -11,15 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/approvals"
-	"github.com/agentsh/agentsh/internal/config"
-	dbevents "github.com/agentsh/agentsh/internal/db/events"
-	dbservice "github.com/agentsh/agentsh/internal/db/service"
-	"github.com/agentsh/agentsh/internal/mcpregistry"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/tor"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/approvals"
+	"github.com/diffsec/agentmon/internal/config"
+	dbevents "github.com/diffsec/agentmon/internal/db/events"
+	dbservice "github.com/diffsec/agentmon/internal/db/service"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/tor"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type stubEmitter struct {
@@ -68,7 +68,7 @@ func newNetmonitorDBUnavoidabilityEngine(t *testing.T) *policy.Engine {
 				Domains:  []string{"db.internal"},
 				Ports:    []int{5432},
 				Decision: "deny",
-				Message:  "Direct database egress is blocked; use the AgentSH DB proxy",
+				Message:  "Direct database egress is blocked; use the AgentMon DB proxy",
 			},
 		},
 	}
@@ -329,7 +329,7 @@ func TestEmitConnectRedirectEventNilEmitter(t *testing.T) {
 }
 
 func TestConnectDialTarget_UnixRedirect(t *testing.T) {
-	socketPath := filepath.Join(os.TempDir(), "agentsh", "sessions", "sess-1", "db", "appdb.sock")
+	socketPath := filepath.Join(os.TempDir(), "agentmon", "sessions", "sess-1", "db", "appdb.sock")
 
 	got := connectDialTarget(connectDialTargetInput{
 		OriginalHostPort: "db.internal:5432",
@@ -917,8 +917,8 @@ func newDBUnavoidabilityIPEngine(t *testing.T) *policy.Engine {
 			{RuleName: "db-appdb-deny-http", Source: dbservice.RuleSourceDBUnavoidability, DBService: "appdb", BypassMode: dbservice.BypassModeTCPDirect, Destination: "127.0.0.1:80"},
 		},
 		NetworkRules: []policy.NetworkRule{
-			{Name: "db-appdb-deny-direct", Domains: []string{"127.0.0.1"}, Ports: []int{5432}, Decision: "deny", Message: "Direct database egress is blocked; use the AgentSH DB proxy"},
-			{Name: "db-appdb-deny-http", Domains: []string{"127.0.0.1"}, Ports: []int{80}, Decision: "deny", Message: "Direct database egress is blocked; use the AgentSH DB proxy"},
+			{Name: "db-appdb-deny-direct", Domains: []string{"127.0.0.1"}, Ports: []int{5432}, Decision: "deny", Message: "Direct database egress is blocked; use the AgentMon DB proxy"},
+			{Name: "db-appdb-deny-http", Domains: []string{"127.0.0.1"}, Ports: []int{80}, Decision: "deny", Message: "Direct database egress is blocked; use the AgentMon DB proxy"},
 		},
 	}
 	engine, err := policy.NewEngine(p, false, true)

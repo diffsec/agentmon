@@ -26,7 +26,7 @@ surfaces policy authoring mistakes as non-fatal warnings.
 - Keep `objects` syntactic-only for backward compatibility.
 - Add evaluator explanation data for rule matches, coverage, uncovered objects,
   and final decision.
-- Add `agentsh policy db explain` as the operator-facing explain command.
+- Add `agentmon policy db explain` as the operator-facing explain command.
 - Support offline catalog fixtures for explain-mode resolution; no live DB
   connection is required for Plan 10.
 - Add config-load warnings for canonical selector misuse, unsupported service
@@ -235,13 +235,13 @@ The fixture is an operator/debugging aid, not a production catalog cache file.
 It should be documented as an approximation of what the runtime would see from
 the upstream DB identity.
 
-### 4.4 `agentsh policy db explain`
+### 4.4 `agentmon policy db explain`
 
 Add a `db` subcommand under the existing `policy` command:
 
 ```text
-agentsh policy db explain POLICY_OR_PATH --service appdb [--sql "SELECT * FROM users"]
-agentsh policy db explain POLICY_OR_PATH --service appdb < statement.sql
+agentmon policy db explain POLICY_OR_PATH --service appdb [--sql "SELECT * FROM users"]
+agentmon policy db explain POLICY_OR_PATH --service appdb < statement.sql
 ```
 
 Flags:
@@ -324,7 +324,7 @@ missing catalog fixtures for canonical selectors.
 `dbpolicy.Decode` already returns warnings, but some callers discard them.
 Plan 10 should make warnings visible in two places:
 
-- `agentsh policy validate` should run DB policy decode when DB blocks are
+- `agentmon policy validate` should run DB policy decode when DB blocks are
   present and print warnings before `ok`.
 - Session DB policy compilation should preserve current fatal-error behavior
   and surface warnings through the existing server logging path.
@@ -379,7 +379,7 @@ specific database catalog snapshot and identity.
 - A canonical selector never matches unresolved catalog metadata.
 - If explain mode has no catalog fixture, canonical selectors can be reported
   as configured but uncovered for the classified statement.
-- If a catalog fixture is malformed, `agentsh policy db explain` exits nonzero
+- If a catalog fixture is malformed, `agentmon policy db explain` exits nonzero
   and names the fixture field that failed to parse.
 - If policy validation finds warnings only, it exits zero and prints warnings.
 - `decision: redirect` remains a fatal load error until Plan 11.
@@ -403,7 +403,7 @@ specific database catalog snapshot and identity.
 
 ### Explain Tests
 
-- `agentsh policy db explain` reads SQL from stdin and from `--sql`.
+- `agentmon policy db explain` reads SQL from stdin and from `--sql`.
 - JSON output includes effects, resolved objects, coverage, uncovered objects,
   warnings, and decision fields.
 - Text output includes the statement verb, final decision, matching rule, and
@@ -458,7 +458,7 @@ Documentation must state:
 - Operators can author `relations` and `functions` selectors in DB statement
   rules.
 - Canonical selectors only match successful catalog-backed resolved objects.
-- `agentsh policy db explain` reports classification, resolution, coverage,
+- `agentmon policy db explain` reports classification, resolution, coverage,
   warnings, and final decision for a statement under a policy file.
 - Policy validation surfaces Plan 10 warnings without blocking load.
 - `decision: redirect` is still rejected and points operators to Plan 11.

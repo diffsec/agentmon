@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/proxy/credsub"
-	"github.com/agentsh/agentsh/internal/proxy/secrets"
+	"github.com/diffsec/agentmon/internal/proxy/credsub"
+	"github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // envVarKey returns the map key for duplicate env-var detection.

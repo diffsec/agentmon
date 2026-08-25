@@ -17,7 +17,7 @@ Plan 4 ships two things together:
 
 - A `Registry` type in `internal/proxy/secrets/` that constructs providers in dependency order with cycle detection.
 - A Vault provider supporting token, AppRole, and Kubernetes auth methods.
-- Auth chaining: Vault's bootstrap credentials can reference another provider (e.g., `keyring://agentsh/vault_token`).
+- Auth chaining: Vault's bootstrap credentials can reference another provider (e.g., `keyring://agentmon/vault_token`).
 - KV v2 secret reads with field extraction via URI fragment (`vault://kv/github#token`).
 - Zero call sites inside the daemon — wiring happens in Plan 10.
 
@@ -74,7 +74,7 @@ type ProviderConfig interface {
 
 `ProviderConfigMarker` gets a default implementation returning `nil`, so existing configs (`keyring.Config`) don't break without code changes.
 
-Each provider config implements `Dependencies()` by returning the `*_ref` fields it needs resolved before construction. For example, `vault.Config` with `TokenRef: keyring://agentsh/vault_token` returns `[]SecretRef{{Scheme: "keyring", Host: "agentsh", Path: "vault_token"}}`.
+Each provider config implements `Dependencies()` by returning the `*_ref` fields it needs resolved before construction. For example, `vault.Config` with `TokenRef: keyring://agentmon/vault_token` returns `[]SecretRef{{Scheme: "keyring", Host: "agentmon", Path: "vault_token"}}`.
 
 ### Construction flow
 

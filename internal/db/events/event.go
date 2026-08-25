@@ -4,7 +4,7 @@ package events
 import (
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // DBEvent is the normalized audit event emitted per database statement, per §8.

@@ -30,7 +30,7 @@ knobs**.
 `RESOLVE` is how Tor-aware tooling avoids a DNS leak: instead of resolving a
 hostname with the system resolver (plaintext, off-Tor) and then connecting to
 the resulting IP, the client asks Tor to resolve the name inside the circuit.
-Before Phase 3 a loopback Tor daemon outside agentsh's interception answered
+Before Phase 3 a loopback Tor daemon outside agentmon's interception answered
 these directly; after Phase 3 they are force-redirected into the gateway, where
 the CONNECT-only parser rejects them. For a control whose allow-mode purpose is
 "permit specific onions, deny the rest," refusing the very resolution step a

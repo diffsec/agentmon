@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/pkgcheck"
-	"github.com/agentsh/agentsh/internal/pkgcheck/provider"
-	"github.com/agentsh/agentsh/internal/pkgcheck/resolver"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck/provider"
+	"github.com/diffsec/agentmon/internal/pkgcheck/resolver"
 )
 
 // errMissingAPIKeyValue is returned by requireAPIKey when the env var name is

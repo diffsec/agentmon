@@ -741,7 +741,7 @@ func TestServer_HandleExecCheck(t *testing.T) {
 			Decision: "redirect",
 			Action:   "redirect",
 			Rule:     "redirect-git",
-			Message:  "redirecting to agentsh-stub",
+			Message:  "redirecting to agentmon-stub",
 		}
 
 		req := PolicyRequest{
@@ -1132,7 +1132,7 @@ func TestServer_MutePath(t *testing.T) {
 
 	req := PolicyRequest{
 		Type: RequestTypeMutePath,
-		Path: "/usr/local/bin/agentsh-stub",
+		Path: "/usr/local/bin/agentmon-stub",
 	}
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
 		t.Fatalf("encode: %v", err)
@@ -1155,7 +1155,7 @@ func TestServer_MutePath(t *testing.T) {
 	if len(registrar.mutedPaths) != 1 {
 		t.Fatalf("expected 1 muted path, got %d", len(registrar.mutedPaths))
 	}
-	if registrar.mutedPaths[0] != "/usr/local/bin/agentsh-stub" {
-		t.Errorf("muted path: got %q, want %q", registrar.mutedPaths[0], "/usr/local/bin/agentsh-stub")
+	if registrar.mutedPaths[0] != "/usr/local/bin/agentmon-stub" {
+		t.Errorf("muted path: got %q, want %q", registrar.mutedPaths[0], "/usr/local/bin/agentmon-stub")
 	}
 }

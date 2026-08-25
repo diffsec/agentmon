@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // Direction indicates whether a message is a request or response.

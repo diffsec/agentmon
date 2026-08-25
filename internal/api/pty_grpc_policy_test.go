@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/metrics"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/ptygrpc"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/metrics"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/ptygrpc"
+	"github.com/diffsec/agentmon/pkg/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -84,7 +84,7 @@ func TestGRPC_PTY_RespectsCommandPolicyDeny(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cl := ptygrpc.NewAgentshPTYClient(conn)
+	cl := ptygrpc.NewAgentmonPTYClient(conn)
 	stream, err := cl.ExecPTY(ctx)
 	if err != nil {
 		t.Fatal(err)

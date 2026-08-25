@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/approval/dialog"
+	"github.com/diffsec/agentmon/internal/approval/dialog"
 )
 
 // DialogPromptProvider implements PromptProvider using native OS dialogs.

@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/metrics"
-	"github.com/agentsh/agentsh/internal/platform"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/metrics"
+	"github.com/diffsec/agentmon/internal/platform"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
 )
 
 // --- mock types ---

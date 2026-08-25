@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-18
 **Status:** Draft
-**Spec:** AgentSH → Watchtower Transport Protocol v0.4.9-draft
+**Spec:** AgentMon → Watchtower Transport Protocol v0.4.9-draft
 **Scope:** Phase 2 only — client library (no server, no OCSF mapper, no composite refactor)
 **Related:**
 - `docs/superpowers/specs/2026-04-18-phase-0-shared-sequence-contract.md` (sequence/generation contract)
@@ -12,7 +12,7 @@
 
 ## Problem
 
-AgentSH today persists audit events to local sinks: SQLite (queryable, optional), JSONL (durable, append-only), OTEL (export to collector), and webhook (HTTP push). For Watchtower — the agentic-fleet console — we need a fifth sink that ships events over a long-lived gRPC connection with the WTP wire protocol: TLS 1.3, OCSF-aligned `CompactEvent`, HMAC chain with sink-local hashes over a shared sequence, WAL-backed at-least-once delivery, batching, compression, reconnect with replay, and `TransportLoss` markers when the WAL must drop records.
+AgentMon today persists audit events to local sinks: SQLite (queryable, optional), JSONL (durable, append-only), OTEL (export to collector), and webhook (HTTP push). For Watchtower — the agentic-fleet console — we need a fifth sink that ships events over a long-lived gRPC connection with the WTP wire protocol: TLS 1.3, OCSF-aligned `CompactEvent`, HMAC chain with sink-local hashes over a shared sequence, WAL-backed at-least-once delivery, batching, compression, reconnect with replay, and `TransportLoss` markers when the WAL must drop records.
 
 This design covers the **client library only**. The server side, the OCSF schema mapper (Phase 1), and the composite-store sequence refactor (Phase 0) are prerequisites whose contracts are documented but whose implementation is not part of this work.
 
@@ -832,7 +832,7 @@ Implementations MUST make this enforceable at the type level by giving `*Validat
 
 #### Schema stability
 
-The `canyonroad.wtp.v1` package is **unstable until the first tagged 1.0 release of the WTP protocol** (separate from the agentsh release version), with ONE exception: the reason classification surface (`ValidationReason`, the `Reason*` constants, and `AllValidationReasons()`) is carved out as STABLE within this otherwise-unstable package — see the §"Stable production API" paragraph immediately above for the carve-out details. Pre-1.0 (everything OTHER than the carved-out reason surface):
+The `canyonroad.wtp.v1` package is **unstable until the first tagged 1.0 release of the WTP protocol** (separate from the agentmon release version), with ONE exception: the reason classification surface (`ValidationReason`, the `Reason*` constants, and `AllValidationReasons()`) is carved out as STABLE within this otherwise-unstable package — see the §"Stable production API" paragraph immediately above for the carve-out details. Pre-1.0 (everything OTHER than the carved-out reason surface):
 
 - Tag numbers, field types, and enum values may change between commits with no migration burden. There are no live deployments to break.
 - Generated `.pb.go` is regenerated on every change. Goldens (Phase 4b) are regenerated to match.
@@ -1000,7 +1000,7 @@ type Config struct {
 
     Endpoint   string            // host:port
     SessionID  string            // optional; auto-generated ULID if empty
-    StateDir   string            // default: per-OS state dir + "/wtp" (Linux: $XDG_STATE_HOME/agentsh/wtp; macOS: ~/Library/Application Support/agentsh/wtp; Windows: %LOCALAPPDATA%\agentsh\wtp — non-roaming, distinct from APPDATA)
+    StateDir   string            // default: per-OS state dir + "/wtp" (Linux: $XDG_STATE_HOME/agentmon/wtp; macOS: ~/Library/Application Support/agentmon/wtp; Windows: %LOCALAPPDATA%\agentmon\wtp — non-roaming, distinct from APPDATA)
     EphemeralMode bool
 
     TLS struct {
@@ -1087,7 +1087,7 @@ func WithLogger(l *slog.Logger) Option          // injected by host
 func WithChainKey(key []byte, fp string) Option // injected by composite (Phase 0)
 ```
 
-The host (the agentsh daemon) is responsible for building the `Store` with the right options. In tests we construct an in-process `testserver.Server` and pass `WithDialer(srv.DialerFor())`, skipping TLS entirely.
+The host (the agentmon daemon) is responsible for building the `Store` with the right options. In tests we construct an in-process `testserver.Server` and pass `WithDialer(srv.DialerFor())`, skipping TLS entirely.
 
 **Constructor lifecycle — chain init is a precheck.** `New` constructs the `audit.SinkChain` (via `audit.NewSinkChain`) **before** opening the WAL. Chain construction is pure (no IO side effects), so a failure here returns immediately without leaving a WAL file open or a lock file held. This ordering is mandatory: opening the WAL first and then failing chain construction would leak WAL state on the way out. If a future change reorders so the WAL opens first, that branch MUST `Close()` the WAL on chain-init failure before returning the error.
 
@@ -1115,7 +1115,7 @@ These three pieces of plumbing don't exist in the codebase today and must land a
 
 1. **Filter generalization.** `internal/store/otel/otel.go` has a private `Filter` type. We move it into a shared package `internal/store/eventfilter/` (or similar; final name in the implementation plan), update OTEL to consume the shared type, and use it from WTP. Backwards-compatible YAML; no behavior change for OTEL.
 2. **YAML config schema.** Add `WatchtowerConfig` under `internal/config/config.go` mirroring §6 above. Wire into the existing `AuditConfig` (or its peer) so the daemon constructs a WTP `Store` when `enabled: true`. Add `config_test.go` cases for default expansion (ephemeral overrides, mutual-exclusion validation).
-3. **Metrics wiring.** `internal/metrics.Collector` exposes a counter/gauge registry. Add the `wtp_*` series listed under "Metrics" above as fields on a `metrics.Collector` extension or a sibling collector. The host (the daemon `cmd/agentsh`) registers them at startup and passes the collector via `WithMetrics`.
+3. **Metrics wiring.** `internal/metrics.Collector` exposes a counter/gauge registry. Add the `wtp_*` series listed under "Metrics" above as fields on a `metrics.Collector` extension or a sibling collector. The host (the daemon `cmd/agentmon`) registers them at startup and passes the collector via `WithMetrics`.
 
 None of these three blocks the WTP package's own unit tests — they only matter at host-wiring time. Each shows up as a discrete milestone in §"Implementation Phases" below.
 
@@ -1338,7 +1338,7 @@ This section enumerates ordered milestones with one-line entry/exit criteria, sc
 | 9 | **In-tree testserver** | Phase 8 done. | `internal/store/watchtower/testserver/`: bufconn server, scenario hooks (Drop, Goaway, AckDelay, SessionAckSeq/Generation, RejectSession), `WaitForFirstBatch` / `AssertSequenceRange` / `AssertReplayObserved` helpers. Self-tested. |
 | 10 | **Store integration + transactional Append** | Phase 9 done. | `internal/store/watchtower/store.go` glues compact + chain + wal + transport. Implements `store.EventStore`. **Required tests**: `TestStore_WALCleanFailure_NoChainAdvance`, `TestStore_WALAmbiguousFailure_LatchesFatal`. |
 | 11 | **Component + integration tests** | Phase 10 done. | The five-layer pyramid's component and integration rows pass: `TestStore_DropsMidBatchTriggersReplay`, `TestStore_ServerRestart_AcksCatchUp`, plus the testserver-driven scenario suite. |
-| 12 | **Daemon wiring** | Phase 11 done. | `cmd/agentsh` constructs a WTP `Store` when `audit.watchtower.enabled: true`, passes `WithMapper`, `WithMetrics`, `WithLogger`, `WithChainKey`. Manual end-to-end smoke test against `cmd/wtp-testserver` documented. |
+| 12 | **Daemon wiring** | Phase 11 done. | `cmd/agentmon` constructs a WTP `Store` when `audit.watchtower.enabled: true`, passes `WithMapper`, `WithMetrics`, `WithLogger`, `WithChainKey`. Manual end-to-end smoke test against `cmd/wtp-testserver` documented. |
 
 Phases 5/6/7/8 can be parallelized across contributors after Phase 4b (the proto definitions are the only shared dependency). Phases 1/2/3 are strict sequential prerequisites.
 

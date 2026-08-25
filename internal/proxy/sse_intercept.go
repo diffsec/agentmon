@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/mcpinspect"
-	"github.com/agentsh/agentsh/internal/mcpregistry"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
 )
 
 // SSEInterceptor processes an SSE stream line-by-line, evaluating MCP tool
@@ -294,7 +294,7 @@ func (s *SSEInterceptor) handleMessageDelta(originalLine, data string) []string 
 // emitAnthropicTextBlock generates a replacement text block for a blocked tool.
 // It produces 3 SSE data lines: content_block_start, content_block_delta, content_block_stop.
 func (s *SSEInterceptor) emitAnthropicTextBlock(index int, toolName string) []string {
-	msg := fmt.Sprintf("[agentsh] Tool '%s' blocked by policy", toolName)
+	msg := fmt.Sprintf("[agentmon] Tool '%s' blocked by policy", toolName)
 
 	startData := fmt.Sprintf(`{"type":"content_block_start","index":%d,"content_block":{"type":"text","text":""}}`, index)
 	deltaData := fmt.Sprintf(`{"type":"content_block_delta","index":%d,"delta":{"type":"text_delta","text":%s}}`, index, mustMarshalString(msg))
@@ -638,7 +638,7 @@ func (s *SSEInterceptor) handleOpenAIFirstToolChunk(choice *openAIChunkChoice) b
 			st.nblocked++
 			st.blocked[tc.Index] = true
 			s.fireEvent(toolName, toolCallID, "block", decision.Reason, entry, crossServerDec)
-			blockedMessages = append(blockedMessages, fmt.Sprintf("[agentsh] Tool '%s' blocked by policy", toolName))
+			blockedMessages = append(blockedMessages, fmt.Sprintf("[agentmon] Tool '%s' blocked by policy", toolName))
 		}
 	}
 

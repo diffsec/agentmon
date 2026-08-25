@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/approval/dialog"
+	"github.com/diffsec/agentmon/internal/approval/dialog"
 )
 
 // skipIfDialogAvailable skips the test if a dialog backend is available,

@@ -5,8 +5,8 @@ package api
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/capabilities"
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestCreateLandlockHook(t *testing.T) {

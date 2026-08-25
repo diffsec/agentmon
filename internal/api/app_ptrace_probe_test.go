@@ -5,10 +5,10 @@ package api
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
 )
 
 // newProbeTestApp builds the minimal *App needed to exercise initPtraceTracer

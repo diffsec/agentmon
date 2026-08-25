@@ -7,10 +7,10 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
-// Mapping declares how a single agentsh ev.Type is projected into OCSF.
+// Mapping declares how a single agentmon ev.Type is projected into OCSF.
 //
 // All four fields are required:
 //   - ClassUID and ActivityID end up on the resulting compact.MappedEvent.

@@ -143,7 +143,7 @@ func NewTenantConfig(tenantID, name string) (*TenantConfig, error) {
 // DefaultIsolationConfig returns sensible default isolation settings.
 func DefaultIsolationConfig(tenantID string) IsolationConfig {
 	return IsolationConfig{
-		WorkspaceRoot:    filepath.Join("/var/agentsh/tenants", tenantID),
+		WorkspaceRoot:    filepath.Join("/var/agentmon/tenants", tenantID),
 		SharedReadOnly:   []string{"/usr/share", "/etc/ssl/certs"},
 		NetworkNamespace: true,
 		AllowedEgress:    []string{}, // Empty means use default policy

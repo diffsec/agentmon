@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 	"gopkg.in/yaml.v3"
 )
 

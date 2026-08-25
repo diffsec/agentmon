@@ -53,7 +53,7 @@ This command initiates a registration ceremony. You will need to:
 2. Complete the registration in a browser or via the API
 
 Example:
-  agentsh auth webauthn register --name "My YubiKey"`,
+  agentmon auth webauthn register --name "My YubiKey"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(cmd.OutOrStdout(), "Starting WebAuthn registration for credential: %s\n", name)
 			fmt.Fprintln(cmd.OutOrStdout(), "(Full registration flow requires browser interaction)")

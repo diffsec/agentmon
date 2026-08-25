@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `sandbox.seccomp.syscalls.on_block` semantically real — the configured value (`errno` | `kill` | `log` | `log_and_kill`) determines the seccomp filter action, and `log` / `log_and_kill` emit `seccomp_blocked` events that reach agentsh's event store.
+**Goal:** Make `sandbox.seccomp.syscalls.on_block` semantically real — the configured value (`errno` | `kill` | `log` | `log_and_kill`) determines the seccomp filter action, and `log` / `log_and_kill` emit `seccomp_blocked` events that reach agentmon's event store.
 
 **Architecture:** Config validation rejects unknown `on_block` values and defaults to `"errno"` (matches existing runtime behavior). `OnBlockAction` propagates Config → JSON → wrapper's `FilterConfig` → kernel seccomp action. Silent modes (`errno`, `kill`) map straight to `SCMP_ACT_ERRNO(EPERM)` / `SCMP_ACT_KILL_PROCESS` with no runtime overhead. Auditable modes (`log`, `log_and_kill`) use `SCMP_ACT_NOTIFY`, dispatched in `ServeNotifyWithExecve` to a new `handleBlockListNotify` that emits a `seccomp_blocked` event and, for `log_and_kill`, sends `SIGKILL` via pidfd before responding.
 
@@ -26,9 +26,9 @@
 - `internal/config/seccomp_test.go` — update existing parse test, add validation/defaults coverage.
 - `internal/api/core.go` — add `OnBlock` to `seccompWrapperConfig`, propagate in both construction sites.
 - `internal/api/wrap.go` — add `OnBlock` to `seccompWrapperConfig` construction.
-- `cmd/agentsh-unixwrap/config.go` — add `OnBlock` to `WrapperConfig`.
-- `cmd/agentsh-unixwrap/main.go` — pass `OnBlock` into `FilterConfig`.
-- `cmd/agentsh-unixwrap/config_test.go` — JSON round-trip coverage.
+- `cmd/agentmon-unixwrap/config.go` — add `OnBlock` to `WrapperConfig`.
+- `cmd/agentmon-unixwrap/main.go` — pass `OnBlock` into `FilterConfig`.
+- `cmd/agentmon-unixwrap/config_test.go` — JSON round-trip coverage.
 - `internal/netmonitor/unix/seccomp_linux.go` — `FilterConfig.OnBlockAction`, switch block-list action in `InstallFilterWithConfig`, stale comment fix.
 - `internal/netmonitor/unix/seccomp_linux_test.go` — per-action rule assertions.
 - `internal/netmonitor/unix/handler.go` — plumb `BlockListConfig` into `ServeNotifyWithExecve`, add dispatch branch.
@@ -311,12 +311,12 @@ EOF
 **Files:**
 - Modify: `internal/api/core.go:51-67` (`seccompWrapperConfig`), `:205` (wrap-path construction).
 - Modify: `internal/api/wrap.go:150-157` (wrap-init construction).
-- Modify: `cmd/agentsh-unixwrap/config.go:15-35` (`WrapperConfig` struct).
-- Test: `cmd/agentsh-unixwrap/config_test.go`.
+- Modify: `cmd/agentmon-unixwrap/config.go:15-35` (`WrapperConfig` struct).
+- Test: `cmd/agentmon-unixwrap/config_test.go`.
 
 - [ ] **Step 1: Write failing test for `WrapperConfig` JSON round-trip**
 
-Append to `cmd/agentsh-unixwrap/config_test.go`:
+Append to `cmd/agentmon-unixwrap/config_test.go`:
 
 ```go
 func TestParseConfigJSON_OnBlock(t *testing.T) {
@@ -332,12 +332,12 @@ func TestParseConfigJSON_OnBlock(t *testing.T) {
 
 - [ ] **Step 2: Run — expect failure**
 
-Run: `go test ./cmd/agentsh-unixwrap -run TestParseConfigJSON_OnBlock -v`
+Run: `go test ./cmd/agentmon-unixwrap -run TestParseConfigJSON_OnBlock -v`
 Expected: FAIL — `cfg.OnBlock` doesn't exist yet.
 
 - [ ] **Step 3: Add `OnBlock` to `WrapperConfig`**
 
-Edit `cmd/agentsh-unixwrap/config.go`. In the `WrapperConfig` struct (around line 15-35), add after `BlockedSyscalls`:
+Edit `cmd/agentmon-unixwrap/config.go`. In the `WrapperConfig` struct (around line 15-35), add after `BlockedSyscalls`:
 
 ```go
 BlockedSyscalls     []string `json:"blocked_syscalls"`
@@ -346,7 +346,7 @@ OnBlock             string   `json:"on_block,omitempty"`
 
 - [ ] **Step 4: Run — expect pass**
 
-Run: `go test ./cmd/agentsh-unixwrap -run TestParseConfigJSON_OnBlock -v`
+Run: `go test ./cmd/agentmon-unixwrap -run TestParseConfigJSON_OnBlock -v`
 Expected: PASS.
 
 - [ ] **Step 5: Add `OnBlock` to `seccompWrapperConfig` (server side)**
@@ -393,18 +393,18 @@ Expected: PASS.
 
 - [ ] **Step 8: Full test sweep**
 
-Run: `go test ./internal/api/... ./cmd/agentsh-unixwrap/...`
+Run: `go test ./internal/api/... ./cmd/agentmon-unixwrap/...`
 Expected: all PASS.
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add internal/api/core.go internal/api/wrap.go cmd/agentsh-unixwrap/config.go cmd/agentsh-unixwrap/config_test.go
+git add internal/api/core.go internal/api/wrap.go cmd/agentmon-unixwrap/config.go cmd/agentmon-unixwrap/config_test.go
 git commit -m "$(cat <<'EOF'
 api(seccomp): thread on_block through wrapper config JSON
 
 Propagates sandbox.seccomp.syscalls.on_block from server Config into
-the agentsh-unixwrap JSON payload so the wrapper can honor it when
+the agentmon-unixwrap JSON payload so the wrapper can honor it when
 building the seccomp filter. No behavior change yet — wrapper still
 hardcodes EPERM until Task 3.
 
@@ -419,7 +419,7 @@ EOF
 
 **Files:**
 - Modify: `internal/netmonitor/unix/seccomp_linux.go:201-216` (`FilterConfig`), `:331-340` (block-list rules).
-- Modify: `cmd/agentsh-unixwrap/main.go:70-77` (pass OnBlock into FilterConfig).
+- Modify: `cmd/agentmon-unixwrap/main.go:70-77` (pass OnBlock into FilterConfig).
 - Test: `internal/netmonitor/unix/seccomp_linux_test.go`.
 
 - [ ] **Step 1: Write failing test for each action's rule installation**
@@ -517,7 +517,7 @@ Add the import alias at the top of the test file if not present:
 ```go
 import (
     ...
-    seccompkg "github.com/agentsh/agentsh/internal/seccomp"
+    seccompkg "github.com/diffsec/agentmon/internal/seccomp"
 )
 ```
 
@@ -528,7 +528,7 @@ Expected: FAIL — `FilterConfig.OnBlockAction` field doesn't exist, `Filter.Blo
 
 - [ ] **Step 3: Add `OnBlockAction` to `FilterConfig` and `blockList` map to `Filter`**
 
-Edit `internal/netmonitor/unix/seccomp_linux.go`. Find the imports and add `seccompkg "github.com/agentsh/agentsh/internal/seccomp"` if not already there.
+Edit `internal/netmonitor/unix/seccomp_linux.go`. Find the imports and add `seccompkg "github.com/diffsec/agentmon/internal/seccomp"` if not already there.
 
 Update `FilterConfig` (line ~201):
 
@@ -646,7 +646,7 @@ Expected: all PASS (pre-existing tests still green).
 
 - [ ] **Step 7: Plumb `OnBlock` into `FilterConfig` at the wrapper's main.go**
 
-Edit `cmd/agentsh-unixwrap/main.go` around line 70-77. Change:
+Edit `cmd/agentmon-unixwrap/main.go` around line 70-77. Change:
 
 ```go
 filterCfg := unixmon.FilterConfig{
@@ -674,7 +674,7 @@ filterCfg := unixmon.FilterConfig{
 }
 ```
 
-Add the import if missing: `seccompkg "github.com/agentsh/agentsh/internal/seccomp"`.
+Add the import if missing: `seccompkg "github.com/diffsec/agentmon/internal/seccomp"`.
 
 - [ ] **Step 8: Verify full build**
 
@@ -687,7 +687,7 @@ Expected: PASS (cross-compile guard per CLAUDE.md).
 - [ ] **Step 9: Commit**
 
 ```bash
-git add internal/netmonitor/unix/seccomp_linux.go internal/netmonitor/unix/seccomp_linux_test.go cmd/agentsh-unixwrap/main.go
+git add internal/netmonitor/unix/seccomp_linux.go internal/netmonitor/unix/seccomp_linux_test.go cmd/agentmon-unixwrap/main.go
 git commit -m "$(cat <<'EOF'
 seccomp(filter): honor on_block action in filter construction
 
@@ -877,8 +877,8 @@ import (
 	"sync"
 	"testing"
 
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
-	"github.com/agentsh/agentsh/pkg/types"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/stretchr/testify/require"
 	gounix "golang.org/x/sys/unix"
 )
@@ -963,8 +963,8 @@ import (
 	"runtime"
 	"time"
 
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
-	"github.com/agentsh/agentsh/pkg/types"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
+	"github.com/diffsec/agentmon/pkg/types"
 	seccomp "github.com/seccomp/libseccomp-golang"
 	"golang.org/x/sys/unix"
 )
@@ -1286,7 +1286,7 @@ if action, _ := seccompkg.ParseOnBlock(a.cfg.Sandbox.Seccomp.Syscalls.OnBlock);
 go unixmon.ServeNotifyWithExecve(ctx, fd, sessionID, pol, emit, execveHandler, fileHandler, blockList)
 ```
 
-Add missing imports: `seccompkg "github.com/agentsh/agentsh/internal/seccomp"`, `"runtime"`, `"log/slog"`.
+Add missing imports: `seccompkg "github.com/diffsec/agentmon/internal/seccomp"`, `"runtime"`, `"log/slog"`.
 
 Do the same at any other call site. If there are existing unit tests that call `ServeNotifyWithExecve` in-process, pass `nil` for `blockList` (the `IsBlockListed` method is nil-safe).
 
@@ -1345,12 +1345,12 @@ EOF
 
 Run: `go doc ./internal/integration` and `grep -n 'func Test\|func startWrappedChild\|func runWrapped' internal/integration/seccomp_wrapper_test.go | head -40`
 
-Identify the existing harness that spawns a child under `agentsh-unixwrap` with a given seccomp config JSON. Note the helper name and its signature — you'll reuse it.
+Identify the existing harness that spawns a child under `agentmon-unixwrap` with a given seccomp config JSON. Note the helper name and its signature — you'll reuse it.
 
 If no helper exists, build one with this signature:
 
 ```go
-// startWrappedChild spawns agentsh-unixwrap with the given config JSON,
+// startWrappedChild spawns agentmon-unixwrap with the given config JSON,
 // execs a test binary that performs the action described by `cmdArg`,
 // and returns (waitStatus, capturedEvents, error).
 func startWrappedChild(t *testing.T, cfgJSON string, cmdArg string) (syscall.WaitStatus, []types.Event, error)
@@ -1676,7 +1676,7 @@ Expected: PASS — the block-list dispatch + `attemptKill` should be race-free (
 
 - [ ] **Step 4: Manual smoke (target VM)**
 
-Start agentsh with a config snippet:
+Start agentmon with a config snippet:
 ```yaml
 sandbox:
   seccomp:

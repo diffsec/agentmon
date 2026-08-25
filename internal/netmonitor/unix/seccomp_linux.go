@@ -9,7 +9,7 @@ import (
 	"os"
 	"unsafe"
 
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
 	seccomp "github.com/seccomp/libseccomp-golang"
 	"golang.org/x/sys/unix"
 )

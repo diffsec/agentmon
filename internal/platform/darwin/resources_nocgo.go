@@ -5,7 +5,7 @@ package darwin
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // ResourceLimiter implements platform.ResourceLimiter for macOS without CGO.

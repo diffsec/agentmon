@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // TestWrapInit_ShimMode_ListenerExitsAfterOneConnection verifies that when
@@ -27,7 +27,7 @@ import (
 func TestWrapInit_ShimMode_ListenerExitsAfterOneConnection(t *testing.T) {
 	cfg := &config.Config{}
 	// Use /bin/true as a stable wrapper path so the test runs in any CI
-	// without requiring agentsh-unixwrap to be preinstalled on PATH.
+	// without requiring agentmon-unixwrap to be preinstalled on PATH.
 	cfg.Sandbox.UnixSockets.WrapperBin = "/bin/true"
 
 	app, mgr := newTestAppForWrapWithPermissivePolicy(t, cfg)

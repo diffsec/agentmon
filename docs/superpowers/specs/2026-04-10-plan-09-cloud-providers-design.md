@@ -94,7 +94,7 @@ func New(ctx context.Context, cfg Config, _ secrets.RefResolver) (*Provider, err
 
 1. Validate: `cfg.ProjectID` must be non-empty.
 2. Create client: `secretmanager.NewClient(ctx)` (uses ADC).
-3. Probe connectivity: `AccessSecretVersion` on a nonexistent secret (`projects/<id>/secrets/agentsh-probe-nonexistent/versions/latest`). Auth errors are fatal (`ErrUnauthorized`). Context errors are fatal. NotFound is success (proves auth works). Other errors are non-fatal (endpoint may not be reachable but ADC may still be valid).
+3. Probe connectivity: `AccessSecretVersion` on a nonexistent secret (`projects/<id>/secrets/agentmon-probe-nonexistent/versions/latest`). Auth errors are fatal (`ErrUnauthorized`). Context errors are fatal. NotFound is success (proves auth works). Other errors are non-fatal (endpoint may not be reachable but ADC may still be valid).
 
 ### Fetch
 
@@ -192,7 +192,7 @@ func New(ctx context.Context, cfg Config, _ secrets.RefResolver) (*Provider, err
 1. Validate: `cfg.VaultURL` must be non-empty.
 2. Create credential: `azidentity.NewDefaultAzureCredential(nil)`.
 3. Create client: `azsecrets.NewClient(cfg.VaultURL, cred, nil)`.
-4. Probe connectivity: `GetSecret` on a nonexistent secret (`agentsh-probe-nonexistent`, version `""`). Auth errors are fatal. Context errors are fatal. NotFound is success. Other errors are non-fatal.
+4. Probe connectivity: `GetSecret` on a nonexistent secret (`agentmon-probe-nonexistent`, version `""`). Auth errors are fatal. Context errors are fatal. NotFound is success. Other errors are non-fatal.
 
 ### Fetch
 
@@ -226,7 +226,7 @@ Same as AWS SM and GCP SM. Azure secrets are plain strings but may contain JSON 
 Connect API key — either literal or chained from another provider:
 
 - `api_key`: literal API key string in config
-- `api_key_ref`: URI reference to another provider (e.g. `keyring://agentsh/op_connect_key`)
+- `api_key_ref`: URI reference to another provider (e.g. `keyring://agentmon/op_connect_key`)
 
 At least one must be set. If both are set, the constructor rejects as ambiguous. If `api_key_ref` is set, `Dependencies()` returns it for topological resolution.
 
@@ -260,7 +260,7 @@ providers:
   onepassword:
     type: op
     server_url: https://onepass-connect.internal
-    api_key_ref: keyring://agentsh/op_connect_key
+    api_key_ref: keyring://agentmon/op_connect_key
 ```
 
 Or with a literal key:
@@ -312,7 +312,7 @@ func New(ctx context.Context, cfg Config, resolver secrets.RefResolver) (*Provid
 
 1. Validate: `cfg.ServerURL` must be non-empty. Exactly one of `cfg.APIKey` or `cfg.APIKeyRef` must be set.
 2. Resolve API key: if `cfg.APIKeyRef` is set, call `resolver.Fetch(ctx, *cfg.APIKeyRef)` to get the key.
-3. Create client: `connect.NewClientWithUserAgent(cfg.ServerURL, apiKey, "agentsh")`.
+3. Create client: `connect.NewClientWithUserAgent(cfg.ServerURL, apiKey, "agentmon")`.
 4. Probe connectivity: `GET /health` or `GetVaultsByTitle("")` — any lightweight call that proves auth + endpoint work. Auth errors are fatal. Context errors are fatal. Other errors are non-fatal.
 
 ### Fetch
@@ -417,7 +417,7 @@ providers:
     address: https://vault.corp.internal
     auth:
       method: token
-      token_ref: keyring://agentsh/vault_token
+      token_ref: keyring://agentmon/vault_token
   aws_sm:
     type: aws-sm
     region: us-east-1
@@ -430,7 +430,7 @@ providers:
   onepassword:
     type: op
     server_url: https://onepass-connect.internal
-    api_key_ref: keyring://agentsh/op_connect_key
+    api_key_ref: keyring://agentmon/op_connect_key
 
 services:
   - name: github

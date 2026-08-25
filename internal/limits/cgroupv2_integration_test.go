@@ -52,7 +52,7 @@ func TestIntegration_TopLevelApplyAndEnforce(t *testing.T) {
 	}
 	defer func() { _ = cmd.Process.Kill() }()
 
-	cg, err := m.Apply("agentsh-integ-top-level", cmd.Process.Pid, CgroupV2Limits{
+	cg, err := m.Apply("agentmon-integ-top-level", cmd.Process.Pid, CgroupV2Limits{
 		MaxMemoryBytes: 8 << 20,
 	})
 	if err != nil {

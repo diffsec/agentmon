@@ -4,7 +4,7 @@
 
 ## Overview
 
-Enable agentsh to mount multiple filesystem paths with independent policies, allowing fine-grained control over what an agent can access. This supports scenarios like mounting an agent's config directory read-only to prevent self-modification while allowing read-write access to a workspace.
+Enable agentmon to mount multiple filesystem paths with independent policies, allowing fine-grained control over what an agent can access. This supports scenarios like mounting an agent's config directory read-only to prevent self-modification while allowing read-write access to a workspace.
 
 ## 1. Configuration Schema
 

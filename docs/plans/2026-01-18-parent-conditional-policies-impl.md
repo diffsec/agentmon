@@ -609,8 +609,8 @@ func (r *AgentRegistry) Unregister(pid int)
 **Tasks:**
 - [ ] Implement `AgentRegistry` struct
 - [ ] Add registration API endpoint (optional, for advanced use)
-- [ ] Support environment variable registration: `AGENTSH_AGENT_ID`
-- [ ] Support marker file detection: `.agentsh-agent-mode`
+- [ ] Support environment variable registration: `AGENTMON_AGENT_ID`
+- [ ] Support marker file detection: `.agentmon-agent-mode`
 - [ ] Wire registry into agent detection flow
 - [ ] Unit tests for registration
 
@@ -665,7 +665,7 @@ func (d *AgentDetector) Detect(pid int, info *ProcessInfo, env []string) AgentDe
 
 **Goal:** CLI commands for debugging and monitoring.
 
-### 6.1 Add `agentsh taint` Commands
+### 6.1 Add `agentmon taint` Commands
 
 Add to `internal/cli/`:
 
@@ -675,11 +675,11 @@ Add to `internal/cli/`:
 ```
 
 ```bash
-agentsh taint list              # List all tainted processes
-agentsh taint show <pid>        # Show taint details for PID
-agentsh taint trace <pid>       # Show full ancestry chain
-agentsh taint watch             # Stream taint events
-agentsh taint watch --agent-only
+agentmon taint list              # List all tainted processes
+agentmon taint show <pid>        # Show taint details for PID
+agentmon taint trace <pid>       # Show full ancestry chain
+agentmon taint watch             # Stream taint events
+agentmon taint watch --agent-only
 ```
 
 **Tasks:**
@@ -690,13 +690,13 @@ agentsh taint watch --agent-only
 - [ ] Add `--agent-only` filter to watch command
 - [ ] Unit tests for CLI parsing
 
-### 6.2 Add `agentsh policy test` with Ancestry
+### 6.2 Add `agentmon policy test` with Ancestry
 
 Extend existing policy test command:
 
 ```bash
-agentsh policy test --parent cursor --command "git push"
-agentsh policy test --ancestry "cursor,bash,npm,node" --command "curl example.com"
+agentmon policy test --parent cursor --command "git push"
+agentmon policy test --ancestry "cursor,bash,npm,node" --command "curl example.com"
 ```
 
 **Tasks:**
@@ -728,7 +728,7 @@ type TaintEvent struct {
 - [ ] Emit events from TaintCache operations
 - [ ] Emit agent detection events
 - [ ] Wire to existing event broker
-- [ ] Events visible in `agentsh taint watch`
+- [ ] Events visible in `agentmon taint watch`
 
 ### 6.4 Documentation
 

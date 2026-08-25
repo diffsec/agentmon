@@ -1,7 +1,7 @@
 //go:build darwin
 
-// Package darwin provides the macOS platform implementation for agentsh.
-// It uses the agentsh system extension (ESF + Network Extension) for full interception,
+// Package darwin provides the macOS platform implementation for agentmon.
+// It uses the agentmon system extension (ESF + Network Extension) for full interception,
 // or pf for network redirection at the standard tier.
 // Note: macOS lacks namespace isolation and cgroups, so those features are unavailable.
 package darwin
@@ -13,7 +13,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 func init() {

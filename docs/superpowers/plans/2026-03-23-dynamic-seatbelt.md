@@ -23,9 +23,9 @@
 | `internal/platform/darwin/sandbox.go` | Modify — add `CompileDarwinSandbox()` orchestrator |
 | `internal/platform/darwin/sandbox_test.go` | New — compilation integration tests (darwin-only) |
 | `internal/api/core.go` | Modify — update `wrapWithMacSandbox()` to use compiled profiles |
-| `cmd/agentsh-macwrap/config.go` | Modify — add `CompiledProfile`, `ExtensionTokens` fields |
-| `cmd/agentsh-macwrap/main.go` | Modify — add `consumeTokens()`, use compiled profile |
-| `cmd/agentsh-macwrap/profile.go` | Unchanged — kept as legacy fallback |
+| `cmd/agentmon-macwrap/config.go` | Modify — add `CompiledProfile`, `ExtensionTokens` fields |
+| `cmd/agentmon-macwrap/main.go` | Modify — add `consumeTokens()`, use compiled profile |
+| `cmd/agentmon-macwrap/profile.go` | Unchanged — kept as legacy fallback |
 | `internal/capabilities/detect_darwin.go` | Modify — add dynamic seatbelt tiers |
 
 ---
@@ -571,7 +571,7 @@ Add to `builder.go`:
 
 ```go
 // AllowSystemEssentials adds all rules needed for basic process operation.
-// Mirrors the paths in cmd/agentsh-macwrap/profile.go generateProfile().
+// Mirrors the paths in cmd/agentmon-macwrap/profile.go generateProfile().
 func (p *Profile) AllowSystemEssentials() {
 	// Process operations
 	p.rules = append(p.rules,
@@ -974,22 +974,22 @@ git commit -m "feat(sandboxext): add sandbox extension token manager"
 ### Task 5: macwrap — WrapperConfig and Token Consumption
 
 **Files:**
-- Modify: `cmd/agentsh-macwrap/config.go`
-- Modify: `cmd/agentsh-macwrap/main.go`
-- Modify: `cmd/agentsh-macwrap/config_test.go`
+- Modify: `cmd/agentmon-macwrap/config.go`
+- Modify: `cmd/agentmon-macwrap/main.go`
+- Modify: `cmd/agentmon-macwrap/config_test.go`
 
 - [ ] **Step 1: Write failing tests for new config fields and file-based config**
 
-Add to `cmd/agentsh-macwrap/config_test.go`:
+Add to `cmd/agentmon-macwrap/config_test.go`:
 
 ```go
 func TestLoadConfig_CompiledProfile(t *testing.T) {
-	os.Setenv("AGENTSH_SANDBOX_CONFIG", `{
+	os.Setenv("AGENTMON_SANDBOX_CONFIG", `{
 		"workspace_path": "/tmp/test",
 		"compiled_profile": "(version 1)\n(deny default)\n",
 		"extension_tokens": ["token1", "token2"]
 	}`)
-	defer os.Unsetenv("AGENTSH_SANDBOX_CONFIG")
+	defer os.Unsetenv("AGENTMON_SANDBOX_CONFIG")
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -1012,9 +1012,9 @@ func TestLoadConfig_FromFile(t *testing.T) {
 		"compiled_profile": "(version 1)\n(deny default)"
 	}`), 0600)
 
-	os.Setenv("AGENTSH_SANDBOX_CONFIG_FILE", cfgFile)
-	os.Unsetenv("AGENTSH_SANDBOX_CONFIG")
-	defer os.Unsetenv("AGENTSH_SANDBOX_CONFIG_FILE")
+	os.Setenv("AGENTMON_SANDBOX_CONFIG_FILE", cfgFile)
+	os.Unsetenv("AGENTMON_SANDBOX_CONFIG")
+	defer os.Unsetenv("AGENTMON_SANDBOX_CONFIG_FILE")
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -1031,12 +1031,12 @@ func TestLoadConfig_FromFile(t *testing.T) {
 
 func TestLoadConfig_BackwardsCompatible(t *testing.T) {
 	// Old-style config without compiled_profile should still work
-	os.Setenv("AGENTSH_SANDBOX_CONFIG", `{
+	os.Setenv("AGENTMON_SANDBOX_CONFIG", `{
 		"workspace_path": "/tmp/old",
 		"allow_network": true,
 		"mach_services": {"default_action": "allow"}
 	}`)
-	defer os.Unsetenv("AGENTSH_SANDBOX_CONFIG")
+	defer os.Unsetenv("AGENTMON_SANDBOX_CONFIG")
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -1053,12 +1053,12 @@ func TestLoadConfig_BackwardsCompatible(t *testing.T) {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `go test ./cmd/agentsh-macwrap/... -v -run 'TestLoadConfig_(CompiledProfile|FromFile|BackwardsCompatible)'`
-Expected: FAIL — `CompiledProfile` field doesn't exist, `AGENTSH_SANDBOX_CONFIG_FILE` not handled.
+Run: `go test ./cmd/agentmon-macwrap/... -v -run 'TestLoadConfig_(CompiledProfile|FromFile|BackwardsCompatible)'`
+Expected: FAIL — `CompiledProfile` field doesn't exist, `AGENTMON_SANDBOX_CONFIG_FILE` not handled.
 
 - [ ] **Step 3: Update config.go with new fields and file loading**
 
-Update `cmd/agentsh-macwrap/config.go`:
+Update `cmd/agentmon-macwrap/config.go`:
 
 ```go
 //go:build darwin
@@ -1071,8 +1071,8 @@ import (
 	"os"
 )
 
-// WrapperConfig is passed via AGENTSH_SANDBOX_CONFIG env var
-// or AGENTSH_SANDBOX_CONFIG_FILE (for large payloads >64KB).
+// WrapperConfig is passed via AGENTMON_SANDBOX_CONFIG env var
+// or AGENTMON_SANDBOX_CONFIG_FILE (for large payloads >64KB).
 type WrapperConfig struct {
 	WorkspacePath string            `json:"workspace_path"`
 	AllowedPaths  []string          `json:"allowed_paths"`
@@ -1096,7 +1096,7 @@ type MachServicesConfig struct {
 // loadConfig reads wrapper config from environment or file.
 func loadConfig() (*WrapperConfig, error) {
 	// Check for file-based config first (used for large payloads)
-	if filePath := os.Getenv("AGENTSH_SANDBOX_CONFIG_FILE"); filePath != "" {
+	if filePath := os.Getenv("AGENTMON_SANDBOX_CONFIG_FILE"); filePath != "" {
 		data, err := os.ReadFile(filePath)
 		if err != nil {
 			return nil, fmt.Errorf("read config file %s: %w", filePath, err)
@@ -1111,7 +1111,7 @@ func loadConfig() (*WrapperConfig, error) {
 		return &cfg, nil
 	}
 
-	val := os.Getenv("AGENTSH_SANDBOX_CONFIG")
+	val := os.Getenv("AGENTMON_SANDBOX_CONFIG")
 	if val == "" {
 		return &WrapperConfig{
 			MachServices: MachServicesConfig{
@@ -1122,7 +1122,7 @@ func loadConfig() (*WrapperConfig, error) {
 
 	var cfg WrapperConfig
 	if err := json.Unmarshal([]byte(val), &cfg); err != nil {
-		return nil, fmt.Errorf("parse AGENTSH_SANDBOX_CONFIG: %w", err)
+		return nil, fmt.Errorf("parse AGENTMON_SANDBOX_CONFIG: %w", err)
 	}
 	return &cfg, nil
 }
@@ -1130,12 +1130,12 @@ func loadConfig() (*WrapperConfig, error) {
 
 - [ ] **Step 4: Run config tests to verify they pass**
 
-Run: `go test ./cmd/agentsh-macwrap/... -v -run TestLoadConfig`
+Run: `go test ./cmd/agentmon-macwrap/... -v -run TestLoadConfig`
 Expected: all PASS.
 
 - [ ] **Step 5: Update main.go to use compiled profile and consume tokens**
 
-Update `cmd/agentsh-macwrap/main.go`. Add `consumeTokens` function and update `main()` to check `CompiledProfile`:
+Update `cmd/agentmon-macwrap/main.go`. Add `consumeTokens` function and update `main()` to check `CompiledProfile`:
 
 Add token consumption CGo declaration to the existing `import "C"` block — add after the `free_error` function:
 
@@ -1196,13 +1196,13 @@ func main() {
 
 - [ ] **Step 6: Run all macwrap tests**
 
-Run: `go test ./cmd/agentsh-macwrap/... -v`
+Run: `go test ./cmd/agentmon-macwrap/... -v`
 Expected: all tests PASS (including existing profile tests — legacy path still works).
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add cmd/agentsh-macwrap/
+git add cmd/agentmon-macwrap/
 git commit -m "feat(macwrap): add compiled profile support and token consumption"
 ```
 
@@ -1227,7 +1227,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestCompileDarwinSandbox_EmptyPolicy(t *testing.T) {
@@ -1393,9 +1393,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/platform/darwin/sbpl"
-	"github.com/agentsh/agentsh/internal/platform/darwin/sandboxext"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/platform/darwin/sbpl"
+	"github.com/diffsec/agentmon/internal/platform/darwin/sandboxext"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // SandboxConfig holds the compiled SBPL profile and extension tokens.
@@ -1632,8 +1632,8 @@ package api
 import (
 	"log/slog"
 
-	"github.com/agentsh/agentsh/internal/platform/darwin"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/platform/darwin"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // compileDarwinSandboxProfile compiles a policy-driven SBPL profile and populates
@@ -1665,7 +1665,7 @@ Create `internal/api/sandbox_compile_other.go`:
 
 package api
 
-import "github.com/agentsh/agentsh/internal/policy"
+import "github.com/diffsec/agentmon/internal/policy"
 
 func compileDarwinSandboxProfile(cfg *macSandboxWrapperConfig, engine *policy.Engine, workspace string) bool {
 	return false
@@ -1702,7 +1702,7 @@ func (a *App) wrapWithMacSandbox(
 ) {
 	wrapperBin := strings.TrimSpace(a.cfg.Sandbox.XPC.WrapperBin)
 	if wrapperBin == "" {
-		wrapperBin = "agentsh-macwrap"
+		wrapperBin = "agentmon-macwrap"
 	}
 
 	if _, err := exec.LookPath(wrapperBin); err != nil {
@@ -1750,14 +1750,14 @@ func (a *App) wrapWithMacSandbox(
 	// Use file-based config if payload is too large for env var
 	cfgStr := string(cfgJSON)
 	if len(cfgStr) > 64*1024 {
-		tmpFile := fmt.Sprintf("/tmp/agentsh-sandbox-%s.json", sess.ID)
+		tmpFile := fmt.Sprintf("/tmp/agentmon-sandbox-%s.json", sess.ID)
 		if err := os.WriteFile(tmpFile, cfgJSON, 0600); err != nil {
 			slog.Warn("failed to write sandbox config file", "error", err)
 			return
 		}
-		req.Env["AGENTSH_SANDBOX_CONFIG_FILE"] = tmpFile
+		req.Env["AGENTMON_SANDBOX_CONFIG_FILE"] = tmpFile
 	} else {
-		req.Env["AGENTSH_SANDBOX_CONFIG"] = cfgStr
+		req.Env["AGENTMON_SANDBOX_CONFIG"] = cfgStr
 	}
 
 	req.Command = wrapperBin
@@ -1794,7 +1794,7 @@ git commit -m "feat(api): wire CompileDarwinSandbox into wrapWithMacSandbox"
 Review `internal/capabilities/detect_darwin.go` (already read). Key changes:
 - `selectDarwinMode` needs new tiers for dynamic seatbelt
 - `buildDarwinDomains` needs command_control and isolation to be always-available
-- Check if `agentsh-macwrap` is in PATH for dynamic seatbelt detection
+- Check if `agentmon-macwrap` is in PATH for dynamic seatbelt detection
 
 - [ ] **Step 2: Update selectDarwinMode with new tiers**
 
@@ -1823,7 +1823,7 @@ func selectDarwinMode(caps map[string]any) (string, int) {
 }
 
 func checkMacwrap() bool {
-	_, err := exec.LookPath("agentsh-macwrap")
+	_, err := exec.LookPath("agentmon-macwrap")
 	return err == nil
 }
 ```
@@ -1922,7 +1922,7 @@ After building the compiled profile, write it to the session directory for debug
 ```go
 	// Write profile artifact for debugging/inspection
 	if sandboxCfg != nil && sandboxCfg.Profile != "" && sess.ID != "" {
-		artifactDir := filepath.Join(os.Getenv("HOME"), ".agentsh", "sessions", sess.ID)
+		artifactDir := filepath.Join(os.Getenv("HOME"), ".agentmon", "sessions", sess.ID)
 		os.MkdirAll(artifactDir, 0700)
 		artifactPath := filepath.Join(artifactDir, "sandbox.sb")
 		if err := os.WriteFile(artifactPath, []byte(sandboxCfg.Profile), 0600); err != nil {

@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/platform"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/platform"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // ctxAwareEventStore respects context cancellation, like the real SQLite store.

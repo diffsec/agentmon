@@ -46,7 +46,7 @@ func TestCobraCachePrune_ForwardsSubcommand(t *testing.T) {
 	// If "prune" is forwarded correctly, the inner CLI runCache receives
 	// args=["prune"] and prints the deferred message.
 	// If "prune" was dropped (old bug: argv=["cache"]), runCache receives
-	// args=[] and returns "usage: agentsh skillcheck cache prune".
+	// args=[] and returns "usage: agentmon skillcheck cache prune".
 	if !strings.Contains(out, "deferred") {
 		t.Errorf("cobra dropped 'prune'; expected deferred message, got: %s", out)
 	}

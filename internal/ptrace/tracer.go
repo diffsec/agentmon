@@ -201,7 +201,7 @@ type TraceeState struct {
 	// (fail-closed bug).
 	SessionlessPIDAttach bool
 
-	// #369 #2 diagnostic — only written when AGENTSH_PTRACE_TRACE is set (see
+	// #369 #2 diagnostic — only written when AGENTMON_PTRACE_TRACE is set (see
 	// trace_debug.go). awaitingResume records that a stop was consumed but no
 	// resume/park has been issued yet; the idle-tick scan flags any tracee that
 	// stays armed past wedgeThreshold. Guarded by t.mu.

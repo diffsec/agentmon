@@ -17,9 +17,9 @@ import (
 	"testing"
 	"time"
 
-	unixmon "github.com/agentsh/agentsh/internal/netmonitor/unix"
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
-	"github.com/agentsh/agentsh/pkg/types"
+	unixmon "github.com/diffsec/agentmon/internal/netmonitor/unix"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 )
@@ -113,18 +113,18 @@ var (
 	unixwrapBuildErr  error
 )
 
-// buildUnixwrapOnce builds agentsh-unixwrap once per test process and returns
+// buildUnixwrapOnce builds agentmon-unixwrap once per test process and returns
 // the cached path. All on_block tests share the same binary; rebuilding per
 // test is wasteful.
 func buildUnixwrapOnce(t *testing.T) string {
 	t.Helper()
 	unixwrapBuildOnce.Do(func() {
-		tempDir, err := os.MkdirTemp("", "agentsh-unixwrap-build-")
+		tempDir, err := os.MkdirTemp("", "agentmon-unixwrap-build-")
 		if err != nil {
 			unixwrapBuildErr = fmt.Errorf("mkdtemp: %w", err)
 			return
 		}
-		out := filepath.Join(tempDir, "agentsh-unixwrap")
+		out := filepath.Join(tempDir, "agentmon-unixwrap")
 
 		wd, err := os.Getwd()
 		if err != nil {
@@ -144,19 +144,19 @@ func buildUnixwrapOnce(t *testing.T) string {
 			repoRoot = next
 		}
 
-		cmd := exec.Command("go", "build", "-o", out, "./cmd/agentsh-unixwrap")
+		cmd := exec.Command("go", "build", "-o", out, "./cmd/agentmon-unixwrap")
 		cmd.Dir = repoRoot
 		cmd.Env = append(os.Environ(), "CGO_ENABLED=1")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			unixwrapBuildErr = fmt.Errorf("go build agentsh-unixwrap: %w", err)
+			unixwrapBuildErr = fmt.Errorf("go build agentmon-unixwrap: %w", err)
 			return
 		}
 		unixwrapBuildPath = out
 	})
 	if unixwrapBuildErr != nil {
-		t.Fatalf("build agentsh-unixwrap: %v", unixwrapBuildErr)
+		t.Fatalf("build agentmon-unixwrap: %v", unixwrapBuildErr)
 	}
 	return unixwrapBuildPath
 }
@@ -219,7 +219,7 @@ func buildBlockListFromCfgJSON(t *testing.T, cfgJSON string) *unixmon.BlockListC
 
 // ---------- startWrappedChild ----------
 
-// startWrappedChild spawns agentsh-unixwrap with the given config JSON, execs
+// startWrappedChild spawns agentmon-unixwrap with the given config JSON, execs
 // the in-package test helper (/proc/self/exe with GO_WANT_HELPER_PROCESS=1)
 // and waits for it to exit. For log/log_and_kill modes it also runs the
 // seccomp notify dispatcher in a goroutine and returns the events it emitted.
@@ -263,8 +263,8 @@ func startWrappedChild(t *testing.T, cfgJSON string, cmdArg string) (syscall.Wai
 	cmd.ExtraFiles = []*os.File{childEnd}
 	cmd.Env = append(os.Environ(),
 		"GO_WANT_HELPER_PROCESS=1",
-		"AGENTSH_NOTIFY_SOCK_FD=3",
-		"AGENTSH_SECCOMP_CONFIG="+cfgJSON,
+		"AGENTMON_NOTIFY_SOCK_FD=3",
+		"AGENTMON_SECCOMP_CONFIG="+cfgJSON,
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -341,7 +341,7 @@ func startWrappedChild(t *testing.T, cfgJSON string, cmdArg string) (syscall.Wai
 
 // ---------- Tests ----------
 
-const seccompOnBlockGCPressureEnv = "AGENTSH_TEST_SECCOMP_ONBLOCK_GC_PRESSURE"
+const seccompOnBlockGCPressureEnv = "AGENTMON_TEST_SECCOMP_ONBLOCK_GC_PRESSURE"
 
 func TestSeccompOnBlock_LogAndKill_GCPressure(t *testing.T) {
 	if os.Getenv(seccompOnBlockGCPressureEnv) == "1" {

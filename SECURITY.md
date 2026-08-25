@@ -1,16 +1,16 @@
 # Security
 
-This document describes the threat model, security mechanisms, and known limitations of agentsh.
+This document describes the threat model, security mechanisms, and known limitations of agentmon.
 
 ## Overview
 
-agentsh is a security sandbox for AI agent command execution. It interposes between an AI agent and the host system to enforce policies on file access, network connections, command execution, and environment variables.
+agentmon is a security sandbox for AI agent command execution. It interposes between an AI agent and the host system to enforce policies on file access, network connections, command execution, and environment variables.
 
 ## Threat Model
 
-### What agentsh Protects Against
+### What agentmon Protects Against
 
-agentsh is designed to mitigate risks from **semi-trusted AI agents** operating within a defined workspace:
+agentmon is designed to mitigate risks from **semi-trusted AI agents** operating within a defined workspace:
 
 | Threat | Protection |
 |--------|------------|
@@ -26,16 +26,16 @@ agentsh is designed to mitigate risks from **semi-trusted AI agents** operating 
 | Unauthorized signal delivery | Signal interception with policy-based allow/deny/redirect |
 | Process termination attacks | Signal rules blocking fatal signals to external/system processes |
 
-### What agentsh Does NOT Protect Against
+### What agentmon Does NOT Protect Against
 
-agentsh is **not** a full security sandbox like a VM or container with seccomp. It does not protect against:
+agentmon is **not** a full security sandbox like a VM or container with seccomp. It does not protect against:
 
 | Threat | Reason |
 |--------|--------|
 | **Kernel exploits** | Runs in userspace; kernel bugs bypass all protections |
 | **Root-level attacks** | Assumes agent runs as unprivileged user |
 | **Hardware side-channels** | No protection against Spectre/Meltdown-class attacks |
-| **Malicious agentsh binary** | Assumes agentsh itself is not compromised |
+| **Malicious agentmon binary** | Assumes agentmon itself is not compromised |
 | **Pre-existing malware** | Does not scan for or remove existing threats |
 | **Social engineering** | Cannot prevent agent from outputting phishing content |
 | **Denial of service to host** | Resource limits help but don't fully prevent |
@@ -46,7 +46,7 @@ agentsh is **not** a full security sandbox like a VM or container with seccomp. 
 ┌─────────────────────────────────────────────────────────────┐
 │                         HOST SYSTEM                          │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │                    agentsh daemon                      │  │
+│  │                    agentmon daemon                      │  │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌──────────────┐   │  │
 │  │  │   Policy    │  │    FUSE     │  │    eBPF      │   │  │
 │  │  │   Engine    │  │  Intercept  │  │   Network    │   │  │
@@ -68,7 +68,7 @@ agentsh is **not** a full security sandbox like a VM or container with seccomp. 
 
 **Trust assumptions:**
 - The host kernel is trusted
-- The agentsh binary is trusted
+- The agentmon binary is trusted
 - Policy files are trusted (not writable by agent)
 - The AI agent is semi-trusted (may attempt policy violations)
 
@@ -100,7 +100,7 @@ sandbox:
     enabled: true
     deferred: true
     # Optional: only run enable command when this file exists
-    deferred_marker_file: "/tmp/.agentsh-fuse-enabled"
+    deferred_marker_file: "/tmp/.agentmon-fuse-enabled"
     # Optional: command to make /dev/fuse accessible
     deferred_enable_command: ["sudo", "/bin/chmod", "666", "/dev/fuse"]
 ```
@@ -113,7 +113,7 @@ sandbox:
 - On failure, emits `fuse_mount_failed` and continues without FUSE (non-blocking)
 
 **Security considerations:**
-- The enable command runs as the agentsh process (not as the agent). If it uses `sudo`, ensure the sudoers policy is scoped to the specific command.
+- The enable command runs as the agentmon process (not as the agent). If it uses `sudo`, ensure the sudoers policy is scoped to the specific command.
 - The marker file should be writable only by trusted infrastructure (not by the agent), since its presence triggers the enable command.
 - If `deferred_enable_command` is empty, no automatic enable is attempted — FUSE must become available through external means.
 
@@ -140,7 +140,7 @@ sandbox:
 
 ### Command Execution Enforcement (ptrace)
 
-In environments where seccomp user-notify is unavailable (e.g. AWS Fargate, restricted containers), agentsh uses ptrace-based syscall interception as an alternative enforcement mechanism.
+In environments where seccomp user-notify is unavailable (e.g. AWS Fargate, restricted containers), agentmon uses ptrace-based syscall interception as an alternative enforcement mechanism.
 
 **Implementation:**
 - Uses `PTRACE_SEIZE` to attach without stopping the target process
@@ -182,7 +182,7 @@ Primary use case: Setting `BASH_ENV` to point to a script that disables shell bu
 ```yaml
 sandbox:
   env_inject:
-    BASH_ENV: "/usr/lib/agentsh/bash_startup.sh"
+    BASH_ENV: "/usr/lib/agentmon/bash_startup.sh"
 ```
 
 **Security properties:**
@@ -199,7 +199,7 @@ sandbox:
 
 ### Signal Interception (Linux)
 
-agentsh intercepts signal delivery between processes using seccomp user-notify, providing policy-based control over which signals can reach which targets.
+agentmon intercepts signal delivery between processes using seccomp user-notify, providing policy-based control over which signals can reach which targets.
 
 **Implementation:**
 - Uses `SECCOMP_RET_USER_NOTIF` to trap signal syscalls (`kill`, `tkill`, `tgkill`, etc.)
@@ -213,7 +213,7 @@ agentsh intercepts signal delivery between processes using seccomp user-notify, 
 | `self` | Process signaling itself |
 | `children` | Direct child processes |
 | `descendants` | All descendant processes |
-| `session` | Any process in agentsh session |
+| `session` | Any process in agentmon session |
 | `external` | PIDs outside session |
 | `system` | PID 1 and kernel threads |
 
@@ -235,7 +235,7 @@ See [Policy Documentation](docs/operations/policies.md#signal-rules) for configu
 
 ### Approval Workflows
 
-Risky operations can require human approval before execution. agentsh supports multiple approval modes:
+Risky operations can require human approval before execution. agentmon supports multiple approval modes:
 
 **Approval Modes:**
 - `local_tty`: Interactive terminal prompt with math challenge (default)
@@ -253,7 +253,7 @@ See [Approval Authentication](docs/approval-auth.md) for detailed configuration.
 
 ### Checkpoint and Rollback
 
-agentsh provides workspace checkpoint and rollback capabilities for recovery from destructive operations:
+agentmon provides workspace checkpoint and rollback capabilities for recovery from destructive operations:
 
 **Core Features:**
 - **Copy-on-write snapshots**: File contents backed up before risky commands
@@ -265,22 +265,22 @@ agentsh provides workspace checkpoint and rollback capabilities for recovery fro
 **CLI Commands:**
 ```bash
 # Create manual checkpoint
-agentsh checkpoint create --session <id> --workspace /path
+agentmon checkpoint create --session <id> --workspace /path
 
 # List checkpoints
-agentsh checkpoint list --session <id>
+agentmon checkpoint list --session <id>
 
 # Show checkpoint details and diff
-agentsh checkpoint show <cp-id> --session <id> --workspace /path --diff
+agentmon checkpoint show <cp-id> --session <id> --workspace /path --diff
 
 # Preview rollback (dry-run)
-agentsh checkpoint rollback <cp-id> --session <id> --workspace /path --dry-run
+agentmon checkpoint rollback <cp-id> --session <id> --workspace /path --dry-run
 
 # Perform rollback
-agentsh checkpoint rollback <cp-id> --session <id> --workspace /path
+agentmon checkpoint rollback <cp-id> --session <id> --workspace /path
 
 # Purge old checkpoints
-agentsh checkpoint purge --session <id> --older-than 24h --keep 10
+agentmon checkpoint purge --session <id> --older-than 24h --keep 10
 ```
 
 **Auto-Checkpoint Configuration:**
@@ -288,7 +288,7 @@ agentsh checkpoint purge --session <id> --older-than 24h --keep 10
 sessions:
   checkpoints:
     enabled: true
-    storage_dir: /var/lib/agentsh/checkpoints
+    storage_dir: /var/lib/agentmon/checkpoints
     max_per_session: 50
     auto_checkpoint:
       enabled: true
@@ -326,7 +326,7 @@ sessions:
 
 ### External KMS Integration
 
-agentsh supports external Key Management Systems for HMAC keys used in audit integrity chains:
+agentmon supports external Key Management Systems for HMAC keys used in audit integrity chains:
 
 **Supported Providers:**
 | Provider | Key Source | Envelope Encryption |
@@ -348,7 +348,7 @@ audit:
     aws_kms:
       key_id: "arn:aws:kms:us-east-1:123456789:key/abc-123"
       region: us-east-1
-      encrypted_dek_file: /etc/agentsh/audit-dek.enc  # Cache encrypted DEK
+      encrypted_dek_file: /etc/agentmon/audit-dek.enc  # Cache encrypted DEK
 
 # Azure Key Vault
 audit:
@@ -357,7 +357,7 @@ audit:
     key_source: azure_keyvault
     azure_keyvault:
       vault_url: "https://myvault.vault.azure.net"
-      key_name: "agentsh-audit-key"
+      key_name: "agentmon-audit-key"
       key_version: ""  # Empty = latest
 
 # HashiCorp Vault
@@ -368,8 +368,8 @@ audit:
     hashicorp_vault:
       address: "https://vault.example.com:8200"
       auth_method: kubernetes  # token, kubernetes, approle
-      kubernetes_role: agentsh
-      secret_path: "secret/data/agentsh/audit-key"
+      kubernetes_role: agentmon
+      secret_path: "secret/data/agentmon/audit-key"
       key_field: "hmac_key"
 
 # GCP Cloud KMS
@@ -378,8 +378,8 @@ audit:
     enabled: true
     key_source: gcp_kms
     gcp_kms:
-      key_name: "projects/my-proj/locations/us/keyRings/agentsh/cryptoKeys/audit"
-      encrypted_dek_file: /etc/agentsh/audit-dek.enc
+      key_name: "projects/my-proj/locations/us/keyRings/agentmon/cryptoKeys/audit"
+      encrypted_dek_file: /etc/agentmon/audit-dek.enc
 ```
 
 **Authentication:**
@@ -395,7 +395,7 @@ audit:
 
 ### Authentication and Authorization
 
-agentsh supports multiple authentication methods for API access:
+agentmon supports multiple authentication methods for API access:
 
 **Authentication Types:**
 - `api_key`: Static API keys with role-based access (agent, approver, admin)
@@ -418,17 +418,17 @@ agentsh supports multiple authentication methods for API access:
 auth:
   type: hybrid
   api_key:
-    keys_file: /etc/agentsh/api-keys.yaml
+    keys_file: /etc/agentmon/api-keys.yaml
   oidc:
     issuer: "https://corp.okta.com"
-    client_id: "agentsh"
-    audience: "agentsh"
-    allowed_groups: ["agentsh-operators"]
+    client_id: "agentmon"
+    audience: "agentmon"
+    allowed_groups: ["agentmon-operators"]
 ```
 
 ### MCP Security
 
-agentsh provides comprehensive security controls for Model Context Protocol (MCP) tool invocations:
+agentmon provides comprehensive security controls for Model Context Protocol (MCP) tool invocations:
 
 #### Tool Whitelisting
 
@@ -468,9 +468,9 @@ sandbox:
 
 CLI management:
 ```bash
-agentsh mcp pins list
-agentsh mcp pins trust --server github --tool create_issue --hash sha256:...
-agentsh mcp pins reset --server github --tool create_issue
+agentmon mcp pins list
+agentmon mcp pins trust --server github --tool create_issue --hash sha256:...
+agentmon mcp pins reset --server github --tool create_issue
 ```
 
 #### Rate Limiting
@@ -501,7 +501,7 @@ sandbox:
 
 ### LLM Proxy and Data Loss Prevention (DLP)
 
-agentsh includes an embedded HTTP proxy that intercepts all LLM API requests from agents:
+agentmon includes an embedded HTTP proxy that intercepts all LLM API requests from agents:
 
 **Architecture:**
 - Proxy starts automatically with each session on a random port
@@ -599,17 +599,17 @@ macOS has significantly reduced security enforcement compared to Linux due to pl
 
 **ESF+NE Enterprise Mode (Alpha):**
 
-When running with ESF entitlements (requires Apple approval) and Network Extension (standard capability), agentsh provides near-Linux-level enforcement:
+When running with ESF entitlements (requires Apple approval) and Network Extension (standard capability), agentmon provides near-Linux-level enforcement:
 - ESF (Endpoint Security Framework) intercepts file and process events with AUTH mode blocking
 - Network Extension (FilterDataProvider + DNSProxyProvider) enforces network and DNS policies
 - XPC bridge connects the System Extension to the Go policy engine
-- Session tracking maps processes to agentsh sessions for policy scoping
+- Session tracking maps processes to agentmon sessions for policy scoping
 
 See [macOS ESF+NE Architecture](docs/macos-esf-ne-architecture.md) for deployment details.
 
 **sandbox-exec Process Sandboxing:**
 
-For non-enterprise deployments, agentsh uses macOS's `sandbox-exec` command with SBPL (Sandbox Profile Language) profiles to provide minimal process isolation:
+For non-enterprise deployments, agentmon uses macOS's `sandbox-exec` command with SBPL (Sandbox Profile Language) profiles to provide minimal process isolation:
 
 | Feature | Description |
 |---------|-------------|
@@ -674,7 +674,7 @@ The generated profile follows this structure:
 
 **XPC/Mach IPC Control:**
 
-When `sandbox.xpc.enabled: true`, agentsh restricts which XPC/Mach services sandboxed processes can connect to. This prevents:
+When `sandbox.xpc.enabled: true`, agentmon restricts which XPC/Mach services sandboxed processes can connect to. This prevents:
 - Data exfiltration via clipboard (`com.apple.pasteboard.1`)
 - Privilege escalation via auth dialogs (`com.apple.security.authhost`)
 - TCC bypass attempts (`com.apple.tccd.*`)
@@ -699,7 +699,7 @@ sandbox:
 Default allow list includes essential services: system logger, CoreServices, launch services, SecurityServer, and cfprefsd. See [macOS XPC Sandbox](docs/macos-xpc-sandbox.md) for full documentation.
 
 **Recommendations for macOS deployments:**
-- **ESF+NE (Alpha):** Install via `brew tap canyonroad/tap && brew install --cask agentsh` for full enforcement
+- **ESF+NE (Alpha):** Install via `brew tap canyonroad/tap && brew install --cask agentmon` for full enforcement
 - Use containers (Docker/Podman) with Linux or Lima VM for production workloads
 - Without the system extension, macOS operates in observation-only mode
 - Do not rely on network policy enforcement without ESF+NE
@@ -707,7 +707,7 @@ Default allow list includes essential services: system logger, CoreServices, lau
 
 ### macOS + Lima VM
 
-For production macOS deployments requiring full Linux-level security, agentsh supports Lima VM mode. When Lima is detected (running VM via `limactl`), agentsh automatically delegates operations to the Linux environment inside the VM:
+For production macOS deployments requiring full Linux-level security, agentmon supports Lima VM mode. When Lima is detected (running VM via `limactl`), agentmon automatically delegates operations to the Linux environment inside the VM:
 
 | Component | macOS Native | macOS + Lima | Impact |
 |-----------|--------------|--------------|--------|
@@ -721,12 +721,12 @@ For production macOS deployments requiring full Linux-level security, agentsh su
 
 | Feature | Implementation |
 |---------|----------------|
-| Resource limits | cgroups v2 at `/sys/fs/cgroup/agentsh/<session>` |
+| Resource limits | cgroups v2 at `/sys/fs/cgroup/agentmon/<session>` |
 | CPU limits | `cpu.max` (quota/period in microseconds) |
 | Memory limits | `memory.max` (bytes) |
 | Process limits | `pids.max` |
 | Disk I/O limits | `io.max` (rbps/wbps per device) |
-| Network interception | iptables DNAT via `AGENTSH` chain |
+| Network interception | iptables DNAT via `AGENTMON` chain |
 | TCP redirect | All outbound TCP (except localhost) to proxy port |
 | DNS redirect | UDP port 53 to DNS proxy port |
 
@@ -830,11 +830,11 @@ WinFsp provides FUSE-style filesystem mounting on Windows using the shared `inte
 - WinFsp installed: `winget install WinFsp.WinFsp`
 - CGO enabled build: `CGO_ENABLED=1 go build`
 
-**Double-interception prevention:** When both minifilter and WinFsp are active, the Go client calls `ExcludeSelf()` before mounting to tell the minifilter to skip file operations from the agentsh process, preventing duplicate event capture.
+**Double-interception prevention:** When both minifilter and WinFsp are active, the Go client calls `ExcludeSelf()` before mounting to tell the minifilter to skip file operations from the agentmon process, preventing duplicate event capture.
 
 **AppContainer Sandbox Isolation:**
 
-Windows 8+ supports AppContainer, a kernel-enforced capability isolation mechanism. agentsh uses AppContainer as the primary process isolation layer, with the minifilter driver providing defense-in-depth:
+Windows 8+ supports AppContainer, a kernel-enforced capability isolation mechanism. agentmon uses AppContainer as the primary process isolation layer, with the minifilter driver providing defense-in-depth:
 
 | Layer | Technology | Purpose |
 |-------|------------|---------|
@@ -843,7 +843,7 @@ Windows 8+ supports AppContainer, a kernel-enforced capability isolation mechani
 
 **How It Works:**
 
-When agentsh executes a command in a sandboxed session, it:
+When agentmon executes a command in a sandboxed session, it:
 1. Creates an AppContainer profile with a unique SID via `CreateAppContainerProfile`
 2. Grants the container SID access to the workspace (read/write) via ACL modification
 3. Grants the container SID access to system directories (read/execute)
@@ -906,7 +906,7 @@ See [Windows Driver Deployment Guide](docs/windows-driver-deployment.md) for ins
 
 ### Windows WSL2
 
-For Windows deployments requiring full Linux-level security, agentsh supports WSL2 mode. WSL2 runs a real Linux kernel, providing full Linux capabilities:
+For Windows deployments requiring full Linux-level security, agentmon supports WSL2 mode. WSL2 runs a real Linux kernel, providing full Linux capabilities:
 
 | Component | Windows Native | Windows WSL2 | Impact |
 |-----------|----------------|--------------|--------|
@@ -921,12 +921,12 @@ For Windows deployments requiring full Linux-level security, agentsh supports WS
 
 | Feature | Implementation |
 |---------|----------------|
-| Resource limits | cgroups v2 at `/sys/fs/cgroup/agentsh/<session>` |
+| Resource limits | cgroups v2 at `/sys/fs/cgroup/agentmon/<session>` |
 | CPU limits | `cpu.max` (quota/period in microseconds) |
 | Memory limits | `memory.max` (bytes) |
 | Process limits | `pids.max` |
 | Disk I/O limits | `io.max` (rbps/wbps per device) |
-| Network interception | iptables DNAT via `AGENTSH` chain |
+| Network interception | iptables DNAT via `AGENTMON` chain |
 | TCP redirect | All outbound TCP (except localhost) to proxy port |
 | DNS redirect | UDP port 53 to DNS proxy port |
 
@@ -943,7 +943,7 @@ For Windows deployments requiring full Linux-level security, agentsh supports WS
 - Use WSL2 for maximum security on Windows
 - Keep workspaces on Linux filesystem (`/home/...`) for best performance
 - Install WSL2 with: `wsl --install -d Ubuntu`
-- agentsh auto-detects WSL2 when running inside the VM
+- agentmon auto-detects WSL2 when running inside the VM
 
 ## Security Defaults
 
@@ -959,7 +959,7 @@ For Windows deployments requiring full Linux-level security, agentsh supports WS
 
 ## Reporting Security Issues
 
-If you discover a security vulnerability in agentsh:
+If you discover a security vulnerability in agentmon:
 
 1. **Do not** open a public GitHub issue
 2. Email security concerns to the maintainers privately
@@ -973,7 +973,7 @@ We aim to respond within 48 hours and will coordinate disclosure timing with you
 
 ## Security Checklist for Operators
 
-Before deploying agentsh in production:
+Before deploying agentmon in production:
 
 - [ ] Review and customize the default policy for your use case
 - [ ] Ensure policy files are not writable by the agent user
@@ -981,8 +981,8 @@ Before deploying agentsh in production:
 - [ ] Set appropriate resource limits for your workload
 - [ ] Use CIDR rules (not just domains) for critical network blocks
 - [ ] Test approval workflows to ensure timeouts result in deny
-- [ ] Run agentsh as a non-root user
-- [ ] Keep agentsh updated for security fixes
+- [ ] Run agentmon as a non-root user
+- [ ] Keep agentmon updated for security fixes
 - [ ] Configure DLP patterns for organization-specific sensitive data
 - [ ] Enable network rules to force LLM traffic through the proxy
 - [ ] Review LLM usage reports for unexpected token consumption
@@ -994,7 +994,7 @@ Before deploying agentsh in production:
 
 | Date | Change |
 |------|--------|
-| 2026-05-06 | v0.19.2: shim's kernelinstall path skips wrap-init when an ancestor's seccomp filter is already inherited (`/proc/self/status` `Seccomp_filters:`), avoiding nested-stacking failures masked as `ECANCELED` on Runloop devboxes (#282). Wrap-init now appends `dirname(AgentCommand)` to Landlock `allow_execute` (#283). `agentsh-unixwrap` resolves the command path before installing the seccomp filter so `exec.LookPath` probes are not intercepted by the file-monitor handler (#283 bug B). Seccomp install raw kernel errnos are surfaced via `SCMP_FLTATR_API_SYSRAWRC`; `WAIT_KILLABLE_RECV` retry is gated on `EINVAL` (#285). |
+| 2026-05-06 | v0.19.2: shim's kernelinstall path skips wrap-init when an ancestor's seccomp filter is already inherited (`/proc/self/status` `Seccomp_filters:`), avoiding nested-stacking failures masked as `ECANCELED` on Runloop devboxes (#282). Wrap-init now appends `dirname(AgentCommand)` to Landlock `allow_execute` (#283). `agentmon-unixwrap` resolves the command path before installing the seccomp filter so `exec.LookPath` probes are not intercepted by the file-monitor handler (#283 bug B). Seccomp install raw kernel errnos are surfaced via `SCMP_FLTATR_API_SYSRAWRC`; `WAIT_KILLABLE_RECV` retry is gated on `EINVAL` (#285). |
 | 2026-03-04 | Added execve hardening: path canonicalization via EvalSymlinks and transparent command unwrapping with dual evaluation |
 | 2026-02-13 | Added configurable deferred FUSE mounting for snapshot-restore environments |
 | 2026-01-11 | Added signal interception via seccomp user-notify for policy-based signal control (Linux) |

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/policy/ancestry"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy/ancestry"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

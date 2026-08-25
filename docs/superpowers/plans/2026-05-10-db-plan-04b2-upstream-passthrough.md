@@ -21,7 +21,7 @@
 - Design: `docs/superpowers/specs/2026-05-10-db-plan-04b2-upstream-passthrough-design.md`
 - Macro design: `docs/superpowers/specs/2026-05-10-db-plan-04-pg-proxy-skeleton-design.md`
 - Roadmap: `docs/superpowers/specs/2026-05-08-db-access-phase-1-roadmap-design.md` §3 Plan 04
-- Spec: `docs/agentsh-db-access-spec.md` v0.8 §9.1, §11.1, §11.3, §13, §15, §16
+- Spec: `docs/agentmon-db-access-spec.md` v0.8 §9.1, §11.1, §11.3, §13, §15, §16
 - Predecessor: `docs/superpowers/plans/2026-05-10-db-plan-04b-handshake-tls.md`
 
 ---
@@ -638,14 +638,14 @@ Edit `internal/db/proxy/postgres/handshake.go`. Extend the existing const block 
 ```go
 const (
 	replicationDenyErrorCode     = "0A000"
-	replicationDenyMessage       = "AgentSH DB proxy: replication mode is not yet supported; opt-in path lands in Plan 04b₂"
+	replicationDenyMessage       = "AgentMon DB proxy: replication mode is not yet supported; opt-in path lands in Plan 04b₂"
 	upstreamNotYetWiredErrorCode = "0A000"
-	upstreamNotYetWiredMessage   = "AgentSH DB proxy: upstream wiring not yet shipped (Plan 04b is inbound-only; Plan 04b₂ adds upstream)"
+	upstreamNotYetWiredMessage   = "AgentMon DB proxy: upstream wiring not yet shipped (Plan 04b is inbound-only; Plan 04b₂ adds upstream)"
 	connectionDenyErrorCode      = "28000"
 
 	// SCRAM-SHA-256-PLUS fail-closed under terminate_* modes. Spec §13.1.
 	scramPlusErrorCode = "28000"
-	scramPlusMessage   = "AgentSH DB proxy cannot terminate channel-bound SCRAM (SCRAM-SHA-256-PLUS). Disable channel binding upstream or use TLS passthrough; see docs/agentsh-db-access-spec.md §13."
+	scramPlusMessage   = "AgentMon DB proxy cannot terminate channel-bound SCRAM (SCRAM-SHA-256-PLUS). Disable channel binding upstream or use TLS passthrough; see docs/agentmon-db-access-spec.md §13."
 	scramPlusEventCode = "SCRAM_PLUS_FAIL_CLOSED"
 
 	// Upstream dial / TLS failures. SQLSTATE 08006 (connection_failure).
@@ -677,9 +677,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/service"
 )
 
 // pairedConns returns (clientConn, proxyClientConn, proxyUpstreamConn, upstreamConn)
@@ -1464,7 +1464,7 @@ package postgres
 import (
 	"context"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 // evaluateConnection runs Plan 02's connection-rule evaluator with the
@@ -1656,9 +1656,9 @@ func (pc *proxyConn) handleStartupMessage(ctx context.Context, m *pgproto3.Start
 		msg := d.Reason
 		if msg == "" {
 			if pc.state.replication {
-				msg = "AgentSH DB proxy: replication denied by policy"
+				msg = "AgentMon DB proxy: replication denied by policy"
 			} else {
-				msg = "AgentSH DB proxy: connection denied by policy"
+				msg = "AgentMon DB proxy: connection denied by policy"
 			}
 		}
 		return pc.synthesizeError(connectionDenyErrorCode, msg)
@@ -1681,11 +1681,11 @@ func (pc *proxyConn) dialUpstreamAndForward(ctx context.Context, m *pgproto3.Sta
 	if err != nil {
 		code := upstreamDialFailEventCode
 		errCode := upstreamDialFailErrorCode
-		msg := fmt.Sprintf("AgentSH DB proxy: upstream unreachable: %v", err)
+		msg := fmt.Sprintf("AgentMon DB proxy: upstream unreachable: %v", err)
 		if isTLSError(err) {
 			code = upstreamTLSFailEventCode
 			errCode = upstreamTLSFailErrorCode
-			msg = fmt.Sprintf("AgentSH DB proxy: upstream TLS handshake failed: %v", err)
+			msg = fmt.Sprintf("AgentMon DB proxy: upstream TLS handshake failed: %v", err)
 		}
 		pc.emitHandshakeFail(ctx, code)
 		return pc.synthesizeError(errCode, msg)
@@ -1696,7 +1696,7 @@ func (pc *proxyConn) dialUpstreamAndForward(ctx context.Context, m *pgproto3.Sta
 	pc.state.upstreamFE.Send(m)
 	if err := pc.state.upstreamFE.Flush(); err != nil {
 		pc.emitHandshakeFail(ctx, upstreamDialFailEventCode)
-		return pc.synthesizeError(upstreamDialFailErrorCode, fmt.Sprintf("AgentSH DB proxy: upstream send StartupMessage: %v", err))
+		return pc.synthesizeError(upstreamDialFailErrorCode, fmt.Sprintf("AgentMon DB proxy: upstream send StartupMessage: %v", err))
 	}
 
 	if err := forwardAuth(ctx, pc); err != nil {
@@ -1744,7 +1744,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 ```
 
@@ -1783,7 +1783,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/events"
 )
 ```
 
@@ -2016,9 +2016,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/service"
 )
 ```
 
@@ -2323,11 +2323,11 @@ func (pc *proxyConn) forwardReplicationStartupAndPump(ctx context.Context, m *pg
 	if err != nil {
 		code := upstreamDialFailEventCode
 		errCode := upstreamDialFailErrorCode
-		msg := fmt.Sprintf("AgentSH DB proxy: upstream unreachable: %v", err)
+		msg := fmt.Sprintf("AgentMon DB proxy: upstream unreachable: %v", err)
 		if isTLSError(err) {
 			code = upstreamTLSFailEventCode
 			errCode = upstreamTLSFailErrorCode
-			msg = fmt.Sprintf("AgentSH DB proxy: upstream TLS handshake failed: %v", err)
+			msg = fmt.Sprintf("AgentMon DB proxy: upstream TLS handshake failed: %v", err)
 		}
 		pc.emitHandshakeFail(ctx, code)
 		return pc.synthesizeError(errCode, msg)
@@ -2339,7 +2339,7 @@ func (pc *proxyConn) forwardReplicationStartupAndPump(ctx context.Context, m *pg
 	pc.state.upstreamFE.Send(m)
 	if err := pc.state.upstreamFE.Flush(); err != nil {
 		pc.emitHandshakeFail(ctx, upstreamDialFailEventCode)
-		return pc.synthesizeError(upstreamDialFailErrorCode, fmt.Sprintf("AgentSH DB proxy: upstream send StartupMessage (replication): %v", err))
+		return pc.synthesizeError(upstreamDialFailErrorCode, fmt.Sprintf("AgentMon DB proxy: upstream send StartupMessage (replication): %v", err))
 	}
 
 	pc.emitDegradedVisibility(ctx, "replication_passthrough", "replication_opt_in")
@@ -2824,10 +2824,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/service"
-	"github.com/agentsh/agentsh/internal/db/tlsleaf"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/tlsleaf"
 )
 
 // spineHarness wires a Server with one terminate_reissue service pointing at
@@ -3412,7 +3412,7 @@ PGSSLROOTCERT=$STATE_DIR/db-ca.crt \
 
 Expected: psql completes the handshake (`SELECT 1;` will fail because Plan 04c hasn't shipped — psql sees connection close after the welcome banner). The proxy logs one `db_listener_auth_fail`-or-success cycle and exits cleanly.
 
-If the upstream advertises SCRAM-SHA-256-PLUS, expect: `FATAL: AgentSH DB proxy cannot terminate channel-bound SCRAM (SCRAM-SHA-256-PLUS)...`. This is the documented Plan 04b₂ behavior.
+If the upstream advertises SCRAM-SHA-256-PLUS, expect: `FATAL: AgentMon DB proxy cannot terminate channel-bound SCRAM (SCRAM-SHA-256-PLUS)...`. This is the documented Plan 04b₂ behavior.
 
 - [ ] **Step 4: Roborev final pass**
 

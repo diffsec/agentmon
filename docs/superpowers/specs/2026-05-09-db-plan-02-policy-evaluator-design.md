@@ -4,7 +4,7 @@ Status: design approved 2026-05-09. Implementation plan to follow via writing-pl
 
 Cross-references:
 - Roadmap: `docs/superpowers/specs/2026-05-08-db-access-phase-1-roadmap-design.md` §3 Plan 02.
-- Spec: `docs/agentsh-db-access-spec.md` v0.8 §9 (policy schema), §10 (decision semantics), §23.3 (evaluator tests).
+- Spec: `docs/agentmon-db-access-spec.md` v0.8 §9 (policy schema), §10 (decision semantics), §23.3 (evaluator tests).
 - Predecessor: Plan 01 (`internal/db/effects`, `internal/db/events`, `internal/db/service` already shipped).
 
 This document captures the package-shape and interface decisions that the spec leaves to the implementer. The §10.2 algorithm is fully specified upstream and is not re-derived here.

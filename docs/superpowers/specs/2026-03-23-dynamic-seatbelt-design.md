@@ -6,11 +6,11 @@
 
 ## Summary
 
-Replace the static, blanket-allow seatbelt profile in agentsh-macwrap with policy-driven SBPL generation. Add sandbox extension tokens for runtime file access grants. Restrict Mach service access. This closes the macOS enforcement gap for command control, isolation, and Mach service restriction without requiring ESF or Network Extension entitlements.
+Replace the static, blanket-allow seatbelt profile in agentmon-macwrap with policy-driven SBPL generation. Add sandbox extension tokens for runtime file access grants. Restrict Mach service access. This closes the macOS enforcement gap for command control, isolation, and Mach service restriction without requiring ESF or Network Extension entitlements.
 
 ## Context
 
-The macOS sandbox implementation (`darwin/sandbox.go`, `agentsh-macwrap`) uses seatbelt via `sandbox_init_with_parameters` (private C API). The SBPL profile is generated from a static template with blanket `(allow mach-lookup)`, `(allow process-exec)`, and binary network (`allow network*` or nothing). The policy engine's file/command/network rules are not reflected in the sandbox profile.
+The macOS sandbox implementation (`darwin/sandbox.go`, `agentmon-macwrap`) uses seatbelt via `sandbox_init_with_parameters` (private C API). The SBPL profile is generated from a static template with blanket `(allow mach-lookup)`, `(allow process-exec)`, and binary network (`allow network*` or nothing). The policy engine's file/command/network rules are not reflected in the sandbox profile.
 
 Note: `sandbox-exec` is deprecated by Apple, but `sandbox_init_with_parameters` remains functional on all current macOS versions. The long-term migration path is ESF + Network Extension (Spec B) for enforcement, with seatbelt as a defense-in-depth layer. This spec strengthens seatbelt enforcement while it remains available.
 
@@ -43,23 +43,23 @@ Policy YAML
 │  .CompiledProfile  string   │
 │  .ExtensionTokens  []string │
 └──────────────┬──────────────┘
-               │ JSON via AGENTSH_SANDBOX_CONFIG env var
+               │ JSON via AGENTMON_SANDBOX_CONFIG env var
                ▼
 ┌─────────────────────────────┐
-│  agentsh-macwrap            │
+│  agentmon-macwrap            │
 │  consumeTokens() →         │
 │  sandbox_init(profile) →   │
 │  exec(child)               │
 └─────────────────────────────┘
 ```
 
-Profile generation moves out of macwrap into the **server process** (`internal/api/core.go`), where the policy engine already lives. Today, `wrapWithMacSandbox()` in `core.go` builds a `macSandboxWrapperConfig` and passes it to macwrap via `AGENTSH_SANDBOX_CONFIG`. In the new design, this method calls `CompileDarwinSandbox()` to produce the full SBPL string and extension tokens, then passes both through the same env var. Macwrap becomes a thin applier: consume tokens, apply profile, exec.
+Profile generation moves out of macwrap into the **server process** (`internal/api/core.go`), where the policy engine already lives. Today, `wrapWithMacSandbox()` in `core.go` builds a `macSandboxWrapperConfig` and passes it to macwrap via `AGENTMON_SANDBOX_CONFIG`. In the new design, this method calls `CompileDarwinSandbox()` to produce the full SBPL string and extension tokens, then passes both through the same env var. Macwrap becomes a thin applier: consume tokens, apply profile, exec.
 
-The compiled SBPL is also written to `~/.agentsh/sessions/<id>/sandbox.sb` for inspection/debugging. This file is informational — macwrap receives the profile via `WrapperConfig`, never from disk.
+The compiled SBPL is also written to `~/.agentmon/sessions/<id>/sandbox.sb` for inspection/debugging. This file is informational — macwrap receives the profile via `WrapperConfig`, never from disk.
 
 **Token issuance:** `sandbox_extension_issue_file()` must be called from an **unsandboxed process**. The server process (which runs unsandboxed) issues all tokens and serializes the opaque token strings into the `WrapperConfig`. Macwrap (which is also unsandboxed at the time of token consumption — it consumes tokens before calling `sandbox_init`) calls `sandbox_extension_consume()` for each token, granting access to itself and its future child process.
 
-**Environment variable size:** The compiled SBPL + serialized tokens will be larger than the current simple JSON config. For policies with many rules, the combined payload could approach shell environment limits (~128KB). If the payload exceeds 64KB, the server writes it to a temp file (`/tmp/agentsh-sandbox-<session>.json`) and passes the file path via `AGENTSH_SANDBOX_CONFIG_FILE` instead. Macwrap reads and deletes the file atomically.
+**Environment variable size:** The compiled SBPL + serialized tokens will be larger than the current simple JSON config. For policies with many rules, the combined payload could approach shell environment limits (~128KB). If the payload exceeds 64KB, the server writes it to a temp file (`/tmp/agentmon-sandbox-<session>.json`) and passes the file path via `AGENTMON_SANDBOX_CONFIG_FILE` instead. Macwrap reads and deletes the file atomically.
 
 ### Layered Perimeter Model
 
@@ -309,7 +309,7 @@ Scoring is conservative (75 with FUSE-T, 65 without) pending real-world validati
 
 ### Detection criteria
 
-"Dynamic seatbelt" is a code capability, not a system dependency — it's always available when the updated server code is running. Detection in `selectDarwinMode()`: if `agentsh-macwrap` is available in PATH (existing check), select dynamic seatbelt mode. The distinction from the old "sandbox-exec" mode is code-level: the server now sends `CompiledProfile` in the config. No runtime probe needed — the mode is determined by server version, not system capabilities. FUSE-T detection remains unchanged (library file check).
+"Dynamic seatbelt" is a code capability, not a system dependency — it's always available when the updated server code is running. Detection in `selectDarwinMode()`: if `agentmon-macwrap` is available in PATH (existing check), select dynamic seatbelt mode. The distinction from the old "sandbox-exec" mode is code-level: the server now sends `CompiledProfile` in the config. No runtime probe needed — the mode is determined by server version, not system capabilities. FUSE-T detection remains unchanged (library file check).
 
 ### Seatbelt-only mode
 
@@ -344,9 +344,9 @@ Darwin-only, `integration` build tag. Launches macwrap with compiled profile: ex
 | `internal/platform/darwin/sandbox.go` | Add `CompileDarwinSandbox()` method |
 | `internal/platform/darwin/sandbox_test.go` | Add compilation integration tests |
 | `internal/api/core.go` | Update `wrapWithMacSandbox()` to call `CompileDarwinSandbox()`, populate `CompiledProfile` and `ExtensionTokens` in config |
-| `cmd/agentsh-macwrap/main.go` | Add `consumeTokens()`, use `CompiledProfile` |
-| `cmd/agentsh-macwrap/config.go` | Add `CompiledProfile`, `ExtensionTokens` fields to `WrapperConfig` |
-| `cmd/agentsh-macwrap/profile.go` | Keep as legacy fallback |
+| `cmd/agentmon-macwrap/main.go` | Add `consumeTokens()`, use `CompiledProfile` |
+| `cmd/agentmon-macwrap/config.go` | Add `CompiledProfile`, `ExtensionTokens` fields to `WrapperConfig` |
+| `cmd/agentmon-macwrap/profile.go` | Keep as legacy fallback |
 | `internal/capabilities/detect_darwin.go` | Add dynamic seatbelt tiers, update domain availability |
 
 ## Out of Scope

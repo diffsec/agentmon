@@ -10,13 +10,13 @@ import (
 
 	"github.com/cilium/ebpf"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/limits"
-	"github.com/agentsh/agentsh/internal/metrics"
-	ebpftrace "github.com/agentsh/agentsh/internal/netmonitor/ebpf"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/limits"
+	"github.com/diffsec/agentmon/internal/metrics"
+	ebpftrace "github.com/diffsec/agentmon/internal/netmonitor/ebpf"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/google/uuid"
 )
 
@@ -112,7 +112,7 @@ func applyCgroupV2(ctx context.Context, emit storeEmitter, app *App, sessionID, 
 		}
 	}
 
-	cg, err := app.cgroupMgr.Apply("agentsh-"+sanitizeCgroupTag(sessionID)+"-"+sanitizeCgroupTag(cmdID), pid, cgLimits)
+	cg, err := app.cgroupMgr.Apply("agentmon-"+sanitizeCgroupTag(sessionID)+"-"+sanitizeCgroupTag(cmdID), pid, cgLimits)
 	if err != nil {
 		var ue *limits.CgroupUnavailableError
 		var rlue *limits.CgroupResourceLimitsUnavailableError

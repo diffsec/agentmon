@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/auth"
+	"github.com/diffsec/agentmon/internal/auth"
 	"github.com/go-webauthn/webauthn/protocol"
 )
 

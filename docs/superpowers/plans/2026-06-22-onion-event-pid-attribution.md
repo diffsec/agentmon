@@ -350,7 +350,7 @@ Add after the existing `decision` assertion (around `:417`):
 	}
 ```
 
-Ensure `dns_test.go` imports `"github.com/agentsh/agentsh/internal/session"` (add it to the import block if absent).
+Ensure `dns_test.go` imports `"github.com/diffsec/agentmon/internal/session"` (add it to the import block if absent).
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -487,7 +487,7 @@ Confirm the command-process PID and the ptrace-path PID are in the same (host) P
 - `internal/api/pty_core.go:202` — `SetCurrentProcessPID(ps.PID())`; confirm `ps.PID()` is the host PID of the PTY process.
 - The ptrace-path Tor events use `nc.PID` (`internal/.../ptrace_handlers.go`), the host PID delivered by the ptrace subsystem.
 
-All are host-side PIDs observed by agentsh → the cross-reference holds.
+All are host-side PIDs observed by agentmon → the cross-reference holds.
 
 - [ ] **Step 2: Record the finding and flip status in the spec**
 
@@ -498,7 +498,7 @@ In `docs/superpowers/specs/2026-06-22-onion-event-pid-attribution-design.md`, ch
 
 `SetCurrentProcessPID` is called with `cmd.Process.Pid` (`internal/api/exec.go:357`,
 `internal/api/exec_stream.go:434`) and `ps.PID()` (`internal/api/pty_core.go:202`)
-— all host-side PIDs of the command process as agentsh observes it. The
+— all host-side PIDs of the command process as agentmon observes it. The
 ptrace-path Tor events use `nc.PID`, also a host-side PID from the ptrace
 subsystem. Both event families therefore carry `pid` in the same namespace and
 cross-reference cleanly.

@@ -8,14 +8,14 @@ Add CLI commands for viewing MCP tool registry and querying MCP-related events.
 
 ## Command Structure
 
-Parent command: `agentsh mcp`
+Parent command: `agentmon mcp`
 
 | Command | Purpose |
 |---------|---------|
-| `agentsh mcp tools` | List registered MCP tools from persistent registry |
-| `agentsh mcp servers` | List known MCP servers with tool counts |
-| `agentsh mcp events` | Query MCP-related events (tool_seen, tool_changed, detection) |
-| `agentsh mcp detections` | Show tools with security detections |
+| `agentmon mcp tools` | List registered MCP tools from persistent registry |
+| `agentmon mcp servers` | List known MCP servers with tool counts |
+| `agentmon mcp events` | Query MCP-related events (tool_seen, tool_changed, detection) |
+| `agentmon mcp detections` | Show tools with security detections |
 
 ### Common Flags
 
@@ -28,16 +28,16 @@ Parent command: `agentsh mcp`
 
 ```bash
 # List all known MCP tools
-agentsh mcp tools
+agentmon mcp tools
 
 # List tools for a specific server
-agentsh mcp tools --server=filesystem
+agentmon mcp tools --server=filesystem
 
 # Show MCP events for current session
-agentsh mcp events --session=sess_abc123
+agentmon mcp events --session=sess_abc123
 
 # Show only tools with detections
-agentsh mcp detections --severity=high
+agentmon mcp detections --severity=high
 ```
 
 ## Storage Design
@@ -90,7 +90,7 @@ Also upsert to mcp_tools table (new)
 ### Read Path
 
 ```
-agentsh mcp tools --server=filesystem
+agentmon mcp tools --server=filesystem
     ↓
 MCPToolStore.ListTools(filter)
     ↓
@@ -141,7 +141,7 @@ internal/cli/root.go             # Add newMCPCmd()
 ### Table Mode (default)
 
 ```
-$ agentsh mcp tools
+$ agentmon mcp tools
 SERVER              TOOL            HASH        LAST SEEN            DETECTIONS
 filesystem          read_file       a1b2c3d4    2026-01-06 10:30:00  0
 filesystem          write_file      e5f6g7h8    2026-01-06 10:30:00  0

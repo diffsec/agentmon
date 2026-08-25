@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/go-chi/chi/v5"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -65,7 +65,7 @@ func TestExecInSessionCore_PrecheckConsultsSessionPolicy(t *testing.T) {
 	// filepath.ToSlash normalizes backslashes to forward slashes on
 	// Windows so the policy engine compiles the rule as a full path
 	// (it only treats "/" as a path separator — see engine.go ~line 196).
-	cmdPath := strings.ToLower(filepath.ToSlash(filepath.Join(t.TempDir(), "agentsh191-nonexistent")))
+	cmdPath := strings.ToLower(filepath.ToSlash(filepath.Join(t.TempDir(), "agentmon191-nonexistent")))
 
 	globalEngine := newEngineDenyingOnly(t, cmdPath)
 	sessionEngine := newEngineAllowingCommand(t, "session-allow-widget", cmdPath)
@@ -161,7 +161,7 @@ func newSessionPolicyFixture(t *testing.T) *sessionPolicyFixture {
 	// lowercased forward-slash TempDir path so the policy engine normalises
 	// the rule as a full path on both Linux and Windows, and so the command
 	// is guaranteed-missing on any runner.
-	cmdPath := strings.ToLower(filepath.ToSlash(filepath.Join(t.TempDir(), "agentsh191-nonexistent")))
+	cmdPath := strings.ToLower(filepath.ToSlash(filepath.Join(t.TempDir(), "agentmon191-nonexistent")))
 
 	globalEngine := newEngineDenyingOnly(t, cmdPath)
 	sessionEngine := newEngineAllowingCommand(t, "session-allow-widget", cmdPath)

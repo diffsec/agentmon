@@ -5,7 +5,7 @@
 
 ## Problem
 
-Go's async preemption sends SIGURG to all threads every ~10ms (since Go 1.14). When the wrapper (`agentsh-unixwrap`) calls `syscall.Exec()` and the seccomp filter traps it, the kernel suspends the thread in `seccomp_do_user_notification()` using `wait_for_completion_interruptible()`. SIGURG interrupts this wait, causing ERESTARTSYS. The kernel restarts `execve`, creating a new notification — but the supervisor may already be processing the old one. This loops every ~10ms until timeout.
+Go's async preemption sends SIGURG to all threads every ~10ms (since Go 1.14). When the wrapper (`agentmon-unixwrap`) calls `syscall.Exec()` and the seccomp filter traps it, the kernel suspends the thread in `seccomp_do_user_notification()` using `wait_for_completion_interruptible()`. SIGURG interrupts this wait, causing ERESTARTSYS. The kernel restarts `execve`, creating a new notification — but the supervisor may already be processing the old one. This loops every ~10ms until timeout.
 
 Confirmed on Ubuntu Server ARM64 in a VM. `GODEBUG=asyncpreemptoff=1` in the wrapper env raises success rate from 0% to 98%, confirming the root cause. ARM64 VMs are particularly affected because higher latency for cross-process operations (ProcessVMReadv, path resolution, ioctl) makes it impossible for the supervisor to respond within the 10ms SIGURG window.
 
@@ -27,7 +27,7 @@ Requires kernel 6.0+ and libseccomp >= 2.6.0. On older kernels, `Load()` returns
 
 > **Follow-up (2026-04-14):** The libseccomp version requirement is now enforced at
 > build time via the `#error` guards in `internal/netmonitor/unix/seccomp_version_check.go`
-> and `cmd/agentsh-unixwrap/seccomp_version_check.go`, and CI builds a static libseccomp
+> and `cmd/agentmon-unixwrap/seccomp_version_check.go`, and CI builds a static libseccomp
 > 2.6 via `scripts/build-libseccomp.sh`. See
 > `docs/superpowers/specs/2026-04-14-libseccomp-2.6-defense-in-depth-design.md`
 > for the hardening rationale.
@@ -62,7 +62,7 @@ if err := filt.SetWaitKill(true); err != nil {
 
 Add `log/slog` import (already used by other files in the package).
 
-### 3. `cmd/agentsh-unixwrap/main.go`
+### 3. `cmd/agentmon-unixwrap/main.go`
 
 Before `syscall.Exec()` (currently line 204):
 
@@ -93,7 +93,7 @@ func blockSIGURG() {
 
 New imports: `runtime`, `unsafe`.
 
-### 4. `cmd/agentsh-unixwrap/sigurg_test.go` (new file)
+### 4. `cmd/agentmon-unixwrap/sigurg_test.go` (new file)
 
 Linux-only build tag. Unit test for `blockSIGURG`:
 
@@ -118,5 +118,5 @@ No integration test for the full ERESTARTSYS loop — it requires ARM64 + VM + t
 |------|--------|
 | `go.mod`, `go.sum` | Upgrade libseccomp-golang v0.10.0 -> v0.11.0 |
 | `internal/netmonitor/unix/seccomp_linux.go` | Add `SetWaitKill(true)` + `slog` import |
-| `cmd/agentsh-unixwrap/main.go` | Add `blockSIGURG()`, `runtime.LockOSThread()`, new imports |
-| `cmd/agentsh-unixwrap/sigurg_test.go` | New: unit test for blockSIGURG |
+| `cmd/agentmon-unixwrap/main.go` | Add `blockSIGURG()`, `runtime.LockOSThread()`, new imports |
+| `cmd/agentmon-unixwrap/sigurg_test.go` | New: unit test for blockSIGURG |

@@ -46,8 +46,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/metrics"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/metrics"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // newDropTestStore builds a minimal Store wired with a counter-asserting
@@ -189,7 +189,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
 )
 
 func TestRecordCompactEncodeFailure_ClassifiesInvalidMapper(t *testing.T) {
@@ -363,7 +363,7 @@ Append to `internal/store/watchtower/append_drop_internal_test.go`:
 ```go
 import (
 	// ... existing imports ...
-	"github.com/agentsh/agentsh/internal/store/watchtower/chain"
+	"github.com/diffsec/agentmon/internal/store/watchtower/chain"
 )
 
 func TestRecordCanonicalFailure_ClassifiesInvalidUTF8(t *testing.T) {
@@ -433,7 +433,7 @@ func (s *Store) recordCanonicalFailure(err error, ev types.Event) {
 }
 ```
 
-Add `"github.com/agentsh/agentsh/internal/store/watchtower/chain"` to the imports if not already present (it likely already is).
+Add `"github.com/diffsec/agentmon/internal/store/watchtower/chain"` to the imports if not already present (it likely already is).
 
 - [ ] **Step 4: Run the test to verify it passes**
 
@@ -604,12 +604,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/metrics"
-	"github.com/agentsh/agentsh/internal/store/watchtower"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
-	"github.com/agentsh/agentsh/internal/store/watchtower/testserver"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/metrics"
+	"github.com/diffsec/agentmon/internal/store/watchtower"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/store/watchtower/testserver"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // failingMapper is a Mapper that always returns the configured error.

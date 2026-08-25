@@ -313,8 +313,8 @@ Add to `internal/config/config.go` after `ApprovalsConfig`:
 ```go
 // WebAuthnConfig configures WebAuthn/FIDO2 authentication.
 type WebAuthnConfig struct {
-    RPID            string   `yaml:"rp_id"`              // e.g., "agentsh.local"
-    RPName          string   `yaml:"rp_name"`            // e.g., "agentsh"
+    RPID            string   `yaml:"rp_id"`              // e.g., "agentmon.local"
+    RPName          string   `yaml:"rp_name"`            // e.g., "agentmon"
     RPOrigins       []string `yaml:"rp_origins"`         // e.g., ["http://localhost:18080"]
     UserVerification string  `yaml:"user_verification"` // preferred, required, discouraged
 }
@@ -625,7 +625,7 @@ import (
     "fmt"
     "time"
 
-    "github.com/agentsh/agentsh/internal/auth"
+    "github.com/diffsec/agentmon/internal/auth"
     "github.com/go-webauthn/webauthn/protocol"
 )
 
@@ -847,7 +847,7 @@ This command initiates a registration ceremony. You will need to:
 2. Complete the registration in a browser or via the API
 
 Example:
-  agentsh auth webauthn register --name "My YubiKey"`,
+  agentmon auth webauthn register --name "My YubiKey"`,
         RunE: func(cmd *cobra.Command, args []string) error {
             fmt.Fprintf(cmd.OutOrStdout(), "Starting WebAuthn registration for credential: %s\n", name)
             fmt.Fprintln(cmd.OutOrStdout(), "(Full registration flow requires browser interaction)")
@@ -976,7 +976,7 @@ Add to `internal/config/config.go`:
 // OIDCConfig configures OpenID Connect authentication.
 type OIDCConfig struct {
     Issuer          string            `yaml:"issuer"`           // e.g., "https://corp.okta.com"
-    ClientID        string            `yaml:"client_id"`        // e.g., "agentsh-server"
+    ClientID        string            `yaml:"client_id"`        // e.g., "agentmon-server"
     Audience        string            `yaml:"audience"`         // Expected audience claim
     JWKSCacheTTL    string            `yaml:"jwks_cache_ttl"`   // e.g., "1h"
     ClaimMappings   OIDCClaimMappings `yaml:"claim_mappings"`
@@ -984,7 +984,7 @@ type OIDCConfig struct {
     GroupPolicyMap  map[string]string `yaml:"group_policy_map"` // group -> policy name
 }
 
-// OIDCClaimMappings maps OIDC claims to agentsh fields.
+// OIDCClaimMappings maps OIDC claims to agentmon fields.
 type OIDCClaimMappings struct {
     OperatorID string `yaml:"operator_id"` // Claim for operator ID (default: "sub")
     Groups     string `yaml:"groups"`      // Claim for groups (default: "groups")
@@ -1405,9 +1405,9 @@ go test ./... -v
 **Step 2: Build and verify**
 
 ```bash
-go build ./cmd/agentsh
-./agentsh --help
-./agentsh auth webauthn --help
+go build ./cmd/agentmon
+./agentmon --help
+./agentmon auth webauthn --help
 ```
 
 **Step 3: Verify config parsing**
@@ -1418,20 +1418,20 @@ Create a test config with WebAuthn and OIDC:
 auth:
   type: hybrid
   api_key:
-    keys_file: /etc/agentsh/api-keys.yaml
+    keys_file: /etc/agentmon/api-keys.yaml
   oidc:
     issuer: "https://example.okta.com"
-    client_id: "agentsh"
-    audience: "agentsh"
+    client_id: "agentmon"
+    audience: "agentmon"
     allowed_groups:
-      - "agentsh-operators"
+      - "agentmon-operators"
 
 approvals:
   enabled: true
   mode: webauthn
   webauthn:
     rp_id: "localhost"
-    rp_name: "agentsh"
+    rp_name: "agentmon"
     rp_origins:
       - "http://localhost:18080"
 ```

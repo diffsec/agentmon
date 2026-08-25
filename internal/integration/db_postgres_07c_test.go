@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
@@ -402,7 +402,7 @@ func startDB07CEnvironment(t *testing.T, ctx context.Context) db07cEnv {
 	containerDSN := "postgres://app:secret@pg07c:5432/app?sslmode=disable"
 
 	temp := t.TempDir()
-	agentshBin := buildAgentshBinary(t)
+	agentmonBin := buildAgentmonBinary(t)
 	clientBin := buildDB07CClientBinary(t)
 	policiesDir := filepath.Join(temp, "policies")
 	mustMkdir(t, policiesDir)
@@ -413,7 +413,7 @@ func startDB07CEnvironment(t *testing.T, ctx context.Context) db07cEnv {
 	workspace := filepath.Join(temp, "workspace")
 	mustMkdir(t, workspace)
 
-	endpoint, server, serverCleanup := startDB07CServerContainer(t, ctx, netw.Name, agentshBin, clientBin, configPath, policiesDir, workspace)
+	endpoint, server, serverCleanup := startDB07CServerContainer(t, ctx, netw.Name, agentmonBin, clientBin, configPath, policiesDir, workspace)
 	var serverCleanupOnce sync.Once
 	cleanupServer := func() {
 		serverCleanupOnce.Do(serverCleanup)
@@ -468,14 +468,14 @@ func repoRoot07C(t *testing.T) string {
 	}
 }
 
-func startDB07CServerContainer(t *testing.T, ctx context.Context, networkName, agentshBin, dbClientBin, configPath, policiesDir, workspace string) (string, testcontainers.Container, func()) {
+func startDB07CServerContainer(t *testing.T, ctx context.Context, networkName, agentmonBin, dbClientBin, configPath, policiesDir, workspace string) (string, testcontainers.Container, func()) {
 	t.Helper()
 	req := testcontainers.ContainerRequest{
 		Image:        "debian:bookworm-slim",
 		ExposedPorts: []string{"18080/tcp"},
-		Cmd:          []string{"/usr/local/bin/agentsh", "server", "--config", "/config.yaml"},
+		Cmd:          []string{"/usr/local/bin/agentmon", "server", "--config", "/config.yaml"},
 		Mounts: []testcontainers.ContainerMount{
-			testcontainers.BindMount(agentshBin, "/usr/local/bin/agentsh"),
+			testcontainers.BindMount(agentmonBin, "/usr/local/bin/agentmon"),
 			testcontainers.BindMount(dbClientBin, "/usr/local/bin/db07c-client"),
 			testcontainers.BindMount(configPath, "/config.yaml"),
 			testcontainers.BindMount(filepath.Join(filepath.Dir(configPath), "keys.yaml"), "/keys.yaml"),
@@ -485,7 +485,7 @@ func startDB07CServerContainer(t *testing.T, ctx context.Context, networkName, a
 		Privileged:     true,
 		CapAdd:         []string{"SYS_ADMIN", "SYS_PTRACE"},
 		Networks:       []string{networkName},
-		NetworkAliases: map[string][]string{networkName: {"agentsh07c"}},
+		NetworkAliases: map[string][]string{networkName: {"agentmon07c"}},
 		HostConfigModifier: func(hc *container.HostConfig) {
 			hc.SecurityOpt = []string{"apparmor:unconfined", "seccomp:unconfined"}
 			if _, err := os.Stat("/dev/fuse"); err == nil {
@@ -507,11 +507,11 @@ func startDB07CServerContainer(t *testing.T, ctx context.Context, networkName, a
 			if logs, logErr := ctr.Logs(ctx); logErr == nil {
 				defer logs.Close()
 				b, _ := io.ReadAll(logs)
-				t.Logf("07c AgentSH logs:\n%s", string(b))
+				t.Logf("07c AgentMon logs:\n%s", string(b))
 			}
 			_ = ctr.Terminate(context.Background())
 		}
-		t.Fatalf("07c start AgentSH container: %v", err)
+		t.Fatalf("07c start AgentMon container: %v", err)
 	}
 	cleanup := func() { _ = ctr.Terminate(context.Background()) }
 	returned := false
@@ -522,11 +522,11 @@ func startDB07CServerContainer(t *testing.T, ctx context.Context, networkName, a
 	}()
 	host, err := ctr.Host(ctx)
 	if err != nil {
-		t.Fatalf("07c AgentSH host: %v", err)
+		t.Fatalf("07c AgentMon host: %v", err)
 	}
 	port, err := ctr.MappedPort(ctx, "18080/tcp")
 	if err != nil {
-		t.Fatalf("07c AgentSH mapped port: %v", err)
+		t.Fatalf("07c AgentMon mapped port: %v", err)
 	}
 	endpoint := fmt.Sprintf("http://%s:%s", host, port.Port())
 	returned = true

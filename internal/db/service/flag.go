@@ -1,7 +1,7 @@
 package service
 
 // Unavoidability is the policies.db.unavoidability flag per
-// docs/agentsh-db-access-spec.md §11.1. Operators select one of three modes:
+// docs/agentmon-db-access-spec.md §11.1. Operators select one of three modes:
 //
 //	off     (default): proxy is inert; no listeners are bound.
 //	observe: listeners bind; declared services are intercepted; events emit.

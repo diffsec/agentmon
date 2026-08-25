@@ -3,7 +3,7 @@
 Manual regression test for the Go SIGURG / seccomp user-notify interaction
 fixed in PR #225 and hardened in the libseccomp 2.6 defense-in-depth
 change. Run this before cutting any release that touches `internal/netmonitor/unix/`
-or `cmd/agentsh-unixwrap/`.
+or `cmd/agentmon-unixwrap/`.
 
 ## What this verifies
 
@@ -16,7 +16,7 @@ or `cmd/agentsh-unixwrap/`.
 
 - arm64 Linux VM (bare-metal or qemu-system-aarch64).
 - Kernel ≥6.0 (`uname -r` to confirm).
-- agentsh binaries built by the release workflow (deb or tar.gz for arm64).
+- agentmon binaries built by the release workflow (deb or tar.gz for arm64).
 
 A suitable test host is a stock Ubuntu 24.04 arm64 cloud instance — the
 Docker test matrix does not exercise this case because GitHub does not
@@ -28,15 +28,15 @@ same image.
 1. Install the release deb:
 
    ```bash
-   sudo dpkg -i agentsh_<version>_linux_arm64.deb
+   sudo dpkg -i agentmon_<version>_linux_arm64.deb
    ```
 
 2. Install the shell shim:
 
    ```bash
-   sudo agentsh shim install-shell \
+   sudo agentmon shim install-shell \
      --root / \
-     --shim /usr/bin/agentsh-shell-shim \
+     --shim /usr/bin/agentmon-shell-shim \
      --bash \
      --i-understand-this-modifies-the-host
    ```
@@ -45,8 +45,8 @@ same image.
    file so we can inspect it for warnings:
 
    ```bash
-   sudo agentsh server --config /etc/agentsh/config.yaml \
-     >/tmp/agentsh-server.log 2>&1 &
+   sudo agentmon server --config /etc/agentmon/config.yaml \
+     >/tmp/agentmon-server.log 2>&1 &
    ```
 
    (The server is backgrounded from an interactive shell here, not
@@ -54,14 +54,14 @@ same image.
    log file is the source of truth.)
 
 4. Create a session and run a Go workload that stresses preemption.
-   The packaged `agentsh` binary is itself a Go program with async
+   The packaged `agentmon` binary is itself a Go program with async
    preemption enabled, so invoking it inside the sandbox exercises the
    same SIGURG + seccomp-notify interaction as the PR #225 repro. No
    Go toolchain or source checkout is needed:
 
    ```bash
-   sid=$(agentsh session create --workspace /tmp --json | jq -r .id)
-   agentsh exec "$sid" -- agentsh --help >/dev/null
+   sid=$(agentmon session create --workspace /tmp --json | jq -r .id)
+   agentmon exec "$sid" -- agentmon --help >/dev/null
    ```
 
    Expected: completes in well under 10 seconds with exit code 0.
@@ -69,7 +69,7 @@ same image.
 5. Repeat the same stressed invocation in a tight loop for 100
    iterations — this is the release gate, so the loop must run a
    longer-lived Go-binary workload with several trap points per call,
-   not `agentsh --help` (which can finish before Go's ~10 ms
+   not `agentmon --help` (which can finish before Go's ~10 ms
    async-preemption SIGURG fires). `session list` opens an HTTP
    connection to the server, which keeps the wrapped Go runtime alive
    across several seccomp-trapped syscalls — `connect`, `sendto`,
@@ -78,9 +78,9 @@ same image.
    to catch a Layer 1 regression:
 
    ```bash
-   wrapper_log=$(mktemp /tmp/agentsh-unixwrap-stderr.XXXXXX)
+   wrapper_log=$(mktemp /tmp/agentmon-unixwrap-stderr.XXXXXX)
    for i in $(seq 1 100); do
-     agentsh exec "$sid" -- agentsh session list >/dev/null 2>>"$wrapper_log" \
+     agentmon exec "$sid" -- agentmon session list >/dev/null 2>>"$wrapper_log" \
        || { echo "FAIL iter $i"; exit 1; }
    done
    echo "PASS: 100 iterations (wrapper stderr captured to ${wrapper_log})"
@@ -91,9 +91,9 @@ same image.
 
    The `2>>"$wrapper_log"` redirect is load-bearing: the
    `WaitKillable` fallback WARN is emitted by
-   `agentsh-unixwrap` (the wrapper installs the seccomp filter), not
-   by the long-lived `agentsh server`. The server relays that stderr
-   through the exec response to the `agentsh exec` CLI's stderr, where
+   `agentmon-unixwrap` (the wrapper installs the seccomp filter), not
+   by the long-lived `agentmon server`. The server relays that stderr
+   through the exec response to the `agentmon exec` CLI's stderr, where
    this redirect captures it. The server log alone never sees these
    warnings, so step 6 below must grep both files.
 
@@ -104,9 +104,9 @@ same image.
    in step 5:
 
    ```bash
-   if grep -q "WaitKillable" /tmp/agentsh-server.log "$wrapper_log" 2>/dev/null; then
+   if grep -q "WaitKillable" /tmp/agentmon-server.log "$wrapper_log" 2>/dev/null; then
      echo "FAIL: Layer 1 fell back to SIGURG signal mask (Layer 2) only" >&2
-     grep -H "WaitKillable" /tmp/agentsh-server.log "$wrapper_log" >&2 || true
+     grep -H "WaitKillable" /tmp/agentmon-server.log "$wrapper_log" >&2 || true
      exit 1
    fi
    echo "PASS: no Layer 1 fallback warnings (checked server log + wrapper stderr)"

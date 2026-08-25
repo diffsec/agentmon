@@ -13,54 +13,54 @@
 ## Prerequisites
 
 - Phase 2 complete (process tracking with session registration)
-- Working in worktree: `/home/eran/work/agentsh/.worktrees/feature-windows-minifilter`
+- Working in worktree: `/home/eran/work/agentmon/.worktrees/feature-windows-minifilter`
 
 ---
 
 ## Task 1: Add File Operation Protocol Messages
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/inc/protocol.h`
+- Modify: `drivers/windows/agentmon-minifilter/inc/protocol.h`
 
 **Step 1: Add file operation enum and structures**
 
-Add after `AGENTSH_PROCESS_EVENT` struct:
+Add after `AGENTMON_PROCESS_EVENT` struct:
 
 ```c
 // File operation types
-typedef enum _AGENTSH_FILE_OP {
+typedef enum _AGENTMON_FILE_OP {
     FILE_OP_CREATE = 1,
     FILE_OP_READ = 2,
     FILE_OP_WRITE = 3,
     FILE_OP_DELETE = 4,
     FILE_OP_RENAME = 5,
-} AGENTSH_FILE_OP;
+} AGENTMON_FILE_OP;
 
 // File policy check request (driver -> user-mode)
-typedef struct _AGENTSH_FILE_REQUEST {
-    AGENTSH_MESSAGE_HEADER Header;
+typedef struct _AGENTMON_FILE_REQUEST {
+    AGENTMON_MESSAGE_HEADER Header;
     ULONG64 SessionToken;
     ULONG ProcessId;
     ULONG ThreadId;
-    AGENTSH_FILE_OP Operation;
+    AGENTMON_FILE_OP Operation;
     ULONG CreateDisposition;        // For creates: CREATE_NEW, OPEN_EXISTING, etc.
     ULONG DesiredAccess;            // FILE_READ_DATA, FILE_WRITE_DATA, DELETE, etc.
-    WCHAR Path[AGENTSH_MAX_PATH];
-    WCHAR RenameDest[AGENTSH_MAX_PATH]; // Only for FILE_OP_RENAME
-} AGENTSH_FILE_REQUEST, *PAGENTSH_FILE_REQUEST;
+    WCHAR Path[AGENTMON_MAX_PATH];
+    WCHAR RenameDest[AGENTMON_MAX_PATH]; // Only for FILE_OP_RENAME
+} AGENTMON_FILE_REQUEST, *PAGENTMON_FILE_REQUEST;
 
 // Policy response (user-mode -> driver)
-typedef struct _AGENTSH_POLICY_RESPONSE {
-    AGENTSH_MESSAGE_HEADER Header;
-    AGENTSH_DECISION Decision;
+typedef struct _AGENTMON_POLICY_RESPONSE {
+    AGENTMON_MESSAGE_HEADER Header;
+    AGENTMON_DECISION Decision;
     ULONG CacheTTLMs;               // How long to cache this decision
-} AGENTSH_POLICY_RESPONSE, *PAGENTSH_POLICY_RESPONSE;
+} AGENTMON_POLICY_RESPONSE, *PAGENTMON_POLICY_RESPONSE;
 ```
 
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/inc/protocol.h
+git add drivers/windows/agentmon-minifilter/inc/protocol.h
 git commit -m "feat(windows): add file operation protocol messages"
 ```
 
@@ -69,20 +69,20 @@ git commit -m "feat(windows): add file operation protocol messages"
 ## Task 2: Create Policy Cache Header
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/inc/cache.h`
+- Create: `drivers/windows/agentmon-minifilter/inc/cache.h`
 
 **Step 1: Write the cache header**
 
 ```c
 // cache.h - Policy cache definitions
-#ifndef _AGENTSH_CACHE_H_
-#define _AGENTSH_CACHE_H_
+#ifndef _AGENTMON_CACHE_H_
+#define _AGENTMON_CACHE_H_
 
 #include <fltKernel.h>
 #include "protocol.h"
 
 // Pool tag for cache allocations
-#define AGENTSH_TAG_CACHE 'acGA'
+#define AGENTMON_TAG_CACHE 'acGA'
 
 // Cache configuration
 #define CACHE_BUCKET_COUNT 256
@@ -95,11 +95,11 @@ typedef struct _CACHE_ENTRY {
     LIST_ENTRY HashEntry;           // Hash bucket chain
     LIST_ENTRY LruEntry;            // LRU list
     ULONG64 SessionToken;
-    AGENTSH_FILE_OP Operation;
-    AGENTSH_DECISION Decision;
+    AGENTMON_FILE_OP Operation;
+    AGENTMON_DECISION Decision;
     LARGE_INTEGER ExpiryTime;
     ULONG PathHash;
-    WCHAR Path[AGENTSH_MAX_PATH];
+    WCHAR Path[AGENTMON_MAX_PATH];
 } CACHE_ENTRY, *PCACHE_ENTRY;
 
 // Policy cache
@@ -114,56 +114,56 @@ typedef struct _POLICY_CACHE {
 
 // Initialize the policy cache
 NTSTATUS
-AgentshInitializeCache(
+AgentmonInitializeCache(
     VOID
     );
 
 // Shutdown the policy cache
 VOID
-AgentshShutdownCache(
+AgentmonShutdownCache(
     VOID
     );
 
 // Lookup a cached decision
 BOOLEAN
-AgentshCacheLookup(
+AgentmonCacheLookup(
     _In_ ULONG64 SessionToken,
-    _In_ AGENTSH_FILE_OP Operation,
+    _In_ AGENTMON_FILE_OP Operation,
     _In_ PCWSTR Path,
-    _Out_ PAGENTSH_DECISION Decision
+    _Out_ PAGENTMON_DECISION Decision
     );
 
 // Insert a decision into the cache
 VOID
-AgentshCacheInsert(
+AgentmonCacheInsert(
     _In_ ULONG64 SessionToken,
-    _In_ AGENTSH_FILE_OP Operation,
+    _In_ AGENTMON_FILE_OP Operation,
     _In_ PCWSTR Path,
-    _In_ AGENTSH_DECISION Decision,
+    _In_ AGENTMON_DECISION Decision,
     _In_ ULONG TTLMs
     );
 
 // Invalidate all entries for a session
 VOID
-AgentshCacheInvalidateSession(
+AgentmonCacheInvalidateSession(
     _In_ ULONG64 SessionToken
     );
 
 // Get cache statistics
 VOID
-AgentshCacheGetStats(
+AgentmonCacheGetStats(
     _Out_ PLONG HitCount,
     _Out_ PLONG MissCount,
     _Out_ PLONG EntryCount
     );
 
-#endif // _AGENTSH_CACHE_H_
+#endif // _AGENTMON_CACHE_H_
 ```
 
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/inc/cache.h
+git add drivers/windows/agentmon-minifilter/inc/cache.h
 git commit -m "feat(windows): add policy cache header definitions"
 ```
 
@@ -172,7 +172,7 @@ git commit -m "feat(windows): add policy cache header definitions"
 ## Task 3: Create Policy Cache Implementation
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/src/cache.c`
+- Create: `drivers/windows/agentmon-minifilter/src/cache.c`
 
 **Step 1: Write the cache implementation**
 
@@ -199,7 +199,7 @@ static ULONG HashPath(PCWSTR Path)
 
 // Initialize the policy cache
 NTSTATUS
-AgentshInitializeCache(
+AgentmonInitializeCache(
     VOID
     )
 {
@@ -216,13 +216,13 @@ AgentshInitializeCache(
     gCache.HitCount = 0;
     gCache.MissCount = 0;
 
-    DbgPrint("AgentSH: Policy cache initialized\n");
+    DbgPrint("AgentMon: Policy cache initialized\n");
     return STATUS_SUCCESS;
 }
 
 // Shutdown the policy cache
 VOID
-AgentshShutdownCache(
+AgentmonShutdownCache(
     VOID
     )
 {
@@ -235,14 +235,14 @@ AgentshShutdownCache(
     while (!IsListEmpty(&gCache.LruHead)) {
         entry = RemoveHeadList(&gCache.LruHead);
         cacheEntry = CONTAINING_RECORD(entry, CACHE_ENTRY, LruEntry);
-        ExFreePoolWithTag(cacheEntry, AGENTSH_TAG_CACHE);
+        ExFreePoolWithTag(cacheEntry, AGENTMON_TAG_CACHE);
     }
 
     gCache.EntryCount = 0;
 
     ExReleasePushLockExclusive(&gCache.Lock);
 
-    DbgPrint("AgentSH: Policy cache shutdown (hits=%ld, misses=%ld)\n",
+    DbgPrint("AgentMon: Policy cache shutdown (hits=%ld, misses=%ld)\n",
              gCache.HitCount, gCache.MissCount);
 }
 
@@ -256,11 +256,11 @@ static BOOLEAN IsExpired(PCACHE_ENTRY Entry)
 
 // Lookup a cached decision
 BOOLEAN
-AgentshCacheLookup(
+AgentmonCacheLookup(
     _In_ ULONG64 SessionToken,
-    _In_ AGENTSH_FILE_OP Operation,
+    _In_ AGENTMON_FILE_OP Operation,
     _In_ PCWSTR Path,
-    _Out_ PAGENTSH_DECISION Decision
+    _Out_ PAGENTMON_DECISION Decision
     )
 {
     ULONG hash = HashPath(Path);
@@ -313,18 +313,18 @@ static VOID EvictIfNeeded(VOID)
         oldest = CONTAINING_RECORD(gCache.LruHead.Blink, CACHE_ENTRY, LruEntry);
         RemoveEntryList(&oldest->LruEntry);
         RemoveEntryList(&oldest->HashEntry);
-        ExFreePoolWithTag(oldest, AGENTSH_TAG_CACHE);
+        ExFreePoolWithTag(oldest, AGENTMON_TAG_CACHE);
         InterlockedDecrement(&gCache.EntryCount);
     }
 }
 
 // Insert a decision into the cache
 VOID
-AgentshCacheInsert(
+AgentmonCacheInsert(
     _In_ ULONG64 SessionToken,
-    _In_ AGENTSH_FILE_OP Operation,
+    _In_ AGENTMON_FILE_OP Operation,
     _In_ PCWSTR Path,
-    _In_ AGENTSH_DECISION Decision,
+    _In_ AGENTMON_DECISION Decision,
     _In_ ULONG TTLMs
     )
 {
@@ -337,7 +337,7 @@ AgentshCacheInsert(
     newEntry = ExAllocatePool2(
         POOL_FLAG_NON_PAGED,
         sizeof(CACHE_ENTRY),
-        AGENTSH_TAG_CACHE
+        AGENTMON_TAG_CACHE
         );
 
     if (newEntry == NULL) {
@@ -352,8 +352,8 @@ AgentshCacheInsert(
 
     // Copy path (ensure null termination)
     pathLen = wcslen(Path);
-    if (pathLen >= AGENTSH_MAX_PATH) {
-        pathLen = AGENTSH_MAX_PATH - 1;
+    if (pathLen >= AGENTMON_MAX_PATH) {
+        pathLen = AGENTMON_MAX_PATH - 1;
     }
     RtlCopyMemory(newEntry->Path, Path, pathLen * sizeof(WCHAR));
     newEntry->Path[pathLen] = L'\0';
@@ -381,7 +381,7 @@ AgentshCacheInsert(
 
 // Invalidate all entries for a session
 VOID
-AgentshCacheInvalidateSession(
+AgentmonCacheInvalidateSession(
     _In_ ULONG64 SessionToken
     )
 {
@@ -399,7 +399,7 @@ AgentshCacheInvalidateSession(
         if (cacheEntry->SessionToken == SessionToken) {
             RemoveEntryList(&cacheEntry->LruEntry);
             RemoveEntryList(&cacheEntry->HashEntry);
-            ExFreePoolWithTag(cacheEntry, AGENTSH_TAG_CACHE);
+            ExFreePoolWithTag(cacheEntry, AGENTMON_TAG_CACHE);
             InterlockedDecrement(&gCache.EntryCount);
         }
     }
@@ -409,7 +409,7 @@ AgentshCacheInvalidateSession(
 
 // Get cache statistics
 VOID
-AgentshCacheGetStats(
+AgentmonCacheGetStats(
     _Out_ PLONG HitCount,
     _Out_ PLONG MissCount,
     _Out_ PLONG EntryCount
@@ -424,7 +424,7 @@ AgentshCacheGetStats(
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/src/cache.c
+git add drivers/windows/agentmon-minifilter/src/cache.c
 git commit -m "feat(windows): implement policy cache with LRU eviction"
 ```
 
@@ -433,60 +433,60 @@ git commit -m "feat(windows): implement policy cache with LRU eviction"
 ## Task 4: Create Filesystem Header
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/inc/filesystem.h`
+- Create: `drivers/windows/agentmon-minifilter/inc/filesystem.h`
 
 **Step 1: Write the filesystem header**
 
 ```c
 // filesystem.h - Filesystem interception definitions
-#ifndef _AGENTSH_FILESYSTEM_H_
-#define _AGENTSH_FILESYSTEM_H_
+#ifndef _AGENTMON_FILESYSTEM_H_
+#define _AGENTMON_FILESYSTEM_H_
 
 #include <fltKernel.h>
 #include "protocol.h"
 
 // Query policy from user-mode
 BOOLEAN
-AgentshQueryFilePolicy(
+AgentmonQueryFilePolicy(
     _In_ ULONG64 SessionToken,
     _In_ ULONG ProcessId,
-    _In_ AGENTSH_FILE_OP Operation,
+    _In_ AGENTMON_FILE_OP Operation,
     _In_ PCWSTR Path,
     _In_opt_ PCWSTR RenameDest,
     _In_ ULONG CreateDisposition,
     _In_ ULONG DesiredAccess,
-    _Out_ PAGENTSH_DECISION Decision
+    _Out_ PAGENTMON_DECISION Decision
     );
 
 // IRP callbacks
 FLT_PREOP_CALLBACK_STATUS
-AgentshPreCreate(
+AgentmonPreCreate(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
     );
 
 FLT_PREOP_CALLBACK_STATUS
-AgentshPreWrite(
+AgentmonPreWrite(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
     );
 
 FLT_PREOP_CALLBACK_STATUS
-AgentshPreSetInfo(
+AgentmonPreSetInfo(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
     );
 
-#endif // _AGENTSH_FILESYSTEM_H_
+#endif // _AGENTMON_FILESYSTEM_H_
 ```
 
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/inc/filesystem.h
+git add drivers/windows/agentmon-minifilter/inc/filesystem.h
 git commit -m "feat(windows): add filesystem interception header"
 ```
 
@@ -495,7 +495,7 @@ git commit -m "feat(windows): add filesystem interception header"
 ## Task 5: Create Filesystem Implementation
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/src/filesystem.c`
+- Create: `drivers/windows/agentmon-minifilter/src/filesystem.c`
 
 **Step 1: Write the filesystem implementation**
 
@@ -557,20 +557,20 @@ GetFilePath(
 
 // Query policy from user-mode
 BOOLEAN
-AgentshQueryFilePolicy(
+AgentmonQueryFilePolicy(
     _In_ ULONG64 SessionToken,
     _In_ ULONG ProcessId,
-    _In_ AGENTSH_FILE_OP Operation,
+    _In_ AGENTMON_FILE_OP Operation,
     _In_ PCWSTR Path,
     _In_opt_ PCWSTR RenameDest,
     _In_ ULONG CreateDisposition,
     _In_ ULONG DesiredAccess,
-    _Out_ PAGENTSH_DECISION Decision
+    _Out_ PAGENTMON_DECISION Decision
     )
 {
     NTSTATUS status;
-    AGENTSH_FILE_REQUEST request = {0};
-    AGENTSH_POLICY_RESPONSE response = {0};
+    AGENTMON_FILE_REQUEST request = {0};
+    AGENTMON_POLICY_RESPONSE response = {0};
     ULONG replyLength = sizeof(response);
     LARGE_INTEGER timeout;
     SIZE_T pathLen;
@@ -584,14 +584,14 @@ AgentshQueryFilePolicy(
     }
 
     // Check if client is connected
-    if (!AgentshData.ClientConnected) {
+    if (!AgentmonData.ClientConnected) {
         return FALSE;
     }
 
     // Build request
     request.Header.Type = MSG_POLICY_CHECK_FILE;
     request.Header.Size = sizeof(request);
-    request.Header.RequestId = InterlockedIncrement(&AgentshData.MessageId);
+    request.Header.RequestId = InterlockedIncrement(&AgentmonData.MessageId);
     request.SessionToken = SessionToken;
     request.ProcessId = ProcessId;
     request.ThreadId = HandleToULong(PsGetCurrentThreadId());
@@ -601,8 +601,8 @@ AgentshQueryFilePolicy(
 
     // Copy path
     pathLen = wcslen(Path);
-    if (pathLen >= AGENTSH_MAX_PATH) {
-        pathLen = AGENTSH_MAX_PATH - 1;
+    if (pathLen >= AGENTMON_MAX_PATH) {
+        pathLen = AGENTMON_MAX_PATH - 1;
     }
     RtlCopyMemory(request.Path, Path, pathLen * sizeof(WCHAR));
     request.Path[pathLen] = L'\0';
@@ -610,8 +610,8 @@ AgentshQueryFilePolicy(
     // Copy rename destination if provided
     if (RenameDest != NULL) {
         pathLen = wcslen(RenameDest);
-        if (pathLen >= AGENTSH_MAX_PATH) {
-            pathLen = AGENTSH_MAX_PATH - 1;
+        if (pathLen >= AGENTMON_MAX_PATH) {
+            pathLen = AGENTMON_MAX_PATH - 1;
         }
         RtlCopyMemory(request.RenameDest, RenameDest, pathLen * sizeof(WCHAR));
         request.RenameDest[pathLen] = L'\0';
@@ -622,8 +622,8 @@ AgentshQueryFilePolicy(
 
     // Send message to user-mode
     status = FltSendMessage(
-        AgentshData.FilterHandle,
-        &AgentshData.ClientPort,
+        AgentmonData.FilterHandle,
+        &AgentmonData.ClientPort,
         &request,
         sizeof(request),
         &response,
@@ -636,7 +636,7 @@ AgentshQueryFilePolicy(
         InterlockedExchange(&gConsecutiveFailures, 0);
 
         // Update cache
-        AgentshCacheInsert(
+        AgentmonCacheInsert(
             SessionToken,
             Operation,
             Path,
@@ -651,7 +651,7 @@ AgentshQueryFilePolicy(
     LONG failures = InterlockedIncrement(&gConsecutiveFailures);
     if (failures >= MAX_CONSECUTIVE_FAILURES && !gFailOpenMode) {
         gFailOpenMode = TRUE;
-        DbgPrint("AgentSH: Entering fail-open mode after %ld failures\n", failures);
+        DbgPrint("AgentMon: Entering fail-open mode after %ld failures\n", failures);
     }
 
     return FALSE;
@@ -659,7 +659,7 @@ AgentshQueryFilePolicy(
 
 // Pre-create callback
 FLT_PREOP_CALLBACK_STATUS
-AgentshPreCreate(
+AgentmonPreCreate(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
@@ -667,21 +667,21 @@ AgentshPreCreate(
 {
     NTSTATUS status;
     ULONG64 sessionToken;
-    AGENTSH_DECISION decision;
-    WCHAR pathBuffer[AGENTSH_MAX_PATH];
+    AGENTMON_DECISION decision;
+    WCHAR pathBuffer[AGENTMON_MAX_PATH];
     ULONG createDisposition;
     ULONG desiredAccess;
-    AGENTSH_FILE_OP operation;
+    AGENTMON_FILE_OP operation;
 
     UNREFERENCED_PARAMETER(CompletionContext);
 
     // Fast path: not a session process
-    if (!AgentshIsSessionProcess(PsGetCurrentProcessId(), &sessionToken)) {
+    if (!AgentmonIsSessionProcess(PsGetCurrentProcessId(), &sessionToken)) {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
     // Get file path
-    status = GetFilePath(Data, FltObjects, pathBuffer, AGENTSH_MAX_PATH);
+    status = GetFilePath(Data, FltObjects, pathBuffer, AGENTMON_MAX_PATH);
     if (!NT_SUCCESS(status)) {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
@@ -704,7 +704,7 @@ AgentshPreCreate(
     }
 
     // Check cache first
-    if (AgentshCacheLookup(sessionToken, operation, pathBuffer, &decision)) {
+    if (AgentmonCacheLookup(sessionToken, operation, pathBuffer, &decision)) {
         if (decision == DECISION_DENY) {
             Data->IoStatus.Status = STATUS_ACCESS_DENIED;
             Data->IoStatus.Information = 0;
@@ -714,7 +714,7 @@ AgentshPreCreate(
     }
 
     // Query policy
-    if (AgentshQueryFilePolicy(
+    if (AgentmonQueryFilePolicy(
             sessionToken,
             HandleToULong(PsGetCurrentProcessId()),
             operation,
@@ -737,7 +737,7 @@ AgentshPreCreate(
 
 // Pre-write callback
 FLT_PREOP_CALLBACK_STATUS
-AgentshPreWrite(
+AgentmonPreWrite(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
@@ -745,24 +745,24 @@ AgentshPreWrite(
 {
     NTSTATUS status;
     ULONG64 sessionToken;
-    AGENTSH_DECISION decision;
-    WCHAR pathBuffer[AGENTSH_MAX_PATH];
+    AGENTMON_DECISION decision;
+    WCHAR pathBuffer[AGENTMON_MAX_PATH];
 
     UNREFERENCED_PARAMETER(CompletionContext);
 
     // Fast path: not a session process
-    if (!AgentshIsSessionProcess(PsGetCurrentProcessId(), &sessionToken)) {
+    if (!AgentmonIsSessionProcess(PsGetCurrentProcessId(), &sessionToken)) {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
     // Get file path
-    status = GetFilePath(Data, FltObjects, pathBuffer, AGENTSH_MAX_PATH);
+    status = GetFilePath(Data, FltObjects, pathBuffer, AGENTMON_MAX_PATH);
     if (!NT_SUCCESS(status)) {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
     // Check cache first
-    if (AgentshCacheLookup(sessionToken, FILE_OP_WRITE, pathBuffer, &decision)) {
+    if (AgentmonCacheLookup(sessionToken, FILE_OP_WRITE, pathBuffer, &decision)) {
         if (decision == DECISION_DENY) {
             Data->IoStatus.Status = STATUS_ACCESS_DENIED;
             Data->IoStatus.Information = 0;
@@ -772,7 +772,7 @@ AgentshPreWrite(
     }
 
     // Query policy
-    if (AgentshQueryFilePolicy(
+    if (AgentmonQueryFilePolicy(
             sessionToken,
             HandleToULong(PsGetCurrentProcessId()),
             FILE_OP_WRITE,
@@ -794,7 +794,7 @@ AgentshPreWrite(
 
 // Pre-set-information callback (delete, rename)
 FLT_PREOP_CALLBACK_STATUS
-AgentshPreSetInfo(
+AgentmonPreSetInfo(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
@@ -802,15 +802,15 @@ AgentshPreSetInfo(
 {
     NTSTATUS status;
     ULONG64 sessionToken;
-    AGENTSH_DECISION decision;
-    WCHAR pathBuffer[AGENTSH_MAX_PATH];
+    AGENTMON_DECISION decision;
+    WCHAR pathBuffer[AGENTMON_MAX_PATH];
     FILE_INFORMATION_CLASS infoClass;
-    AGENTSH_FILE_OP operation;
+    AGENTMON_FILE_OP operation;
 
     UNREFERENCED_PARAMETER(CompletionContext);
 
     // Fast path: not a session process
-    if (!AgentshIsSessionProcess(PsGetCurrentProcessId(), &sessionToken)) {
+    if (!AgentmonIsSessionProcess(PsGetCurrentProcessId(), &sessionToken)) {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
@@ -828,13 +828,13 @@ AgentshPreSetInfo(
     }
 
     // Get file path
-    status = GetFilePath(Data, FltObjects, pathBuffer, AGENTSH_MAX_PATH);
+    status = GetFilePath(Data, FltObjects, pathBuffer, AGENTMON_MAX_PATH);
     if (!NT_SUCCESS(status)) {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
     // Check cache first
-    if (AgentshCacheLookup(sessionToken, operation, pathBuffer, &decision)) {
+    if (AgentmonCacheLookup(sessionToken, operation, pathBuffer, &decision)) {
         if (decision == DECISION_DENY) {
             Data->IoStatus.Status = STATUS_ACCESS_DENIED;
             Data->IoStatus.Information = 0;
@@ -844,7 +844,7 @@ AgentshPreSetInfo(
     }
 
     // Query policy (rename destination handling is simplified here)
-    if (AgentshQueryFilePolicy(
+    if (AgentmonQueryFilePolicy(
             sessionToken,
             HandleToULong(PsGetCurrentProcessId()),
             operation,
@@ -868,7 +868,7 @@ AgentshPreSetInfo(
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/src/filesystem.c
+git add drivers/windows/agentmon-minifilter/src/filesystem.c
 git commit -m "feat(windows): implement filesystem interception with policy queries"
 ```
 
@@ -877,8 +877,8 @@ git commit -m "feat(windows): implement filesystem interception with policy quer
 ## Task 6: Update Driver to Use Filesystem Callbacks
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/inc/driver.h`
-- Modify: `drivers/windows/agentsh-minifilter/src/driver.c`
+- Modify: `drivers/windows/agentmon-minifilter/inc/driver.h`
+- Modify: `drivers/windows/agentmon-minifilter/src/driver.c`
 
 **Step 1: Add includes to driver.h**
 
@@ -896,49 +896,49 @@ Replace the existing `FilterCallbacks` array:
 ```c
 // Filter callbacks
 CONST FLT_OPERATION_REGISTRATION FilterCallbacks[] = {
-    { IRP_MJ_CREATE, 0, AgentshPreCreate, NULL },
-    { IRP_MJ_WRITE, 0, AgentshPreWrite, NULL },
-    { IRP_MJ_SET_INFORMATION, 0, AgentshPreSetInfo, NULL },
+    { IRP_MJ_CREATE, 0, AgentmonPreCreate, NULL },
+    { IRP_MJ_WRITE, 0, AgentmonPreWrite, NULL },
+    { IRP_MJ_SET_INFORMATION, 0, AgentmonPreSetInfo, NULL },
     { IRP_MJ_OPERATION_END }
 };
 ```
 
-**Step 3: Remove the old AgentshPreCreate from driver.c**
+**Step 3: Remove the old AgentmonPreCreate from driver.c**
 
 Delete the existing stub implementation (lines 30-44).
 
 **Step 4: Add cache initialization in DriverEntry**
 
-After `AgentshInitializeProcessTracking()` success, add:
+After `AgentmonInitializeProcessTracking()` success, add:
 
 ```c
     // Initialize policy cache
-    status = AgentshInitializeCache();
+    status = AgentmonInitializeCache();
     if (!NT_SUCCESS(status)) {
-        AgentshShutdownProcessTracking();
-        AgentshShutdownCommunication();
-        FltUnregisterFilter(AgentshData.FilterHandle);
+        AgentmonShutdownProcessTracking();
+        AgentmonShutdownCommunication();
+        FltUnregisterFilter(AgentmonData.FilterHandle);
         return status;
     }
 ```
 
 **Step 5: Add cache shutdown in FilterUnload**
 
-Before `AgentshShutdownProcessTracking()`, add:
+Before `AgentmonShutdownProcessTracking()`, add:
 
 ```c
     // Shutdown policy cache
-    AgentshShutdownCache();
+    AgentmonShutdownCache();
 ```
 
 **Step 6: Update cleanup path for FltStartFiltering failure**
 
 ```c
     if (!NT_SUCCESS(status)) {
-        AgentshShutdownCache();
-        AgentshShutdownProcessTracking();
-        AgentshShutdownCommunication();
-        FltUnregisterFilter(AgentshData.FilterHandle);
+        AgentmonShutdownCache();
+        AgentmonShutdownProcessTracking();
+        AgentmonShutdownCommunication();
+        FltUnregisterFilter(AgentmonData.FilterHandle);
         return status;
     }
 ```
@@ -946,8 +946,8 @@ Before `AgentshShutdownProcessTracking()`, add:
 **Step 7: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/inc/driver.h
-git add drivers/windows/agentsh-minifilter/src/driver.c
+git add drivers/windows/agentmon-minifilter/inc/driver.h
+git add drivers/windows/agentmon-minifilter/src/driver.c
 git commit -m "feat(windows): integrate filesystem callbacks and cache into driver"
 ```
 
@@ -956,7 +956,7 @@ git commit -m "feat(windows): integrate filesystem callbacks and cache into driv
 ## Task 7: Update Visual Studio Project
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/agentsh.vcxproj`
+- Modify: `drivers/windows/agentmon-minifilter/agentmon.vcxproj`
 
 **Step 1: Add new files to project**
 
@@ -977,7 +977,7 @@ In the `<ItemGroup>` containing `.h` files, add:
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/agentsh.vcxproj
+git add drivers/windows/agentmon-minifilter/agentmon.vcxproj
 git commit -m "build(windows): add filesystem and cache files to VS project"
 ```
 
@@ -1348,7 +1348,7 @@ git commit -m "test(windows): add unit tests for file policy handling"
 **Step 1: Run all tests**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feature-windows-minifilter
+cd /home/eran/work/agentmon/.worktrees/feature-windows-minifilter
 go test ./... -v
 go build ./...
 ```
@@ -1358,8 +1358,8 @@ Expected: All tests pass, build succeeds
 **Step 2: Verify driver files are complete**
 
 ```bash
-ls -la drivers/windows/agentsh-minifilter/src/
-ls -la drivers/windows/agentsh-minifilter/inc/
+ls -la drivers/windows/agentmon-minifilter/src/
+ls -la drivers/windows/agentmon-minifilter/inc/
 ```
 
 Expected: cache.c, cache.h, filesystem.c, filesystem.h present

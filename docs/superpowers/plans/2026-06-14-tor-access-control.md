@@ -506,7 +506,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func newDenyPolicy(t *testing.T) *Policy {
@@ -619,8 +619,8 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/ipset"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/ipset"
 )
 
 // Mode constants.
@@ -878,7 +878,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/ipset"
+	"github.com/diffsec/agentmon/internal/ipset"
 )
 
 const maxOnionooSize = 200 * 1024 * 1024 // 200 MB; onionoo details is large
@@ -1177,7 +1177,7 @@ package tor
 import (
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/google/uuid"
 )
 
@@ -1290,8 +1290,8 @@ import (
 	"net"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestPolicyAdapter_ImplementsTorChecker(t *testing.T) {
@@ -1314,7 +1314,7 @@ package tor
 import (
 	"net"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // PolicyAdapter adapts *Policy to policy.TorChecker (policy→tor would be
@@ -1388,7 +1388,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type fakeTor struct {
@@ -1609,7 +1609,7 @@ git commit -m "feat(tor): consult Tor coordinator in CheckExecve/CheckNetworkCtx
 > `dec.Tor != nil`, build and emit a `tor_control` event via
 > `tor.BuildControlEvent`. The HTTP site relabels the vector to
 > `onion_http` (the engine's `EvalOnionName` reports `onion_dns`). Import
-> `github.com/agentsh/agentsh/internal/tor` in each file.
+> `github.com/diffsec/agentmon/internal/tor` in each file.
 
 - [ ] **Step 1: DNS site — `internal/netmonitor/dns.go`**
 
@@ -1625,7 +1625,7 @@ After line 120 (`dec = d.maybeApprove(ctx, commandID, dec, "dns", domain)`), add
 	}
 ```
 
-Add `"github.com/agentsh/agentsh/internal/tor"` to the imports.
+Add `"github.com/diffsec/agentmon/internal/tor"` to the imports.
 
 - [ ] **Step 2: HTTP site — `internal/netmonitor/proxy.go`**
 
@@ -1645,7 +1645,7 @@ After line 390 (`dec = p.maybeApprove(ctx, commandID, dec, "network", host)`), a
 	}
 ```
 
-Add `"github.com/agentsh/agentsh/internal/tor"` to the imports.
+Add `"github.com/diffsec/agentmon/internal/tor"` to the imports.
 
 - [ ] **Step 3: ptrace network site — `internal/api/ptrace_handlers.go` `HandleNetwork`**
 
@@ -1747,7 +1747,7 @@ Find where `threatSyncer.Run(ctx)` / `.Start()` is launched (search `threatSynce
 > struct field on the server, store `torSyncer` analogously (add a
 > `torSyncer *tor.Syncer` field next to `threatSyncer` at line 78).
 
-Add imports to `server.go`: `"github.com/agentsh/agentsh/internal/tor"` (and confirm `fmt`, `path/filepath`, `log/slog`, `config` already imported — they are).
+Add imports to `server.go`: `"github.com/diffsec/agentmon/internal/tor"` (and confirm `fmt`, `path/filepath`, `log/slog`, `config` already imported — they are).
 
 - [ ] **Step 3: Build**
 
@@ -1779,10 +1779,10 @@ import (
 	"net"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/tor"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/tor"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func denyEngine(t *testing.T) *policy.Engine {

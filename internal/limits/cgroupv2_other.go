@@ -41,7 +41,7 @@ type CgroupProbeResult struct {
 	SliceDir      string
 	IOAvailable   bool
 	OrphansReaped []string
-	// LeafMoved is true if the process resides in OwnCgroup/agentsh.leaf
+	// LeafMoved is true if the process resides in OwnCgroup/agentmon.leaf
 	LeafMoved bool
 }
 

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestDecideWaitKillable(t *testing.T) {

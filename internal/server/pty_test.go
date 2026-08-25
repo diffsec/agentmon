@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/pkg/ptygrpc"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/pkg/ptygrpc"
 	"github.com/gorilla/websocket"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -220,7 +220,7 @@ file_rules:
 	// Create session via generic gRPC endpoint.
 	createReq, _ := structpb.NewStruct(map[string]any{"workspace": workspace, "policy": "default"})
 	createResp := &structpb.Struct{}
-	if err := conn.Invoke(ctx, "/agentsh.v1.Agentsh/CreateSession", createReq, createResp); err != nil {
+	if err := conn.Invoke(ctx, "/agentmon.v1.Agentmon/CreateSession", createReq, createResp); err != nil {
 		t.Fatal(err)
 	}
 	b, _ := json.Marshal(createResp.AsMap())
@@ -232,7 +232,7 @@ file_rules:
 		t.Fatalf("missing session id: %s", string(b))
 	}
 
-	ptyc := ptygrpc.NewAgentshPTYClient(conn)
+	ptyc := ptygrpc.NewAgentmonPTYClient(conn)
 	pctx, pcancel := context.WithTimeout(ctx, 5*time.Second)
 	defer pcancel()
 	stream, err := ptyc.ExecPTY(pctx)

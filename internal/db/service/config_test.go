@@ -17,7 +17,7 @@ services:
       port: 5432
     listen:
       kind: unix
-      path: /run/agentsh/db/appdb.sock
+      path: /run/agentmon/db/appdb.sock
     tls_mode: terminate_reissue
 `)
 	cfg, err := ParseConfig(in)
@@ -34,7 +34,7 @@ services:
 	if s.Upstream.Host != "db.internal" || s.Upstream.Port != 5432 {
 		t.Errorf("unexpected upstream: %+v", s.Upstream)
 	}
-	if s.Listen.Kind != "unix" || s.Listen.Path != "/run/agentsh/db/appdb.sock" {
+	if s.Listen.Kind != "unix" || s.Listen.Path != "/run/agentmon/db/appdb.sock" {
 		t.Errorf("unexpected listen: %+v", s.Listen)
 	}
 	if s.TLSMode != "terminate_reissue" {

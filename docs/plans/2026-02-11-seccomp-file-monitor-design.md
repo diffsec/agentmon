@@ -6,7 +6,7 @@
 
 ## Overview
 
-Extend the existing seccomp user-notify infrastructure to intercept path-based file syscalls (openat, unlinkat, mkdirat, etc.), enabling audit and policy enforcement for all file I/O under agentsh — independent of FUSE.
+Extend the existing seccomp user-notify infrastructure to intercept path-based file syscalls (openat, unlinkat, mkdirat, etc.), enabling audit and policy enforcement for all file I/O under agentmon — independent of FUSE.
 
 This provides defense-in-depth when FUSE is active (seccomp audits, FUSE enforces) and becomes the primary enforcement layer when FUSE is unavailable (containers without `/dev/fuse`, unprivileged environments).
 
@@ -30,7 +30,7 @@ This provides defense-in-depth when FUSE is active (seccomp audits, FUSE enforce
 The existing `ServeNotifyWithExecve` routes notifications by syscall number. A new branch routes file syscalls to a `FileHandler`:
 
 ```
-ServeNotify loop (agentsh parent, single notify fd)
+ServeNotify loop (agentmon parent, single notify fd)
   ├─ isUnixSocketSyscall(nr)  → unix socket handler   (existing)
   ├─ isExecveSyscall(nr)      → execve handler         (existing)
   └─ isFileSyscall(nr)        → file handler            (NEW)
@@ -220,11 +220,11 @@ The `shadow_deny` field flags cases where seccomp would deny but defers to FUSE.
 
 If FUSE mount fails at session startup (no `/dev/fuse`, permission denied, etc.), the mount registry stays empty for that session. Seccomp automatically becomes the enforcing layer — no configuration change needed.
 
-## Changes to agentsh-unixwrap
+## Changes to agentmon-unixwrap
 
 ### Filter Extension
 
-The seccomp filter in `agentsh-unixwrap` gains file syscalls when `file_monitor_enabled` is set:
+The seccomp filter in `agentmon-unixwrap` gains file syscalls when `file_monitor_enabled` is set:
 
 ```go
 if cfg.FileMonitorEnabled {
@@ -242,7 +242,7 @@ if cfg.FileMonitorEnabled {
 
 ### Config Extension
 
-The JSON config passed via `AGENTSH_SECCOMP_CONFIG` gains one field:
+The JSON config passed via `AGENTMON_SECCOMP_CONFIG` gains one field:
 
 ```json
 {
@@ -326,7 +326,7 @@ internal/netmonitor/unix/
 internal/seccomp/
   └── filter.go               (MODIFY — add file syscalls to ActNotify)
 
-cmd/agentsh-unixwrap/
+cmd/agentmon-unixwrap/
   └── main.go                 (MODIFY — wire file_monitor_enabled config flag)
 
 internal/api/
@@ -339,7 +339,7 @@ No new packages. All new code lives in existing packages following established p
 ## Performance Considerations
 
 - **Filter cost**: Adding 9 syscall numbers adds ~9 BPF instructions. Negligible.
-- **Per-operation cost**: Each intercepted file syscall context-switches to agentsh (wake notify loop → read tracee memory → policy check → respond). Expect ~50-100μs per operation.
+- **Per-operation cost**: Each intercepted file syscall context-switches to agentmon (wake notify loop → read tracee memory → policy check → respond). Expect ~50-100μs per operation.
 - **Hot path optimization**: The `isFileSyscall` check in the notify loop is a simple switch — no allocation.
 - **Metrics**: Log syscall-interception count at session shutdown for tuning. Not a new metrics subsystem.
 - **Escape hatch**: Set `file_monitor.enabled: false` to disable entirely if overhead is unacceptable.

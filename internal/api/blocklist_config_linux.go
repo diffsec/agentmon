@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"runtime"
 
-	"github.com/agentsh/agentsh/internal/config"
-	unixmon "github.com/agentsh/agentsh/internal/netmonitor/unix"
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/config"
+	unixmon "github.com/diffsec/agentmon/internal/netmonitor/unix"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
 	"golang.org/x/sys/unix"
 )
 

@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Add signal interception to agentsh, allowing policies to control which signals processes can send to each other.
+**Goal:** Add signal interception to agentmon, allowing policies to control which signals processes can send to each other.
 
 **Architecture:** Extend the policy engine with `signal_rules`, add seccomp interception for signal syscalls on Linux, and provide audit-only support on macOS/Windows with graceful fallback.
 
@@ -79,7 +79,7 @@ func TestExpandSignalGroup(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -v`
 Expected: FAIL with "package internal/signal is not in std"
 
 **Step 3: Write minimal implementation**
@@ -200,13 +200,13 @@ func AllSignals() []int {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/signal-interception
+cd /home/eran/work/agentmon/.worktrees/signal-interception
 git add internal/signal/types.go internal/signal/types_test.go
 git commit -m "feat(signal): add signal types and group expansion
 
@@ -269,7 +269,7 @@ func TestParseTargetSpec(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -v`
 Expected: FAIL with undefined: TargetSelf
 
 **Step 3: Write minimal implementation**
@@ -419,13 +419,13 @@ type TargetContext struct {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/signal-interception
+cd /home/eran/work/agentmon/.worktrees/signal-interception
 git add internal/signal/target.go internal/signal/target_test.go
 git commit -m "feat(signal): add target type definitions and matching
 
@@ -473,7 +473,7 @@ signal_rules:
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/policy/... -run TestSignalRule -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/policy/... -run TestSignalRule -v`
 Expected: FAIL with "p.SignalRules undefined"
 
 **Step 3: Write minimal implementation**
@@ -510,13 +510,13 @@ type SignalTargetSpec struct {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/policy/... -run TestSignalRule -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/policy/... -run TestSignalRule -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/signal-interception
+cd /home/eran/work/agentmon/.worktrees/signal-interception
 git add internal/policy/model.go internal/policy/model_test.go
 git commit -m "feat(policy): add SignalRule to policy model
 
@@ -586,7 +586,7 @@ func TestPIDRegistryUnregister(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -run TestPIDRegistry -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -run TestPIDRegistry -v`
 Expected: FAIL with undefined: NewPIDRegistry
 
 **Step 3: Write minimal implementation**
@@ -752,13 +752,13 @@ func (r *PIDRegistry) SessionID() string {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -run TestPIDRegistry -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -run TestPIDRegistry -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/signal-interception
+cd /home/eran/work/agentmon/.worktrees/signal-interception
 git add internal/signal/registry.go internal/signal/registry_test.go
 git commit -m "feat(signal): add PID registry for session tracking
 
@@ -784,7 +784,7 @@ package signal
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -850,7 +850,7 @@ func TestSignalEngineRedirect(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -run TestSignalEngine -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -run TestSignalEngine -v`
 Expected: FAIL with undefined: NewEngine
 
 **Step 3: Write minimal implementation**
@@ -863,7 +863,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // DecisionAction represents the action to take for a signal.
@@ -1022,13 +1022,13 @@ func ApplyFallback(dec Decision, canBlock bool) Decision {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -run TestSignalEngine -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -run TestSignalEngine -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/signal-interception
+cd /home/eran/work/agentmon/.worktrees/signal-interception
 git add internal/signal/engine.go internal/signal/engine_test.go
 git commit -m "feat(signal): add signal policy engine
 
@@ -1058,7 +1058,7 @@ func TestSignalEventTypes(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/events/... -run TestSignalEvent -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/events/... -run TestSignalEvent -v`
 Expected: FAIL with undefined: EventSignalSent
 
 **Step 3: Write minimal implementation**
@@ -1093,13 +1093,13 @@ EventSignalAbsorbed, EventSignalApproved, EventSignalWouldDeny,
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/events/... -run TestSignalEvent -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/events/... -run TestSignalEvent -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/signal-interception
+cd /home/eran/work/agentmon/.worktrees/signal-interception
 git add internal/events/types.go internal/events/types_test.go
 git commit -m "feat(events): add signal event types
 
@@ -1149,7 +1149,7 @@ func TestSignalFilterConfig(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -run TestSignalFilter -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -run TestSignalFilter -v`
 Expected: FAIL with undefined: DefaultSignalFilterConfig
 
 **Step 3: Write minimal implementation**
@@ -1388,13 +1388,13 @@ func IsSignalSupportAvailable() bool {
 
 **Step 5: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -run TestSignal -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -run TestSignal -v`
 Expected: PASS
 
 **Step 6: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/signal-interception
+cd /home/eran/work/agentmon/.worktrees/signal-interception
 git add internal/signal/seccomp_linux.go internal/signal/seccomp_stub.go internal/signal/seccomp_linux_test.go
 git commit -m "feat(signal): add Linux seccomp filter for signal syscalls
 
@@ -1421,7 +1421,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1456,7 +1456,7 @@ func TestHandlerEvaluate(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -run TestHandler -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -run TestHandler -v`
 Expected: FAIL with undefined: NewHandler
 
 **Step 3: Write minimal implementation**
@@ -1470,7 +1470,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/events"
+	"github.com/diffsec/agentmon/internal/events"
 )
 
 // EventEmitter is an interface for emitting audit events.
@@ -1575,13 +1575,13 @@ func (h *Handler) SetLogger(logger *slog.Logger) {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/signal/... -run TestHandler -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/signal/... -run TestHandler -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/signal-interception
+cd /home/eran/work/agentmon/.worktrees/signal-interception
 git add internal/signal/handler.go internal/signal/handler_test.go
 git commit -m "feat(signal): add signal notification handler
 
@@ -1627,7 +1627,7 @@ func TestEngineCheckSignal(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/policy/... -run TestEngineCheckSignal -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/policy/... -run TestEngineCheckSignal -v`
 Expected: FAIL with "engine.SignalEngine undefined"
 
 **Step 3: Write minimal implementation**
@@ -1636,7 +1636,7 @@ Add to `internal/policy/engine.go`:
 
 ```go
 import (
-	"github.com/agentsh/agentsh/internal/signal"
+	"github.com/diffsec/agentmon/internal/signal"
 )
 
 // Add to Engine struct:
@@ -1661,13 +1661,13 @@ func (e *Engine) SignalEngine() *signal.Engine {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/policy/... -run TestEngineCheckSignal -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/policy/... -run TestEngineCheckSignal -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/signal-interception
+cd /home/eran/work/agentmon/.worktrees/signal-interception
 git add internal/policy/engine.go internal/policy/engine_test.go
 git commit -m "feat(policy): integrate signal engine into policy engine
 
@@ -1809,13 +1809,13 @@ signal_rules:
 
 **Step 3: Validate policies parse correctly**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && go test ./internal/policy/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && go test ./internal/policy/... -v`
 Expected: PASS
 
 **Step 4: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/signal-interception
+cd /home/eran/work/agentmon/.worktrees/signal-interception
 git add configs/policies/dev-safe.yaml configs/policies/signal-strict.yaml
 git commit -m "feat(policy): add signal rules to policies
 
@@ -1839,7 +1839,7 @@ Add new section to `docs/operations/policies.md`:
 ## Signal Rules
 
 Signal rules control which signals processes can send to each other. This provides protection against:
-- Processes killing the agentsh supervisor
+- Processes killing the agentmon supervisor
 - Processes killing sibling processes
 - Processes killing external system processes
 
@@ -1878,8 +1878,8 @@ Signals can be specified as:
 | `children` | Direct children of sender |
 | `descendants` | All descendants (children, grandchildren, etc.) |
 | `siblings` | Other processes with same parent |
-| `session` | Any process in the agentsh session |
-| `parent` | The agentsh supervisor |
+| `session` | Any process in the agentmon session |
+| `parent` | The agentmon supervisor |
 | `external` | Any PID outside the session |
 | `system` | PID 1 and kernel threads (PID < 100) |
 | `user` | Other processes owned by same user |
@@ -1938,7 +1938,7 @@ signal_rules:
 **Step 2: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/signal-interception
+cd /home/eran/work/agentmon/.worktrees/signal-interception
 git add docs/operations/policies.md
 git commit -m "docs: add signal rules documentation
 
@@ -1971,8 +1971,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/signal"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/signal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -2031,12 +2031,12 @@ func TestSignalInterceptionE2E(t *testing.T) {
 
 **Step 2: Run test**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-interception && sudo go test ./internal/signal/... -tags=integration -run TestSignalInterception -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-interception && sudo go test ./internal/signal/... -tags=integration -run TestSignalInterception -v`
 
 **Step 3: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/signal-interception
+cd /home/eran/work/agentmon/.worktrees/signal-interception
 git add internal/signal/integration_test.go
 git commit -m "test(signal): add integration tests
 
@@ -2051,7 +2051,7 @@ git commit -m "test(signal): add integration tests
 **Step 1: Run all tests**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/signal-interception
+cd /home/eran/work/agentmon/.worktrees/signal-interception
 go test ./... -v
 ```
 
@@ -2062,14 +2062,14 @@ Address any test failures before proceeding.
 **Step 3: Run linter**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/signal-interception
+cd /home/eran/work/agentmon/.worktrees/signal-interception
 golangci-lint run ./...
 ```
 
 **Step 4: Final commit if needed**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/signal-interception
+cd /home/eran/work/agentmon/.worktrees/signal-interception
 git add -A
 git commit -m "fix: address test and lint issues"
 ```

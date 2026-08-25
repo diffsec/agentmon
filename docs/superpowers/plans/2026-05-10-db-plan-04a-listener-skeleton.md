@@ -106,7 +106,7 @@ Expected: FAIL with "undefined: Unavoidability" / "undefined: ParseUnavoidabilit
 package service
 
 // Unavoidability is the policies.db.unavoidability flag per
-// docs/agentsh-db-access-spec.md §11.1. Operators select one of three modes:
+// docs/agentmon-db-access-spec.md §11.1. Operators select one of three modes:
 //
 //   off     (default): proxy is inert; no listeners are bound.
 //   observe: listeners bind; declared services are intercepted; events emit.
@@ -241,7 +241,7 @@ policies:
 }
 ```
 
-The `service` import is `"github.com/agentsh/agentsh/internal/db/service"`. The test file already imports `rootpolicy "github.com/agentsh/agentsh/internal/policy"` from earlier tests (verify before adding).
+The `service` import is `"github.com/diffsec/agentmon/internal/db/service"`. The test file already imports `rootpolicy "github.com/diffsec/agentmon/internal/policy"` from earlier tests (verify before adding).
 
 - [ ] **Step 6: Run test to verify it fails**
 
@@ -288,7 +288,7 @@ func decodeUnavoidability(p *rootpolicy.Policy) (service.Unavoidability, error) 
 Add the import:
 
 ```go
-"github.com/agentsh/agentsh/internal/db/service"
+"github.com/diffsec/agentmon/internal/db/service"
 ```
 
 Find `Decode` in the same file. Locate the call to `decodeRedaction` and add a sibling call to `decodeUnavoidability`. Wire its result into the `RuleSet` value being constructed (next step).
@@ -304,7 +304,7 @@ unavoidability service.Unavoidability
 Add the import:
 
 ```go
-"github.com/agentsh/agentsh/internal/db/service"
+"github.com/diffsec/agentmon/internal/db/service"
 ```
 
 Add the accessor below the existing `Service(...)` method:
@@ -829,9 +829,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/service"
 )
 
 func TestServer_New_ZeroConfigRejected(t *testing.T) {
@@ -909,8 +909,8 @@ Expected: FAIL with "no Go files in ..." or "undefined: New".
 ```go
 //go:build linux
 
-// Package postgres implements the AgentSH PostgreSQL proxy per
-// docs/agentsh-db-access-spec.md §11–§14 and the macro design at
+// Package postgres implements the AgentMon PostgreSQL proxy per
+// docs/agentmon-db-access-spec.md §11–§14 and the macro design at
 // docs/superpowers/specs/2026-05-10-db-plan-04-pg-proxy-skeleton-design.md.
 //
 // Plan 04a ships only the listener skeleton: bind Unix sockets per declared
@@ -926,9 +926,9 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/service"
 )
 
 // Service is the proxy-internal flattened view of one db_service. The proxy
@@ -966,7 +966,7 @@ type Config struct {
 	Logger         *slog.Logger
 }
 
-// Server runs the AgentSH PostgreSQL proxy listeners.
+// Server runs the AgentMon PostgreSQL proxy listeners.
 type Server struct {
 	cfg       Config
 	logger    *slog.Logger
@@ -1065,9 +1065,9 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/service"
 )
 
 type Service struct {
@@ -1433,9 +1433,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/service"
 )
 
 // (Service, ServiceListener, Config types unchanged from Task 4.)
@@ -2039,9 +2039,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	dbservice "github.com/agentsh/agentsh/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	dbservice "github.com/diffsec/agentmon/internal/db/service"
 )
 
 func TestStartDBProxy_Off_NoListener(t *testing.T) {
@@ -2129,10 +2129,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres"
-	dbservice "github.com/agentsh/agentsh/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres"
+	dbservice "github.com/diffsec/agentmon/internal/db/service"
 )
 
 // dbProxyService is the per-service input to startDBProxy. The api layer
@@ -2155,7 +2155,7 @@ type dbProxyDeps struct {
 	Sink           events.Sink
 }
 
-// startDBProxy constructs and starts the AgentSH PostgreSQL proxy. Returns
+// startDBProxy constructs and starts the AgentMon PostgreSQL proxy. Returns
 // the *Server so the caller can wire Shutdown into supervisor lifecycle.
 //
 // Plan 04a: under Unavoidability == off, returns a sentinel server that
@@ -2232,7 +2232,7 @@ Define the two helpers `loadDBRuleSet` and `collectDBProxyServices` and `dbRuleS
 
 If the supervisor boot site uses an early-return pattern instead of `appCloser`, mirror its style — the goal is "Shutdown is called once on supervisor teardown."
 
-The exact `cfg` field for state dir: confirm against `internal/config/config.go`. If neither `cfg.StateDir` nor `cfg.Sessions.BaseDir` is the right place to persist the (still-Plan-04b) CA, use `filepath.Join(os.UserConfigDir(), "agentsh", "state")` as a Plan 04a placeholder; Plan 04b will revisit when the CA actually persists.
+The exact `cfg` field for state dir: confirm against `internal/config/config.go`. If neither `cfg.StateDir` nor `cfg.Sessions.BaseDir` is the right place to persist the (still-Plan-04b) CA, use `filepath.Join(os.UserConfigDir(), "agentmon", "state")` as a Plan 04a placeholder; Plan 04b will revisit when the CA actually persists.
 
 - [ ] **Step 6: Run tests to verify they pass**
 
@@ -2247,7 +2247,7 @@ Expected: no regressions.
 ```bash
 git add internal/api/db_proxy.go internal/api/db_proxy_test.go internal/server/server.go
 git commit -m "$(cat <<'EOF'
-api: wire AgentSH PostgreSQL proxy into supervisor boot
+api: wire AgentMon PostgreSQL proxy into supervisor boot
 
 Plan 04a Task 7. startDBProxy joins the policy-side DBService with the
 listener-side config and constructs a postgres.Server, starting it under

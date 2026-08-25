@@ -22,10 +22,10 @@ func setupFakeTools(t *testing.T, launchctlBody, systemctlBody string) string {
 	}
 	binDir := t.TempDir()
 	callsFile := filepath.Join(t.TempDir(), "calls")
-	t.Setenv("AGENTSH_TEST_CALLS", callsFile)
+	t.Setenv("AGENTMON_TEST_CALLS", callsFile)
 	writeTool := func(name, body string) {
 		script := "#!/bin/sh\n" +
-			"echo \"$(basename \"$0\") $@\" >> \"$AGENTSH_TEST_CALLS\"\n" +
+			"echo \"$(basename \"$0\") $@\" >> \"$AGENTMON_TEST_CALLS\"\n" +
 			body + "\nexit 0\n"
 		if err := os.WriteFile(filepath.Join(binDir, name), []byte(script), 0o755); err != nil {
 			t.Fatalf("write fake %s: %v", name, err)
@@ -111,7 +111,7 @@ func TestInstallLaunchd_ForceReplacesLoadedDefinition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(content), "ai.canyonroad.agentsh.daemon") {
+	if !strings.Contains(string(content), "dev.diffsec.agentmon.daemon") {
 		t.Errorf("plist not rewritten, still: %s", content)
 	}
 }
@@ -180,11 +180,11 @@ func TestInstallSystemd_RestartsActiveUnit(t *testing.T) {
 
 	assertCalls(t, recordedCalls(t, callsFile), []string{
 		"systemctl --user daemon-reload",
-		"systemctl --user enable agentsh",
-		"systemctl --user is-active agentsh",
-		"systemctl --user restart agentsh",
+		"systemctl --user enable agentmon",
+		"systemctl --user is-active agentmon",
+		"systemctl --user restart agentmon",
 	})
-	unitPath := filepath.Join(os.Getenv("HOME"), ".config", "systemd", "user", "agentsh.service")
+	unitPath := filepath.Join(os.Getenv("HOME"), ".config", "systemd", "user", "agentmon.service")
 	if _, err := os.Stat(unitPath); err != nil {
 		t.Errorf("unit not written inside sandbox HOME: %v", err)
 	}
@@ -207,8 +207,8 @@ func TestInstallSystemd_InactiveUnitNotRestarted(t *testing.T) {
 
 	assertCalls(t, recordedCalls(t, callsFile), []string{
 		"systemctl --user daemon-reload",
-		"systemctl --user enable agentsh",
-		"systemctl --user is-active agentsh",
+		"systemctl --user enable agentmon",
+		"systemctl --user is-active agentmon",
 	})
 	if !strings.Contains(buf.String(), "To start the daemon now") {
 		t.Errorf("start hint should be preserved when unit inactive, got: %s", buf.String())
@@ -224,10 +224,10 @@ func TestInstallSystemd_RestartFailureIsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when systemctl restart fails")
 	}
-	if !strings.Contains(err.Error(), "systemctl --user restart agentsh") {
+	if !strings.Contains(err.Error(), "systemctl --user restart agentmon") {
 		t.Errorf("error should include manual remediation: %v", err)
 	}
-	if !strings.Contains(err.Error(), filepath.Join(".config", "systemd", "user", "agentsh.service")) {
+	if !strings.Contains(err.Error(), filepath.Join(".config", "systemd", "user", "agentmon.service")) {
 		t.Errorf("error should mention unit path: %v", err)
 	}
 }

@@ -4,7 +4,7 @@ package mcpinspect
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestInspector_ProcessToolsListResponse(t *testing.T) {

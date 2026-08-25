@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/ptygrpc"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/ptygrpc"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/gorilla/websocket"
 	"golang.org/x/term"
 	"google.golang.org/grpc"
@@ -77,7 +77,7 @@ var execPTYGRPCRunner = execPTYGRPC
 var execPTYWSRunner = execPTYWS
 
 func ptyDenyMode() string {
-	return strings.ToLower(strings.TrimSpace(os.Getenv("AGENTSH_PTY_DENY_MODE")))
+	return strings.ToLower(strings.TrimSpace(os.Getenv("AGENTMON_PTY_DENY_MODE")))
 }
 
 func isPolicyDenyMessage(msg string) bool {
@@ -93,7 +93,7 @@ func ptyDeniedExitError(sessionID string, req execPTYRequest, msg string) error 
 	if msg == "" {
 		msg = "command denied by policy"
 	}
-	hint := fmt.Sprintf("Tip: re-run without --pty to see policy details:\nagentsh exec --output json --events=blocked %s -- %s ...", sessionID, strings.TrimSpace(req.Command))
+	hint := fmt.Sprintf("Tip: re-run without --pty to see policy details:\nagentmon exec --output json --events=blocked %s -- %s ...", sessionID, strings.TrimSpace(req.Command))
 	return &ExitError{code: 126, message: msg + "\n" + hint}
 }
 
@@ -243,7 +243,7 @@ func execPTYGRPC(ctx context.Context, cfg *clientConfig, sessionID string, req e
 	if strings.TrimSpace(cfg.apiKey) != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, "x-api-key", strings.TrimSpace(cfg.apiKey))
 	}
-	// Propagate W3C trace context so agentsh events nest under the caller's trace
+	// Propagate W3C trace context so agentmon events nest under the caller's trace
 	if tp := os.Getenv("TRACEPARENT"); tp != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, "traceparent", tp)
 	}
@@ -251,7 +251,7 @@ func execPTYGRPC(ctx context.Context, cfg *clientConfig, sessionID string, req e
 	runCtx, cancelRun := context.WithCancel(ctx)
 	defer cancelRun()
 
-	c := ptygrpc.NewAgentshPTYClient(conn)
+	c := ptygrpc.NewAgentmonPTYClient(conn)
 	stream, err := c.ExecPTY(runCtx)
 	if err != nil {
 		return maybeMapDeny(err)
@@ -415,7 +415,7 @@ func execPTYWS(ctx context.Context, cfg *clientConfig, sessionID string, req exe
 	if strings.TrimSpace(cfg.apiKey) != "" {
 		h.Set("X-API-Key", strings.TrimSpace(cfg.apiKey))
 	}
-	// Propagate W3C trace context so agentsh events nest under the caller's trace
+	// Propagate W3C trace context so agentmon events nest under the caller's trace
 	if tp := os.Getenv("TRACEPARENT"); tp != "" {
 		h.Set("Traceparent", tp)
 	}

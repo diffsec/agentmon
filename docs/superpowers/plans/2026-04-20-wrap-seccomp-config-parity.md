@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `agentsh wrap` derive the same seccomp wrapper config as the `exec` path for file-monitor fields, restoring fine-grained `file_rules` enforcement and eliminating config-construction drift.
+**Goal:** Make `agentmon wrap` derive the same seccomp wrapper config as the `exec` path for file-monitor fields, restoring fine-grained `file_rules` enforcement and eliminating config-construction drift.
 
 **Architecture:** Add a shared `buildSeccompWrapperConfig` helper in `internal/api` that owns config-derived fields (`FileMonitorEnabled`, `InterceptMetadata`, `BlockIOUring`, block-list transport, and Landlock wiring). Keep runtime-only decisions (`UnixSocketEnabled`, `ExecveEnabled`, `SignalFilterEnabled`) in the two callers and pass them into the helper via a small params struct. Prove the fix with JSON-based regression tests on both the wrap-init and exec surfaces.
 
@@ -125,9 +125,9 @@ func TestSetupSeccompWrapper_FileMonitorDefaults(t *testing.T) {
 		}
 	}()
 
-	seccompJSON, ok := result.wrappedReq.Env["AGENTSH_SECCOMP_CONFIG"]
+	seccompJSON, ok := result.wrappedReq.Env["AGENTMON_SECCOMP_CONFIG"]
 	if !ok {
-		t.Fatal("AGENTSH_SECCOMP_CONFIG env var not set")
+		t.Fatal("AGENTMON_SECCOMP_CONFIG env var not set")
 	}
 
 	var parsed map[string]any
@@ -180,13 +180,13 @@ package api
 import (
 	"os"
 
-	"github.com/agentsh/agentsh/internal/capabilities"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/session"
+	"github.com/diffsec/agentmon/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/session"
 )
 
-// seccompWrapperConfig is passed to the agentsh-unixwrap wrapper via
-// AGENTSH_SECCOMP_CONFIG environment variable to configure seccomp-bpf filtering.
+// seccompWrapperConfig is passed to the agentmon-unixwrap wrapper via
+// AGENTMON_SECCOMP_CONFIG environment variable to configure seccomp-bpf filtering.
 type seccompWrapperConfig struct {
 	UnixSocketEnabled   bool     `json:"unix_socket_enabled"`
 	SignalFilterEnabled bool     `json:"signal_filter_enabled"`
@@ -392,4 +392,4 @@ Expected:
 
 - `seccompWrapperConfig` remains the transport type used by both callers.
 - `seccompWrapperParams` only carries runtime booleans, matching the design spec.
-- `buildSeccompWrapperConfig` returns the same config object shape currently marshaled into `AGENTSH_SECCOMP_CONFIG`.
+- `buildSeccompWrapperConfig` returns the same config object shape currently marshaled into `AGENTMON_SECCOMP_CONFIG`.

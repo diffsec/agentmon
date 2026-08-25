@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/classify/postgres/corpus"
+	"github.com/diffsec/agentmon/internal/db/classify/postgres/corpus"
 )
 
 // TestBackendDeterministic runs the corpus twice under the active backend and

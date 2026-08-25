@@ -2,12 +2,12 @@
 
 package darwin
 
-const PolicyUpdatedNotification = "ai.canyonroad.agentsh.policy-updated"
+const PolicyUpdatedNotification = "dev.diffsec.agentmon.policy-updated"
 
 // NotifyPolicyUpdated is a no-op when CGO is disabled.
 func NotifyPolicyUpdated() {}
 
-const SessionRegisteredNotification = "ai.canyonroad.agentsh.session-registered"
+const SessionRegisteredNotification = "dev.diffsec.agentmon.session-registered"
 
 // NotifySessionRegistered is a no-op when CGO is disabled.
 func NotifySessionRegistered() {}

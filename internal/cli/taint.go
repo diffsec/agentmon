@@ -7,10 +7,10 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/policy/ancestry"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy/ancestry"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -340,8 +340,8 @@ func newTaintSimulateCmd() *cobra.Command {
 Useful for testing policy configurations with different ancestry scenarios.
 
 Example:
-  agentsh taint simulate --ancestry "cursor,bash,npm,node" --command "curl" --args "https://example.com"
-  agentsh taint simulate --ancestry "cursor,bash" --command "git" --args "push" --policy ./my-policy.yaml`,
+  agentmon taint simulate --ancestry "cursor,bash,npm,node" --command "curl" --args "https://example.com"
+  agentmon taint simulate --ancestry "cursor,bash" --command "git" --args "push" --policy ./my-policy.yaml`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if ancestry == "" {
 				return fmt.Errorf("--ancestry is required")

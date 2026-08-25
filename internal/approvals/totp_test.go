@@ -72,13 +72,13 @@ func TestFormatTOTPURI(t *testing.T) {
 	uri := FormatTOTPURI("session-12345678-abcd", "JBSWY3DPEHPK3PXP")
 
 	// Should truncate session ID to 8 chars
-	if !strings.Contains(uri, "agentsh:session-") {
+	if !strings.Contains(uri, "agentmon:session-") {
 		t.Errorf("URI should contain truncated session ID, got: %s", uri)
 	}
 	if !strings.Contains(uri, "secret=JBSWY3DPEHPK3PXP") {
 		t.Errorf("URI should contain secret, got: %s", uri)
 	}
-	if !strings.Contains(uri, "issuer=agentsh") {
+	if !strings.Contains(uri, "issuer=agentmon") {
 		t.Errorf("URI should contain issuer, got: %s", uri)
 	}
 }

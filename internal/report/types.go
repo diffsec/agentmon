@@ -3,7 +3,7 @@ package report
 import (
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Level specifies the detail level of a report.

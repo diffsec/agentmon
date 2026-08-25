@@ -2,11 +2,11 @@
 
 ## Overview
 
-Add an OTEL exporter as a new store backend in the composite store chain, enabling agentsh to export audit events to any OpenTelemetry-compatible collector. Events are exported as OTEL Logs and/or Spans, with configurable filtering and support for both gRPC and HTTP OTLP protocols.
+Add an OTEL exporter as a new store backend in the composite store chain, enabling agentmon to export audit events to any OpenTelemetry-compatible collector. Events are exported as OTEL Logs and/or Spans, with configurable filtering and support for both gRPC and HTTP OTLP protocols.
 
 ## Motivation
 
-agentsh currently persists events to SQLite, JSONL files, and optional webhooks. Organizations using OpenTelemetry-based observability stacks (Grafana, Datadog, Honeycomb, etc.) need a native way to ingest agentsh audit events alongside their existing telemetry pipelines for unified querying, alerting, and dashboarding.
+agentmon currently persists events to SQLite, JSONL files, and optional webhooks. Organizations using OpenTelemetry-based observability stacks (Grafana, Datadog, Honeycomb, etc.) need a native way to ingest agentmon audit events alongside their existing telemetry pipelines for unified querying, alerting, and dashboarding.
 
 ## Architecture
 
@@ -109,7 +109,7 @@ audit:
 
     # Resource attributes (auto-detected, but overridable)
     resource:
-      service_name: "agentsh"
+      service_name: "agentmon"
       extra_attributes: {}      # additional key-value pairs
 ```
 
@@ -117,9 +117,9 @@ audit:
 
 | Env Var | Config Field |
 |---|---|
-| `AGENTSH_OTEL_ENDPOINT` | `audit.otel.endpoint` |
-| `AGENTSH_OTEL_PROTOCOL` | `audit.otel.protocol` |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Fallback if `AGENTSH_OTEL_ENDPOINT` not set |
+| `AGENTMON_OTEL_ENDPOINT` | `audit.otel.endpoint` |
+| `AGENTMON_OTEL_PROTOCOL` | `audit.otel.protocol` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Fallback if `AGENTMON_OTEL_ENDPOINT` not set |
 
 ## Attribute Mapping
 
@@ -127,8 +127,8 @@ audit:
 
 | OTEL Attribute | Source |
 |---|---|
-| `service.name` | `"agentsh"` (or config override) |
-| `service.version` | `agentsh_version` |
+| `service.name` | `"agentmon"` (or config override) |
+| `service.version` | `agentmon_version` |
 | `host.name` | `hostname` |
 | `host.id` | `machine_id` |
 | `host.arch` | `arch` |
@@ -159,35 +159,35 @@ audit:
 | `user.id` | `uid` |
 | `user.name` | `username` |
 
-**agentsh-specific attributes (`agentsh.*` namespace):**
+**agentmon-specific attributes (`agentmon.*` namespace):**
 
 | OTEL Attribute | Source |
 |---|---|
-| `agentsh.event.id` | `event_id` |
-| `agentsh.event.type` | `type` |
-| `agentsh.event.category` | `category` |
-| `agentsh.session.id` | `session_id` |
-| `agentsh.command.id` | `command_id` |
-| `agentsh.decision` | `decision` |
-| `agentsh.policy.rule` | `policy_rule` |
-| `agentsh.policy.name` | `policy_name` |
-| `agentsh.risk.level` | `risk_level` |
-| `agentsh.agent.id` | `agent_id` |
-| `agentsh.agent.type` | `agent_type` |
-| `agentsh.agent.framework` | `agent_framework` |
-| `agentsh.tenant.id` | `tenant_id` |
-| `agentsh.workspace.id` | `workspace_id` |
-| `agentsh.resource.max_memory_mb` | resource limit fields |
-| `agentsh.resource.cpu_quota_percent` | resource limit fields |
-| `agentsh.perf.latency_us` | `latency_us` |
-| `agentsh.perf.queue_time_us` | `queue_time_us` |
-| `agentsh.perf.policy_eval_us` | `policy_eval_us` |
-| `agentsh.perf.intercept_us` | `intercept_us` |
-| `agentsh.perf.backend_us` | `backend_us` |
-| `agentsh.error` | `error` |
-| `agentsh.error.code` | `error_code` |
+| `agentmon.event.id` | `event_id` |
+| `agentmon.event.type` | `type` |
+| `agentmon.event.category` | `category` |
+| `agentmon.session.id` | `session_id` |
+| `agentmon.command.id` | `command_id` |
+| `agentmon.decision` | `decision` |
+| `agentmon.policy.rule` | `policy_rule` |
+| `agentmon.policy.name` | `policy_name` |
+| `agentmon.risk.level` | `risk_level` |
+| `agentmon.agent.id` | `agent_id` |
+| `agentmon.agent.type` | `agent_type` |
+| `agentmon.agent.framework` | `agent_framework` |
+| `agentmon.tenant.id` | `tenant_id` |
+| `agentmon.workspace.id` | `workspace_id` |
+| `agentmon.resource.max_memory_mb` | resource limit fields |
+| `agentmon.resource.cpu_quota_percent` | resource limit fields |
+| `agentmon.perf.latency_us` | `latency_us` |
+| `agentmon.perf.queue_time_us` | `queue_time_us` |
+| `agentmon.perf.policy_eval_us` | `policy_eval_us` |
+| `agentmon.perf.intercept_us` | `intercept_us` |
+| `agentmon.perf.backend_us` | `backend_us` |
+| `agentmon.error` | `error` |
+| `agentmon.error.code` | `error_code` |
 
-Event-type-specific fields (e.g. `path`, `domain`, `remote` from `types.Event.Fields`) are added as additional `agentsh.*` attributes.
+Event-type-specific fields (e.g. `path`, `domain`, `remote` from `types.Event.Fields`) are added as additional `agentmon.*` attributes.
 
 ### LogRecord Specifics
 
@@ -235,7 +235,7 @@ Glob matching uses Go's `path.Match` (supports `*` and `?`).
 The OTEL exporter must never block or crash the main event pipeline.
 
 - **Non-blocking failures**: `AppendEvent()` hands off to the SDK's async batch processor and returns `nil` on export failures. The SDK retries with backoff internally; events that fail after retries are dropped.
-- **Logging, not failing**: Export errors logged via `slog.Warn`. A dropped counter `agentsh_otel_export_dropped_total` is exposed via existing Prometheus metrics.
+- **Logging, not failing**: Export errors logged via `slog.Warn`. A dropped counter `agentmon_otel_export_dropped_total` is exposed via existing Prometheus metrics.
 - **Graceful shutdown**: `Close()` calls SDK `Shutdown(ctx)` with timeout (default 10s) to flush pending batches. Remaining events after timeout are lost (acceptable since they're in SQLite).
 - **Startup resilience**: If OTEL endpoint is unreachable at startup, the exporter initializes anyway — SDK retries on first export. Invalid config logs an error and starts without the exporter.
 

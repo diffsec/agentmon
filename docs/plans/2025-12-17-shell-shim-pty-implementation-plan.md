@@ -2,9 +2,9 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Replace `/bin/sh` and `/bin/bash` with a tiny shim that routes all shell execution through `agentsh`, including full interactive PTY support over both gRPC and HTTP.
+**Goal:** Replace `/bin/sh` and `/bin/bash` with a tiny shim that routes all shell execution through `agentmon`, including full interactive PTY support over both gRPC and HTTP.
 
-**Architecture:** Add a generic shim (`agentsh-shell-shim`) installed at `/bin/sh` and `/bin/bash` that delegates to `agentsh exec` (Option A). Enhance `agentsh` to support `--argv0` and `--pty` with a shared PTY engine. Provide PTY streaming via a new generated-proto gRPC service and an HTTP WebSocket endpoint per session.
+**Architecture:** Add a generic shim (`agentmon-shell-shim`) installed at `/bin/sh` and `/bin/bash` that delegates to `agentmon exec` (Option A). Enhance `agentmon` to support `--argv0` and `--pty` with a shared PTY engine. Provide PTY streaming via a new generated-proto gRPC service and an HTTP WebSocket endpoint per session.
 
 **Tech Stack:** Go, chi (HTTP routing), gRPC, WebSocket, PTY via `golang.org/x/sys/unix`, terminal raw mode via `golang.org/x/term` (or direct termios if preferred).
 
@@ -38,7 +38,7 @@
 
 ---
 
-## Task 2: Inject recursion-guard env (`AGENTSH_IN_SESSION`)
+## Task 2: Inject recursion-guard env (`AGENTMON_IN_SESSION`)
 
 **Files:**
 - Modify: `internal/api/exec.go:223` (mergeEnv)
@@ -46,8 +46,8 @@
 
 **Step 1: Write the failing test**
 - Create `internal/api/exec_env_test.go` to test `mergeEnv(...)` behavior:
-  - Expected: output env includes `AGENTSH_IN_SESSION=1`
-  - Optional: also include `AGENTSH_SESSION_ID=<id>` if the call site has session context (if not, skip).
+  - Expected: output env includes `AGENTMON_IN_SESSION=1`
+  - Optional: also include `AGENTMON_SESSION_ID=<id>` if the call site has session context (if not, skip).
 
 **Step 2: Run test to verify it fails**
 - Run: `go test ./internal/api -run TestMergeEnv_InSession -v`
@@ -55,7 +55,7 @@
 
 **Step 3: Write minimal implementation**
 - In `internal/api/exec.go` `mergeEnv(...)` (around `internal/api/exec.go:223`), set:
-  - `envMap["AGENTSH_IN_SESSION"] = "1"`
+  - `envMap["AGENTMON_IN_SESSION"] = "1"`
 - If you also want to inject session id, thread it through (either via `overrides` or by changing `mergeEnv` signature).
 
 **Step 4: Run test to verify it passes**
@@ -64,11 +64,11 @@
 
 **Step 5: Commit**
 - Run: `git add internal/api/exec.go internal/api/exec_env_test.go`
-- Run: `git commit -m "feat: mark processes as running inside agentsh"`
+- Run: `git commit -m "feat: mark processes as running inside agentmon"`
 
 ---
 
-## Task 3: Add `--argv0` flag to `agentsh exec`
+## Task 3: Add `--argv0` flag to `agentmon exec`
 
 **Files:**
 - Modify: `internal/cli/exec.go:21`
@@ -92,14 +92,14 @@
 
 **Step 5: Commit**
 - Run: `git add internal/cli/exec.go internal/cli/exec_parse.go internal/cli/exec_parse_test.go`
-- Run: `git commit -m "feat: add --argv0 to agentsh exec"`
+- Run: `git commit -m "feat: add --argv0 to agentmon exec"`
 
 ---
 
 ## Task 4: Add generated-proto gRPC PTY service
 
 **Files:**
-- Create: `proto/agentsh/v1/pty.proto`
+- Create: `proto/agentmon/v1/pty.proto`
 - Create: `pkg/ptygrpc/*` (generated output directory; choose a stable location)
 - Modify: `internal/api/grpc.go:41` (register the new service in addition to the existing Struct-based service)
 - Create: `internal/api/pty_grpc.go`
@@ -114,7 +114,7 @@
 
 **Step 3: Write minimal implementation**
 - Define `pty.proto` with:
-  - Service `AgentshPTY` (package `agentsh.v1`) with `rpc ExecPTY(stream ExecPTYClientMsg) returns (stream ExecPTYServerMsg);`
+  - Service `AgentmonPTY` (package `agentmon.v1`) with `rpc ExecPTY(stream ExecPTYClientMsg) returns (stream ExecPTYServerMsg);`
   - Messages: `Start`, `Stdin`, `Resize`, `Signal`, `Output`, `Exit`, `Error` using `bytes` for data.
 - Add protobuf generation workflow:
   - Document required tools (`protoc`, `protoc-gen-go`, `protoc-gen-go-grpc`)
@@ -199,7 +199,7 @@
 
 ---
 
-## Task 7: Add `agentsh exec --pty` CLI path
+## Task 7: Add `agentmon exec --pty` CLI path
 
 **Files:**
 - Modify: `internal/cli/exec.go:21`
@@ -214,7 +214,7 @@
 - Expected: FAIL.
 
 **Step 3: Write minimal implementation**
-- Add `--pty` flag to `agentsh exec`.
+- Add `--pty` flag to `agentmon exec`.
 - When `--pty` is set:
   - If transport is `grpc`, use the generated PTY service.
   - If transport is `http`, connect to the WebSocket endpoint.
@@ -226,21 +226,21 @@
 
 **Step 5: Commit**
 - Run: `git add internal/cli`
-- Run: `git commit -m "feat: add agentsh exec --pty"`
+- Run: `git commit -m "feat: add agentmon exec --pty"`
 
 ---
 
 ## Task 8: Add the shell shim binary
 
 **Files:**
-- Create: `cmd/agentsh-shell-shim/main.go`
+- Create: `cmd/agentmon-shell-shim/main.go`
 - Create: `internal/shim/*` (session id resolution helpers + tests)
 - Test: `internal/shim/session_id_test.go`
 
 **Step 1: Write the failing test**
 - Unit tests for session id resolution priority order:
-  - env `AGENTSH_SESSION_ID`
-  - env `AGENTSH_SESSION_FILE`
+  - env `AGENTMON_SESSION_ID`
+  - env `AGENTMON_SESSION_FILE`
   - file-backed fallback (creates + reuses)
 
 **Step 2: Run test to verify it fails**
@@ -249,19 +249,19 @@
 
 **Step 3: Write minimal implementation**
 - Implement:
-  - `AGENTSH_BIN` resolution (`exec.LookPath`)
+  - `AGENTMON_BIN` resolution (`exec.LookPath`)
   - `.real` target selection based on invocation basename
-  - recursion guard via `AGENTSH_IN_SESSION=1`
+  - recursion guard via `AGENTMON_IN_SESSION=1`
   - TTY detection and command construction:
-    - `agentsh exec [--pty] --argv0 <os.Args[0]> <sid> -- <realShell> <args...>`
-  - session id resolution algorithm with `flock` and stable file placement (`/run/agentsh`, `/tmp/agentsh`, `.agentsh`).
+    - `agentmon exec [--pty] --argv0 <os.Args[0]> <sid> -- <realShell> <args...>`
+  - session id resolution algorithm with `flock` and stable file placement (`/run/agentmon`, `/tmp/agentmon`, `.agentmon`).
 
 **Step 4: Run test to verify it passes**
 - Run: `go test ./internal/shim -run TestResolveSessionID -v`
 - Expected: PASS.
 
 **Step 5: Commit**
-- Run: `git add cmd/agentsh-shell-shim internal/shim`
+- Run: `git add cmd/agentmon-shell-shim internal/shim`
 - Run: `git commit -m "feat: add /bin/sh and /bin/bash shim binary"`
 
 ---
@@ -274,13 +274,13 @@
 - Modify: `README.md:1` (document the feature + env vars)
 
 **Steps:**
-1) Build shim as a separate output (e.g. `./bin/agentsh-shell-shim`).
+1) Build shim as a separate output (e.g. `./bin/agentmon-shell-shim`).
 2) In container image, move `/bin/sh` and `/bin/bash` to `.real` and install shim at both paths.
 3) Document:
-   - `AGENTSH_BIN`
-   - `AGENTSH_SESSION_ID`, `AGENTSH_SESSION_FILE`
-   - `AGENTSH_IN_SESSION` (reserved/internal)
-   - PTY endpoints and `agentsh exec --pty`
+   - `AGENTMON_BIN`
+   - `AGENTMON_SESSION_ID`, `AGENTMON_SESSION_FILE`
+   - `AGENTMON_IN_SESSION` (reserved/internal)
+   - PTY endpoints and `agentmon exec --pty`
 4) Add a minimal smoke test section.
 
 **Commit**
@@ -293,10 +293,10 @@
 
 **Steps (local):**
 1) Build: `make build` (and `make proto` if applicable)
-2) Start server: `./bin/agentsh server --config config.yml`
-3) Create session: `./bin/agentsh session create --workspace .`
-4) Non-interactive: `./bin/agentsh exec <sid> -- sh -lc 'echo hi'`
-5) Interactive: `./bin/agentsh exec --pty <sid> -- sh`
+2) Start server: `./bin/agentmon server --config config.yml`
+3) Create session: `./bin/agentmon session create --workspace .`
+4) Non-interactive: `./bin/agentmon exec <sid> -- sh -lc 'echo hi'`
+5) Interactive: `./bin/agentmon exec --pty <sid> -- sh`
 6) In a container image using the shim:
-   - `docker run -it ... /bin/sh` should route through agentsh and remain interactive.
+   - `docker run -it ... /bin/sh` should route through agentmon and remain interactive.
 

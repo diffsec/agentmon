@@ -3,7 +3,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestEngine_CheckCommand_BasenameMatch(t *testing.T) {

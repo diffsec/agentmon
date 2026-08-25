@@ -28,8 +28,8 @@
 - `internal/api/exec.go` -- register PID to command_id after cmd.Start()
 
 **Modified Swift files:**
-- `macos/AgentSH/PolicySocketClient.swift` -- persistent event stream connection + ring buffer
-- `macos/AgentSH/ESFClient.swift` -- forward AUTH decisions, fork/exit, SETATTR
+- `macos/AgentMon/PolicySocketClient.swift` -- persistent event stream connection + ring buffer
+- `macos/AgentMon/ESFClient.swift` -- forward AUTH decisions, fork/exit, SETATTR
 
 ---
 
@@ -205,7 +205,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // fakeEventStore captures events for testing.
@@ -443,7 +443,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/google/uuid"
 )
 
@@ -877,7 +877,7 @@ git commit -m "feat: register PID to command_id for ESF file event attribution"
 ### Task 6: Swift -- Persistent Event Stream Connection
 
 **Files:**
-- Modify: `macos/AgentSH/PolicySocketClient.swift`
+- Modify: `macos/AgentMon/PolicySocketClient.swift`
 
 - [ ] **Step 1: Add event stream properties**
 
@@ -886,7 +886,7 @@ Add to `PolicySocketClient`:
 ```swift
 // Event stream persistent connection
 private var streamFD: Int32 = -1
-private let streamQueue = DispatchQueue(label: "ai.canyonroad.agentsh.eventstream")
+private let streamQueue = DispatchQueue(label: "dev.diffsec.agentmon.eventstream")
 private var eventBuffer: [[String: Any]] = []
 private let maxBufferSize = 1024
 private var reconnectDelay: TimeInterval = 1.0
@@ -923,7 +923,7 @@ In the existing `connectWhenReady()`, add `connectEventStream()` call.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add macos/AgentSH/PolicySocketClient.swift
+git add macos/AgentMon/PolicySocketClient.swift
 git commit -m "feat(darwin): add persistent event stream connection with ring buffer"
 ```
 
@@ -932,7 +932,7 @@ git commit -m "feat(darwin): add persistent event stream connection with ring bu
 ### Task 7: Swift -- Forward AUTH Decisions from ESFClient
 
 **Files:**
-- Modify: `macos/AgentSH/ESFClient.swift`
+- Modify: `macos/AgentMon/ESFClient.swift`
 
 - [ ] **Step 1: Add sendFileEvent helper method**
 
@@ -975,7 +975,7 @@ Replace the existing `PolicySocketClient.shared.send(...)` (base64-encoded event
 - [ ] **Step 7: Commit**
 
 ```bash
-git add macos/AgentSH/ESFClient.swift
+git add macos/AgentMon/ESFClient.swift
 git commit -m "feat(darwin): forward all AUTH file decisions to Go server via event stream"
 ```
 
@@ -984,7 +984,7 @@ git commit -m "feat(darwin): forward all AUTH file decisions to Go server via ev
 ### Task 8: Swift -- Forward Fork/Exit Events for Command Resolution
 
 **Files:**
-- Modify: `macos/AgentSH/ESFClient.swift`
+- Modify: `macos/AgentMon/ESFClient.swift`
 
 - [ ] **Step 1: Add fork event forwarding to handleNotifyFork**
 
@@ -1020,7 +1020,7 @@ Note: Send exit event before removing PID from session cache so `sessionForPID` 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add macos/AgentSH/ESFClient.swift
+git add macos/AgentMon/ESFClient.swift
 git commit -m "feat(darwin): forward fork/exit events for command_id resolution"
 ```
 
@@ -1029,7 +1029,7 @@ git commit -m "feat(darwin): forward fork/exit events for command_id resolution"
 ### Task 9: Swift -- NOTIFY_SETATTR Support (macOS 26+)
 
 **Files:**
-- Modify: `macos/AgentSH/ESFClient.swift`
+- Modify: `macos/AgentMon/ESFClient.swift`
 
 - [ ] **Step 1: Add SETATTR to subscription list**
 
@@ -1077,7 +1077,7 @@ Delete the existing TODO at lines 234-235 about SETATTR.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add macos/AgentSH/ESFClient.swift
+git add macos/AgentMon/ESFClient.swift
 git commit -m "feat(darwin): add NOTIFY_SETATTR support for chmod/chown events (macOS 26+)"
 ```
 
@@ -1140,37 +1140,37 @@ Build the Xcode project with updated Swift code. Sign and notarize.
 
 ```bash
 # Install new build, run activate-extension
-/Applications/AgentSH.app/Contents/MacOS/agentsh activate-extension
+/Applications/AgentMon.app/Contents/MacOS/agentmon activate-extension
 # Start server
-/Applications/AgentSH.app/Contents/MacOS/agentsh server
+/Applications/AgentMon.app/Contents/MacOS/agentmon server
 ```
 
 - [ ] **Step 4: Create session and run file operations**
 
 ```bash
-mkdir -p /tmp/agentsh-e2e-fileio
+mkdir -p /tmp/agentmon-e2e-fileio
 curl -s -X POST http://127.0.0.1:18080/api/v1/sessions \
   -H 'Content-Type: application/json' \
-  -d '{"name":"file-io-test","workspace":"/tmp/agentsh-e2e-fileio"}'
+  -d '{"name":"file-io-test","workspace":"/tmp/agentmon-e2e-fileio"}'
 
 SESSION_ID="<from response>"
 
 # Write, read, delete, rename
 curl -s -X POST "http://127.0.0.1:18080/api/v1/sessions/$SESSION_ID/exec" \
   -H 'Content-Type: application/json' \
-  -d '{"command":"sh","args":["-c","echo hello > /tmp/agentsh-e2e-fileio/test.txt"]}'
+  -d '{"command":"sh","args":["-c","echo hello > /tmp/agentmon-e2e-fileio/test.txt"]}'
 
 curl -s -X POST "http://127.0.0.1:18080/api/v1/sessions/$SESSION_ID/exec" \
   -H 'Content-Type: application/json' \
-  -d '{"command":"cat","args":["/tmp/agentsh-e2e-fileio/test.txt"]}'
+  -d '{"command":"cat","args":["/tmp/agentmon-e2e-fileio/test.txt"]}'
 
 curl -s -X POST "http://127.0.0.1:18080/api/v1/sessions/$SESSION_ID/exec" \
   -H 'Content-Type: application/json' \
-  -d '{"command":"rm","args":["/tmp/agentsh-e2e-fileio/test.txt"]}'
+  -d '{"command":"rm","args":["/tmp/agentmon-e2e-fileio/test.txt"]}'
 
 curl -s -X POST "http://127.0.0.1:18080/api/v1/sessions/$SESSION_ID/exec" \
   -H 'Content-Type: application/json' \
-  -d '{"command":"sh","args":["-c","echo data > /tmp/agentsh-e2e-fileio/a.txt && mv /tmp/agentsh-e2e-fileio/a.txt /tmp/agentsh-e2e-fileio/b.txt"]}'
+  -d '{"command":"sh","args":["-c","echo data > /tmp/agentmon-e2e-fileio/a.txt && mv /tmp/agentmon-e2e-fileio/a.txt /tmp/agentmon-e2e-fileio/b.txt"]}'
 ```
 
 - [ ] **Step 5: Query SQLite for file events**

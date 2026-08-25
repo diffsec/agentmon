@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/events"
+	"github.com/diffsec/agentmon/internal/events"
 )
 
 // EventEmitter is an interface for emitting audit events.

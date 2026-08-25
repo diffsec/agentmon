@@ -1,8 +1,8 @@
 package session
 
 import (
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // PolicyRouter routes policy checks to the appropriate mount's policy engine.

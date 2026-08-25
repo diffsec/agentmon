@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
 )
 
 func mkRec(seq uint64, gen uint32, sz int) wal.Record {

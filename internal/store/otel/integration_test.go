@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestIntegration_OTELCollector(t *testing.T) {
@@ -69,7 +69,7 @@ func TestIntegration_OTELCollector(t *testing.T) {
 
 	// Create the OTEL store pointing at the local collector.
 	ctx := context.Background()
-	res := BuildResource("agentsh-integration-test", nil)
+	res := BuildResource("agentmon-integration-test", nil)
 
 	store, err := New(ctx, Config{
 		Endpoint:   "localhost:4317",
@@ -124,8 +124,8 @@ func TestIntegration_OTELCollector(t *testing.T) {
 	output := string(content)
 
 	// Assert: contains service name.
-	if !strings.Contains(output, "agentsh-integration-test") {
-		t.Errorf("output does not contain service name 'agentsh-integration-test':\n%s", truncate(output, 2000))
+	if !strings.Contains(output, "agentmon-integration-test") {
+		t.Errorf("output does not contain service name 'agentmon-integration-test':\n%s", truncate(output, 2000))
 	}
 
 	// Assert: contains event type.

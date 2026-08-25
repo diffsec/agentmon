@@ -9,20 +9,20 @@ Add Linux packaging for deb (Debian/Ubuntu), rpm (Fedora/RHEL), and Arch Linux u
 ## Package Contents
 
 **Binaries:**
-- `/usr/bin/agentsh` - Main CLI
-- `/usr/bin/agentsh-shell-shim` - Shell shim
+- `/usr/bin/agentmon` - Main CLI
+- `/usr/bin/agentmon-shell-shim` - Shell shim
 
 **Configuration:**
-- `/etc/agentsh/config.yaml` - Default config (noreplace on upgrade)
+- `/etc/agentmon/config.yaml` - Default config (noreplace on upgrade)
 
 **Shell Completions:**
-- `/usr/share/bash-completion/completions/agentsh`
-- `/usr/share/zsh/site-functions/_agentsh`
-- `/usr/share/fish/vendor_completions.d/agentsh.fish`
+- `/usr/share/bash-completion/completions/agentmon`
+- `/usr/share/zsh/site-functions/_agentmon`
+- `/usr/share/fish/vendor_completions.d/agentmon.fish`
 
 **Documentation:**
-- `/usr/share/doc/agentsh/README.md`
-- `/usr/share/doc/agentsh/LICENSE`
+- `/usr/share/doc/agentmon/README.md`
+- `/usr/share/doc/agentmon/LICENSE`
 
 ## Directory Structure
 
@@ -31,9 +31,9 @@ packaging/
 ├── nfpm.yaml              # Single config for all formats
 ├── config.yaml            # Default config file
 └── completions/
-    ├── agentsh.bash
-    ├── agentsh.zsh
-    └── agentsh.fish
+    ├── agentmon.bash
+    ├── agentmon.zsh
+    └── agentmon.fish
 ```
 
 ## nFPM Configuration
@@ -65,15 +65,15 @@ make package-all
 
 1. `packaging/nfpm.yaml` - nFPM config
 2. `packaging/config.yaml` - Default configuration
-3. `packaging/completions/agentsh.bash` - Bash completion
-4. `packaging/completions/agentsh.zsh` - Zsh completion
-5. `packaging/completions/agentsh.fish` - Fish completion
+3. `packaging/completions/agentmon.bash` - Bash completion
+4. `packaging/completions/agentmon.zsh` - Zsh completion
+5. `packaging/completions/agentmon.fish` - Fish completion
 6. `.github/workflows/release.yml` - Release workflow
 7. Update `Makefile` - Add package targets
 
 ## Decisions
 
 - Use nFPM instead of native tools (simpler, single config)
-- Config at `/etc/agentsh/` (matches existing code)
+- Config at `/etc/agentmon/` (matches existing code)
 - No systemd service (shell shim auto-starts server)
 - Build both via CI and locally

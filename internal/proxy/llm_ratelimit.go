@@ -1,8 +1,8 @@
 package proxy
 
 import (
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/pkg/ratelimit"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/pkg/ratelimit"
 )
 
 // LLMRateLimiter enforces RPM (requests per minute) and TPM (tokens per minute)

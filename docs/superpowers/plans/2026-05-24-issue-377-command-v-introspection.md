@@ -109,7 +109,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Issue #377: `command -v NAME` must be allowed (it's introspection), not

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/server"
+	"github.com/diffsec/agentmon/internal/server"
 	"github.com/spf13/cobra"
 )
 
@@ -13,7 +13,7 @@ func newServerCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "server",
-		Short: "Start the agentsh server",
+		Short: "Start the agentmon server",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			if ctx == nil {
@@ -31,22 +31,22 @@ func newServerCmd() *cobra.Command {
 			}
 			defer s.Close()
 
-			fmt.Fprintf(cmd.OutOrStdout(), "agentsh server listening on %s\n", cfg.Server.HTTP.Addr)
+			fmt.Fprintf(cmd.OutOrStdout(), "agentmon server listening on %s\n", cfg.Server.HTTP.Addr)
 			return s.Run(ctx)
 		},
 	}
 
-	cmd.Flags().StringVar(&configPath, "config", "", "Path to server config YAML (default: ./config.yml, ./config.yaml, or /etc/agentsh/config.yaml)")
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to server config YAML (default: ./config.yml, ./config.yaml, or /etc/agentmon/config.yaml)")
 
 	// Accepted and ignored for compatibility with service units generated
-	// before #437, which hardcode `agentsh server --daemon`. A binary upgrade
+	// before #437, which hardcode `agentmon server --daemon`. A binary upgrade
 	// does not rewrite those files, and rejecting the flag leaves the daemon
 	// restart-looping. There is no behavior to implement: systemd Type=simple
 	// and launchd both require the supervised process to stay in the
 	// foreground, so self-daemonizing would break process tracking either way.
 	cmd.Flags().Bool("daemon", false, "Deprecated: accepted for compatibility, ignored")
 	_ = cmd.Flags().MarkDeprecated("daemon",
-		"the server always runs in the foreground under systemd/launchd; remove it or re-run `agentsh daemon install --force`")
+		"the server always runs in the foreground under systemd/launchd; remove it or re-run `agentmon daemon install --force`")
 
 	return cmd
 }

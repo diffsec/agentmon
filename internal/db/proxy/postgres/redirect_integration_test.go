@@ -15,9 +15,9 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/service"
 )
 
 func TestDB12RealPostgresDirectProxyPolicyReloadPreservesPreparedRedirect(t *testing.T) {

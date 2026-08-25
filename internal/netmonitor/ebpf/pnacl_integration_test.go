@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/limits"
-	"github.com/agentsh/agentsh/internal/netmonitor/pnacl"
+	"github.com/diffsec/agentmon/internal/limits"
+	"github.com/diffsec/agentmon/internal/netmonitor/pnacl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -64,7 +64,7 @@ func TestIntegration_PNACLMonitor_BasicOperation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create temp cgroup
-	tmp := filepath.Join(os.TempDir(), "agentsh-pnacl-test")
+	tmp := filepath.Join(os.TempDir(), "agentmon-pnacl-test")
 	_ = os.RemoveAll(tmp)
 	cgDir := filepath.Join("/sys/fs/cgroup", filepath.Base(tmp))
 	_ = os.Remove(cgDir) // clean up from interrupted prior runs
@@ -154,7 +154,7 @@ func TestIntegration_ProcessFilter_WithRealEvents(t *testing.T) {
 		t.Skipf("ebpf not supported: %s", status.Reason)
 	}
 
-	tmp := filepath.Join(os.TempDir(), "agentsh-pnacl-filter-test")
+	tmp := filepath.Join(os.TempDir(), "agentmon-pnacl-filter-test")
 	_ = os.RemoveAll(tmp)
 	cgDir := filepath.Join("/sys/fs/cgroup", filepath.Base(tmp))
 	_ = os.Remove(cgDir) // clean up from interrupted prior runs
@@ -268,7 +268,7 @@ func TestIntegration_ConnectionHolder_ApprovalFlow(t *testing.T) {
 		t.Skipf("ebpf not supported: %s", status.Reason)
 	}
 
-	tmp := filepath.Join(os.TempDir(), "agentsh-pnacl-approval-test")
+	tmp := filepath.Join(os.TempDir(), "agentmon-pnacl-approval-test")
 	_ = os.RemoveAll(tmp)
 	cgDir := filepath.Join("/sys/fs/cgroup", filepath.Base(tmp))
 	_ = os.Remove(cgDir) // clean up from interrupted prior runs

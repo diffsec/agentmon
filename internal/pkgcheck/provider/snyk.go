@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 const (

@@ -1,16 +1,16 @@
-# agentsh Cross-Platform Notes
+# agentmon Cross-Platform Notes
 
 **Last updated:** April 2026
 
-agentsh supports **Linux** and **macOS** natively. Linux provides the most complete feature set. macOS uses **ESF+NE** (90% security score, **Alpha**) for file, process, and network enforcement. The ESF+NE tier is functional end-to-end but should not be considered production-ready — expect rough edges and breaking changes.
+agentmon supports **Linux** and **macOS** natively. Linux provides the most complete feature set. macOS uses **ESF+NE** (90% security score, **Alpha**) for file, process, and network enforcement. The ESF+NE tier is functional end-to-end but should not be considered production-ready — expect rough edges and breaking changes.
 
-**macOS ESF+NE entitlements:** agentsh ships with the required ESF and Network Extension entitlements. No separate Apple approval is needed to use the pre-built binary.
+**macOS ESF+NE entitlements:** agentmon ships with the required ESF and Network Extension entitlements. No separate Apple approval is needed to use the pre-built binary.
 
-If you're on Windows, the recommended approach is to run agentsh inside WSL2 or a Linux container. Unix socket enforcement (seccomp user-notify) is Linux-only.
+If you're on Windows, the recommended approach is to run agentmon inside WSL2 or a Linux container. Unix socket enforcement (seccomp user-notify) is Linux-only.
 
 ## Linux Security Levels
 
-Linux security features vary significantly depending on kernel version, runtime environment, and available privileges. agentsh automatically detects available features and selects the best security mode.
+Linux security features vary significantly depending on kernel version, runtime environment, and available privileges. agentmon automatically detects available features and selects the best security mode.
 
 ### Environment Compatibility Matrix
 
@@ -33,7 +33,7 @@ Linux security features vary significantly depending on kernel version, runtime 
 
 ### Security Mode by Environment
 
-Based on available features, agentsh selects one of four security modes:
+Based on available features, agentmon selects one of four security modes:
 
 | Mode | Score | Typical Environment | Key Protections |
 |------|-------|---------------------|-----------------|
@@ -91,7 +91,7 @@ When seccomp user-notify is unavailable but `SYS_PTRACE` capability is present (
 
 ### Detection and Fallback
 
-agentsh performs capability detection at startup:
+agentmon performs capability detection at startup:
 
 ```
 INFO  security capabilities detected
@@ -129,9 +129,9 @@ See [Security Modes](security-modes.md) for detailed mode configuration.
 ## What works today
 
 - **Linux (native):** primary supported platform with tiered security (full → landlock → landlock-only → minimal depending on environment). See [Linux Security Levels](#linux-security-levels) above.
-- **macOS ESF+NE (Alpha):** Endpoint Security Framework + Network Extension for near-Linux enforcement. Install via `brew tap canyonroad/tap && brew install --cask agentsh`.
+- **macOS ESF+NE (Alpha):** Endpoint Security Framework + Network Extension for near-Linux enforcement. Install via `brew tap canyonroad/tap && brew install --cask agentmon`.
 - **Windows:** run in **WSL2** (recommended) or a Linux container.
-- **gRPC (optional):** if enabled, clients connect to `server.grpc.addr` (default `127.0.0.1:9090`). The CLI can prefer gRPC via `AGENTSH_TRANSPORT=grpc`.
+- **gRPC (optional):** if enabled, clients connect to `server.grpc.addr` (default `127.0.0.1:9090`). The CLI can prefer gRPC via `AGENTMON_TRANSPORT=grpc`.
 
 ## Feature availability (current implementation)
 
@@ -156,14 +156,14 @@ See [Security Modes](security-modes.md) for detailed mode configuration.
 ### Linux
 
 ```bash
-agentsh server
+agentmon server
 ```
 
 ### macOS (ESF+NE — Alpha)
 
 ```bash
 brew tap canyonroad/tap
-brew install --cask agentsh
+brew install --cask agentmon
 ```
 
 After installation, approve the system extension in **System Settings > General > Login Items & Extensions**.
@@ -182,7 +182,7 @@ For full Linux isolation on macOS, Lima VM provides two deployment modes:
 
 #### Inside-VM Mode (Recommended - 100% Security Score)
 
-Run agentsh and your AI agent harness **entirely inside** the Lima VM. This is identical to native Linux:
+Run agentmon and your AI agent harness **entirely inside** the Lima VM. This is identical to native Linux:
 
 ```bash
 # Install Lima
@@ -194,9 +194,9 @@ limactl start default
 # Shell into the VM
 limactl shell default
 
-# Inside the VM - install and run agentsh as normal Linux
-curl -fsSL https://get.agentsh.dev | bash
-agentsh server
+# Inside the VM - install and run agentmon as normal Linux
+curl -fsSL https://get.agentmon.dev | bash
+agentmon server
 ```
 
 This gives you **full Linux-equivalent protection**:
@@ -215,7 +215,7 @@ This gives you **full Linux-equivalent protection**:
 
 #### Orchestrated Mode (85% Security Score)
 
-Run agentsh on macOS, using Lima as a remote execution sandbox:
+Run agentmon on macOS, using Lima as a remote execution sandbox:
 
 ```bash
 # Install Lima
@@ -224,11 +224,11 @@ brew install lima
 # Create and start a VM
 limactl start default
 
-# agentsh on macOS automatically detects Lima and uses it
-agentsh server  # Will use darwin-lima mode
+# agentmon on macOS automatically detects Lima and uses it
+agentmon server  # Will use darwin-lima mode
 ```
 
-**Automatic Detection:** When `limactl` is installed and at least one VM is running, agentsh automatically uses Lima mode which provides:
+**Automatic Detection:** When `limactl` is installed and at least one VM is running, agentmon automatically uses Lima mode which provides:
 - Full Linux namespace isolation (mount, network, PID, user)
 - seccomp-bpf syscall filtering
 - cgroups v2 resource limits
@@ -252,12 +252,12 @@ platform:
 Inside the VM, both modes use standard Linux primitives:
 
 **Resource Limits (cgroups v2):**
-- Cgroup path: `/sys/fs/cgroup/agentsh/<session-name>`
+- Cgroup path: `/sys/fs/cgroup/agentmon/<session-name>`
 - Supported limits: CPU (quota/period), memory, process count, disk I/O (read/write bandwidth)
 - Stats available: memory usage, CPU time, process count, disk I/O bytes
 
 **Network Interception (iptables):**
-- Custom chain: `AGENTSH` in the nat table
+- Custom chain: `AGENTMON` in the nat table
 - TCP traffic redirected to proxy port (localhost excluded)
 - DNS (UDP port 53) redirected to DNS proxy port
 
@@ -275,7 +275,7 @@ Inside the VM, both modes use standard Linux primitives:
 
 ### macOS (sandbox-exec - Process Sandboxing)
 
-For all macOS deployments (ESF+NE or Lima), agentsh uses `sandbox-exec` with SBPL (Sandbox Profile Language) profiles to provide process-level file and network restrictions:
+For all macOS deployments (ESF+NE or Lima), agentmon uses `sandbox-exec` with SBPL (Sandbox Profile Language) profiles to provide process-level file and network restrictions:
 
 ```bash
 # sandbox-exec is used automatically when executing commands
@@ -284,7 +284,7 @@ For all macOS deployments (ESF+NE or Lima), agentsh uses `sandbox-exec` with SBP
 
 **How It Works:**
 
-When agentsh executes a command in a session, it wraps the command with `sandbox-exec -p '<SBPL profile>' <command>`. The SBPL profile is dynamically generated based on the session's workspace and configuration.
+When agentmon executes a command in a session, it wraps the command with `sandbox-exec -p '<SBPL profile>' <command>`. The SBPL profile is dynamically generated based on the session's workspace and configuration.
 
 **Default Profile Behavior:**
 
@@ -336,11 +336,11 @@ For native Windows support with kernel-level enforcement:
 ```bash
 # Install the driver (requires Administrator)
 # Driver must be test-signed for development or production-signed for release
-sc create agentsh type=filesys binPath="C:\path\to\agentsh.sys"
-sc start agentsh
+sc create agentmon type=filesys binPath="C:\path\to\agentmon.sys"
+sc start agentmon
 
-# Run the agentsh server
-agentsh server
+# Run the agentmon server
+agentmon server
 ```
 
 **Requirements:**
@@ -392,10 +392,10 @@ For FUSE-style filesystem mounting with soft-delete support:
 winget install WinFsp.WinFsp
 
 # Build with CGO enabled
-CGO_ENABLED=1 go build -o agentsh.exe ./cmd/agentsh
+CGO_ENABLED=1 go build -o agentmon.exe ./cmd/agentmon
 
 # Run the server (WinFsp mount is automatic)
-agentsh server
+agentmon server
 ```
 
 WinFsp provides FUSE-style mounting on Windows, using a shared `internal/platform/fuse/` package. Features include:
@@ -405,7 +405,7 @@ WinFsp provides FUSE-style mounting on Windows, using a shared `internal/platfor
 
 **AppContainer Sandbox Isolation:**
 
-Windows 8+ supports AppContainer for kernel-enforced process isolation. agentsh uses a two-layer security model:
+Windows 8+ supports AppContainer for kernel-enforced process isolation. agentmon uses a two-layer security model:
 
 | Layer | Technology | Purpose |
 |-------|------------|---------|
@@ -458,16 +458,16 @@ See [Windows Driver Deployment Guide](windows-driver-deployment.md) for installa
 ### Windows (WSL2)
 
 - Install WSL2 + a distro (e.g. Ubuntu).
-- Inside WSL, install `fuse3` and run `agentsh server`.
+- Inside WSL, install `fuse3` and run `agentmon server`.
 - Keep workspaces on the Linux filesystem (e.g. `/home/...`), not `/mnt/c/...`, for performance.
 
 **Resource Limits (cgroups v2):** WSL2 uses cgroups v2 inside the Linux VM for resource enforcement:
-- Cgroup path: `/sys/fs/cgroup/agentsh/<session-name>`
+- Cgroup path: `/sys/fs/cgroup/agentmon/<session-name>`
 - Supported limits: CPU (quota/period), memory, process count, disk I/O (read/write bandwidth)
 - Stats available: memory usage, CPU time, process count, disk I/O bytes
 
 **Network Interception (iptables):** WSL2 uses iptables DNAT rules for traffic redirection:
-- Custom chain: `AGENTSH` in the nat table
+- Custom chain: `AGENTMON` in the nat table
 - TCP traffic redirected to proxy port (localhost excluded)
 - DNS (UDP port 53) redirected to DNS proxy port
 
@@ -495,37 +495,37 @@ docker run --rm -it \
   --security-opt apparmor=unconfined \
   -p 18080:18080 \
   -v "$(pwd)":/workspace \
-  ghcr.io/agentsh/agentsh:latest
+  ghcr.io/diffsec/agentmon:latest
 ```
 
 ## Detecting Available Capabilities
 
-Use `agentsh detect` to probe your environment and see what security features are available:
+Use `agentmon detect` to probe your environment and see what security features are available:
 
 ```bash
 # Show capabilities in table format (default)
-agentsh detect
+agentmon detect
 
 # Output as JSON for scripting
-agentsh detect --output json
+agentmon detect --output json
 
 # Output as YAML
-agentsh detect --output yaml
+agentmon detect --output yaml
 ```
 
 ### Generating Optimized Configuration
 
-Use `agentsh detect config` to generate a configuration snippet optimized for your environment:
+Use `agentmon detect config` to generate a configuration snippet optimized for your environment:
 
 ```bash
 # Print to stdout
-agentsh detect config
+agentmon detect config
 
 # Write to file
-agentsh detect config --output security.yaml
+agentmon detect config --output security.yaml
 
 # Redirect to file
-agentsh detect config > my-config.yaml
+agentmon detect config > my-config.yaml
 ```
 
 The generated config includes only security-related sections (`security:`, `landlock:`, `capabilities:`) that you can merge into your main configuration file.

@@ -6,9 +6,9 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/capabilities"
-	"github.com/agentsh/agentsh/internal/config"
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/config"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
 )
 
 func oneFamilySlice() []seccompkg.BlockedFamily {
@@ -121,7 +121,7 @@ func TestSelectFamilyBlockingEngine_SeccompPreferredOverPtrace(t *testing.T) {
 }
 
 // withMissingWrapper temporarily replaces familyEngineLookPath so that any
-// lookup of "agentsh-unixwrap" returns an error (binary not found).
+// lookup of "agentmon-unixwrap" returns an error (binary not found).
 func withMissingWrapper(t *testing.T) {
 	t.Helper()
 	orig := familyEngineLookPath

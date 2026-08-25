@@ -6,7 +6,7 @@
 
 ## Overview
 
-This design adds XPC/Mach IPC control to agentsh on macOS, providing the ability to monitor and block cross-process communication via XPC services. The implementation uses a two-layer approach: sandbox profiles for enforcement (blocking) and ESF for monitoring (audit).
+This design adds XPC/Mach IPC control to agentmon on macOS, providing the ability to monitor and block cross-process communication via XPC services. The implementation uses a two-layer approach: sandbox profiles for enforcement (blocking) and ESF for monitoring (audit).
 
 ## Goals
 
@@ -28,7 +28,7 @@ This design adds XPC/Mach IPC control to agentsh on macOS, providing the ability
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                          agentsh server                                  │
+│                          agentmon server                                  │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
 │  │ Session Manager                                                    │   │
 │  │  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐   │   │
@@ -42,9 +42,9 @@ This design adds XPC/Mach IPC control to agentsh on macOS, providing the ability
 └──────────────────────────────┼───────────────────────────────────────────┘
                                │
 ┌──────────────────────────────┼───────────────────────────────────────────┐
-│  agentsh-macwrap             │                                           │
+│  agentmon-macwrap             │                                           │
 │  ┌───────────────────────────┴─────────────────────────────────────┐    │
-│  │ 1. Parse config from env (AGENTSH_SANDBOX_CONFIG)               │    │
+│  │ 1. Parse config from env (AGENTMON_SANDBOX_CONFIG)               │    │
 │  │ 2. Generate SBPL profile with mach-lookup restrictions          │    │
 │  │ 3. Apply sandbox via sandbox_init_with_parameters()             │    │
 │  │ 4. exec() the target command                                    │    │
@@ -64,7 +64,7 @@ This design adds XPC/Mach IPC control to agentsh on macOS, providing the ability
 1. **Sandbox (blocking)**: Restricts which XPC services process can connect to
 2. **ESF (monitoring)**: Logs all XPC connection attempts for audit trail
 
-### Comparison with Linux (agentsh-unixwrap)
+### Comparison with Linux (agentmon-unixwrap)
 
 | Aspect | Linux (seccomp) | macOS (sandbox) |
 |--------|-----------------|-----------------|
@@ -82,8 +82,8 @@ sandbox:
     enabled: true
     mode: enforce  # enforce | audit | disabled
 
-    # Wrapper binary (like agentsh-unixwrap for Linux)
-    wrapper_bin: ""  # defaults to "agentsh-macwrap" in PATH
+    # Wrapper binary (like agentmon-unixwrap for Linux)
+    wrapper_bin: ""  # defaults to "agentmon-macwrap" in PATH
 
     # Mach service access control
     mach_services:
@@ -176,15 +176,15 @@ var DefaultXPCBlockList = []string{
 
 ## Wrapper Binary Implementation
 
-### `cmd/agentsh-macwrap/main.go`
+### `cmd/agentmon-macwrap/main.go`
 
 ```go
 //go:build darwin
 
-// agentsh-macwrap: applies macOS sandbox profile with XPC restrictions,
+// agentmon-macwrap: applies macOS sandbox profile with XPC restrictions,
 // then execs the target command.
-// Usage: agentsh-macwrap -- <command> [args...]
-// Requires env AGENTSH_SANDBOX_CONFIG set to JSON config.
+// Usage: agentmon-macwrap -- <command> [args...]
+// Requires env AGENTMON_SANDBOX_CONFIG set to JSON config.
 
 package main
 
@@ -307,8 +307,8 @@ The wrapper generates SBPL (Sandbox Profile Language) profiles:
 ### Wrapper Config Type
 
 ```go
-// macSandboxWrapperConfig is passed to agentsh-macwrap via
-// AGENTSH_SANDBOX_CONFIG environment variable.
+// macSandboxWrapperConfig is passed to agentmon-macwrap via
+// AGENTMON_SANDBOX_CONFIG environment variable.
 type macSandboxWrapperConfig struct {
     WorkspacePath string                       `json:"workspace_path"`
     AllowedPaths  []string                     `json:"allowed_paths"`
@@ -347,7 +347,7 @@ func (a *App) wrapWithMacSandbox(
 ) *extraProcConfig {
     wrapperBin := strings.TrimSpace(a.cfg.Sandbox.XPC.WrapperBin)
     if wrapperBin == "" {
-        wrapperBin = "agentsh-macwrap"
+        wrapperBin = "agentmon-macwrap"
     }
 
     cfg := macSandboxWrapperConfig{
@@ -365,12 +365,12 @@ func (a *App) wrapWithMacSandbox(
 
     cfgJSON, _ := json.Marshal(cfg)
 
-    req.Env["AGENTSH_SANDBOX_CONFIG"] = string(cfgJSON)
+    req.Env["AGENTMON_SANDBOX_CONFIG"] = string(cfgJSON)
     req.Command = wrapperBin
     req.Args = append([]string{"--", origCommand}, origArgs...)
 
     return &extraProcConfig{
-        env: map[string]string{"AGENTSH_SANDBOX_CONFIG": string(cfgJSON)},
+        env: map[string]string{"AGENTMON_SANDBOX_CONFIG": string(cfgJSON)},
     }
 }
 ```
@@ -457,19 +457,19 @@ type XPCSandboxViolationEvent struct {
 
 - Sandbox blocks XPC connections
 - Allowlisted services work
-- `agentsh-macwrap` applies sandbox correctly
+- `agentmon-macwrap` applies sandbox correctly
 - Session integration with XPC config
 
 ### Smoke Tests
 
 ```bash
 # Basic wrapper test
-AGENTSH_SANDBOX_CONFIG='{"mach_services":{"default_action":"allow"}}' \
-    agentsh-macwrap -- echo "macwrap-ok"
+AGENTMON_SANDBOX_CONFIG='{"mach_services":{"default_action":"allow"}}' \
+    agentmon-macwrap -- echo "macwrap-ok"
 
 # Restrictive mode - verify violations logged
 restrictive_cfg='{"mach_services":{"default_action":"deny","allow":["com.apple.system.logger"]}}'
-AGENTSH_SANDBOX_CONFIG="$restrictive_cfg" agentsh-macwrap -- ls /
+AGENTMON_SANDBOX_CONFIG="$restrictive_cfg" agentmon-macwrap -- ls /
 log show --last 5s --predicate 'subsystem == "com.apple.sandbox"' | grep deny
 ```
 
@@ -477,7 +477,7 @@ log show --last 5s --predicate 'subsystem == "com.apple.sandbox"' | grep deny
 
 ```
 cmd/
-└── agentsh-macwrap/
+└── agentmon-macwrap/
     ├── main.go           # Entry point, sandbox application
     ├── config.go         # JSON config parsing
     ├── config_test.go
@@ -507,7 +507,7 @@ internal/
 - Add `xpc_darwin.go` and `xpc_other.go` for default lists
 
 ### Phase 2: Wrapper Binary
-- Create `cmd/agentsh-macwrap/` with cgo sandbox integration
+- Create `cmd/agentmon-macwrap/` with cgo sandbox integration
 - Implement profile generation with mach-lookup rules
 - Unit tests for profile generation
 

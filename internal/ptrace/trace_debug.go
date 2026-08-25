@@ -34,7 +34,7 @@ import (
 //     truth, independent of where the stop was lost — it fires even though the
 //     stop never reached handleStop.
 //
-// Enabled only via AGENTSH_PTRACE_TRACE. When off, every hook is one relaxed
+// Enabled only via AGENTMON_PTRACE_TRACE. When off, every hook is one relaxed
 // atomic load and returns.
 
 var (
@@ -113,7 +113,7 @@ const traceRingSize = 65536
 // (idle tick). The atomic on the index is solely so a future off-goroutine reader
 // could snapshot it safely.
 //
-// ASSUMPTION: a single Tracer.Run() per process. agentsh runs exactly one ptrace
+// ASSUMPTION: a single Tracer.Run() per process. agentmon runs exactly one ptrace
 // tracer (a.ptraceTracer), so this holds. The ring is package-global (rather than
 // per-Tracer) only to keep the trace hooks call-site-light; if a second concurrent
 // Tracer.Run() is ever introduced, move this state onto Tracer to avoid a race.
@@ -122,9 +122,9 @@ var (
 	traceRingIdx atomic.Uint64
 )
 
-// initPtraceTrace enables the diagnostic when AGENTSH_PTRACE_TRACE is truthy.
+// initPtraceTrace enables the diagnostic when AGENTMON_PTRACE_TRACE is truthy.
 func initPtraceTrace() {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("AGENTSH_PTRACE_TRACE"))) {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("AGENTMON_PTRACE_TRACE"))) {
 	case "1", "true", "yes", "on":
 		ptraceTraceEnabled.Store(true)
 		slog.Info("ptrace-trace: wait-layer + /proc diagnostic enabled (#369 #2)")

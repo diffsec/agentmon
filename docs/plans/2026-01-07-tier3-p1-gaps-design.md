@@ -31,7 +31,7 @@ Build on existing `internal/session/checkpoint.go` to add true filesystem rollba
 
 **Checkpoint storage layout:**
 ```
-/var/lib/agentsh/checkpoints/
+/var/lib/agentmon/checkpoints/
   <session-id>/
     <checkpoint-id>/
       metadata.json       # Checkpoint struct as JSON
@@ -66,7 +66,7 @@ Build on existing `internal/session/checkpoint.go` to add true filesystem rollba
 sessions:
   checkpoints:
     enabled: true
-    storage_dir: /var/lib/agentsh/checkpoints
+    storage_dir: /var/lib/agentmon/checkpoints
     max_per_session: 10
     max_size_mb: 500
     auto_checkpoint:
@@ -114,19 +114,19 @@ type FileDiff struct {
 
 ```bash
 # Create checkpoint manually
-agentsh checkpoint create --session <id> --reason "before refactor"
+agentmon checkpoint create --session <id> --reason "before refactor"
 
 # List checkpoints
-agentsh checkpoint list --session <id>
+agentmon checkpoint list --session <id>
 
 # Show checkpoint details and diff
-agentsh checkpoint show <checkpoint-id> --diff
+agentmon checkpoint show <checkpoint-id> --diff
 
 # Rollback to checkpoint
-agentsh checkpoint rollback <checkpoint-id> [--dry-run]
+agentmon checkpoint rollback <checkpoint-id> [--dry-run]
 
 # Purge old checkpoints
-agentsh checkpoint purge --older-than 24h
+agentmon checkpoint purge --older-than 24h
 ```
 
 ### 1.6 Auto-Checkpoint Integration
@@ -217,20 +217,20 @@ audit:
     key_source: aws_kms  # file, env, aws_kms, azure_keyvault, hashicorp_vault, gcp_kms
 
     # File source (existing)
-    key_file: /etc/agentsh/audit.key
-    key_env: AGENTSH_AUDIT_KEY
+    key_file: /etc/agentmon/audit.key
+    key_env: AGENTMON_AUDIT_KEY
 
     # AWS KMS
     aws_kms:
       key_id: "arn:aws:kms:us-east-1:123456789:key/abc-123"
       region: us-east-1
       # Uses default credential chain (env, shared config, IAM role)
-      encrypted_dek_file: /etc/agentsh/audit-dek.enc  # Cached encrypted DEK
+      encrypted_dek_file: /etc/agentmon/audit-dek.enc  # Cached encrypted DEK
 
     # Azure Key Vault
     azure_keyvault:
       vault_url: "https://myvault.vault.azure.net"
-      key_name: "agentsh-audit-key"
+      key_name: "agentmon-audit-key"
       key_version: ""  # Empty = latest
       # Uses DefaultAzureCredential
 
@@ -239,14 +239,14 @@ audit:
       address: "https://vault.example.com:8200"
       auth_method: kubernetes  # token, kubernetes, approle
       token_file: /var/run/secrets/vault/token
-      kubernetes_role: agentsh
-      secret_path: "secret/data/agentsh/audit-key"
+      kubernetes_role: agentmon
+      secret_path: "secret/data/agentmon/audit-key"
       key_field: "hmac_key"
 
     # GCP Cloud KMS
     gcp_kms:
-      key_name: "projects/my-proj/locations/us/keyRings/agentsh/cryptoKeys/audit"
-      encrypted_dek_file: /etc/agentsh/audit-dek.enc
+      key_name: "projects/my-proj/locations/us/keyRings/agentmon/cryptoKeys/audit"
+      encrypted_dek_file: /etc/agentmon/audit-dek.enc
 ```
 
 ### 2.4 KMS Provider Interface
@@ -481,12 +481,12 @@ audit:
       protocol: tcp+tls  # udp, tcp, tcp+tls
       address: "syslog.example.com:6514"
       facility: local0   # kern, user, mail, daemon, auth, syslog, lpr, news, uucp, cron, local0-7
-      app_name: agentsh
+      app_name: agentmon
       hostname: ""       # Empty = auto-detect
       tls:
-        cert_file: /etc/agentsh/syslog-client.crt
-        key_file: /etc/agentsh/syslog-client.key
-        ca_file: /etc/agentsh/syslog-ca.crt
+        cert_file: /etc/agentmon/syslog-client.crt
+        key_file: /etc/agentmon/syslog-client.key
+        ca_file: /etc/agentmon/syslog-ca.crt
         insecure_skip_verify: false
       structured_data:
         enterprise_id: "12345"  # Your IANA enterprise number
@@ -496,9 +496,9 @@ audit:
       enabled: true
       url: "https://splunk.example.com:8088/services/collector/event"
       token: "${SPLUNK_HEC_TOKEN}"
-      index: "agentsh"
-      source: "agentsh"
-      sourcetype: "agentsh:audit"
+      index: "agentmon"
+      source: "agentmon"
+      sourcetype: "agentmon:audit"
       batch_size: 50
       flush_interval: 5s
       timeout: 10s
@@ -518,8 +518,8 @@ audit:
         key_file: ""
         ca_file: ""
       resource_attributes:
-        service.name: agentsh
-        service.version: "${AGENTSH_VERSION}"
+        service.name: agentmon
+        service.version: "${AGENTMON_VERSION}"
         deployment.environment: production
 ```
 
@@ -532,7 +532,7 @@ package shipper
 
 import (
     "context"
-    "github.com/agentsh/agentsh/pkg/types"
+    "github.com/diffsec/agentmon/pkg/types"
 )
 
 // Shipper sends audit events to external systems.
@@ -584,7 +584,7 @@ import (
     "net"
     "time"
 
-    "github.com/agentsh/agentsh/pkg/types"
+    "github.com/diffsec/agentmon/pkg/types"
 )
 
 type SyslogShipper struct {
@@ -618,7 +618,7 @@ func (s *SyslogShipper) formatRFC5424(ev types.Event) string {
     pri := s.facility*8 + severity
 
     // Structured data with event details
-    sd := fmt.Sprintf(`[agentsh@%s session_id="%s" event_type="%s"]`,
+    sd := fmt.Sprintf(`[agentmon@%s session_id="%s" event_type="%s"]`,
         s.entID, ev.SessionID, ev.Type)
 
     // JSON payload as message
@@ -647,7 +647,7 @@ import (
     "encoding/json"
     "net/http"
 
-    "github.com/agentsh/agentsh/pkg/types"
+    "github.com/diffsec/agentmon/pkg/types"
 )
 
 type SplunkHECShipper struct {
@@ -736,7 +736,7 @@ import (
     sdklog "go.opentelemetry.io/otel/sdk/log"
     "go.opentelemetry.io/otel/sdk/resource"
 
-    "github.com/agentsh/agentsh/pkg/types"
+    "github.com/diffsec/agentmon/pkg/types"
 )
 
 type OTLPShipper struct {
@@ -771,7 +771,7 @@ func NewOTLPShipper(endpoint string, headers map[string]string, resourceAttrs ma
     return &OTLPShipper{
         exporter: exporter,
         provider: provider,
-        logger:   provider.Logger("agentsh.audit"),
+        logger:   provider.Logger("agentmon.audit"),
     }, nil
 }
 
@@ -852,19 +852,19 @@ require (
 
 ```bash
 # Checkpoints
-agentsh checkpoint create --session <id> --reason "before deploy"
-agentsh checkpoint list --session <id>
-agentsh checkpoint show <cp-id> --diff
-agentsh checkpoint rollback <cp-id> [--dry-run]
-agentsh checkpoint purge --older-than 24h
+agentmon checkpoint create --session <id> --reason "before deploy"
+agentmon checkpoint list --session <id>
+agentmon checkpoint show <cp-id> --diff
+agentmon checkpoint rollback <cp-id> [--dry-run]
+agentmon checkpoint purge --older-than 24h
 
 # KMS (diagnostic)
-agentsh audit key-source   # Show current key source
-agentsh audit test-kms     # Test KMS connectivity
+agentmon audit key-source   # Show current key source
+agentmon audit test-kms     # Test KMS connectivity
 
 # SIEM (diagnostic)
-agentsh audit shipper status           # Show shipper health
-agentsh audit shipper test --shipper syslog  # Test specific shipper
+agentmon audit shipper status           # Show shipper health
+agentmon audit shipper test --shipper syslog  # Test specific shipper
 ```
 
 ---

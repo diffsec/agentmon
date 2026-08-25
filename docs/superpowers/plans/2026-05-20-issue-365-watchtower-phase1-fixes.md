@@ -15,7 +15,7 @@
 ### Task 1: Add `AppActivityCgroupMode` constant
 
 **Files:**
-- Modify: `internal/ocsf/activity.go` (add one const in the agentsh-internal Application Activity block)
+- Modify: `internal/ocsf/activity.go` (add one const in the agentmon-internal Application Activity block)
 
 - [ ] **Step 1: Locate the existing cgroup activity constants**
 
@@ -65,7 +65,7 @@ git add internal/ocsf/activity.go
 git commit -m "$(cat <<'EOF'
 ocsf: add AppActivityCgroupMode activity id (151) for cgroup_mode
 
-Slot in the agentsh-internal Application Activity range. Registration
+Slot in the agentmon-internal Application Activity range. Registration
 of the cgroup_mode event type follows in a subsequent commit.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
@@ -96,7 +96,7 @@ Open `internal/ocsf/mapper_test.go`. Find the `goldenSampleEvents` function (ret
 			Fields: map[string]any{
 				"mode":         "user_namespace",
 				"reason":       "no_root_cgroup_writable",
-				"own_cgroup":   "/user.slice/user-1000.slice/agentsh",
+				"own_cgroup":   "/user.slice/user-1000.slice/agentmon",
 				"slice_dir":    "/user.slice/user-1000.slice",
 				"io_available": true,
 				"leaf_moved":   false,
@@ -192,7 +192,7 @@ Verify the file exists and contents look right:
 cat internal/ocsf/testdata/golden/cgroup_mode.json
 ```
 
-Expected: a JSON document with `"class_uid": 6005`, `"activity_id": 151`, `"app_name": "agentsh"`, `"agent_internal": true`, and an `"enrichments"` object containing `"mode": "user_namespace"`, `"reason": "no_root_cgroup_writable"`, `"own_cgroup": "/user.slice/user-1000.slice/agentsh"`, `"slice_dir": "/user.slice/user-1000.slice"`, `"io_available": "true"`, `"leaf_moved": "false"` (note: bool fields appear as quoted strings — expected, per the `map[string]string` enrichment convention).
+Expected: a JSON document with `"class_uid": 6005`, `"activity_id": 151`, `"app_name": "agentmon"`, `"agent_internal": true`, and an `"enrichments"` object containing `"mode": "user_namespace"`, `"reason": "no_root_cgroup_writable"`, `"own_cgroup": "/user.slice/user-1000.slice/agentmon"`, `"slice_dir": "/user.slice/user-1000.slice"`, `"io_available": "true"`, `"leaf_moved": "false"` (note: bool fields appear as quoted strings — expected, per the `map[string]string` enrichment convention).
 
 - [ ] **Step 8: Run the full OCSF package tests**
 
@@ -361,8 +361,8 @@ func TestExhaustiveness_DetectsStringConversionForm(t *testing.T) {
 			name: "qualified events.EventX in composite literal",
 			src: `package x
 import (
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 var _ = types.Event{Type: string(events.EventCgroupMode)}
 `,
@@ -372,8 +372,8 @@ var _ = types.Event{Type: string(events.EventCgroupMode)}
 			name: "qualified events.EventX in ev.Type assignment",
 			src: `package x
 import (
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 func f(ev *types.Event) { ev.Type = string(events.EventCgroupMode) }
 `,
@@ -408,7 +408,7 @@ var _ = Event{Type: string(EventCgroupMode)}
 // in `string(...)`) are NOT recorded by the conversion-form branch.
 func TestExhaustiveness_DoesNotOverDetect(t *testing.T) {
 	src := `package x
-import "github.com/agentsh/agentsh/internal/events"
+import "github.com/diffsec/agentmon/internal/events"
 var _ = events.EventCgroupMode
 `
 	consts := loadEventConstants(t, repoRoot(t))
@@ -676,11 +676,11 @@ audit:
     tls:
       insecure: true
     auth:
-      token_env: "AGENTSH_TEST_TOKEN"
+      token_env: "AGENTMON_TEST_TOKEN"
     chain:
       algorithm: hmac-sha256
       key_source: env
-      key_env: AGENTSH_TEST_CHAIN_KEY
+      key_env: AGENTMON_TEST_CHAIN_KEY
 `)
 	cfg, err := loadFromBytes(t, yaml)
 	if err != nil {
@@ -703,11 +703,11 @@ audit:
     tls:
       insecure: true
     auth:
-      token_env: "AGENTSH_TEST_TOKEN"
+      token_env: "AGENTMON_TEST_TOKEN"
     chain:
       algorithm: hmac-sha256
       key_source: env
-      key_env: AGENTSH_TEST_CHAIN_KEY
+      key_env: AGENTMON_TEST_CHAIN_KEY
 `)
 	cfg, err := loadFromBytes(t, yaml)
 	if err != nil {
@@ -760,7 +760,7 @@ Immediately after that line, insert:
 	//
 	// Mirrors SessionID: optional in YAML, resolved at store-construction
 	// time (NOT in applyDefaults — non-daemon CLI subcommands like
-	// `agentsh config show` must not trigger hostname lookup).
+	// `agentmon config show` must not trigger hostname lookup).
 	AgentID string `yaml:"agent_id"`
 ```
 
@@ -995,7 +995,7 @@ EOF
 - [ ] **Step 1: Full test pass**
 
 Run: `go test ./...`
-Expected: PASS for every package. Allow whatever pre-existing flaky tests are documented (e.g. `TestFlushLoop_PeriodicSync` on Windows — see `~/.claude/projects/-home-eran-work-agentsh/memory/project_flushloop_windows_flake.md`). The packages touched by this work — `internal/ocsf`, `internal/config`, `internal/server` — must all pass cleanly.
+Expected: PASS for every package. Allow whatever pre-existing flaky tests are documented (e.g. `TestFlushLoop_PeriodicSync` on Windows — see `~/.claude/projects/-home-eran-work-agentmon/memory/project_flushloop_windows_flake.md`). The packages touched by this work — `internal/ocsf`, `internal/config`, `internal/server` — must all pass cleanly.
 
 - [ ] **Step 2: Cross-compile**
 
@@ -1040,7 +1040,7 @@ The automated tests are the source of truth. This task is for an operator confir
 
 - [ ] **Step 1: Rebuild the daemon**
 
-Run: `go build -o bin/agentsh ./cmd/agentsh`
+Run: `go build -o bin/agentmon ./cmd/agentmon`
 Expected: clean build.
 
 - [ ] **Step 2: Update the demo config**
@@ -1054,16 +1054,16 @@ audit:
     endpoint: "localhost:9090"
     agent_id: "agent-edge-001"   # NEW
     tls: { insecure: true }
-    auth: { token_file: ~/.config/agentsh/wtp-token }
+    auth: { token_file: ~/.config/agentmon/wtp-token }
     chain:
       algorithm: hmac-sha256
       key_source: file
-      key_file: ~/.config/agentsh/wtp-chain.key
+      key_file: ~/.config/agentmon/wtp-chain.key
 ```
 
 - [ ] **Step 3: Start the daemon and verify logs**
 
-Run: `./bin/agentsh ...` (use whatever invocation the smoke test in issue #365 used).
+Run: `./bin/agentmon ...` (use whatever invocation the smoke test in issue #365 used).
 
 Expected: startup logs contain **zero** `wtp: dropping event before WAL append reason=mapper_failure err="...:\"cgroup_mode\""` lines. If the line is still present, the projector registration did not load — re-run `go test ./internal/ocsf/` to confirm registration.
 

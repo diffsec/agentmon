@@ -66,7 +66,7 @@ func TestNewRegistry_NoDependencies(t *testing.T) {
 
 func TestNewRegistry_LinearChain(t *testing.T) {
 	// vault depends on keyring via a token_ref
-	tokenRef := SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-token"}
+	tokenRef := SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-token"}
 	configs := map[string]ProviderConfig{
 		"vault-prod": testProviderConfig{
 			typeName: "vault",
@@ -547,10 +547,10 @@ func TestNewRegistry_ResolverRejectsUndeclaredDependency(t *testing.T) {
 }
 
 func TestNewRegistry_ResolverRejectsSameSchemeWrongRef(t *testing.T) {
-	// vault declares keyring://agentsh/vault-token but tries to resolve
-	// keyring://agentsh/other-secret — same scheme, different ref.
-	declaredRef := SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-token"}
-	wrongRef := SecretRef{Scheme: "keyring", Host: "agentsh", Path: "other-secret"}
+	// vault declares keyring://agentmon/vault-token but tries to resolve
+	// keyring://agentmon/other-secret — same scheme, different ref.
+	declaredRef := SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-token"}
+	wrongRef := SecretRef{Scheme: "keyring", Host: "agentmon", Path: "other-secret"}
 
 	configs := map[string]ProviderConfig{
 		"kr": testProviderConfig{typeName: "keyring"},

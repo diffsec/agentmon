@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/agentsh/agentsh/internal/db/catalog"
+	"github.com/diffsec/agentmon/internal/db/catalog"
 	"gopkg.in/yaml.v3"
 )
 

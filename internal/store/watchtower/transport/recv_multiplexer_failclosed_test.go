@@ -10,7 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
 	wtpv1 "github.com/canyonroad/wtp-protos/gen/go/canyonroad/wtp/v1"
 )
 

@@ -14,7 +14,7 @@ The current chain (wired in `2026-03-30-wire-hmac-integrity-chain-design.md` and
 
 This produces three concrete problems:
 
-1. **False positives in `agentsh audit verify`.** The verify CLI walks the file linearly and reports "chain broken" at every reset, even though the resets are not tampering.
+1. **False positives in `agentmon audit verify`.** The verify CLI walks the file linearly and reports "chain broken" at every reset, even though the resets are not tampering.
 2. **Real tamper-evidence weakness.** An attacker who deletes a whole process-segment from the file leaves a log that verifies cleanly segment-by-segment. The chain fails to detect deletion of a segment that aligns with a process boundary.
 3. **Latent silent-skip hole.** `internal/cli/audit.go:165-168` silently skips lines whose `entry_hash` is empty. An attacker who appends an unsigned line is invisible to verify in default mode.
 
@@ -29,7 +29,7 @@ These were settled during brainstorming (2026-04-11 session). They drive everyth
 | **Threat model** | Strong: chain unbroken across processes; deletions detectable | The user explicitly chose the strongest guarantee |
 | **Sidecar loss handling** | Auto-rotate with loud `integrity_chain_rotated{reason: sidecar_missing}` event | Refusing to start would lock dev users out; auto-rotate preserves operability while making the discontinuity conspicuous in the log |
 | **Chain unit** | Spans audit log file rotations (one logical chain per installation) | Strong threat model requires detecting whole-file deletion. Per-file chains can't do that. Spanning is also simpler — chain doesn't need to know files exist. |
-| **Backwards compatibility with v0.18.0 logs** | None. Refuse to start; operator runs `agentsh audit chain reset --legacy-archive` | Cleanest implementation; no legacy code in the verify hot path |
+| **Backwards compatibility with v0.18.0 logs** | None. Refuse to start; operator runs `agentmon audit chain reset --legacy-archive` | Cleanest implementation; no legacy code in the verify hot path |
 | **Sidecar mismatch on startup** | Refuse to start (NOT auto-rotate) | A sidecar/log mismatch is unambiguous tampering evidence, not benign disk loss |
 | **Default verify strict mode** | ON. Unsigned lines are errors. | Closes the latent silent-skip hole |
 
@@ -43,7 +43,7 @@ The HMAC integrity chain becomes a logical layer above storage that maintains co
 2. **Chain sidecar** (new) — a file at `<audit log path>.chain` holding `{format_version, sequence, prev_hash, key_fingerprint, updated_at}`. Atomically rewritten after each successful audit append. Acts as the external truth for chain state across process restarts.
 3. **Format version field** (new) — each integrity entry gets `format_version: 2` in its integrity envelope. Distinguishes new-format entries from legacy v0.18.0 entries during startup detection.
 4. **Startup detection logic** (new, in `IntegrityStore` constructor) — decides between resume / fresh-install / auto-rotate / refuse-to-start based on sidecar presence and last-line format version.
-5. **`agentsh audit chain reset`** (new CLI subcommand under a new `chain` group) — operator escape hatch for legacy archives, post-tamper recovery, and key rotation acknowledgment.
+5. **`agentmon audit chain reset`** (new CLI subcommand under a new `chain` group) — operator escape hatch for legacy archives, post-tamper recovery, and key rotation acknowledgment.
 6. **Verify CLI rewrite** (`internal/cli/audit.go:135-208`) — discovers all files in the rotation set, walks them oldest-first as one continuous stream, allows chain resets only at rotation events.
 7. **Strict mode in verify** (default ON) — rejects unsigned lines (closes the latent skip hole at `audit.go:165-168`).
 
@@ -55,7 +55,7 @@ Option A (chain spans rotations) means the `IntegrityStore` needs **zero awarene
 
 ### Chain sidecar file
 
-Path: `<audit log path>.chain` (e.g., `/var/lib/agentsh/audit.jsonl.chain`).
+Path: `<audit log path>.chain` (e.g., `/var/lib/agentmon/audit.jsonl.chain`).
 
 Permissions: `0o600` (matches the threat model — sidecar contents must not be world-readable because key fingerprint and chain state could aid an attacker who already has read access).
 
@@ -161,7 +161,7 @@ START
 │   │   │   │   │   │        → Tampering (whole rotation set deleted or
 │   │   │   │   │   │          truncated).
 │   │   │   │   │   │        → REFUSE TO START with clear error pointing
-│   │   │   │   │   │          at `agentsh audit chain reset`.
+│   │   │   │   │   │          at `agentmon audit chain reset`.
 │   │   │   │   │   │
 │   │   │   │   │   └─ YES: Compare sidecar to that last line:
 │   │   │   │   │            │
@@ -182,11 +182,11 @@ START
 │   │   │   │   │            └─ Anything else
 │   │   │   │   │               → Tampering. REFUSE TO START with clear
 │   │   │   │   │                 error pointing at
-│   │   │   │   │                 `agentsh audit chain reset`.
+│   │   │   │   │                 `agentmon audit chain reset`.
 │   │   │   │
 │   │   │   └─ MISMATCH: Sidecar was written with a different key.
 │   │   │       → REFUSE TO START with "key fingerprint mismatch" error
-│   │   │         pointing at `agentsh audit chain reset --reason-code key_rotated`
+│   │   │         pointing at `agentmon audit chain reset --reason-code key_rotated`
 │
 │   └─ NO (sidecar missing or unparseable):
 │       │
@@ -218,13 +218,13 @@ START
 │       │           └─ Last line has format_version < 2 OR no format_version field
 │       │               → Legacy v0.18.0 log detected.
 │       │               → REFUSE TO START with "legacy audit log detected" error
-│       │                 pointing at `agentsh audit chain reset --legacy-archive`
+│       │                 pointing at `agentmon audit chain reset --legacy-archive`
 END
 ```
 
 ### What "auto-rotate" means concretely
 
-Only one scenario fires it at startup: `sidecar_missing` (the audit log has new-format content but no sidecar exists alongside it, so we can't pick up where the previous chain left off). All other "something looks wrong" cases refuse to start instead, since under the strong threat model an unexplained discrepancy is treated as evidence of tampering. (Operators can also fire a rotation manually via `agentsh audit chain reset` — that path uses other reason codes like `key_rotated` or `manual_reset`.)
+Only one scenario fires it at startup: `sidecar_missing` (the audit log has new-format content but no sidecar exists alongside it, so we can't pick up where the previous chain left off). All other "something looks wrong" cases refuse to start instead, since under the strong threat model an unexplained discrepancy is treated as evidence of tampering. (Operators can also fire a rotation manually via `agentmon audit chain reset` — that path uses other reason codes like `key_rotated` or `manual_reset`.)
 
 The rotate flow:
 1. Construct a `prior_chain_summary` from whatever can be read (last-line hash if file non-empty, else null; current file size; etc.)
@@ -239,7 +239,7 @@ The rotate flow:
 The `IntegrityStore` constructor returns an error. The server startup path catches this and refuses to accept any sandbox sessions, printing a multi-line message to stderr. Example for sidecar/log mismatch:
 
 ```
-agentsh: refusing to start — audit chain integrity check failed
+agentmon: refusing to start — audit chain integrity check failed
 
 Reason: Last entry in audit.jsonl does not match sidecar
         (sidecar says sequence=18934, prev_hash=a1b2...,
@@ -249,12 +249,12 @@ This means either:
   - The audit log was tampered with (entries were modified or deleted), OR
   - The audit log was rolled back to an older state from a backup
 
-To investigate: examine /var/lib/agentsh/audit.jsonl
+To investigate: examine /var/lib/agentmon/audit.jsonl
 
 To recover (this preserves the existing log for forensic review):
-  agentsh audit chain reset --reason "<your explanation>"
+  agentmon audit chain reset --reason "<your explanation>"
 
-For more information: agentsh audit chain --help
+For more information: agentmon audit chain --help
 ```
 
 ## Write path
@@ -317,7 +317,7 @@ The "+1 recovery" rule has one constraint: the new line must HMAC-verify against
 
 ### Performance cost
 
-Sidecar update is 2 fsyncs per audit event (file + parent dir). On commodity SSDs that's ~100µs each, so ~200µs per event. Audit events are not high-frequency in agentsh (sandbox sessions emit events on file/network/exec activity, not in tight loops), so a 200µs overhead is acceptable.
+Sidecar update is 2 fsyncs per audit event (file + parent dir). On commodity SSDs that's ~100µs each, so ~200µs per event. Audit events are not high-frequency in agentmon (sandbox sessions emit events on file/network/exec activity, not in tight loops), so a 200µs overhead is acceptable.
 
 If a future hot path makes this matter, we can add an opt-in `audit.integrity.sidecar_sync: false` config that fsyncs only periodically, with the obvious tamper-evidence weakening at the recovery boundary. Not in v1.
 
@@ -327,7 +327,7 @@ This is the rewrite of `verifyIntegrityChain` at `internal/cli/audit.go:135-208`
 
 ### File discovery
 
-Given a path argument (e.g., `agentsh audit verify /var/lib/agentsh/audit.jsonl`):
+Given a path argument (e.g., `agentmon audit verify /var/lib/agentmon/audit.jsonl`):
 
 1. Discover rotation siblings: glob `<path>`, `<path>.1`, `<path>.2`, ..., `<path>.<N>` for any N that exists. Stop at the first missing N.
 2. Order them oldest-first by suffix number descending (`.3`, `.2`, `.1`, then the bare path).
@@ -412,12 +412,12 @@ The latent skip-unsigned hole at the current `audit.go:165-168` gets closed: sil
 
 ## Reset CLI command
 
-New subcommand under a new `agentsh audit chain` group.
+New subcommand under a new `agentmon audit chain` group.
 
 ### Subcommand structure
 
 ```
-agentsh audit chain reset --reason <text> [flags]
+agentmon audit chain reset --reason <text> [flags]
 
 Required:
   --reason <text>      Free-form text explaining why the reset is happening.
@@ -442,13 +442,13 @@ Optional:
 
 ### Default flow
 
-1. **Acquire exclusive lock** (flock) on the audit log file. If a server is running and holds the lock, refuse with "agentsh server is running; stop it before resetting the chain".
+1. **Acquire exclusive lock** (flock) on the audit log file. If a server is running and holds the lock, refuse with "agentmon server is running; stop it before resetting the chain".
 2. **Confirmation prompt** (skipped with `--force`):
    ```
    This will reset the audit integrity chain.
 
    Existing audit log:
-     /var/lib/agentsh/audit.jsonl  (87 MB, 18,934 entries)
+     /var/lib/agentmon/audit.jsonl  (87 MB, 18,934 entries)
 
    The existing log will be PRESERVED. A new integrity_chain_rotated event
    will be appended marking the boundary, and the chain will continue from
@@ -475,10 +475,10 @@ Used when upgrading from v0.18.0:
    start a fresh log. The renamed file will NOT be appended to.
 
    Existing audit log:
-     /var/lib/agentsh/audit.jsonl  (45 MB, 9,213 entries)
+     /var/lib/agentmon/audit.jsonl  (45 MB, 9,213 entries)
 
    Will be archived to:
-     /var/lib/agentsh/audit.jsonl.legacy.20260411T143218Z
+     /var/lib/agentmon/audit.jsonl.legacy.20260411T143218Z
 
    Reason given: "upgrading from v0.18.0"
 
@@ -494,8 +494,8 @@ Used when upgrading from v0.18.0:
 
 While we're adding the `chain` group, two read-only subcommands round it out:
 
-- `agentsh audit chain status` — read sidecar, print `{format_version, seq, prev_hash, key_fingerprint, updated_at}`. Read-only, no lock.
-- `agentsh audit chain verify` — alias for `agentsh audit verify` that defaults to walking the rotation set.
+- `agentmon audit chain status` — read sidecar, print `{format_version, seq, prev_hash, key_fingerprint, updated_at}`. Read-only, no lock.
+- `agentmon audit chain verify` — alias for `agentmon audit verify` that defaults to walking the rotation set.
 
 ### Out of scope
 
@@ -640,16 +640,16 @@ These directly test that the verifier catches the tampering patterns the threat 
 
 ### Reset CLI
 
-- `agentsh audit chain reset --reason "x"` on a clean log → appends rotation event, creates sidecar, exits 0
-- `agentsh audit chain reset` (no `--reason`) → exits non-zero with "reason required"
-- `agentsh audit chain reset --reason ""` → exits non-zero with "reason cannot be empty"
-- `agentsh audit chain reset --reason "x"` while server is running → exits non-zero with "stop server first"
-- `agentsh audit chain reset --reason "x"` with no existing log → creates fresh log with rotation event
-- `agentsh audit chain reset --reason "x"` with existing v2 log → preserves log, appends rotation event in place
-- `agentsh audit chain reset --reason "x" --legacy-archive` with existing log → renames log to `.legacy.<ts>`, starts fresh
-- `agentsh audit chain reset --reason "x" --legacy-archive --force` → skips prompt
-- `agentsh audit chain reset --reason "x"` interactive prompt → answering "n" leaves state unchanged
-- `agentsh audit chain reset --reason "x"` interactive prompt → answering "y" proceeds
+- `agentmon audit chain reset --reason "x"` on a clean log → appends rotation event, creates sidecar, exits 0
+- `agentmon audit chain reset` (no `--reason`) → exits non-zero with "reason required"
+- `agentmon audit chain reset --reason ""` → exits non-zero with "reason cannot be empty"
+- `agentmon audit chain reset --reason "x"` while server is running → exits non-zero with "stop server first"
+- `agentmon audit chain reset --reason "x"` with no existing log → creates fresh log with rotation event
+- `agentmon audit chain reset --reason "x"` with existing v2 log → preserves log, appends rotation event in place
+- `agentmon audit chain reset --reason "x" --legacy-archive` with existing log → renames log to `.legacy.<ts>`, starts fresh
+- `agentmon audit chain reset --reason "x" --legacy-archive --force` → skips prompt
+- `agentmon audit chain reset --reason "x"` interactive prompt → answering "n" leaves state unchanged
+- `agentmon audit chain reset --reason "x"` interactive prompt → answering "y" proceeds
 - After reset, `verify` runs against the new chain and succeeds
 - After reset, the rotation event captures the prior chain summary correctly
 
@@ -668,9 +668,9 @@ These directly test that the verifier catches the tampering patterns the threat 
 
 - Start server, write 100 events, kill server, restart server, verify all 200 events are continuous (no chain reset between server processes)
 - Start server, write event, kill -9 between line write and sidecar write (fault injection hook), restart, verify recovery applied and state is consistent
-- Run `agentsh audit chain reset` and verify the rotation event is present and the new chain starts at seq=0
+- Run `agentmon audit chain reset` and verify the rotation event is present and the new chain starts at seq=0
 - Start with a v0.18.0-format audit log, verify server refuses to start with the legacy error
-- Run `agentsh audit chain reset --legacy-archive` and verify the archive file exists and the new log starts cleanly
+- Run `agentmon audit chain reset --legacy-archive` and verify the archive file exists and the new log starts cleanly
 - Force a file rotation (write enough events to exceed `maxBytes`), verify the chain spans the rotation correctly and the verify CLI walks both files
 
 ### Performance regression
@@ -693,13 +693,13 @@ These directly test that the verifier catches the tampering patterns the threat 
 
 v0.18.0 → next-version transition:
 
-1. User upgrades the agentsh binary
-2. First `agentsh exec` (or any command that starts the server) attempts to construct the IntegrityStore
+1. User upgrades the agentmon binary
+2. First `agentmon exec` (or any command that starts the server) attempts to construct the IntegrityStore
 3. The startup decision tree finds the existing v0.18.0 audit log (no sidecar, last line is v1 format)
-4. Server refuses to start with the "legacy log detected" message and points at `agentsh audit chain reset --legacy-archive`
-5. User runs `agentsh audit chain reset --legacy-archive --reason "upgrading from v0.18.0"`
+4. Server refuses to start with the "legacy log detected" message and points at `agentmon audit chain reset --legacy-archive`
+5. User runs `agentmon audit chain reset --legacy-archive --reason "upgrading from v0.18.0"`
 6. Old log is renamed to `audit.jsonl.legacy.<ts>`; fresh log is created with a rotation event; sidecar is created
-7. User retries `agentsh exec`; server starts normally
+7. User retries `agentmon exec`; server starts normally
 
 The legacy archive file is preserved indefinitely. Operators who care about long-term audit history can verify it offline using a v0.18.0 binary kept around for that purpose. There's no migration utility — the data formats are too different to translate automatically without losing tamper-evidence semantics.
 
@@ -708,7 +708,7 @@ The legacy archive file is preserved indefinitely. Operators who care about long
 The following are deliberately deferred:
 
 - **Off-machine chain anchoring** (shipping hashes to an external service for true rollback resistance). The current design's tamper-evidence is bounded by what can be stored locally; rollback attacks on both files simultaneously are undetectable. Off-machine anchoring would close that gap but adds significant operational complexity.
-- **Automatic key rotation.** v1 expects key rotation to be a manual operator-initiated event acknowledged via `agentsh audit chain reset --reason-code key_rotated`. Automatic rotation tied to KMS key versioning is a future enhancement.
+- **Automatic key rotation.** v1 expects key rotation to be a manual operator-initiated event acknowledged via `agentmon audit chain reset --reason-code key_rotated`. Automatic rotation tied to KMS key versioning is a future enhancement.
 - **Multi-writer support.** The chain assumes a single writer at a time (enforced by the existing server flock). Two concurrent writers would race on the sidecar and produce inconsistent state. Multi-writer chains require a different model (e.g., distributed ordering).
 - **NFS / non-POSIX filesystems.** Documented as unsupported. Future enhancement if a real use case appears.
 - **Sidecar encryption.** The sidecar contains chain state but not the key itself; the key fingerprint is a one-way hash. Encryption would add complexity without a clear threat model justification.

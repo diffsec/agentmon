@@ -23,10 +23,10 @@ func TestDerivePolicyTarget(t *testing.T) {
 		{"backslash-separator windows-style sh path", `C:\bin\sh`, []string{"-c", "shutdown"}, "shutdown", []string{}, true},
 		{"mixed-separator bash path", `/usr/local\bash`, []string{"-c", "ls"}, "ls", []string{}, true},
 		{"uppercase shell basename (case-insensitive FS)", "/BIN/SH", []string{"-c", "ls"}, "ls", []string{}, true},
-		// --- shell-shim install layout: the agentsh shell shim installs
+		// --- shell-shim install layout: the agentmon shell shim installs
 		// the original shell under a `.real` suffix (/bin/sh.real) and
 		// takes over the original name. When the shim forwards to
-		// `agentsh exec`, the server sees the `.real` path as the outer
+		// `agentmon exec`, the server sees the `.real` path as the outer
 		// command. Without normalization, `sh.real` / `bash.real` miss
 		// the known-shell set and the policy falls through to the
 		// outer allow-rule (which must exist for the shim to function).

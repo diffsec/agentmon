@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // Redshift first-keyword fallback (spec §7.3, §7.7). libpg_query rejects

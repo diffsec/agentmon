@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Client interface for interacting with agentsh server.
+// Client interface for interacting with agentmon server.
 type Client interface {
 	// Session operations
 	ListSessions(ctx context.Context, opts ListSessionsOpts) ([]SessionInfo, error)
@@ -147,7 +147,7 @@ type Difference struct {
 	NewDecision string `json:"new_decision"`
 }
 
-// Status is the agentsh status.
+// Status is the agentmon status.
 type Status struct {
 	Version        string    `json:"version"`
 	Uptime         string    `json:"uptime"`
@@ -445,7 +445,7 @@ func (c *Commander) DebugSimulate(ctx context.Context, recordingPath, policyDir 
 	return nil
 }
 
-// StatusShow shows agentsh status.
+// StatusShow shows agentmon status.
 func (c *Commander) StatusShow(ctx context.Context) error {
 	status, err := c.client.GetStatus(ctx)
 	if err != nil {
@@ -461,7 +461,7 @@ func (c *Commander) StatusShow(ctx context.Context) error {
 		healthy = "✗"
 	}
 
-	fmt.Fprintf(c.output, "agentsh %s %s\n", status.Version, healthy)
+	fmt.Fprintf(c.output, "agentmon %s %s\n", status.Version, healthy)
 	fmt.Fprintf(c.output, "Uptime: %s\n", status.Uptime)
 	fmt.Fprintf(c.output, "Platform: %s\n", status.Platform)
 	fmt.Fprintf(c.output, "Active Sessions: %d\n", status.ActiveSessions)

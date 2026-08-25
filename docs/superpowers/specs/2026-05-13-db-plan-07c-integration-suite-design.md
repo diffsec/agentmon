@@ -3,7 +3,7 @@
 **Status:** Implemented.
 **Date:** 2026-05-13
 **Source roadmap:** `docs/superpowers/specs/2026-05-13-db-plan-07-split-unavoidability-design.md`
-**Source spec:** `docs/agentsh-db-access-spec.md` v0.8, sections 11-14 and 23.4.
+**Source spec:** `docs/agentmon-db-access-spec.md` v0.8, sections 11-14 and 23.4.
 
 ## Goal
 
@@ -23,9 +23,9 @@ real Postgres instead of fake upstream protocol scripts.
   `integration` build tag and existing GitHub Actions integration job.
 - Tests use `testcontainers-go` to start a real `postgres` container.
 - Tests use `github.com/jackc/pgx/v5` as the client driver.
-- Tests exercise the AgentSH Postgres proxy path, not only the classifier or a
+- Tests exercise the AgentMon Postgres proxy path, not only the classifier or a
   fake upstream harness.
-- Required tests fail loudly in CI if Docker, Postgres startup, AgentSH startup,
+- Required tests fail loudly in CI if Docker, Postgres startup, AgentMon startup,
   SQL execution, or event assertions fail.
 - Local developers can run the suite with the same command shape CI uses:
   `go test -v -tags=integration ./internal/integration/...`.
@@ -35,8 +35,8 @@ real Postgres instead of fake upstream protocol scripts.
 ## Architecture
 
 The 07c suite lives in `internal/integration` beside the existing Docker-backed
-AgentSH integration tests. It starts a real Postgres container, starts an
-AgentSH server container with a DB policy that declares that Postgres upstream,
+AgentMon integration tests. It starts a real Postgres container, starts an
+AgentMon server container with a DB policy that declares that Postgres upstream,
 creates a session, waits for the per-session DB proxy listener, then connects
 to that listener with `pgx`.
 
@@ -44,7 +44,7 @@ The tests should prefer the production API path where practical:
 
 1. Load a policy with `db_services`, `database_connection_rules`,
    `database_rules`, and `policies.db.unavoidability: enforce`.
-2. Create an AgentSH session through the API.
+2. Create an AgentMon session through the API.
 3. Let the API layer compile the DB unavoidability bundle and start the
    per-session Postgres proxy.
 4. Discover the session DB proxy socket from the session or a narrowly scoped
@@ -98,7 +98,7 @@ The third group proves the Plan 07 boundary:
 - Direct TCP connection attempts to the declared Postgres upstream are denied
   for the governed session and emit `db_bypass_attempt`.
 - Direct listener access from a process that does not resolve to the owning
-  AgentSH SessionID is rejected and emits `db_listener_auth_fail`.
+  AgentMon SessionID is rejected and emits `db_listener_auth_fail`.
 
 The bypass tests should use concrete runtime behavior where the current
 enforcement machinery can observe it. If a direct kernel-level TCP bypass cannot
@@ -114,8 +114,8 @@ The documentation update should make the status explicit:
 - Plan 07 is complete only after 07c passes in CI.
 - `policies.db.unavoidability: enforce` is the high-assurance recommendation
   for declared Phase 1 Postgres services.
-- The recommendation is scoped to processes inside the AgentSH-governed process
-  tree, for declared DB services, assuming the AgentSH supervisor and DB proxy
+- The recommendation is scoped to processes inside the AgentMon-governed process
+  tree, for declared DB services, assuming the AgentMon supervisor and DB proxy
   are not compromised.
 - Aurora Postgres, Redshift, CockroachDB, MySQL, and MariaDB do not become
   high-assurance automated claims in Phase 1.
@@ -132,7 +132,7 @@ Recommended helpers:
 - `writeDB07cPolicy(t, path, upstream)` writes a policy with one `appdb`
   service, explicit allow rules for permitted reads/session/transaction flows,
   and explicit deny rules for the tested mutations.
-- `startAgentSHDB07c(t, ctx, bin, configPath, policiesDir, workspace)` reuses
+- `startAgentMonDB07c(t, ctx, bin, configPath, policiesDir, workspace)` reuses
   the existing server-container pattern and enables the sandbox knobs needed for
   DB unavoidability.
 - `sessionDBProxySocket07c(t, cli, sess, serviceName)` finds the per-session DB
@@ -162,7 +162,7 @@ job adjustment needed and keep it local to the integration job.
 Timeouts should be explicit:
 
 - Postgres container startup: 60 seconds.
-- AgentSH server health: existing server-container health wait, currently 60
+- AgentMon server health: existing server-container health wait, currently 60
   seconds.
 - DB proxy listener readiness: 2 seconds after session creation, matching
   existing API-side listener wait behavior.
@@ -209,7 +209,7 @@ Out of scope:
 - New DB-specific policy evaluator.
 - Catalog-aware object resolution.
 - Aurora Postgres, Redshift, or CockroachDB automated CI gates.
-- Claims for processes outside the AgentSH-governed process tree.
+- Claims for processes outside the AgentMon-governed process tree.
 - Claims when the supervisor or DB proxy is compromised.
 
 ## Verification

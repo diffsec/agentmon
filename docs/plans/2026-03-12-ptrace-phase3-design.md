@@ -58,9 +58,9 @@ Wire three metrics into the existing `pkg/observability/PrometheusCollector`:
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
-| `agentsh_ptrace_tracees_active` | gauge | — | Current tracee count |
-| `agentsh_ptrace_attach_failures_total` | counter | `reason` | PTRACE_SEIZE failures (esrch, eperm, other) |
-| `agentsh_ptrace_timeouts_total` | counter | — | max_hold_ms timeout firings |
+| `agentmon_ptrace_tracees_active` | gauge | — | Current tracee count |
+| `agentmon_ptrace_attach_failures_total` | counter | `reason` | PTRACE_SEIZE failures (esrch, eperm, other) |
+| `agentmon_ptrace_timeouts_total` | counter | — | max_hold_ms timeout firings |
 
 ### Wiring
 
@@ -71,7 +71,7 @@ Wire three metrics into the existing `pkg/observability/PrometheusCollector`:
 
 ### What we don't add
 
-Per-syscall counters or latency histograms for ptrace specifically. The existing `agentsh_operations_total` and `agentsh_operation_latency_seconds` already capture decision outcomes from the handler layer — ptrace vs seccomp is transparent at that level.
+Per-syscall counters or latency histograms for ptrace specifically. The existing `agentmon_operations_total` and `agentmon_operation_latency_seconds` already capture decision outcomes from the handler layer — ptrace vs seccomp is transparent at that level.
 
 ---
 

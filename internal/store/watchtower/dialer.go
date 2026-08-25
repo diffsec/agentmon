@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 
 	wtpv1 "github.com/canyonroad/wtp-protos/gen/go/canyonroad/wtp/v1"
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"

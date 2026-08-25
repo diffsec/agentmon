@@ -29,7 +29,7 @@ Plan 5 uses a hard-coded test service configuration (no YAML parsing). YAML conf
 - SSE streaming substitution with chunk-boundary buffering
 - Cross-service-use detection (fake for service A in request to service B)
 - Named provider instances
-- `agentsh policy lint` rules for secrets
+- `agentmon policy lint` rules for secrets
 
 ## Section 1 — Fake Credential Generator
 
@@ -377,4 +377,4 @@ No new packages. All changes fit within existing package boundaries.
 ## Section 9 — Deferred to Later Plans
 
 - **Plan 6 (likely):** YAML config parsing for `providers:` and `services:` sections. Full `Service` interface with host-pattern matching. Service registry.
-- **Plan 7+:** AWS SigV4 plugin, GCP OAuth plugin. SSE streaming substitution. Cross-service-use detection. `agentsh policy lint` rules.
+- **Plan 7+:** AWS SigV4 plugin, GCP OAuth plugin. SSE streaming substitution. Cross-service-use detection. `agentmon policy lint` rules.

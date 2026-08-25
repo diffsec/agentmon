@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Add `agentsh policy generate <session-id>` command that generates restrictive policies from session activity.
+**Goal:** Add `agentmon policy generate <session-id>` command that generates restrictive policies from session activity.
 
 **Architecture:** New `internal/policygen` package with generator, grouping heuristics, and risky command detection. CLI command in `internal/cli/policy_cmd.go` follows existing `report` command pattern. Outputs YAML policy with provenance comments.
 
@@ -72,7 +72,7 @@ func containsHelper(s, substr string) bool {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
 Expected: FAIL - package does not exist
 
 **Step 3: Write minimal implementation**
@@ -187,13 +187,13 @@ type GeneratedPolicy struct {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feature-policy-generate
+cd /home/eran/work/agentmon/.worktrees/feature-policy-generate
 git add internal/policygen/
 git commit -m "feat(policygen): add types for policy generation"
 ```
@@ -269,7 +269,7 @@ func TestRiskyDetector_MarkDestructive(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
 Expected: FAIL - undefined functions
 
 **Step 3: Write minimal implementation**
@@ -391,13 +391,13 @@ func (d *RiskyDetector) Reason(cmd string) string {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feature-policy-generate
+cd /home/eran/work/agentmon/.worktrees/feature-policy-generate
 git add internal/policygen/risky.go internal/policygen/risky_test.go
 git commit -m "feat(policygen): add risky command detection"
 ```
@@ -506,7 +506,7 @@ func TestGroupDomains_NoCollapse(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
 Expected: FAIL - undefined functions
 
 **Step 3: Write minimal implementation**
@@ -699,13 +699,13 @@ func GroupCIDR(ips []string) []string {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feature-policy-generate
+cd /home/eran/work/agentmon/.worktrees/feature-policy-generate
 git add internal/policygen/grouping.go internal/policygen/grouping_test.go
 git commit -m "feat(policygen): add path and domain grouping heuristics"
 ```
@@ -729,7 +729,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type mockEventStore struct {
@@ -831,7 +831,7 @@ func TestGenerator_NetworkEvents(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
 Expected: FAIL - undefined functions
 
 **Step 3: Write minimal implementation**
@@ -847,8 +847,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/store"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Generator creates policies from session events.
@@ -1496,13 +1496,13 @@ func escapeRegex(s string) string {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feature-policy-generate
+cd /home/eran/work/agentmon/.worktrees/feature-policy-generate
 git add internal/policygen/generator.go internal/policygen/generator_test.go
 git commit -m "feat(policygen): add core policy generator"
 ```
@@ -1537,7 +1537,7 @@ func TestFormatYAML_Header(t *testing.T) {
 
 	yaml := FormatYAML(policy, "test-policy")
 
-	if !strings.Contains(yaml, "# Generated by: agentsh policy generate abc123") {
+	if !strings.Contains(yaml, "# Generated by: agentmon policy generate abc123") {
 		t.Error("missing generated-by header")
 	}
 	if !strings.Contains(yaml, "# Source session: abc123") {
@@ -1618,7 +1618,7 @@ func TestFormatYAML_BlockedComments(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
 Expected: FAIL - undefined FormatYAML
 
 **Step 3: Write minimal implementation**
@@ -1638,7 +1638,7 @@ func FormatYAML(policy *GeneratedPolicy, name string) string {
 	var b strings.Builder
 
 	// Header comments
-	b.WriteString(fmt.Sprintf("# Generated by: agentsh policy generate %s\n", policy.SessionID))
+	b.WriteString(fmt.Sprintf("# Generated by: agentmon policy generate %s\n", policy.SessionID))
 	b.WriteString(fmt.Sprintf("# Source session: %s\n", policy.SessionID))
 	b.WriteString(fmt.Sprintf("# Generated at: %s\n", policy.GeneratedAt.Format("2006-01-02T15:04:05Z")))
 	b.WriteString(fmt.Sprintf("# Session duration: %s\n", formatDuration(policy.Duration)))
@@ -1845,13 +1845,13 @@ func countUniquePaths(rules []FileRuleGen) int {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/feature-policy-generate && go test ./internal/policygen/... -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feature-policy-generate
+cd /home/eran/work/agentmon/.worktrees/feature-policy-generate
 git add internal/policygen/output.go internal/policygen/output_test.go
 git commit -m "feat(policygen): add YAML output formatter with provenance"
 ```
@@ -1877,7 +1877,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestPolicyGenerateCmd_RequiresSessionArg(t *testing.T) {
@@ -1923,7 +1923,7 @@ func TestPolicyGenerateCmd_OutputsYAML(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/feature-policy-generate && go test ./internal/cli/... -run TestPolicyGenerate -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/feature-policy-generate && go test ./internal/cli/... -run TestPolicyGenerate -v`
 Expected: FAIL - generate subcommand not found
 
 **Step 3: Add generate subcommand to policy_cmd.go**
@@ -1954,13 +1954,13 @@ would allow only the operations that were performed during that session.
 
 Examples:
   # Generate policy from latest session
-  agentsh policy generate latest --output=ci-policy.yaml
+  agentmon policy generate latest --output=ci-policy.yaml
 
   # Generate with custom name and threshold
-  agentsh policy generate abc123 --name=production-build --threshold=10
+  agentmon policy generate abc123 --name=production-build --threshold=10
 
   # Quick preview to stdout
-  agentsh policy generate latest`,
+  agentmon policy generate latest`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sessionArg := args[0]
@@ -1972,7 +1972,7 @@ Examples:
 
 			if genDirectDB {
 				if genDBPath == "" {
-					genDBPath = getenvDefault("AGENTSH_DB_PATH", "./data/events.db")
+					genDBPath = getenvDefault("AGENTMON_DB_PATH", "./data/events.db")
 				}
 				sess, events, err = loadReportFromDB(ctx, genDBPath, sessionArg)
 			} else {
@@ -2036,7 +2036,7 @@ Also add the import and helper function:
 // Add to imports at top of policy_cmd.go
 import (
 	// ... existing imports ...
-	"github.com/agentsh/agentsh/internal/policygen"
+	"github.com/diffsec/agentmon/internal/policygen"
 )
 
 // Add helper function
@@ -2050,13 +2050,13 @@ func truncateSessionID(id string) string {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/feature-policy-generate && go test ./internal/cli/... -run TestPolicyGenerate -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/feature-policy-generate && go test ./internal/cli/... -run TestPolicyGenerate -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feature-policy-generate
+cd /home/eran/work/agentmon/.worktrees/feature-policy-generate
 git add internal/cli/policy_cmd.go internal/cli/policy_generate_test.go
 git commit -m "feat(cli): add 'policy generate' command"
 ```
@@ -2080,7 +2080,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestIntegration_FullPolicyGeneration(t *testing.T) {
@@ -2215,13 +2215,13 @@ func deny(msg string) *types.PolicyInfo {
 
 **Step 2: Run test**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/feature-policy-generate && go test ./internal/policygen/... -run TestIntegration -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/feature-policy-generate && go test ./internal/policygen/... -run TestIntegration -v`
 Expected: PASS
 
 **Step 3: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feature-policy-generate
+cd /home/eran/work/agentmon/.worktrees/feature-policy-generate
 git add internal/policygen/integration_test.go
 git commit -m "test(policygen): add integration test for full policy generation"
 ```
@@ -2234,17 +2234,17 @@ git commit -m "test(policygen): add integration test for full policy generation"
 
 **Step 1: Run all tests**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/feature-policy-generate && go test ./... -v 2>&1 | tail -50`
+Run: `cd /home/eran/work/agentmon/.worktrees/feature-policy-generate && go test ./... -v 2>&1 | tail -50`
 Expected: All tests pass
 
 **Step 2: Build to verify compilation**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/feature-policy-generate && go build ./...`
+Run: `cd /home/eran/work/agentmon/.worktrees/feature-policy-generate && go build ./...`
 Expected: Success
 
 **Step 3: Verify CLI help**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/feature-policy-generate && go run ./cmd/agentsh policy generate --help`
+Run: `cd /home/eran/work/agentmon/.worktrees/feature-policy-generate && go run ./cmd/agentmon policy generate --help`
 Expected: Shows help with flags
 
 ---
@@ -2261,7 +2261,7 @@ Change `Status: Approved` to `Status: Implemented`
 **Step 2: Final commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feature-policy-generate
+cd /home/eran/work/agentmon/.worktrees/feature-policy-generate
 git add docs/plans/2025-12-30-policy-generate-design.md
 git commit -m "docs: mark policy generate design as implemented"
 ```

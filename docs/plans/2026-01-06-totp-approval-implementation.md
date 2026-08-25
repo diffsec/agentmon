@@ -195,7 +195,7 @@ func FormatTOTPURI(sessionID, secret string) string {
 	if len(label) > 8 {
 		label = label[:8]
 	}
-	return fmt.Sprintf("otpauth://totp/agentsh:%s?secret=%s&issuer=agentsh", label, secret)
+	return fmt.Sprintf("otpauth://totp/agentmon:%s?secret=%s&issuer=agentmon", label, secret)
 }
 
 // DisplayTOTPSetup writes the TOTP setup screen (QR code + manual secret) to the writer.
@@ -298,13 +298,13 @@ func TestFormatTOTPURI(t *testing.T) {
 	uri := FormatTOTPURI("session-12345678-abcd", "JBSWY3DPEHPK3PXP")
 
 	// Should truncate session ID to 8 chars
-	if !strings.Contains(uri, "agentsh:session-") {
+	if !strings.Contains(uri, "agentmon:session-") {
 		t.Errorf("URI should contain truncated session ID, got: %s", uri)
 	}
 	if !strings.Contains(uri, "secret=JBSWY3DPEHPK3PXP") {
 		t.Errorf("URI should contain secret, got: %s", uri)
 	}
-	if !strings.Contains(uri, "issuer=agentsh") {
+	if !strings.Contains(uri, "issuer=agentmon") {
 		t.Errorf("URI should contain issuer, got: %s", uri)
 	}
 }
@@ -649,7 +649,7 @@ Run: `grep -n "func.*Get\|type.*Manager" internal/session/manager.go | head -20`
 
 **Step 3: Verify compilation**
 
-Run: `go build ./cmd/agentsh`
+Run: `go build ./cmd/agentmon`
 Expected: Success (or identify what method to use for session lookup)
 
 **Step 4: Commit**
@@ -691,7 +691,7 @@ This will be handled in CLI when receiving session response - see Task 11.
 
 **Step 4: Verify compilation**
 
-Run: `go build ./cmd/agentsh`
+Run: `go build ./cmd/agentmon`
 Expected: Success
 
 **Step 5: Commit**
@@ -758,7 +758,7 @@ Expected: All tests pass
 
 **Step 2: Run build**
 
-Run: `go build ./cmd/agentsh`
+Run: `go build ./cmd/agentmon`
 Expected: Success
 
 **Step 3: Verify TOTP mode can be configured**
@@ -774,7 +774,7 @@ approvals:
 EOF
 ```
 
-Run: `./bin/agentsh --config /tmp/test-totp-config.yaml server --help` (just to verify config loads)
+Run: `./bin/agentmon --config /tmp/test-totp-config.yaml server --help` (just to verify config loads)
 
 **Step 4: No commit needed (verification only)**
 

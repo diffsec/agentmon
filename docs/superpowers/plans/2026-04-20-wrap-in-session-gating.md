@@ -1,8 +1,8 @@
-# Wrap AGENTSH_IN_SESSION Gating Implementation Plan
+# Wrap AGENTMON_IN_SESSION Gating Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `agentsh wrap` inject `AGENTSH_IN_SESSION=1` only in strong interception modes, while preserving shim steering in fallback and no-`execve` modes.
+**Goal:** Make `agentmon wrap` inject `AGENTMON_IN_SESSION=1` only in strong interception modes, while preserving shim steering in fallback and no-`execve` modes.
 
 **Architecture:** Add an explicit `SafeToBypassShellShim` capability bit to `types.WrapInitResponse`, compute it on the server from the actual wrap mode, and have the CLI use that bit exclusively when assembling child environments. Centralize wrap env construction in one helper so the direct-launch fallback and platform-specific wrap paths all share the same gating logic.
 
@@ -28,7 +28,7 @@
   - Add regression tests for ptrace and Linux seccomp `execve` on/off cases.
 
 - `internal/cli/wrap.go`
-  - Add a shared helper that assembles the wrap child environment, including the conditional `AGENTSH_IN_SESSION` injection.
+  - Add a shared helper that assembles the wrap child environment, including the conditional `AGENTMON_IN_SESSION` injection.
   - Route the direct-launch fallback through that helper with `bypassShellShim=false`.
 
 - `internal/cli/wrap_linux.go`
@@ -44,7 +44,7 @@
   - Add unit tests for the shared env helper.
   - Extend launch-config tests to assert marker presence/absence from the response bit.
 
-- `internal/integration/agentsh_wrap_test.go`
+- `internal/integration/agentmon_wrap_test.go`
   - Add a fallback integration regression test that proves the marker is absent.
   - Add a strong-interception integration regression test that proves the marker is present.
 
@@ -230,7 +230,7 @@ go test ./internal/api -run 'TestWrapInit_SafeToBypassShellShim_|TestWrapInit_Se
 Expected:
 
 ```text
-ok  	github.com/agentsh/agentsh/internal/api
+ok  	github.com/diffsec/agentmon/internal/api
 ```
 
 - [ ] **Step 5: Commit the server-side capability signal**
@@ -248,7 +248,7 @@ git commit -m "feat(wrap): expose shell-shim bypass capability in wrap-init"
 - Modify: `internal/cli/wrap_darwin.go`
 - Modify: `internal/cli/wrap_windows.go`
 - Test: `internal/cli/wrap_test.go`
-- Test: `internal/integration/agentsh_wrap_test.go`
+- Test: `internal/integration/agentmon_wrap_test.go`
 
 - [ ] **Step 1: Write the failing CLI unit tests**
 
@@ -262,16 +262,16 @@ func TestBuildWrapEnv_IncludesInSessionWhenBypassEnabled(t *testing.T) {
 		envMap[e] = true
 	}
 
-	assert.True(t, envMap["AGENTSH_SESSION_ID=sess-123"])
-	assert.True(t, envMap["AGENTSH_SERVER=http://127.0.0.1:18080"])
-	assert.True(t, envMap["AGENTSH_IN_SESSION=1"])
+	assert.True(t, envMap["AGENTMON_SESSION_ID=sess-123"])
+	assert.True(t, envMap["AGENTMON_SERVER=http://127.0.0.1:18080"])
+	assert.True(t, envMap["AGENTMON_IN_SESSION=1"])
 }
 
 func TestBuildWrapEnv_OmitsInSessionWhenBypassDisabled(t *testing.T) {
 	env := buildWrapEnv([]string{"PATH=/usr/bin"}, "sess-123", "http://127.0.0.1:18080", false)
 	for _, e := range env {
-		if e == "AGENTSH_IN_SESSION=1" {
-			t.Fatal("did not expect AGENTSH_IN_SESSION when bypass is disabled")
+		if e == "AGENTMON_IN_SESSION=1" {
+			t.Fatal("did not expect AGENTMON_IN_SESSION when bypass is disabled")
 		}
 	}
 }
@@ -284,10 +284,10 @@ func TestWrapLaunchConfig_EnvIncludesInSessionWhenSafe(t *testing.T) {
 	mc := &mockWrapClient{
 		wrapInitResp: types.WrapInitResponse{
 			WrapperBinary:         "/bin/true",
-			NotifySocket:          "/tmp/agentsh-notify-test.sock",
+			NotifySocket:          "/tmp/agentmon-notify-test.sock",
 			SafeToBypassShellShim: true,
 			WrapperEnv: map[string]string{
-				"AGENTSH_SECCOMP_CONFIG": `{"unix_socket_enabled":true}`,
+				"AGENTMON_SECCOMP_CONFIG": `{"unix_socket_enabled":true}`,
 			},
 		},
 	}
@@ -300,7 +300,7 @@ func TestWrapLaunchConfig_EnvIncludesInSessionWhenSafe(t *testing.T) {
 	for _, e := range lcfg.env {
 		envMap[e] = true
 	}
-	assert.True(t, envMap["AGENTSH_IN_SESSION=1"])
+	assert.True(t, envMap["AGENTMON_IN_SESSION=1"])
 }
 
 func TestWrapLaunchConfig_EnvOmitsInSessionWhenUnsafe(t *testing.T) {
@@ -311,10 +311,10 @@ func TestWrapLaunchConfig_EnvOmitsInSessionWhenUnsafe(t *testing.T) {
 	mc := &mockWrapClient{
 		wrapInitResp: types.WrapInitResponse{
 			WrapperBinary:         "/bin/true",
-			NotifySocket:          "/tmp/agentsh-notify-test.sock",
+			NotifySocket:          "/tmp/agentmon-notify-test.sock",
 			SafeToBypassShellShim: false,
 			WrapperEnv: map[string]string{
-				"AGENTSH_SECCOMP_CONFIG": `{"unix_socket_enabled":true}`,
+				"AGENTMON_SECCOMP_CONFIG": `{"unix_socket_enabled":true}`,
 			},
 		},
 	}
@@ -324,8 +324,8 @@ func TestWrapLaunchConfig_EnvOmitsInSessionWhenUnsafe(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, e := range lcfg.env {
-		if e == "AGENTSH_IN_SESSION=1" {
-			t.Fatal("did not expect AGENTSH_IN_SESSION when wrap response marks bypass unsafe")
+		if e == "AGENTMON_IN_SESSION=1" {
+			t.Fatal("did not expect AGENTMON_IN_SESSION when wrap response marks bypass unsafe")
 		}
 	}
 }
@@ -349,7 +349,7 @@ FAIL
 
 - [ ] **Step 3: Write the failing integration regressions**
 
-Extend `internal/integration/agentsh_wrap_test.go` with a strong-mode config and two regression tests:
+Extend `internal/integration/agentmon_wrap_test.go` with a strong-mode config and two regression tests:
 
 ```go
 const wrapStrongTestConfigYAML = `
@@ -375,7 +375,7 @@ sandbox:
     enabled: false
   unix_sockets:
     enabled: true
-    wrapper_bin: "/usr/local/bin/agentsh-unixwrap"
+    wrapper_bin: "/usr/local/bin/agentmon-unixwrap"
   seccomp:
     unix_socket:
       enabled: true
@@ -394,7 +394,7 @@ health:
 
 func TestWrapFallback_OmitsInSessionMarker(t *testing.T) {
 	ctx := context.Background()
-	bin := buildAgentshBinary(t)
+	bin := buildAgentmonBinary(t)
 	temp := t.TempDir()
 
 	configPath := filepath.Join(temp, "config.yaml")
@@ -410,16 +410,16 @@ func TestWrapFallback_OmitsInSessionMarker(t *testing.T) {
 	req := testcontainers.ContainerRequest{
 		Image: "debian:bookworm-slim",
 		Cmd: []string{
-			"/usr/local/bin/agentsh", "wrap", "--",
-			"/bin/sh", "-c", `if [ -n "$AGENTSH_IN_SESSION" ]; then echo MARKER_SET; else echo MARKER_UNSET; fi`,
+			"/usr/local/bin/agentmon", "wrap", "--",
+			"/bin/sh", "-c", `if [ -n "$AGENTMON_IN_SESSION" ]; then echo MARKER_SET; else echo MARKER_UNSET; fi`,
 		},
 		Mounts: []testcontainers.ContainerMount{
-			testcontainers.BindMount(bin, "/usr/local/bin/agentsh"),
+			testcontainers.BindMount(bin, "/usr/local/bin/agentmon"),
 			testcontainers.BindMount(configPath, "/config.yaml"),
 			testcontainers.BindMount(policiesDir, "/policies"),
 			testcontainers.BindMount(workspace, "/workspace"),
 		},
-		Env: map[string]string{"AGENTSH_CONFIG": "/config.yaml"},
+		Env: map[string]string{"AGENTMON_CONFIG": "/config.yaml"},
 		HostConfigModifier: func(hc *container.HostConfig) {
 			hc.SecurityOpt = []string{"apparmor:unconfined", "seccomp:unconfined"}
 		},
@@ -451,7 +451,7 @@ func TestWrapFallback_OmitsInSessionMarker(t *testing.T) {
 
 func TestWrapStrongMode_SetsInSessionMarker(t *testing.T) {
 	ctx := context.Background()
-	agentshBin, unixwrapBin := buildSeccompBinaries(t)
+	agentmonBin, unixwrapBin := buildSeccompBinaries(t)
 	temp := t.TempDir()
 
 	configPath := filepath.Join(temp, "config.yaml")
@@ -467,17 +467,17 @@ func TestWrapStrongMode_SetsInSessionMarker(t *testing.T) {
 	req := testcontainers.ContainerRequest{
 		Image: "debian:bookworm-slim",
 		Cmd: []string{
-			"/usr/local/bin/agentsh", "wrap", "--",
-			"/bin/sh", "-c", `if [ -n "$AGENTSH_IN_SESSION" ]; then echo MARKER_SET; else echo MARKER_UNSET; fi`,
+			"/usr/local/bin/agentmon", "wrap", "--",
+			"/bin/sh", "-c", `if [ -n "$AGENTMON_IN_SESSION" ]; then echo MARKER_SET; else echo MARKER_UNSET; fi`,
 		},
 		Mounts: []testcontainers.ContainerMount{
-			testcontainers.BindMount(agentshBin, "/usr/local/bin/agentsh"),
-			testcontainers.BindMount(unixwrapBin, "/usr/local/bin/agentsh-unixwrap"),
+			testcontainers.BindMount(agentmonBin, "/usr/local/bin/agentmon"),
+			testcontainers.BindMount(unixwrapBin, "/usr/local/bin/agentmon-unixwrap"),
 			testcontainers.BindMount(configPath, "/config.yaml"),
 			testcontainers.BindMount(policiesDir, "/policies"),
 			testcontainers.BindMount(workspace, "/workspace"),
 		},
-		Env: map[string]string{"AGENTSH_CONFIG": "/config.yaml"},
+		Env: map[string]string{"AGENTMON_CONFIG": "/config.yaml"},
 		Privileged: true,
 		HostConfigModifier: func(hc *container.HostConfig) {
 			hc.SecurityOpt = []string{"apparmor:unconfined", "seccomp:unconfined"}
@@ -521,7 +521,7 @@ go test -tags integration ./internal/integration -run 'TestWrapFallback_OmitsInS
 Expected:
 
 ```text
-ok    github.com/agentsh/agentsh/internal/cli ...    # after Task 1, compile still fails here until helper is added
+ok    github.com/diffsec/agentmon/internal/cli ...    # after Task 1, compile still fails here until helper is added
 --- FAIL: TestWrapStrongMode_SetsInSessionMarker
 ... expected MARKER_SET ...
 ```
@@ -536,11 +536,11 @@ Add this helper to `internal/cli/wrap.go` below `setupWrapInterception`:
 func buildWrapEnv(base []string, sessionID string, serverAddr string, bypassShellShim bool) []string {
 	env := append([]string{}, base...)
 	env = append(env,
-		fmt.Sprintf("AGENTSH_SESSION_ID=%s", sessionID),
-		fmt.Sprintf("AGENTSH_SERVER=%s", serverAddr),
+		fmt.Sprintf("AGENTMON_SESSION_ID=%s", sessionID),
+		fmt.Sprintf("AGENTMON_SERVER=%s", serverAddr),
 	)
 	if bypassShellShim {
-		env = append(env, "AGENTSH_IN_SESSION=1")
+		env = append(env, "AGENTMON_IN_SESSION=1")
 	}
 	return env
 }
@@ -562,7 +562,7 @@ Update the Linux seccomp wrapper env in `internal/cli/wrap_linux.go`:
 
 ```go
 env := buildWrapEnv(os.Environ(), sessID, cfg.serverAddr, wrapResp.SafeToBypassShellShim)
-env = append(env, "AGENTSH_NOTIFY_SOCK_FD=3")
+env = append(env, "AGENTMON_NOTIFY_SOCK_FD=3")
 ```
 
 Update the macOS launch envs in `internal/cli/wrap_darwin.go`:
@@ -589,15 +589,15 @@ go test -tags integration ./internal/integration -run 'TestWrapFallback_OmitsInS
 Expected:
 
 ```text
-ok  	github.com/agentsh/agentsh/internal/cli
-ok  	github.com/agentsh/agentsh/internal/integration
+ok  	github.com/diffsec/agentmon/internal/cli
+ok  	github.com/diffsec/agentmon/internal/integration
 ```
 
 - [ ] **Step 7: Commit the CLI gating and integration coverage**
 
 ```bash
-git add internal/cli/wrap.go internal/cli/wrap_linux.go internal/cli/wrap_darwin.go internal/cli/wrap_windows.go internal/cli/wrap_test.go internal/integration/agentsh_wrap_test.go
-git commit -m "fix(wrap): gate AGENTSH_IN_SESSION on interception strength"
+git add internal/cli/wrap.go internal/cli/wrap_linux.go internal/cli/wrap_darwin.go internal/cli/wrap_windows.go internal/cli/wrap_test.go internal/integration/agentmon_wrap_test.go
+git commit -m "fix(wrap): gate AGENTMON_IN_SESSION on interception strength"
 ```
 
 ## Task 3: Update Docs And Run Final Verification
@@ -616,7 +616,7 @@ Nested shell behavior depends on the active wrap mode:
   nested `sh`/`bash` processes bypass the shell shim because descendant exec policy
   is already enforced by the wrap mechanism.
 - In fallback or no-`execve` modes, nested shells still rely on the shim for
-  command steering, so `AGENTSH_IN_SESSION` is intentionally not injected.
+  command steering, so `AGENTMON_IN_SESSION` is intentionally not injected.
 ```
 
 - [ ] **Step 2: Run the focused regression suite**
@@ -632,9 +632,9 @@ go test -tags integration ./internal/integration -run 'TestWrapAutoStart|TestWra
 Expected:
 
 ```text
-ok  	github.com/agentsh/agentsh/internal/api
-ok  	github.com/agentsh/agentsh/internal/cli
-ok  	github.com/agentsh/agentsh/internal/integration
+ok  	github.com/diffsec/agentmon/internal/api
+ok  	github.com/diffsec/agentmon/internal/cli
+ok  	github.com/diffsec/agentmon/internal/integration
 ```
 
 - [ ] **Step 3: Verify Windows compilation still works**

@@ -4,28 +4,28 @@
 
 ## Goal
 
-Provide a container-friendly way to force execution through `agentsh` even when a harness/LLM/tooling would otherwise invoke `/bin/bash` or `/bin/sh` directly, while preserving shell compatibility as closely as possible (arguments, `$0`/`argv[0]` identity, interactive job control).
+Provide a container-friendly way to force execution through `agentmon` even when a harness/LLM/tooling would otherwise invoke `/bin/bash` or `/bin/sh` directly, while preserving shell compatibility as closely as possible (arguments, `$0`/`argv[0]` identity, interactive job control).
 
 ## Problem
 
-In container scenarios, agents and harnesses frequently run commands via `/bin/sh -c ...` or `/bin/bash -lc ...`. If we only rely on “instructions” (AGENTS.md/CLAUDE.md) we risk the agent deciding to bypass `agentsh`. We want a system-level enforcement point that still behaves like the underlying shell.
+In container scenarios, agents and harnesses frequently run commands via `/bin/sh -c ...` or `/bin/bash -lc ...`. If we only rely on “instructions” (AGENTS.md/CLAUDE.md) we risk the agent deciding to bypass `agentmon`. We want a system-level enforcement point that still behaves like the underlying shell.
 
 Key constraints:
 - Must preserve the original shell binaries and forward all arguments unchanged.
 - Must support interactive terminals (PTY semantics: raw mode, window resize, signals, job control).
 - Must remain pipeable/redirection-friendly for non-interactive execution.
-- Must avoid recursion (shell inside agentsh calling `/bin/bash` again must not re-enter `agentsh`).
+- Must avoid recursion (shell inside agentmon calling `/bin/bash` again must not re-enter `agentmon`).
 - Must work across “any container runtime” (don’t assume Docker/Kubernetes IDs exist).
 
 ## High-level approach
 
-Install a tiny static shim binary at `/bin/bash` and `/bin/sh`. The shim delegates execution to the `agentsh` CLI (Option A) and uses a robust session-id resolution strategy so sessions persist without requiring a harness integration (while allowing a harness to override).
+Install a tiny static shim binary at `/bin/bash` and `/bin/sh`. The shim delegates execution to the `agentmon` CLI (Option A) and uses a robust session-id resolution strategy so sessions persist without requiring a harness integration (while allowing a harness to override).
 
-Interactive commands route through a new `agentsh exec --pty` mode, implemented as:
+Interactive commands route through a new `agentmon exec --pty` mode, implemented as:
 - gRPC bidirectional PTY streaming (generated protos; raw bytes).
 - HTTP WebSocket endpoint per session (binary frames for bytes; JSON control frames).
 
-Non-interactive commands continue to use existing `agentsh exec` behavior (separate stdout/stderr, normal piping semantics).
+Non-interactive commands continue to use existing `agentmon exec` behavior (separate stdout/stderr, normal piping semantics).
 
 ## Components
 
@@ -34,8 +34,8 @@ Non-interactive commands continue to use existing `agentsh exec` behavior (separ
 Responsibilities:
 - Preserve the commandline interface and forward `"$@"` unchanged.
 - Preserve invocation identity by propagating `argv0` (e.g. invoked as `sh`, `bash`, `-bash`, etc).
-- Avoid recursion by bypassing `agentsh` when running *inside* an agentsh session.
-- Resolve `agentsh` executable path via `AGENTSH_BIN` or `PATH`.
+- Avoid recursion by bypassing `agentmon` when running *inside* an agentmon session.
+- Resolve `agentmon` executable path via `AGENTMON_BIN` or `PATH`.
 - Resolve a stable `session_id` shared by `/bin/sh` and `/bin/bash`.
 - Decide interactive vs non-interactive based on TTY detection.
 
@@ -49,22 +49,22 @@ Invocation routing:
 - Otherwise default to `/bin/sh.real`
 
 Recursion guard:
-- If `AGENTSH_IN_SESSION=1` is present in the environment, the shim must directly `exec` the `.real` shell (no agentsh).
-- This requires the agentsh server to inject `AGENTSH_IN_SESSION=1` into every executed process environment.
+- If `AGENTMON_IN_SESSION=1` is present in the environment, the shim must directly `exec` the `.real` shell (no agentmon).
+- This requires the agentmon server to inject `AGENTMON_IN_SESSION=1` into every executed process environment.
 
 TTY behavior:
-- If stdin and stdout are TTYs: `agentsh exec --pty --argv0 "$0" <sid> -- <real> "$@"`
-- Else: `agentsh exec --argv0 "$0" <sid> -- <real> "$@"`
+- If stdin and stdout are TTYs: `agentmon exec --pty --argv0 "$0" <sid> -- <real> "$@"`
+- Else: `agentmon exec --argv0 "$0" <sid> -- <real> "$@"`
 
-### 2) `agentsh exec` enhancements (non-PTY)
+### 2) `agentmon exec` enhancements (non-PTY)
 
 Add support for explicitly setting `argv0`:
-- CLI: `agentsh exec --argv0 <string> SESSION_ID -- COMMAND [ARGS...]`
+- CLI: `agentmon exec --argv0 <string> SESSION_ID -- COMMAND [ARGS...]`
 - Server: when spawning the child, set `cmd.Args[0]` to the provided `argv0` while keeping `cmd.Path` as the real executable path.
 
 This improves compatibility by preserving `$0` and “invoked as sh”/login-shell semantics as much as possible.
 
-### 3) PTY exec (`agentsh exec --pty`) over gRPC and HTTP
+### 3) PTY exec (`agentmon exec --pty`) over gRPC and HTTP
 
 #### gRPC
 
@@ -88,10 +88,10 @@ Both transports share a single PTY engine implementation (spawn + wire + resize 
 ## Session ID resolution (shim)
 
 Priority:
-1) `AGENTSH_SESSION_ID` (best: harness sets it)
-2) `AGENTSH_SESSION_FILE` (harness-managed; shim reads a single-line id)
+1) `AGENTMON_SESSION_ID` (best: harness sets it)
+2) `AGENTMON_SESSION_FILE` (harness-managed; shim reads a single-line id)
 3) Shim-managed workspace-scoped file (runtime-agnostic):
-   - Pick first writable base dir: `/run/agentsh` → `/tmp/agentsh` → `<workspace>/.agentsh`
+   - Pick first writable base dir: `/run/agentmon` → `/tmp/agentmon` → `<workspace>/.agentmon`
    - Compute a workspace fingerprint (realpath(cwd) + stat(dev,inode), optionally mixed with hostname/cgroup if present)
    - Map fingerprint → `session-<token>` and persist it under a lock (`flock`) for stability across processes
 4) Final fallback: `session-default` (only if all file locations fail)

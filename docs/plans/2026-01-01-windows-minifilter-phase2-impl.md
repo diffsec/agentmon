@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Add process tracking to the Windows mini filter driver so it can identify which processes belong to agentsh sessions and automatically track child processes.
+**Goal:** Add process tracking to the Windows mini filter driver so it can identify which processes belong to agentmon sessions and automatically track child processes.
 
 **Architecture:** The driver maintains a hash table of session processes keyed by PID. When a session is registered from user-mode, the root process is added. The driver uses PsSetCreateProcessNotifyRoutineEx to detect child process creation/termination and automatically inherits the session token. This enables Phase 3 (filesystem) and Phase 4 (registry) to quickly check if a process needs policy enforcement.
 
@@ -13,48 +13,48 @@
 ## Prerequisites
 
 - Phase 1 complete (driver skeleton with filter port communication)
-- Working in worktree: `/home/eran/work/agentsh/.worktrees/feature-windows-minifilter`
+- Working in worktree: `/home/eran/work/agentmon/.worktrees/feature-windows-minifilter`
 
 ---
 
 ## Task 1: Add Session Registration Protocol Messages
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/inc/protocol.h`
+- Modify: `drivers/windows/agentmon-minifilter/inc/protocol.h`
 
 **Step 1: Add session registration structures to protocol.h**
 
-Add after the existing `AGENTSH_CONNECTION_CONTEXT` struct:
+Add after the existing `AGENTMON_CONNECTION_CONTEXT` struct:
 
 ```c
 // Session registration (user-mode -> driver)
-typedef struct _AGENTSH_SESSION_REGISTER {
-    AGENTSH_MESSAGE_HEADER Header;
+typedef struct _AGENTMON_SESSION_REGISTER {
+    AGENTMON_MESSAGE_HEADER Header;
     ULONG64 SessionToken;           // Unique session identifier
     ULONG RootProcessId;            // Initial session process PID
-    WCHAR WorkspacePath[AGENTSH_MAX_PATH]; // Session workspace root
-} AGENTSH_SESSION_REGISTER, *PAGENTSH_SESSION_REGISTER;
+    WCHAR WorkspacePath[AGENTMON_MAX_PATH]; // Session workspace root
+} AGENTMON_SESSION_REGISTER, *PAGENTMON_SESSION_REGISTER;
 
 // Session unregistration (user-mode -> driver)
-typedef struct _AGENTSH_SESSION_UNREGISTER {
-    AGENTSH_MESSAGE_HEADER Header;
+typedef struct _AGENTMON_SESSION_UNREGISTER {
+    AGENTMON_MESSAGE_HEADER Header;
     ULONG64 SessionToken;
-} AGENTSH_SESSION_UNREGISTER, *PAGENTSH_SESSION_UNREGISTER;
+} AGENTMON_SESSION_UNREGISTER, *PAGENTMON_SESSION_UNREGISTER;
 
 // Process event (driver -> user-mode, notification only)
-typedef struct _AGENTSH_PROCESS_EVENT {
-    AGENTSH_MESSAGE_HEADER Header;
+typedef struct _AGENTMON_PROCESS_EVENT {
+    AGENTMON_MESSAGE_HEADER Header;
     ULONG64 SessionToken;
     ULONG ProcessId;
     ULONG ParentProcessId;
     ULONG64 CreateTime;             // FILETIME
-} AGENTSH_PROCESS_EVENT, *PAGENTSH_PROCESS_EVENT;
+} AGENTMON_PROCESS_EVENT, *PAGENTMON_PROCESS_EVENT;
 ```
 
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/inc/protocol.h
+git add drivers/windows/agentmon-minifilter/inc/protocol.h
 git commit -m "feat(windows): add session registration protocol messages"
 ```
 
@@ -63,21 +63,21 @@ git commit -m "feat(windows): add session registration protocol messages"
 ## Task 2: Create Process Tracking Header
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/inc/process.h`
+- Create: `drivers/windows/agentmon-minifilter/inc/process.h`
 
 **Step 1: Write the process tracking header**
 
 ```c
 // process.h - Process tracking definitions
-#ifndef _AGENTSH_PROCESS_H_
-#define _AGENTSH_PROCESS_H_
+#ifndef _AGENTMON_PROCESS_H_
+#define _AGENTMON_PROCESS_H_
 
 #include <fltKernel.h>
 #include "protocol.h"
 
 // Pool tag for process tracking allocations
-#define AGENTSH_TAG_PROCESS 'rpGA'
-#define AGENTSH_TAG_SESSION 'ssGA'
+#define AGENTMON_TAG_PROCESS 'rpGA'
+#define AGENTMON_TAG_SESSION 'ssGA'
 
 // Hash table size (must be power of 2)
 #define PROCESS_TABLE_SIZE 256
@@ -117,19 +117,19 @@ typedef struct _SESSION_LIST {
 
 // Initialize process tracking (call from DriverEntry)
 NTSTATUS
-AgentshInitializeProcessTracking(
+AgentmonInitializeProcessTracking(
     VOID
     );
 
 // Shutdown process tracking (call from FilterUnload)
 VOID
-AgentshShutdownProcessTracking(
+AgentmonShutdownProcessTracking(
     VOID
     );
 
 // Register a session (from user-mode message)
 NTSTATUS
-AgentshRegisterSession(
+AgentmonRegisterSession(
     _In_ ULONG64 SessionToken,
     _In_ HANDLE RootProcessId,
     _In_opt_ PCWSTR WorkspacePath
@@ -137,26 +137,26 @@ AgentshRegisterSession(
 
 // Unregister a session (from user-mode message)
 NTSTATUS
-AgentshUnregisterSession(
+AgentmonUnregisterSession(
     _In_ ULONG64 SessionToken
     );
 
 // Check if a process belongs to a session
 BOOLEAN
-AgentshIsSessionProcess(
+AgentmonIsSessionProcess(
     _In_ HANDLE ProcessId,
     _Out_ PULONG64 SessionToken
     );
 
 // Get session info by token
 PSESSION_INFO
-AgentshGetSessionInfo(
+AgentmonGetSessionInfo(
     _In_ ULONG64 SessionToken
     );
 
 // Internal: Add process to tracking table
 NTSTATUS
-AgentshAddSessionProcess(
+AgentmonAddSessionProcess(
     _In_ HANDLE ProcessId,
     _In_ HANDLE ParentProcessId,
     _In_ ULONG64 SessionToken
@@ -164,18 +164,18 @@ AgentshAddSessionProcess(
 
 // Internal: Remove process from tracking table
 BOOLEAN
-AgentshRemoveSessionProcess(
+AgentmonRemoveSessionProcess(
     _In_ HANDLE ProcessId,
     _Out_opt_ PULONG64 SessionToken
     );
 
-#endif // _AGENTSH_PROCESS_H_
+#endif // _AGENTMON_PROCESS_H_
 ```
 
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/inc/process.h
+git add drivers/windows/agentmon-minifilter/inc/process.h
 git commit -m "feat(windows): add process tracking header definitions"
 ```
 
@@ -184,7 +184,7 @@ git commit -m "feat(windows): add process tracking header definitions"
 ## Task 3: Create Process Tracking Implementation
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/src/process.c`
+- Create: `drivers/windows/agentmon-minifilter/src/process.c`
 
 **Step 1: Write the process tracking implementation**
 
@@ -200,7 +200,7 @@ static BOOLEAN gProcessCallbackRegistered = FALSE;
 
 // Forward declaration
 VOID
-AgentshProcessNotifyCallback(
+AgentmonProcessNotifyCallback(
     _Inout_ PEPROCESS Process,
     _In_ HANDLE ProcessId,
     _Inout_opt_ PPS_CREATE_NOTIFY_INFO CreateInfo
@@ -215,7 +215,7 @@ HashProcessId(HANDLE ProcessId)
 
 // Initialize process tracking
 NTSTATUS
-AgentshInitializeProcessTracking(
+AgentmonInitializeProcessTracking(
     VOID
     )
 {
@@ -236,15 +236,15 @@ AgentshInitializeProcessTracking(
 
     // Register process notification callback
     status = PsSetCreateProcessNotifyRoutineEx(
-        AgentshProcessNotifyCallback,
+        AgentmonProcessNotifyCallback,
         FALSE   // Remove = FALSE (register)
         );
 
     if (NT_SUCCESS(status)) {
         gProcessCallbackRegistered = TRUE;
-        DbgPrint("AgentSH: Process tracking initialized\n");
+        DbgPrint("AgentMon: Process tracking initialized\n");
     } else {
-        DbgPrint("AgentSH: Failed to register process callback: 0x%08X\n", status);
+        DbgPrint("AgentMon: Failed to register process callback: 0x%08X\n", status);
     }
 
     return status;
@@ -252,7 +252,7 @@ AgentshInitializeProcessTracking(
 
 // Shutdown process tracking
 VOID
-AgentshShutdownProcessTracking(
+AgentmonShutdownProcessTracking(
     VOID
     )
 {
@@ -263,7 +263,7 @@ AgentshShutdownProcessTracking(
 
     // Unregister callback first
     if (gProcessCallbackRegistered) {
-        PsSetCreateProcessNotifyRoutineEx(AgentshProcessNotifyCallback, TRUE);
+        PsSetCreateProcessNotifyRoutineEx(AgentmonProcessNotifyCallback, TRUE);
         gProcessCallbackRegistered = FALSE;
     }
 
@@ -273,7 +273,7 @@ AgentshShutdownProcessTracking(
         while (!IsListEmpty(&gProcessTable.Buckets[i])) {
             entry = RemoveHeadList(&gProcessTable.Buckets[i]);
             proc = CONTAINING_RECORD(entry, SESSION_PROCESS, ListEntry);
-            ExFreePoolWithTag(proc, AGENTSH_TAG_PROCESS);
+            ExFreePoolWithTag(proc, AGENTMON_TAG_PROCESS);
         }
     }
     gProcessTable.TotalCount = 0;
@@ -285,19 +285,19 @@ AgentshShutdownProcessTracking(
         entry = RemoveHeadList(&gSessionList.Head);
         session = CONTAINING_RECORD(entry, SESSION_INFO, ListEntry);
         if (session->WorkspacePath.Buffer != NULL) {
-            ExFreePoolWithTag(session->WorkspacePath.Buffer, AGENTSH_TAG_SESSION);
+            ExFreePoolWithTag(session->WorkspacePath.Buffer, AGENTMON_TAG_SESSION);
         }
-        ExFreePoolWithTag(session, AGENTSH_TAG_SESSION);
+        ExFreePoolWithTag(session, AGENTMON_TAG_SESSION);
     }
     gSessionList.Count = 0;
     ExReleasePushLockExclusive(&gSessionList.Lock);
 
-    DbgPrint("AgentSH: Process tracking shutdown\n");
+    DbgPrint("AgentMon: Process tracking shutdown\n");
 }
 
 // Register a session
 NTSTATUS
-AgentshRegisterSession(
+AgentmonRegisterSession(
     _In_ ULONG64 SessionToken,
     _In_ HANDLE RootProcessId,
     _In_opt_ PCWSTR WorkspacePath
@@ -311,7 +311,7 @@ AgentshRegisterSession(
     session = ExAllocatePool2(
         POOL_FLAG_NON_PAGED,
         sizeof(SESSION_INFO),
-        AGENTSH_TAG_SESSION
+        AGENTMON_TAG_SESSION
         );
 
     if (session == NULL) {
@@ -329,7 +329,7 @@ AgentshRegisterSession(
         session->WorkspacePath.Buffer = ExAllocatePool2(
             POOL_FLAG_NON_PAGED,
             pathLen + sizeof(WCHAR),
-            AGENTSH_TAG_SESSION
+            AGENTMON_TAG_SESSION
             );
 
         if (session->WorkspacePath.Buffer != NULL) {
@@ -347,7 +347,7 @@ AgentshRegisterSession(
     ExReleasePushLockExclusive(&gSessionList.Lock);
 
     // Add root process to tracking
-    status = AgentshAddSessionProcess(RootProcessId, NULL, SessionToken);
+    status = AgentmonAddSessionProcess(RootProcessId, NULL, SessionToken);
     if (!NT_SUCCESS(status)) {
         // Remove session on failure
         ExAcquirePushLockExclusive(&gSessionList.Lock);
@@ -356,13 +356,13 @@ AgentshRegisterSession(
         ExReleasePushLockExclusive(&gSessionList.Lock);
 
         if (session->WorkspacePath.Buffer != NULL) {
-            ExFreePoolWithTag(session->WorkspacePath.Buffer, AGENTSH_TAG_SESSION);
+            ExFreePoolWithTag(session->WorkspacePath.Buffer, AGENTMON_TAG_SESSION);
         }
-        ExFreePoolWithTag(session, AGENTSH_TAG_SESSION);
+        ExFreePoolWithTag(session, AGENTMON_TAG_SESSION);
         return status;
     }
 
-    DbgPrint("AgentSH: Session registered (token=0x%llX, root=%u)\n",
+    DbgPrint("AgentMon: Session registered (token=0x%llX, root=%u)\n",
              SessionToken, HandleToULong(RootProcessId));
 
     return STATUS_SUCCESS;
@@ -370,7 +370,7 @@ AgentshRegisterSession(
 
 // Unregister a session
 NTSTATUS
-AgentshUnregisterSession(
+AgentmonUnregisterSession(
     _In_ ULONG64 SessionToken
     )
 {
@@ -410,7 +410,7 @@ AgentshUnregisterSession(
             if (proc->SessionToken == SessionToken) {
                 RemoveEntryList(&proc->ListEntry);
                 InterlockedDecrement(&gProcessTable.TotalCount);
-                ExFreePoolWithTag(proc, AGENTSH_TAG_PROCESS);
+                ExFreePoolWithTag(proc, AGENTMON_TAG_PROCESS);
             }
         }
     }
@@ -418,18 +418,18 @@ AgentshUnregisterSession(
 
     // Free session
     if (session->WorkspacePath.Buffer != NULL) {
-        ExFreePoolWithTag(session->WorkspacePath.Buffer, AGENTSH_TAG_SESSION);
+        ExFreePoolWithTag(session->WorkspacePath.Buffer, AGENTMON_TAG_SESSION);
     }
-    ExFreePoolWithTag(session, AGENTSH_TAG_SESSION);
+    ExFreePoolWithTag(session, AGENTMON_TAG_SESSION);
 
-    DbgPrint("AgentSH: Session unregistered (token=0x%llX)\n", SessionToken);
+    DbgPrint("AgentMon: Session unregistered (token=0x%llX)\n", SessionToken);
 
     return STATUS_SUCCESS;
 }
 
 // Check if a process belongs to a session
 BOOLEAN
-AgentshIsSessionProcess(
+AgentmonIsSessionProcess(
     _In_ HANDLE ProcessId,
     _Out_ PULONG64 SessionToken
     )
@@ -461,7 +461,7 @@ AgentshIsSessionProcess(
 
 // Get session info by token
 PSESSION_INFO
-AgentshGetSessionInfo(
+AgentmonGetSessionInfo(
     _In_ ULONG64 SessionToken
     )
 {
@@ -487,7 +487,7 @@ AgentshGetSessionInfo(
 
 // Add process to tracking table
 NTSTATUS
-AgentshAddSessionProcess(
+AgentmonAddSessionProcess(
     _In_ HANDLE ProcessId,
     _In_ HANDLE ParentProcessId,
     _In_ ULONG64 SessionToken
@@ -499,7 +499,7 @@ AgentshAddSessionProcess(
     proc = ExAllocatePool2(
         POOL_FLAG_NON_PAGED,
         sizeof(SESSION_PROCESS),
-        AGENTSH_TAG_PROCESS
+        AGENTMON_TAG_PROCESS
         );
 
     if (proc == NULL) {
@@ -520,7 +520,7 @@ AgentshAddSessionProcess(
 
     // Increment session process count
     {
-        PSESSION_INFO session = AgentshGetSessionInfo(SessionToken);
+        PSESSION_INFO session = AgentmonGetSessionInfo(SessionToken);
         if (session != NULL) {
             InterlockedIncrement(&session->ProcessCount);
         }
@@ -531,7 +531,7 @@ AgentshAddSessionProcess(
 
 // Remove process from tracking table
 BOOLEAN
-AgentshRemoveSessionProcess(
+AgentmonRemoveSessionProcess(
     _In_ HANDLE ProcessId,
     _Out_opt_ PULONG64 SessionToken
     )
@@ -553,7 +553,7 @@ AgentshRemoveSessionProcess(
             token = proc->SessionToken;
             RemoveEntryList(entry);
             InterlockedDecrement(&gProcessTable.TotalCount);
-            ExFreePoolWithTag(proc, AGENTSH_TAG_PROCESS);
+            ExFreePoolWithTag(proc, AGENTMON_TAG_PROCESS);
             found = TRUE;
             break;
         }
@@ -563,7 +563,7 @@ AgentshRemoveSessionProcess(
 
     if (found) {
         // Decrement session process count
-        PSESSION_INFO session = AgentshGetSessionInfo(token);
+        PSESSION_INFO session = AgentmonGetSessionInfo(token);
         if (session != NULL) {
             InterlockedDecrement(&session->ProcessCount);
         }
@@ -578,7 +578,7 @@ AgentshRemoveSessionProcess(
 
 // Process creation/termination callback
 VOID
-AgentshProcessNotifyCallback(
+AgentmonProcessNotifyCallback(
     _Inout_ PEPROCESS Process,
     _In_ HANDLE ProcessId,
     _Inout_opt_ PPS_CREATE_NOTIFY_INFO CreateInfo
@@ -590,16 +590,16 @@ AgentshProcessNotifyCallback(
 
     if (CreateInfo != NULL) {
         // Process creation - check if parent is tracked
-        if (AgentshIsSessionProcess(CreateInfo->ParentProcessId, &parentSession)) {
+        if (AgentmonIsSessionProcess(CreateInfo->ParentProcessId, &parentSession)) {
             // Add child to same session
-            NTSTATUS status = AgentshAddSessionProcess(
+            NTSTATUS status = AgentmonAddSessionProcess(
                 ProcessId,
                 CreateInfo->ParentProcessId,
                 parentSession
                 );
 
             if (NT_SUCCESS(status)) {
-                DbgPrint("AgentSH: Child process %u added to session 0x%llX (parent=%u)\n",
+                DbgPrint("AgentMon: Child process %u added to session 0x%llX (parent=%u)\n",
                          HandleToULong(ProcessId),
                          parentSession,
                          HandleToULong(CreateInfo->ParentProcessId));
@@ -608,8 +608,8 @@ AgentshProcessNotifyCallback(
     } else {
         // Process termination - remove if tracked
         ULONG64 sessionToken;
-        if (AgentshRemoveSessionProcess(ProcessId, &sessionToken)) {
-            DbgPrint("AgentSH: Process %u removed from session 0x%llX\n",
+        if (AgentmonRemoveSessionProcess(ProcessId, &sessionToken)) {
+            DbgPrint("AgentMon: Process %u removed from session 0x%llX\n",
                      HandleToULong(ProcessId), sessionToken);
         }
     }
@@ -619,7 +619,7 @@ AgentshProcessNotifyCallback(
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/src/process.c
+git add drivers/windows/agentmon-minifilter/src/process.c
 git commit -m "feat(windows): implement process tracking with hash table and callback"
 ```
 
@@ -628,8 +628,8 @@ git commit -m "feat(windows): implement process tracking with hash table and cal
 ## Task 4: Integrate Process Tracking into Driver
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/inc/driver.h`
-- Modify: `drivers/windows/agentsh-minifilter/src/driver.c`
+- Modify: `drivers/windows/agentmon-minifilter/inc/driver.h`
+- Modify: `drivers/windows/agentmon-minifilter/src/driver.c`
 
 **Step 1: Add process.h include to driver.h**
 
@@ -641,32 +641,32 @@ Add after the existing includes:
 
 **Step 2: Initialize process tracking in DriverEntry**
 
-In `driver.c`, after `AgentshInitializeCommunication` call, add:
+In `driver.c`, after `AgentmonInitializeCommunication` call, add:
 
 ```c
     // Initialize process tracking
-    status = AgentshInitializeProcessTracking();
+    status = AgentmonInitializeProcessTracking();
     if (!NT_SUCCESS(status)) {
-        AgentshShutdownCommunication();
-        FltUnregisterFilter(AgentshData.FilterHandle);
+        AgentmonShutdownCommunication();
+        FltUnregisterFilter(AgentmonData.FilterHandle);
         return status;
     }
 ```
 
 **Step 3: Shutdown process tracking in FilterUnload**
 
-In `AgentshFilterUnload`, before `AgentshShutdownCommunication`, add:
+In `AgentmonFilterUnload`, before `AgentmonShutdownCommunication`, add:
 
 ```c
     // Shutdown process tracking
-    AgentshShutdownProcessTracking();
+    AgentmonShutdownProcessTracking();
 ```
 
 **Step 4: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/inc/driver.h
-git add drivers/windows/agentsh-minifilter/src/driver.c
+git add drivers/windows/agentmon-minifilter/inc/driver.h
+git add drivers/windows/agentmon-minifilter/src/driver.c
 git commit -m "feat(windows): integrate process tracking into driver lifecycle"
 ```
 
@@ -675,28 +675,28 @@ git commit -m "feat(windows): integrate process tracking into driver lifecycle"
 ## Task 5: Handle Session Registration Messages
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/src/communication.c`
+- Modify: `drivers/windows/agentmon-minifilter/src/communication.c`
 
 **Step 1: Add handlers for session messages**
 
-In `AgentshMessageNotify`, update the switch statement:
+In `AgentmonMessageNotify`, update the switch statement:
 
 ```c
     switch (header->Type) {
         case MSG_PONG:
-            DbgPrint("AgentSH: Received PONG from client\n");
+            DbgPrint("AgentMon: Received PONG from client\n");
             break;
 
         case MSG_REGISTER_SESSION:
-            if (InputBufferLength >= sizeof(AGENTSH_SESSION_REGISTER)) {
-                PAGENTSH_SESSION_REGISTER reg = (PAGENTSH_SESSION_REGISTER)InputBuffer;
-                status = AgentshRegisterSession(
+            if (InputBufferLength >= sizeof(AGENTMON_SESSION_REGISTER)) {
+                PAGENTMON_SESSION_REGISTER reg = (PAGENTMON_SESSION_REGISTER)InputBuffer;
+                status = AgentmonRegisterSession(
                     reg->SessionToken,
                     ULongToHandle(reg->RootProcessId),
                     reg->WorkspacePath[0] != L'\0' ? reg->WorkspacePath : NULL
                     );
                 if (!NT_SUCCESS(status)) {
-                    DbgPrint("AgentSH: Session registration failed: 0x%08X\n", status);
+                    DbgPrint("AgentMon: Session registration failed: 0x%08X\n", status);
                 }
             } else {
                 status = STATUS_BUFFER_TOO_SMALL;
@@ -704,11 +704,11 @@ In `AgentshMessageNotify`, update the switch statement:
             break;
 
         case MSG_UNREGISTER_SESSION:
-            if (InputBufferLength >= sizeof(AGENTSH_SESSION_UNREGISTER)) {
-                PAGENTSH_SESSION_UNREGISTER unreg = (PAGENTSH_SESSION_UNREGISTER)InputBuffer;
-                status = AgentshUnregisterSession(unreg->SessionToken);
+            if (InputBufferLength >= sizeof(AGENTMON_SESSION_UNREGISTER)) {
+                PAGENTMON_SESSION_UNREGISTER unreg = (PAGENTMON_SESSION_UNREGISTER)InputBuffer;
+                status = AgentmonUnregisterSession(unreg->SessionToken);
                 if (!NT_SUCCESS(status)) {
-                    DbgPrint("AgentSH: Session unregistration failed: 0x%08X\n", status);
+                    DbgPrint("AgentMon: Session unregistration failed: 0x%08X\n", status);
                 }
             } else {
                 status = STATUS_BUFFER_TOO_SMALL;
@@ -716,7 +716,7 @@ In `AgentshMessageNotify`, update the switch statement:
             break;
 
         default:
-            DbgPrint("AgentSH: Unknown message type: %d\n", header->Type);
+            DbgPrint("AgentMon: Unknown message type: %d\n", header->Type);
             break;
     }
 
@@ -725,7 +725,7 @@ In `AgentshMessageNotify`, update the switch statement:
 
 **Step 2: Update function signature to return NTSTATUS**
 
-Change `AgentshMessageNotify` to return status for feedback (currently just returns `STATUS_SUCCESS`):
+Change `AgentmonMessageNotify` to return status for feedback (currently just returns `STATUS_SUCCESS`):
 
 ```c
 // At the end of the function, change:
@@ -739,7 +739,7 @@ And add `NTSTATUS status = STATUS_SUCCESS;` at the top of the function.
 **Step 3: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/src/communication.c
+git add drivers/windows/agentmon-minifilter/src/communication.c
 git commit -m "feat(windows): handle session registration messages in driver"
 ```
 
@@ -748,7 +748,7 @@ git commit -m "feat(windows): handle session registration messages in driver"
 ## Task 6: Update Visual Studio Project
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/agentsh.vcxproj`
+- Modify: `drivers/windows/agentmon-minifilter/agentmon.vcxproj`
 
 **Step 1: Add process.c and process.h to project**
 
@@ -767,7 +767,7 @@ In the `<ItemGroup>` containing `.h` files, add:
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/agentsh.vcxproj
+git add drivers/windows/agentmon-minifilter/agentmon.vcxproj
 git commit -m "build(windows): add process tracking files to VS project"
 ```
 
@@ -1095,7 +1095,7 @@ git commit -m "test(windows): add unit tests for session registration and proces
 **Step 1: Run all tests**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feature-windows-minifilter
+cd /home/eran/work/agentmon/.worktrees/feature-windows-minifilter
 go test ./... -v
 go build ./...
 ```
@@ -1105,8 +1105,8 @@ Expected: All tests pass, build succeeds
 **Step 2: Verify driver files are complete**
 
 ```bash
-ls -la drivers/windows/agentsh-minifilter/src/
-ls -la drivers/windows/agentsh-minifilter/inc/
+ls -la drivers/windows/agentmon-minifilter/src/
+ls -la drivers/windows/agentmon-minifilter/inc/
 ```
 
 Expected: process.c and process.h present

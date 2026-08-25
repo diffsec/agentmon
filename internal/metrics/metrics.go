@@ -141,46 +141,46 @@ type HandlerOptions struct {
 func (c *Collector) Handler(opts HandlerOptions) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-		fmt.Fprint(w, "# HELP agentsh_up Whether the agentsh server is running.\n")
-		fmt.Fprint(w, "# TYPE agentsh_up gauge\n")
-		fmt.Fprint(w, "agentsh_up 1\n")
+		fmt.Fprint(w, "# HELP agentmon_up Whether the agentmon server is running.\n")
+		fmt.Fprint(w, "# TYPE agentmon_up gauge\n")
+		fmt.Fprint(w, "agentmon_up 1\n")
 
-		fmt.Fprint(w, "# HELP agentsh_events_total Total number of events appended.\n")
-		fmt.Fprint(w, "# TYPE agentsh_events_total counter\n")
-		fmt.Fprintf(w, "agentsh_events_total %d\n", c.eventsTotal.Load())
+		fmt.Fprint(w, "# HELP agentmon_events_total Total number of events appended.\n")
+		fmt.Fprint(w, "# TYPE agentmon_events_total counter\n")
+		fmt.Fprintf(w, "agentmon_events_total %d\n", c.eventsTotal.Load())
 
-		fmt.Fprint(w, "# HELP agentsh_net_ebpf_dropped_events_total eBPF connect events dropped due to backpressure.\n")
-		fmt.Fprint(w, "# TYPE agentsh_net_ebpf_dropped_events_total counter\n")
-		fmt.Fprintf(w, "agentsh_net_ebpf_dropped_events_total %d\n", c.ebpfDropped.Load())
+		fmt.Fprint(w, "# HELP agentmon_net_ebpf_dropped_events_total eBPF connect events dropped due to backpressure.\n")
+		fmt.Fprint(w, "# TYPE agentmon_net_ebpf_dropped_events_total counter\n")
+		fmt.Fprintf(w, "agentmon_net_ebpf_dropped_events_total %d\n", c.ebpfDropped.Load())
 
-		fmt.Fprint(w, "# HELP agentsh_net_ebpf_attach_fail_total eBPF attach failures.\n")
-		fmt.Fprint(w, "# TYPE agentsh_net_ebpf_attach_fail_total counter\n")
-		fmt.Fprintf(w, "agentsh_net_ebpf_attach_fail_total %d\n", c.ebpfAttachFail.Load())
+		fmt.Fprint(w, "# HELP agentmon_net_ebpf_attach_fail_total eBPF attach failures.\n")
+		fmt.Fprint(w, "# TYPE agentmon_net_ebpf_attach_fail_total counter\n")
+		fmt.Fprintf(w, "agentmon_net_ebpf_attach_fail_total %d\n", c.ebpfAttachFail.Load())
 
-		fmt.Fprint(w, "# HELP agentsh_net_ebpf_unavailable_total Times eBPF was unavailable on host.\n")
-		fmt.Fprint(w, "# TYPE agentsh_net_ebpf_unavailable_total counter\n")
-		fmt.Fprintf(w, "agentsh_net_ebpf_unavailable_total %d\n", c.ebpfUnavailable.Load())
+		fmt.Fprint(w, "# HELP agentmon_net_ebpf_unavailable_total Times eBPF was unavailable on host.\n")
+		fmt.Fprint(w, "# TYPE agentmon_net_ebpf_unavailable_total counter\n")
+		fmt.Fprintf(w, "agentmon_net_ebpf_unavailable_total %d\n", c.ebpfUnavailable.Load())
 
 		types := snapshotKeys(&c.byType)
 		if len(types) > 0 {
-			fmt.Fprint(w, "# HELP agentsh_events_by_type_total Total events appended by type.\n")
-			fmt.Fprint(w, "# TYPE agentsh_events_by_type_total counter\n")
+			fmt.Fprint(w, "# HELP agentmon_events_by_type_total Total events appended by type.\n")
+			fmt.Fprint(w, "# TYPE agentmon_events_by_type_total counter\n")
 			for _, t := range types {
 				ptr, _ := c.byType.Load(t)
 				n := uint64(0)
 				if ptr != nil {
 					n = ptr.(*atomic.Uint64).Load()
 				}
-				fmt.Fprintf(w, "agentsh_events_by_type_total{type=%q} %d\n", escapeLabelValue(t), n)
+				fmt.Fprintf(w, "agentmon_events_by_type_total{type=%q} %d\n", escapeLabelValue(t), n)
 			}
 		}
 
 		c.emitWTPMetrics(w)
 
 		if opts.SessionCount != nil {
-			fmt.Fprint(w, "# HELP agentsh_sessions_active Active sessions.\n")
-			fmt.Fprint(w, "# TYPE agentsh_sessions_active gauge\n")
-			fmt.Fprintf(w, "agentsh_sessions_active %d\n", opts.SessionCount())
+			fmt.Fprint(w, "# HELP agentmon_sessions_active Active sessions.\n")
+			fmt.Fprint(w, "# TYPE agentmon_sessions_active gauge\n")
+			fmt.Fprintf(w, "agentmon_sessions_active %d\n", opts.SessionCount())
 		}
 	})
 }

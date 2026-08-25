@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/agentsh/agentsh/internal/capabilities"
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // DetectAndValidateSecurityMode detects security capabilities and selects the appropriate mode.

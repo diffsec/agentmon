@@ -12,13 +12,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/capabilities"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -570,7 +570,7 @@ func TestWrapInit_WrapperNotFound(t *testing.T) {
 // TestWrapInit_ShimMode_PolicyDeny covers the v0.19.1 docker-test
 // regression: when the shim's kernel-install path calls wrap-init for a
 // command the policy denies, the server must return 403 so the shim's
-// ModeAuto branch falls through to the existing `agentsh exec` path
+// ModeAuto branch falls through to the existing `agentmon exec` path
 // (which surfaces "command denied by policy" to the user). Without this
 // pre-check, wrap-init succeeded for denied commands and the wrapper
 // ran without the policy gate firing — regression introduced in #274.
@@ -616,7 +616,7 @@ func TestWrapInit_ShimMode_PolicyDeny(t *testing.T) {
 
 // TestWrapInit_ShimMode_PolicyApprove guards roborev #7867 (High): if a
 // rule that requires human approval is enforced, the shim wrap path
-// must not silently issue a wrapper. Falling back to the agentsh-exec
+// must not silently issue a wrapper. Falling back to the agentmon-exec
 // path is what surfaces the approval prompt.
 func TestWrapInit_ShimMode_PolicyApprove(t *testing.T) {
 	cfg := &config.Config{}
@@ -652,7 +652,7 @@ func TestWrapInit_ShimMode_PolicyApprove(t *testing.T) {
 
 // TestWrapInit_ShimMode_PolicyRedirect covers the redirect decision.
 // Same reasoning as approve — redirect rewrites the command, which the
-// shim wrap path does not implement, so we must defer to agentsh-exec.
+// shim wrap path does not implement, so we must defer to agentmon-exec.
 func TestWrapInit_ShimMode_PolicyRedirect(t *testing.T) {
 	cfg := &config.Config{}
 	mgr := session.NewManager(5)
@@ -688,7 +688,7 @@ func TestWrapInit_ShimMode_PolicyRedirect(t *testing.T) {
 // TestWrapInit_ShimMode_PolicySoftDelete guards roborev #7872 (High):
 // soft_delete resolves to EffectiveDecision=allow even though the
 // underlying rule requires the rm-to-trash redirect that only the
-// agentsh-exec path implements. Gating on EffectiveDecision alone let
+// agentmon-exec path implements. Gating on EffectiveDecision alone let
 // soft_delete commands through unrewritten — the wrapper would have
 // faithfully run rm against the requested path. Test asserts both that
 // the pre-check rejects soft_delete and that PolicyDecision is the gate
@@ -815,9 +815,9 @@ func TestWrapInit_ShimMode_PolicyAllow(t *testing.T) {
 }
 
 // TestWrapInit_AgentMode_PolicyNotChecked verifies the pre-check is
-// scoped to Mode=="shim" only. The agentsh wrap path (Mode=="agent" or
+// scoped to Mode=="shim" only. The agentmon wrap path (Mode=="agent" or
 // empty) retains pre-existing behavior — pre-check would change the
-// semantics of `agentsh wrap` for any operator policy that does not
+// semantics of `agentmon wrap` for any operator policy that does not
 // list the agent's outer binary.
 func TestWrapInit_AgentMode_PolicyNotChecked(t *testing.T) {
 	if runtime.GOOS != "linux" {
@@ -1056,8 +1056,8 @@ func TestWrapInit_Success(t *testing.T) {
 	if resp.WrapperEnv == nil {
 		t.Error("expected wrapper env to be set")
 	}
-	if _, ok := resp.WrapperEnv["AGENTSH_SECCOMP_CONFIG"]; !ok {
-		t.Error("expected AGENTSH_SECCOMP_CONFIG in wrapper env")
+	if _, ok := resp.WrapperEnv["AGENTMON_SECCOMP_CONFIG"]; !ok {
+		t.Error("expected AGENTMON_SECCOMP_CONFIG in wrapper env")
 	}
 }
 
@@ -1264,7 +1264,7 @@ func TestWrapInit_LongTMPDIR_LongSessionID(t *testing.T) {
 
 	// Use a TMPDIR that simulates macOS /var/folders nesting (~40 chars)
 	// while still leaving enough room for the socket path.
-	// Budget: 104 - len(TMPDIR) - ~25 (agentsh-wrap-*) - 13 (fixed parts)
+	// Budget: 104 - len(TMPDIR) - ~25 (agentmon-wrap-*) - 13 (fixed parts)
 	longDir := filepath.Join(t.TempDir(), "deep")
 	if err := os.MkdirAll(longDir, 0700); err != nil {
 		t.Fatalf("create tmpdir: %v", err)
@@ -1311,7 +1311,7 @@ func TestWrapInit_BudgetExhausted(t *testing.T) {
 
 	// Create a TMPDIR so long that the socket path budget is exhausted (< 1).
 	// Socket path limit is 104; fixed parts take ~13 bytes; the temp dir
-	// (including "agentsh-wrap-*") must consume the rest.
+	// (including "agentmon-wrap-*") must consume the rest.
 	base := t.TempDir()
 	longDir := filepath.Join(base, strings.Repeat("d", 120))
 	if err := os.MkdirAll(longDir, 0700); err != nil {
@@ -1455,11 +1455,11 @@ func TestWrapInit_SignalSocketSet(t *testing.T) {
 			len(resp.SignalSocket), resp.SignalSocket)
 	}
 
-	// AGENTSH_SIGNAL_SOCK_FD should be in wrapper env
-	if fd, ok := resp.WrapperEnv["AGENTSH_SIGNAL_SOCK_FD"]; !ok {
-		t.Error("expected AGENTSH_SIGNAL_SOCK_FD in wrapper env")
+	// AGENTMON_SIGNAL_SOCK_FD should be in wrapper env
+	if fd, ok := resp.WrapperEnv["AGENTMON_SIGNAL_SOCK_FD"]; !ok {
+		t.Error("expected AGENTMON_SIGNAL_SOCK_FD in wrapper env")
 	} else if fd != "4" {
-		t.Errorf("expected AGENTSH_SIGNAL_SOCK_FD=4, got %q", fd)
+		t.Errorf("expected AGENTMON_SIGNAL_SOCK_FD=4, got %q", fd)
 	}
 }
 
@@ -1549,9 +1549,9 @@ func TestWrapInit_NoSignalSocketWithoutPolicy(t *testing.T) {
 		t.Errorf("expected empty SignalSocket without signal policy, got %q", resp.SignalSocket)
 	}
 
-	// AGENTSH_SIGNAL_SOCK_FD should NOT be in wrapper env
-	if _, ok := resp.WrapperEnv["AGENTSH_SIGNAL_SOCK_FD"]; ok {
-		t.Error("expected no AGENTSH_SIGNAL_SOCK_FD in wrapper env without signal policy")
+	// AGENTMON_SIGNAL_SOCK_FD should NOT be in wrapper env
+	if _, ok := resp.WrapperEnv["AGENTMON_SIGNAL_SOCK_FD"]; ok {
+		t.Error("expected no AGENTMON_SIGNAL_SOCK_FD in wrapper env without signal policy")
 	}
 
 	// signal_filter_enabled should be false in seccomp config

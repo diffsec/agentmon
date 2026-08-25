@@ -129,7 +129,7 @@ type WrapInitRequest struct {
 	AgentArgs    []string `json:"agent_args,omitempty"`
 	CallerUID    int      `json:"caller_uid,omitempty"`
 	// Mode selects wrap lifecycle. Both "agent" (default, used by
-	// `agentsh wrap`) and "shim" (used by the shell shim) currently use
+	// `agentmon wrap`) and "shim" (used by the shell shim) currently use
 	// the server's existing accept-once-then-handler control flow — the
 	// listener goroutine accepts a single connection from the wrapper,
 	// hands the notify fd to the persistent notify-handler, and exits.

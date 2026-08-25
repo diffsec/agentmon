@@ -15,7 +15,7 @@
 ### Task 1: Add exec rules and local exec evaluation to SessionPolicyCache
 
 **Files:**
-- Modify: `macos/AgentSH/SessionPolicyCache.swift`
+- Modify: `macos/AgentMon/SessionPolicyCache.swift`
 
 This is the foundation -- all other tasks depend on the cache having exec evaluation capability.
 
@@ -160,14 +160,14 @@ let emptySnapshot = SessionCache(
 
 - [ ] **Step 7: Verify build**
 
-Run: `cd macos/AgentSH && xcodebuild -scheme AgentSH -configuration Debug build 2>&1 | tail -5`
+Run: `cd macos/AgentMon && xcodebuild -scheme AgentMon -configuration Debug build 2>&1 | tail -5`
 
 Expected: BUILD SUCCEEDED (or at least no errors in SessionPolicyCache.swift)
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add macos/AgentSH/SessionPolicyCache.swift macos/AgentSH/ESFClient.swift
+git add macos/AgentMon/SessionPolicyCache.swift macos/AgentMon/ESFClient.swift
 git commit -m "feat(sysext): add exec rules and local exec evaluation to SessionPolicyCache"
 ```
 
@@ -176,13 +176,13 @@ git commit -m "feat(sysext): add exec rules and local exec evaluation to Session
 ### Task 2: Create PolicySocketClient
 
 **Files:**
-- Create: `macos/AgentSH/PolicySocketClient.swift`
+- Create: `macos/AgentMon/PolicySocketClient.swift`
 
-New Unix socket client for async IPC to the Go server. Replaces the dead XPC Service connection. Based on the socket logic from `macos/AgentSH/xpc/PolicyBridge.swift`.
+New Unix socket client for async IPC to the Go server. Replaces the dead XPC Service connection. Based on the socket logic from `macos/AgentMon/xpc/PolicyBridge.swift`.
 
 - [ ] **Step 1: Create PolicySocketClient.swift**
 
-Create `macos/AgentSH/PolicySocketClient.swift`:
+Create `macos/AgentMon/PolicySocketClient.swift`:
 
 ```swift
 import Foundation
@@ -193,8 +193,8 @@ import Foundation
 class PolicySocketClient {
     static let shared = PolicySocketClient()
 
-    private let socketPath = "/var/run/agentsh/policy.sock"
-    private let sendQueue = DispatchQueue(label: "ai.canyonroad.agentsh.policysocket")
+    private let socketPath = "/var/run/agentmon/policy.sock"
+    private let sendQueue = DispatchQueue(label: "dev.diffsec.agentmon.policysocket")
     private let timeout: TimeInterval = 5.0
 
     /// Whether we believe the server is reachable. Updated on connect/disconnect.
@@ -352,18 +352,18 @@ class PolicySocketClient {
 
 - [ ] **Step 2: Add the file to the Xcode project**
 
-The file needs to be added to the SysExt target in the Xcode project. Add it alongside the other Swift files in `macos/AgentSH/`. It should be included in the SysExt target's "Compile Sources" build phase.
+The file needs to be added to the SysExt target in the Xcode project. Add it alongside the other Swift files in `macos/AgentMon/`. It should be included in the SysExt target's "Compile Sources" build phase.
 
 - [ ] **Step 3: Verify build**
 
-Run: `cd macos/AgentSH && xcodebuild -scheme AgentSH -configuration Debug build 2>&1 | tail -5`
+Run: `cd macos/AgentMon && xcodebuild -scheme AgentMon -configuration Debug build 2>&1 | tail -5`
 
 Expected: BUILD SUCCEEDED
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add macos/AgentSH/PolicySocketClient.swift macos/AgentSH/agentsh.xcodeproj/project.pbxproj
+git add macos/AgentMon/PolicySocketClient.swift macos/AgentMon/agentmon.xcodeproj/project.pbxproj
 git commit -m "feat(sysext): add PolicySocketClient for direct Unix socket IPC"
 ```
 
@@ -372,7 +372,7 @@ git commit -m "feat(sysext): add PolicySocketClient for direct Unix socket IPC"
 ### Task 3: Rewrite ESFClient for local-only AUTH
 
 **Files:**
-- Modify: `macos/AgentSH/ESFClient.swift`
+- Modify: `macos/AgentMon/ESFClient.swift`
 
 This is the critical change. AUTH handlers become free functions using the callback's client pointer. No XPC. No retained messages. Every AUTH event always gets a response.
 
@@ -394,7 +394,7 @@ class ESFClient {
 
     /// Cache of PID -> audit_token_t for muting
     private var auditTokenCache: [pid_t: audit_token_t] = [:]
-    private let cacheQueue = DispatchQueue(label: "ai.canyonroad.agentsh.audittokencache")
+    private let cacheQueue = DispatchQueue(label: "dev.diffsec.agentmon.audittokencache")
 
     /// Shared ISO8601 formatter for event timestamps (thread-safe)
     private static let isoFormatter = ISO8601DateFormatter()
@@ -457,9 +457,9 @@ class ESFClient {
         }
         NSLog("ESF client subscribed successfully")
 
-        // Mute agentsh binaries to prevent recursion
+        // Mute agentmon binaries to prevent recursion
         if #available(macOS 12.0, *) {
-            for path in ["/usr/local/bin/agentsh-stub", "/usr/local/bin/agentsh"] {
+            for path in ["/usr/local/bin/agentmon-stub", "/usr/local/bin/agentmon"] {
                 es_mute_path(client, path, ES_MUTE_PATH_TYPE_TARGET_LITERAL)
             }
         }
@@ -673,7 +673,7 @@ private func handleAuthExec(client: OpaquePointer, event: UnsafePointer<es_messa
 
 Remove from the `ESFClient` class:
 - `private let xpc: NSXPCConnection` property
-- `private var xpcProxy: AgentshXPCProtocol?` property
+- `private var xpcProxy: AgentmonXPCProtocol?` property
 - All old `handleAuthOpen/Create/Unlink/Rename/Exec` instance methods
 - The old `handleEvent` instance method
 - The XPC init code from the constructor
@@ -745,14 +745,14 @@ private func handleNotifyClose(_ message: es_message_t, pid: pid_t) {
 
 - [ ] **Step 8: Verify build**
 
-Run: `cd macos/AgentSH && xcodebuild -scheme AgentSH -configuration Debug build 2>&1 | tail -20`
+Run: `cd macos/AgentMon && xcodebuild -scheme AgentMon -configuration Debug build 2>&1 | tail -20`
 
 Expected: BUILD SUCCEEDED.
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add macos/AgentSH/ESFClient.swift
+git add macos/AgentMon/ESFClient.swift
 git commit -m "feat(sysext): rewrite ESFClient for local-only AUTH evaluation
 
 AUTH handlers are now free functions using the ES callback's client
@@ -765,7 +765,7 @@ always gets a response. NOTIFY handlers delegate to ESFClient.shared."
 ### Task 4: Update main.swift startup sequence
 
 **Files:**
-- Modify: `macos/AgentSH/main.swift`
+- Modify: `macos/AgentMon/main.swift`
 
 - [ ] **Step 1: Replace the startup code**
 
@@ -782,18 +782,18 @@ _ = SessionPolicyCache.shared
 var esfClient: ESFClient?
 for attempt in 1...3 {
     if let client = ESFClient.create() {
-        NSLog("AgentSH SysExt: ES client created on attempt \(attempt)")
+        NSLog("AgentMon SysExt: ES client created on attempt \(attempt)")
         esfClient = client
         break
     }
     if attempt < 3 {
-        NSLog("AgentSH SysExt: ES client creation attempt \(attempt) failed, retrying in 2s")
+        NSLog("AgentMon SysExt: ES client creation attempt \(attempt) failed, retrying in 2s")
         Thread.sleep(forTimeInterval: 2)
     }
 }
 
 guard let esfClient = esfClient else {
-    NSLog("AgentSH SysExt: ES client failed to start -- exiting (grant Full Disk Access to enable)")
+    NSLog("AgentMon SysExt: ES client failed to start -- exiting (grant Full Disk Access to enable)")
     exit(1)
 }
 
@@ -802,7 +802,7 @@ ESFClient.shared = esfClient
 
 // 4. Subscribe to events -- ESFClient.shared is now set, safe for NOTIFY handlers
 guard esfClient.subscribe() else {
-    NSLog("AgentSH SysExt: Failed to subscribe to ES events -- exiting")
+    NSLog("AgentMon SysExt: Failed to subscribe to ES events -- exiting")
     exit(1)
 }
 
@@ -814,14 +814,14 @@ dispatchMain()
 
 - [ ] **Step 2: Verify build**
 
-Run: `cd macos/AgentSH && xcodebuild -scheme AgentSH -configuration Debug build 2>&1 | tail -5`
+Run: `cd macos/AgentMon && xcodebuild -scheme AgentMon -configuration Debug build 2>&1 | tail -5`
 
 Expected: BUILD SUCCEEDED
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add macos/AgentSH/main.swift
+git add macos/AgentMon/main.swift
 git commit -m "feat(sysext): safe startup sequence -- init cache, create client, store ref, then subscribe"
 ```
 
@@ -830,7 +830,7 @@ git commit -m "feat(sysext): safe startup sequence -- init cache, create client,
 ### Task 5: Update FilterDataProvider to use PolicySocketClient
 
 **Files:**
-- Modify: `macos/AgentSH/FilterDataProvider.swift`
+- Modify: `macos/AgentMon/FilterDataProvider.swift`
 
 - [ ] **Step 1: Remove XPC properties and setup**
 
@@ -968,14 +968,14 @@ private func handleNewFlowBlocking(
 
 - [ ] **Step 4: Verify build**
 
-Run: `cd macos/AgentSH && xcodebuild -scheme AgentSH -configuration Debug build 2>&1 | tail -5`
+Run: `cd macos/AgentMon && xcodebuild -scheme AgentMon -configuration Debug build 2>&1 | tail -5`
 
 Expected: BUILD SUCCEEDED
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add macos/AgentSH/FilterDataProvider.swift
+git add macos/AgentMon/FilterDataProvider.swift
 git commit -m "feat(sysext): switch FilterDataProvider from dead XPC to PolicySocketClient"
 ```
 
@@ -984,7 +984,7 @@ git commit -m "feat(sysext): switch FilterDataProvider from dead XPC to PolicySo
 ### Task 6: Update DNSProxyProvider to remove XPC
 
 **Files:**
-- Modify: `macos/AgentSH/DNSProxyProvider.swift`
+- Modify: `macos/AgentMon/DNSProxyProvider.swift`
 
 - [ ] **Step 1: Remove XPC properties and setup**
 
@@ -1007,14 +1007,14 @@ class DNSProxyProvider: NEDNSProxyProvider {
 
 - [ ] **Step 2: Verify build**
 
-Run: `cd macos/AgentSH && xcodebuild -scheme AgentSH -configuration Debug build 2>&1 | tail -5`
+Run: `cd macos/AgentMon && xcodebuild -scheme AgentMon -configuration Debug build 2>&1 | tail -5`
 
 Expected: BUILD SUCCEEDED
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add macos/AgentSH/DNSProxyProvider.swift
+git add macos/AgentMon/DNSProxyProvider.swift
 git commit -m "refactor(sysext): remove dead XPC from DNSProxyProvider"
 ```
 
@@ -1112,7 +1112,7 @@ func (s *Server) handleExecRedirectNotify(req *PolicyRequest) PolicyResponse {
 - [ ] **Step 4: Add NotifySessionRegistered to notify.go**
 
 ```go
-const SessionRegisteredNotification = "ai.canyonroad.agentsh.session-registered"
+const SessionRegisteredNotification = "dev.diffsec.agentmon.session-registered"
 
 func NotifySessionRegistered() {
 	cname := C.CString(SessionRegisteredNotification)
@@ -1181,7 +1181,7 @@ func TestPolicySnapshotResponse_JSON(t *testing.T) {
 
 - [ ] **Step 6: Run Go tests**
 
-Run: `cd /Users/eran/work/canyonroad/agentsh && go test ./internal/platform/darwin/xpc/... -v -run TestPolicySnapshot`
+Run: `cd /Users/eran/work/diffsec/agentmon && go test ./internal/platform/darwin/xpc/... -v -run TestPolicySnapshot`
 
 Expected: PASS
 
@@ -1201,16 +1201,16 @@ git commit -m "feat(darwin): add exec rules to policy snapshot and exec_redirect
 ### Task 8: Add session-registered Darwin notification listener
 
 **Files:**
-- Modify: `macos/AgentSH/SessionPolicyCache.swift`
+- Modify: `macos/AgentMon/SessionPolicyCache.swift`
 
-The SysExt needs to listen for the new `ai.canyonroad.agentsh.session-registered` notification and fetch session details over the socket.
+The SysExt needs to listen for the new `dev.diffsec.agentmon.session-registered` notification and fetch session details over the socket.
 
 - [ ] **Step 1: Add session-registered notification listener**
 
 Add the notification name constant near the top of the file (after line 4):
 
 ```swift
-private let sessionRegisteredNotification = "ai.canyonroad.agentsh.session-registered"
+private let sessionRegisteredNotification = "dev.diffsec.agentmon.session-registered"
 ```
 
 In `startListeningForNotifications()`, add a second observer after the existing one:
@@ -1278,14 +1278,14 @@ private func handlePolicyUpdateNotification() {
 
 - [ ] **Step 3: Verify build**
 
-Run: `cd macos/AgentSH && xcodebuild -scheme AgentSH -configuration Debug build 2>&1 | tail -5`
+Run: `cd macos/AgentMon && xcodebuild -scheme AgentMon -configuration Debug build 2>&1 | tail -5`
 
 Expected: BUILD SUCCEEDED
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add macos/AgentSH/SessionPolicyCache.swift
+git add macos/AgentMon/SessionPolicyCache.swift
 git commit -m "feat(sysext): listen for session-registered notification and fetch policy over socket"
 ```
 
@@ -1297,13 +1297,13 @@ git commit -m "feat(sysext): listen for session-registered notification and fetc
 
 - [ ] **Step 1: Full build**
 
-Run: `cd macos/AgentSH && xcodebuild -scheme AgentSH -configuration Release build 2>&1 | tail -10`
+Run: `cd macos/AgentMon && xcodebuild -scheme AgentMon -configuration Release build 2>&1 | tail -10`
 
 Expected: BUILD SUCCEEDED
 
 - [ ] **Step 2: Bump CURRENT_PROJECT_VERSION**
 
-In `macos/AgentSH/agentsh.xcodeproj/project.pbxproj`, bump `CURRENT_PROJECT_VERSION` from 8 to 9 in all build configurations (Debug and Release for all targets). This is required for sysextd to trigger the replacement flow.
+In `macos/AgentMon/agentmon.xcodeproj/project.pbxproj`, bump `CURRENT_PROJECT_VERSION` from 8 to 9 in all build configurations (Debug and Release for all targets). This is required for sysextd to trigger the replacement flow.
 
 - [ ] **Step 3: Sign and package**
 
@@ -1313,28 +1313,28 @@ Follow the existing build/sign workflow (codesign with Developer ID, embed provi
 
 ```bash
 # Install the app
-cp -R build/Release/AgentSH.app /Applications/
+cp -R build/Release/AgentMon.app /Applications/
 # Activate the extension
-/Applications/AgentSH.app/Contents/MacOS/agentsh activate-extension
+/Applications/AgentMon.app/Contents/MacOS/agentmon activate-extension
 ```
 
 Expected: "replacing 8 -> 9" in activation output.
 
 - [ ] **Step 5: Grant Full Disk Access**
 
-Open System Settings > Privacy & Security > Full Disk Access. Enable it for the AgentSH system extension.
+Open System Settings > Privacy & Security > Full Disk Access. Enable it for the AgentMon system extension.
 
 - [ ] **Step 6: Verify extension stays alive**
 
 ```bash
 # Check the extension process
-ps aux | grep agentsh.SysExt
+ps aux | grep agentmon.SysExt
 
 # Check system log for ESF startup
-log show --predicate 'process == "ai.canyonroad.agentsh.SysExt"' --last 30s
+log show --predicate 'process == "dev.diffsec.agentmon.SysExt"' --last 30s
 
 # Wait 30 seconds, verify no crash
-sleep 30 && ps aux | grep agentsh.SysExt
+sleep 30 && ps aux | grep agentmon.SysExt
 ```
 
 Expected: The extension process stays alive. No "failed to respond" messages. No crash reports. System remains responsive.
@@ -1342,7 +1342,7 @@ Expected: The extension process stays alive. No "failed to respond" messages. No
 - [ ] **Step 7: Verify no new crash reports**
 
 ```bash
-ls -la /Library/Logs/DiagnosticReports/ai.canyonroad.agentsh.SysExt* 2>/dev/null | tail -3
+ls -la /Library/Logs/DiagnosticReports/dev.diffsec.agentmon.SysExt* 2>/dev/null | tail -3
 ```
 
 Expected: No new crash reports after the v9 installation timestamp.
@@ -1350,6 +1350,6 @@ Expected: No new crash reports after the v9 installation timestamp.
 - [ ] **Step 8: Commit version bump**
 
 ```bash
-git add macos/AgentSH/agentsh.xcodeproj/project.pbxproj
+git add macos/AgentMon/agentmon.xcodeproj/project.pbxproj
 git commit -m "chore: bump CURRENT_PROJECT_VERSION to 9 for sysext replacement"
 ```

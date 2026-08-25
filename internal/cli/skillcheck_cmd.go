@@ -1,8 +1,8 @@
 package cli
 
 import (
-	"github.com/agentsh/agentsh/internal/skillcheck"
-	"github.com/agentsh/agentsh/internal/skillcheck/provider"
+	"github.com/diffsec/agentmon/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck/provider"
 	"github.com/spf13/cobra"
 )
 

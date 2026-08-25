@@ -1,7 +1,7 @@
 //go:build linux
 
 // Package capabilities provides runtime checks for kernel and system
-// capabilities required by agentsh sandbox features.
+// capabilities required by agentmon sandbox features.
 package capabilities
 
 import (
@@ -9,8 +9,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/limits"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/limits"
 )
 
 // CheckResult represents the result of a single capability check.
@@ -98,7 +98,7 @@ func realCheckEBPFCgroupAttach() CheckResult {
 
 func realCheckWrapperBinary(binaryPath string) CheckResult {
 	if binaryPath == "" {
-		binaryPath = "agentsh-unixwrap"
+		binaryPath = "agentmon-unixwrap"
 	}
 	_, err := exec.LookPath(binaryPath)
 	if err != nil {
@@ -194,7 +194,7 @@ func CheckAll(cfg *config.Config) error {
 	}
 
 	// Check if seccomp wrapper binary is required and available
-	// The agentsh-unixwrap binary is required for:
+	// The agentmon-unixwrap binary is required for:
 	// - unix_sockets.enabled (seccomp-based socket filtering)
 	// - seccomp.execve.enabled (execve interception)
 	unixEnabled := cfg.Sandbox.UnixSockets.Enabled != nil && *cfg.Sandbox.UnixSockets.Enabled
@@ -202,7 +202,7 @@ func CheckAll(cfg *config.Config) error {
 	if unixEnabled || execveEnabled {
 		wrapperBin := strings.TrimSpace(cfg.Sandbox.UnixSockets.WrapperBin)
 		if wrapperBin == "" {
-			wrapperBin = "agentsh-unixwrap"
+			wrapperBin = "agentmon-unixwrap"
 		}
 		result := checkWrapperBinary(wrapperBin)
 		if unixEnabled {
@@ -211,8 +211,8 @@ func CheckAll(cfg *config.Config) error {
 			result.ConfigKey = "sandbox.seccomp.execve.enabled"
 		}
 		result.Suggestion = fmt.Sprintf(
-			"Install the agentsh-unixwrap binary, or disable the feature by setting '%s: false' in your config.\n"+
-				"          The agentsh-unixwrap binary is required for seccomp/execve interception.\n"+
+			"Install the agentmon-unixwrap binary, or disable the feature by setting '%s: false' in your config.\n"+
+				"          The agentmon-unixwrap binary is required for seccomp/execve interception.\n"+
 				"          It may be missing if you're using a CGO-disabled build.",
 			result.ConfigKey,
 		)
@@ -231,7 +231,7 @@ func CheckAll(cfg *config.Config) error {
 // formatErrors formats multiple check failures into a single error message.
 func formatErrors(failures []CheckResult) error {
 	var sb strings.Builder
-	sb.WriteString("agentsh: capability check failed\n")
+	sb.WriteString("agentmon: capability check failed\n")
 
 	for _, f := range failures {
 		sb.WriteString("\n")

@@ -18,7 +18,7 @@ In server-wired ptrace mode, every syscall generates a ptrace-stop (`TRACESYSGOO
 ### Non-Goals
 
 - Changing sidecar mode behavior
-- x32 ABI support (not used by agentsh workloads)
+- x32 ABI support (not used by agentmon workloads)
 
 ## 2. Solution: Inject BPF via Ptrace Syscall Injection
 
@@ -103,7 +103,7 @@ On injection failure:
 
 ### PR_SET_NO_NEW_PRIVS Impact
 
-`PR_SET_NO_NEW_PRIVS` prevents setuid/setcap escalation. This is acceptable for agentsh workloads — sandboxed agent commands should not escalate privileges. The flag is already set by the seccomp wrapper in non-ptrace mode.
+`PR_SET_NO_NEW_PRIVS` prevents setuid/setcap escalation. This is acceptable for agentmon workloads — sandboxed agent commands should not escalate privileges. The flag is already set by the seccomp wrapper in non-ptrace mode.
 
 ## 5. Per-Tracee Prefilter State
 

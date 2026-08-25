@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -87,7 +87,7 @@ func (c *GRPCClient) CreateSessionWithRequest(ctx context.Context, req types.Cre
 		return out, err
 	}
 	resp := &structpb.Struct{}
-	if err := c.invokeUnary(ctx, "/agentsh.v1.Agentsh/CreateSession", in, resp); err != nil {
+	if err := c.invokeUnary(ctx, "/agentmon.v1.Agentmon/CreateSession", in, resp); err != nil {
 		return out, err
 	}
 	b, _ := protojson.Marshal(resp)
@@ -109,7 +109,7 @@ func (c *GRPCClient) createSession(ctx context.Context, id, workspace, policy st
 		return out, err
 	}
 	resp := &structpb.Struct{}
-	if err := c.invokeUnary(ctx, "/agentsh.v1.Agentsh/CreateSession", in, resp); err != nil {
+	if err := c.invokeUnary(ctx, "/agentmon.v1.Agentmon/CreateSession", in, resp); err != nil {
 		return out, err
 	}
 	b, _ := protojson.Marshal(resp)
@@ -120,7 +120,7 @@ func (c *GRPCClient) createSession(ctx context.Context, id, workspace, policy st
 func (c *GRPCClient) ListSessions(ctx context.Context) ([]types.Session, error) {
 	in, _ := jsonToStruct(map[string]any{})
 	resp := &structpb.Struct{}
-	if err := c.invokeUnary(ctx, "/agentsh.v1.Agentsh/ListSessions", in, resp); err != nil {
+	if err := c.invokeUnary(ctx, "/agentmon.v1.Agentmon/ListSessions", in, resp); err != nil {
 		return nil, err
 	}
 	b, _ := protojson.Marshal(resp)
@@ -136,7 +136,7 @@ func (c *GRPCClient) GetSession(ctx context.Context, id string) (types.Session, 
 		return out, err
 	}
 	resp := &structpb.Struct{}
-	if err := c.invokeUnary(ctx, "/agentsh.v1.Agentsh/GetSession", in, resp); err != nil {
+	if err := c.invokeUnary(ctx, "/agentmon.v1.Agentmon/GetSession", in, resp); err != nil {
 		return out, err
 	}
 	b, _ := protojson.Marshal(resp)
@@ -150,7 +150,7 @@ func (c *GRPCClient) DestroySession(ctx context.Context, id string) error {
 		return err
 	}
 	resp := &structpb.Struct{}
-	return c.invokeUnary(ctx, "/agentsh.v1.Agentsh/DestroySession", in, resp)
+	return c.invokeUnary(ctx, "/agentmon.v1.Agentmon/DestroySession", in, resp)
 }
 
 func (c *GRPCClient) PatchSession(ctx context.Context, id string, req types.SessionPatchRequest) (types.Session, error) {
@@ -170,7 +170,7 @@ func (c *GRPCClient) PatchSession(ctx context.Context, id string, req types.Sess
 		return out, err
 	}
 	resp := &structpb.Struct{}
-	if err := c.invokeUnary(ctx, "/agentsh.v1.Agentsh/PatchSession", in, resp); err != nil {
+	if err := c.invokeUnary(ctx, "/agentmon.v1.Agentmon/PatchSession", in, resp); err != nil {
 		return out, err
 	}
 	b, _ := protojson.Marshal(resp)
@@ -195,7 +195,7 @@ func (c *GRPCClient) Exec(ctx context.Context, sessionID string, req types.ExecR
 		return out, err
 	}
 	resp := &structpb.Struct{}
-	if err := c.invokeUnary(ctx, "/agentsh.v1.Agentsh/Exec", in, resp); err != nil {
+	if err := c.invokeUnary(ctx, "/agentmon.v1.Agentmon/Exec", in, resp); err != nil {
 		return out, err
 	}
 	b, _ := protojson.Marshal(resp)
@@ -217,7 +217,7 @@ func (c *GRPCClient) ExecStream(ctx context.Context, sessionID string, req types
 	if err != nil {
 		return nil, err
 	}
-	stream, err := c.newServerStream(ctx, "/agentsh.v1.Agentsh/ExecStream", in)
+	stream, err := c.newServerStream(ctx, "/agentmon.v1.Agentmon/ExecStream", in)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +263,7 @@ func (c *GRPCClient) StreamSessionEvents(ctx context.Context, sessionID string) 
 	if err != nil {
 		return nil, err
 	}
-	stream, err := c.newServerStream(ctx, "/agentsh.v1.Agentsh/EventsTail", in)
+	stream, err := c.newServerStream(ctx, "/agentmon.v1.Agentmon/EventsTail", in)
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +307,7 @@ func (c *GRPCClient) KillCommand(ctx context.Context, sessionID, commandID strin
 		return err
 	}
 	resp := &structpb.Struct{}
-	return c.invokeUnary(ctx, "/agentsh.v1.Agentsh/KillCommand", in, resp)
+	return c.invokeUnary(ctx, "/agentmon.v1.Agentmon/KillCommand", in, resp)
 }
 
 func (c *GRPCClient) QuerySessionEvents(ctx context.Context, sessionID string, q url.Values) ([]types.Event, error) {
@@ -348,7 +348,7 @@ func (c *GRPCClient) QuerySessionEvents(ctx context.Context, sessionID string, q
 		return nil, err
 	}
 	resp := &structpb.Struct{}
-	if err := c.invokeUnary(ctx, "/agentsh.v1.Agentsh/QueryEvents", in, resp); err != nil {
+	if err := c.invokeUnary(ctx, "/agentmon.v1.Agentmon/QueryEvents", in, resp); err != nil {
 		return nil, err
 	}
 	b, _ := protojson.Marshal(resp)
@@ -398,7 +398,7 @@ func (c *GRPCClient) SearchEvents(ctx context.Context, q url.Values) ([]types.Ev
 		return nil, err
 	}
 	resp := &structpb.Struct{}
-	if err := c.invokeUnary(ctx, "/agentsh.v1.Agentsh/SearchEvents", in, resp); err != nil {
+	if err := c.invokeUnary(ctx, "/agentmon.v1.Agentmon/SearchEvents", in, resp); err != nil {
 		return nil, err
 	}
 	b, _ := protojson.Marshal(resp)
@@ -419,7 +419,7 @@ func (c *GRPCClient) OutputChunk(ctx context.Context, sessionID, commandID, stre
 		return nil, err
 	}
 	resp := &structpb.Struct{}
-	if err := c.invokeUnary(ctx, "/agentsh.v1.Agentsh/OutputChunk", in, resp); err != nil {
+	if err := c.invokeUnary(ctx, "/agentmon.v1.Agentmon/OutputChunk", in, resp); err != nil {
 		return nil, err
 	}
 	b, _ := protojson.Marshal(resp)
@@ -431,7 +431,7 @@ func (c *GRPCClient) OutputChunk(ctx context.Context, sessionID, commandID, stre
 func (c *GRPCClient) ListApprovals(ctx context.Context) ([]map[string]any, error) {
 	in, _ := jsonToStruct(map[string]any{})
 	resp := &structpb.Struct{}
-	if err := c.invokeUnary(ctx, "/agentsh.v1.Agentsh/ListApprovals", in, resp); err != nil {
+	if err := c.invokeUnary(ctx, "/agentmon.v1.Agentmon/ListApprovals", in, resp); err != nil {
 		return nil, err
 	}
 	b, _ := protojson.Marshal(resp)
@@ -450,7 +450,7 @@ func (c *GRPCClient) ResolveApproval(ctx context.Context, id, decision, reason s
 		return err
 	}
 	resp := &structpb.Struct{}
-	return c.invokeUnary(ctx, "/agentsh.v1.Agentsh/ResolveApproval", in, resp)
+	return c.invokeUnary(ctx, "/agentmon.v1.Agentmon/ResolveApproval", in, resp)
 }
 
 func (c *GRPCClient) PolicyTest(ctx context.Context, sessionID, operation, path string) (map[string]any, error) {
@@ -466,7 +466,7 @@ func (c *GRPCClient) PolicyTest(ctx context.Context, sessionID, operation, path 
 		return nil, err
 	}
 	resp := &structpb.Struct{}
-	if err := c.invokeUnary(ctx, "/agentsh.v1.Agentsh/PolicyTest", in, resp); err != nil {
+	if err := c.invokeUnary(ctx, "/agentmon.v1.Agentmon/PolicyTest", in, resp); err != nil {
 		return nil, err
 	}
 	b, _ := protojson.Marshal(resp)
@@ -481,7 +481,7 @@ func (c *GRPCClient) GetProxyStatus(ctx context.Context, sessionID string) (map[
 		return nil, err
 	}
 	resp := &structpb.Struct{}
-	if err := c.invokeUnary(ctx, "/agentsh.v1.Agentsh/GetProxyStatus", in, resp); err != nil {
+	if err := c.invokeUnary(ctx, "/agentmon.v1.Agentmon/GetProxyStatus", in, resp); err != nil {
 		return nil, err
 	}
 	b, _ := protojson.Marshal(resp)
@@ -531,7 +531,7 @@ func (c *GRPCClient) withAuth(ctx context.Context) context.Context {
 	if strings.TrimSpace(c.apiKey) != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, "x-api-key", c.apiKey)
 	}
-	// Propagate W3C trace context so agentsh events nest under the caller's trace
+	// Propagate W3C trace context so agentmon events nest under the caller's trace
 	if tp := os.Getenv("TRACEPARENT"); tp != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, "traceparent", tp)
 	}

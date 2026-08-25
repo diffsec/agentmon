@@ -3,7 +3,7 @@ package report
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestDetectBlockedFindings(t *testing.T) {

@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/ptygrpc"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/ptygrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -58,7 +58,7 @@ func TestGRPC_PTY_ExecBasic(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	cl := ptygrpc.NewAgentshPTYClient(conn)
+	cl := ptygrpc.NewAgentmonPTYClient(conn)
 	stream, err := cl.ExecPTY(ctx)
 	if err != nil {
 		t.Fatal(err)

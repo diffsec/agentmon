@@ -1242,7 +1242,7 @@ import (
     "os"
     "testing"
 
-    "github.com/canyonroad/agentsh/internal/pkgcheck"
+    "github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 func TestNPMResolverCanResolve(t *testing.T) {
@@ -1305,7 +1305,7 @@ func TestNPMResolverParsePlan(t *testing.T) {
 // internal/pkgcheck/resolver/registry.go
 package resolver
 
-import "github.com/canyonroad/agentsh/internal/pkgcheck"
+import "github.com/diffsec/agentmon/internal/pkgcheck"
 
 // Registry holds all registered resolvers and dispatches to the right one.
 type Registry struct {
@@ -1345,7 +1345,7 @@ import (
     "path/filepath"
     "time"
 
-    "github.com/canyonroad/agentsh/internal/pkgcheck"
+    "github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 type NPMResolverConfig struct {
@@ -1535,7 +1535,7 @@ import (
     "context"
     "testing"
 
-    "github.com/canyonroad/agentsh/internal/pkgcheck"
+    "github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 func TestLocalProvider(t *testing.T) {
@@ -1582,7 +1582,7 @@ import (
     "context"
     "time"
 
-    "github.com/canyonroad/agentsh/internal/pkgcheck"
+    "github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 type localProvider struct{}
@@ -1688,7 +1688,7 @@ import (
     "os"
     "testing"
 
-    "github.com/canyonroad/agentsh/internal/pkgcheck"
+    "github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 func TestOSVProviderName(t *testing.T) {
@@ -1750,7 +1750,7 @@ import (
     "strings"
     "time"
 
-    "github.com/canyonroad/agentsh/internal/pkgcheck"
+    "github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 type OSVConfig struct {
@@ -1981,7 +1981,7 @@ import (
     "path/filepath"
     "testing"
 
-    "github.com/canyonroad/agentsh/internal/pkgcheck"
+    "github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 func TestExecProvider(t *testing.T) {
@@ -2042,7 +2042,7 @@ import (
     "os/exec"
     "time"
 
-    "github.com/canyonroad/agentsh/internal/pkgcheck"
+    "github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 type ExecProviderConfig struct {
@@ -2155,7 +2155,7 @@ import (
     "testing"
     "time"
 
-    "github.com/canyonroad/agentsh/internal/pkgcheck"
+    "github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 func TestCachePutGet(t *testing.T) {
@@ -2232,7 +2232,7 @@ import (
     "sync"
     "time"
 
-    "github.com/canyonroad/agentsh/internal/pkgcheck"
+    "github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 type Key struct {
@@ -2580,7 +2580,7 @@ package pkgcheck
 import (
     "testing"
 
-    "github.com/canyonroad/agentsh/internal/policy"
+    "github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestEvaluatorCriticalVulnBlocks(t *testing.T) {
@@ -2872,7 +2872,7 @@ import (
     "testing"
     "time"
 
-    "github.com/canyonroad/agentsh/internal/policy"
+    "github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestCheckerEndToEnd(t *testing.T) {
@@ -2978,7 +2978,7 @@ import (
     "fmt"
     "strings"
 
-    "github.com/canyonroad/agentsh/internal/policy"
+    "github.com/diffsec/agentmon/internal/policy"
 )
 
 type CheckerConfig struct {
@@ -3248,8 +3248,8 @@ import (
     "testing"
     "time"
 
-    "github.com/canyonroad/agentsh/internal/pkgcheck"
-    "github.com/canyonroad/agentsh/internal/policy"
+    "github.com/diffsec/agentmon/internal/pkgcheck"
+    "github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestIntegrationBlockCriticalVuln(t *testing.T) {

@@ -1,4 +1,4 @@
-# agentsh Approval Authentication
+# agentmon Approval Authentication
 
 **Version:** 0.2.0
 **Date:** January 2025
@@ -8,7 +8,7 @@
 
 ## Overview
 
-When agentsh requires human approval for dangerous operations, we must ensure that:
+When agentmon requires human approval for dangerous operations, we must ensure that:
 
 1. The approval actually comes from a human (not an AI or bot)
 2. The human is authorized to approve this type of operation
@@ -18,7 +18,7 @@ When agentsh requires human approval for dangerous operations, we must ensure th
 ### Current implementation note (auth transport)
 
 - HTTP uses `X-API-Key` by default (configurable via `auth.api_key.header_name`).
-- gRPC uses metadata: send the same key under `x-api-key` (and agentsh also accepts the configured header name lowercased).
+- gRPC uses metadata: send the same key under `x-api-key` (and agentmon also accepts the configured header name lowercased).
 
 ### Current implementation note (preventing agent self-approval)
 
@@ -53,7 +53,7 @@ When agentsh requires human approval for dangerous operations, we must ensure th
 │  UNTRUSTED                    │  TRUSTED                                │
 │  ────────────────────────────│───────────────────────────────────────  │
 │                               │                                         │
-│  • Agent code                 │  • agentsh core                        │
+│  • Agent code                 │  • agentmon core                        │
 │  • Agent network access       │  • Approval Gateway                    │
 │  • Workspace filesystem       │  • Human verification service          │
 │  • Agent API calls            │  • Signed approval tokens              │
@@ -133,7 +133,7 @@ approval_service:
   # Require TLS with client certificates (optional)
   mtls:
     enabled: true
-    ca_file: "/etc/agentsh/approval-ca.crt"
+    ca_file: "/etc/agentmon/approval-ca.crt"
 ```
 
 ---
@@ -174,7 +174,7 @@ WebAuthn provides cryptographic proof that a human with a physical device approv
 │     └─▶ Records approval with authenticator ID                         │
 │                                                                         │
 │  8. Approval granted                                                    │
-│     └─▶ agentsh receives signed approval token                         │
+│     └─▶ agentmon receives signed approval token                         │
 │     └─▶ Operation proceeds                                             │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -251,7 +251,7 @@ func (s *ApprovalService) VerifyApproval(assertion ApprovalAssertion) (*Approval
         ExpiresAt:     time.Now().Add(5 * time.Minute),
     }
     
-    // Sign token so agentsh can verify it
+    // Sign token so agentmon can verify it
     token.Signature = s.signToken(token)
     
     return token, nil
@@ -440,7 +440,7 @@ For mobile approval:
 │                    Mobile Push + Biometric Flow                          │
 │                                                                         │
 │  ┌─────────────────┐                      ┌─────────────────────────┐  │
-│  │    agentsh      │                      │     Mobile App          │  │
+│  │    agentmon      │                      │     Mobile App          │  │
 │  │                 │                      │                         │  │
 │  │  Approval       │ ─── Push ──────────▶ │  📱 Notification:      │  │
 │  │  requested      │     Notification     │  "Agent wants to        │  │
@@ -472,7 +472,7 @@ For mobile approval:
 │                                           └───────────┬─────────────┘  │
 │                                                       │                 │
 │  ┌─────────────────┐                                  │                 │
-│  │    agentsh      │ ◀─── Signed approval ────────────┘                 │
+│  │    agentmon      │ ◀─── Signed approval ────────────┘                 │
 │  │                 │                                                    │
 │  │  ✓ Approved     │                                                    │
 │  └─────────────────┘                                                    │
@@ -491,7 +491,7 @@ For local development or when the human is at the same machine:
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                    Local Terminal Approval                               │
 │                                                                         │
-│  $ agentsh server --approval-mode=local                                 │
+│  $ agentmon server --approval-mode=local                                 │
 │                                                                         │
 │  ════════════════════════════════════════════════════════════════════  │
 │  ⚠️  APPROVAL REQUIRED                                                  │
@@ -582,7 +582,7 @@ func (a *LocalApprover) RequestApproval(req ApprovalRequest) (*ApprovalResponse,
 
 ### 4.3 TOTP Approval Mode
 
-For environments where math challenges are insufficient but WebAuthn isn't available, agentsh supports TOTP (Time-based One-Time Password) as a standalone approval mode. This requires the approver to enter a 6-digit code from their authenticator app.
+For environments where math challenges are insufficient but WebAuthn isn't available, agentmon supports TOTP (Time-based One-Time Password) as a standalone approval mode. This requires the approver to enter a 6-digit code from their authenticator app.
 
 **Key difference from Section 3.2:** Section 3.2 describes TOTP as a *verification method* within remote approval flows (web UI, Slack). This section describes TOTP as a *standalone approval mode* (`approvals.mode: totp`) for terminal-based workflows.
 
@@ -593,7 +593,7 @@ For environments where math challenges are insufficient but WebAuthn isn't avail
 │                    TOTP Mode Session Creation                            │
 │                                                                         │
 │  1. User creates session with TOTP approval mode enabled                │
-│     └─▶ agentsh generates per-session 20-byte secret                   │
+│     └─▶ agentmon generates per-session 20-byte secret                   │
 │                                                                         │
 │  2. ASCII QR code displayed on terminal                                 │
 │     ┌──────────────────────────────────────────────────────────────┐   │
@@ -627,7 +627,7 @@ For environments where math challenges are insufficient but WebAuthn isn't avail
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                    TOTP Approval Request                                 │
 │                                                                         │
-│  $ agentsh exec $SID -- rm important-file.txt                           │
+│  $ agentmon exec $SID -- rm important-file.txt                           │
 │                                                                         │
 │  === APPROVAL REQUIRED (TOTP) ===                                       │
 │  Session: abc12345                                                       │
@@ -647,7 +647,7 @@ For environments where math challenges are insufficient but WebAuthn isn't avail
 #### Configuration
 
 ```yaml
-# /etc/agentsh/config.yaml or ~/.config/agentsh/config.yaml
+# /etc/agentmon/config.yaml or ~/.config/agentmon/config.yaml
 approvals:
   enabled: true
   mode: totp       # Options: "local_tty" | "api" | "totp"
@@ -672,7 +672,7 @@ approvals:
 - **Secret generation:** Uses `crypto/rand` for cryptographic randomness
 - **QR code:** Uses `github.com/skip2/go-qrcode` for ASCII art generation
 - **Validation:** Uses `github.com/pquerna/otp/totp` (RFC 6238 compliant)
-- **URI format:** `otpauth://totp/agentsh:{session_id_prefix}?secret={base32}&issuer=agentsh`
+- **URI format:** `otpauth://totp/agentmon:{session_id_prefix}?secret={base32}&issuer=agentmon`
 
 #### When to Use TOTP Mode
 
@@ -694,7 +694,7 @@ approvals:
 │                    Web Approval Dashboard                                │
 │                                                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │  🔐 agentsh Approvals                    user@company.com  [⚙️] │   │
+│  │  🔐 agentmon Approvals                    user@company.com  [⚙️] │   │
 │  ├─────────────────────────────────────────────────────────────────┤   │
 │  │                                                                  │   │
 │  │  Pending Approvals (2)                                          │   │
@@ -756,7 +756,7 @@ When user clicks "Approve":
 │  #agent-approvals                                                       │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│  🤖 agentsh                                              10:30 AM      │
+│  🤖 agentmon                                              10:30 AM      │
 │  ──────────────────────────────────────────────────────────────        │
 │  ⚠️ *Approval Required*                                                │
 │                                                                         │
@@ -782,15 +782,15 @@ When user clicks "Approve":
 │  👤 alice                                                10:32 AM      │
 │  Clicked *Approve*                                                     │
 │                                                                         │
-│  🤖 agentsh                                              10:32 AM      │
+│  🤖 agentmon                                              10:32 AM      │
 │  @alice Please complete verification:                                  │
-│  https://approvals.agentsh.io/verify/abc123                           │
+│  https://approvals.agentmon.io/verify/abc123                           │
 │  (Link expires in 5 minutes)                                           │
 │                                                                         │
 │  👤 alice                                                10:33 AM      │
 │  ✓ Verified with security key                                         │
 │                                                                         │
-│  🤖 agentsh                                              10:33 AM      │
+│  🤖 agentmon                                              10:33 AM      │
 │  ✅ *Approved* by @alice                                               │
 │  Operation proceeding...                                               │
 │                                                                         │
@@ -920,7 +920,7 @@ func (s *ApprovalService) signToken(token *ApprovalToken) []byte {
     return signature
 }
 
-func (a *agentsh) verifyApprovalToken(token *ApprovalToken, request *ApprovalRequest) error {
+func (a *agentmon) verifyApprovalToken(token *ApprovalToken, request *ApprovalRequest) error {
     // 1. Verify signature
     data := fmt.Sprintf("%s:%s:%s:%d:%d",
         token.ID,
@@ -970,7 +970,7 @@ All the anti-self-approval protections described in this document apply equally 
 ## 7. Configuration
 
 ```yaml
-# /etc/agentsh/config.yaml
+# /etc/agentmon/config.yaml
 
 approvals:
   # Approval mode: how approvals are handled
@@ -992,7 +992,7 @@ approvals:
     # TOTP as fallback
     totp:
       enabled: true
-      issuer: "agentsh"
+      issuer: "agentmon"
       
     # Interactive challenge (always enabled as final fallback)
     challenge:
@@ -1009,7 +1009,7 @@ approvals:
     # Web UI
     web:
       enabled: true
-      url: "https://approvals.agentsh.io"
+      url: "https://approvals.agentmon.io"
       
     # Slack
     slack:

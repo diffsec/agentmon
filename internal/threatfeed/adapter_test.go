@@ -11,13 +11,13 @@ import (
 func TestPolicyAdapter_RedactsLocalListPath(t *testing.T) {
 	store := NewStore("", nil)
 	store.Update(map[string]FeedEntry{
-		"evil.com": {FeedName: "local:/etc/agentsh/lists/blocklist.txt", AddedAt: time.Now()},
+		"evil.com": {FeedName: "local:/etc/agentmon/lists/blocklist.txt", AddedAt: time.Now()},
 	})
 
 	adapter := &PolicyAdapter{Store: store}
 	result, matched := adapter.Check("evil.com")
 	require.True(t, matched)
-	assert.Equal(t, "local:blocklist.txt.1fb68369", result.FeedName, "adapter should redact directory path and append hash")
+	assert.Equal(t, "local:blocklist.txt.18164f83", result.FeedName, "adapter should redact directory path and append hash")
 }
 
 func TestPolicyAdapter_PreservesRemoteFeedName(t *testing.T) {

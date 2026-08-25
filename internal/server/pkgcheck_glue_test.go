@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/pkgcheck"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // TestBuildResolvers_DefaultsToVerified verifies that calling buildResolvers with a
@@ -155,7 +155,7 @@ func TestBuildProviderEntry_ExplicitOnFailurePreserved(t *testing.T) {
 // must detect the empty map and fail loudly.
 func TestBuildProviderEntries_MissingAPIKeySkipsProvider(t *testing.T) {
 	// Use an env var that is guaranteed not to be set.
-	const missingEnvVar = "AGENTSH_TEST_SNYK_KEY_DEFINITELY_NOT_SET_XYZ"
+	const missingEnvVar = "AGENTMON_TEST_SNYK_KEY_DEFINITELY_NOT_SET_XYZ"
 	t.Setenv(missingEnvVar, "") // ensure it's empty
 
 	_, err := buildProviderEntry("snyk", config.ProviderConfig{
@@ -208,7 +208,7 @@ func TestComposedRules_NoCatchAllLeakFromBlockOn(t *testing.T) {
 // an external provider is configured with an unset API key env var, the error
 // is errMissingAPIKeyValue and callers should treat it as fatal (not skip).
 func TestMissingAPIKey_ClosedModeIsFatal(t *testing.T) {
-	const missingEnvVar = "AGENTSH_TEST_SNYK_KEY_CLOSED_MODE_XYZ"
+	const missingEnvVar = "AGENTMON_TEST_SNYK_KEY_CLOSED_MODE_XYZ"
 	t.Setenv(missingEnvVar, "") // ensure empty
 
 	_, err := buildProviderEntry("snyk", config.ProviderConfig{
@@ -247,7 +247,7 @@ func TestMissingAPIKey_ClosedModeIsFatal(t *testing.T) {
 // This is the previously-correct degraded behavior — the fix only adds the
 // closed-mode branch without changing degraded/open.
 func TestMissingAPIKey_DegradedModeContinues(t *testing.T) {
-	const missingEnvVar = "AGENTSH_TEST_SNYK_KEY_DEGRADED_MODE_XYZ"
+	const missingEnvVar = "AGENTMON_TEST_SNYK_KEY_DEGRADED_MODE_XYZ"
 	t.Setenv(missingEnvVar, "") // ensure empty
 
 	_, err := buildProviderEntry("snyk", config.ProviderConfig{
@@ -279,7 +279,7 @@ func TestMissingAPIKey_DegradedModeContinues(t *testing.T) {
 // configured providers are skipped due to missing API keys, the resulting map
 // is empty. This is what the server.go zero-providers check guards against.
 func TestBuildProviderEntries_ZeroProvidersDetectableByLoop(t *testing.T) {
-	const missingEnvVar = "AGENTSH_TEST_SNYK_KEY_DEFINITELY_NOT_SET_XYZ"
+	const missingEnvVar = "AGENTMON_TEST_SNYK_KEY_DEFINITELY_NOT_SET_XYZ"
 	t.Setenv(missingEnvVar, "") // ensure empty
 
 	cfgProviders := map[string]config.ProviderConfig{

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	"go.opentelemetry.io/otel/attribute"
 	otellog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/trace"
@@ -153,7 +153,7 @@ func TestConvertToLogRecord_Attributes(t *testing.T) {
 	attrs := logRecordAttrs(rec)
 	assertAttr(t, attrs, "process.pid", int64(100))
 	assertAttr(t, attrs, "process.parent_pid", int64(50))
-	assertAttr(t, attrs, "canyonroad.product", "agentsh")
+	assertAttr(t, attrs, "canyonroad.product", "agentmon")
 	assertAttr(t, attrs, "canyonroad.event.type", "file_write")
 	assertAttr(t, attrs, "canyonroad.session.id", "sess-1")
 	assertAttr(t, attrs, "canyonroad.command.id", "cmd-1")
@@ -345,7 +345,7 @@ func TestEventContext_InvalidTraceID(t *testing.T) {
 }
 
 func TestBuildResource(t *testing.T) {
-	res := BuildResource("my-agentsh", map[string]string{"env": "prod"})
+	res := BuildResource("my-agentmon", map[string]string{"env": "prod"})
 
 	attrs := res.Attributes()
 	found := map[string]string{}
@@ -355,8 +355,8 @@ func TestBuildResource(t *testing.T) {
 		}
 	}
 
-	if found["service.name"] != "my-agentsh" {
-		t.Errorf("service.name = %q, want %q", found["service.name"], "my-agentsh")
+	if found["service.name"] != "my-agentmon" {
+		t.Errorf("service.name = %q, want %q", found["service.name"], "my-agentmon")
 	}
 	if found["env"] != "prod" {
 		t.Errorf("env = %q, want %q", found["env"], "prod")
@@ -364,12 +364,12 @@ func TestBuildResource(t *testing.T) {
 }
 
 func TestBuildResource_NoExtras(t *testing.T) {
-	res := BuildResource("agentsh", nil)
+	res := BuildResource("agentmon", nil)
 
 	attrs := res.Attributes()
 	found := false
 	for _, a := range attrs {
-		if string(a.Key) == "service.name" && a.Value.AsString() == "agentsh" {
+		if string(a.Key) == "service.name" && a.Value.AsString() == "agentmon" {
 			found = true
 		}
 	}

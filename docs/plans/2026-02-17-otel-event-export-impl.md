@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Export agentsh audit events to any OpenTelemetry collector via OTLP (gRPC or HTTP), with configurable filtering.
+**Goal:** Export agentmon audit events to any OpenTelemetry collector via OTLP (gRPC or HTTP), with configurable filtering.
 
 **Architecture:** New `internal/store/otel/` package implementing the `store.EventStore` interface, plugged into the existing composite store chain alongside SQLite/JSONL/webhook. OTEL SDK handles batching and export.
 
@@ -10,7 +10,7 @@
 
 **Design doc:** `docs/plans/2026-02-17-otel-event-export-design.md`
 
-**Worktree:** `/home/eran/work/agentsh/.worktrees/feat-otel-export/`
+**Worktree:** `/home/eran/work/agentmon/.worktrees/feat-otel-export/`
 
 ---
 
@@ -105,7 +105,7 @@ In `internal/config/config.go`, in function `applyDefaultsWithSource` (line 689)
 		cfg.Audit.OTEL.Batch.Timeout = "5s"
 	}
 	if cfg.Audit.OTEL.Resource.ServiceName == "" {
-		cfg.Audit.OTEL.Resource.ServiceName = "agentsh"
+		cfg.Audit.OTEL.Resource.ServiceName = "agentmon"
 	}
 ```
 
@@ -115,12 +115,12 @@ In `internal/config/config.go`, in function `applyEnvOverrides` (line 1001), add
 
 ```go
 	// OTEL overrides
-	if v := os.Getenv("AGENTSH_OTEL_ENDPOINT"); v != "" {
+	if v := os.Getenv("AGENTMON_OTEL_ENDPOINT"); v != "" {
 		cfg.Audit.OTEL.Endpoint = v
 	} else if v := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); v != "" {
 		cfg.Audit.OTEL.Endpoint = v
 	}
-	if v := os.Getenv("AGENTSH_OTEL_PROTOCOL"); v != "" {
+	if v := os.Getenv("AGENTMON_OTEL_PROTOCOL"); v != "" {
 		cfg.Audit.OTEL.Protocol = v
 	}
 ```
@@ -179,7 +179,7 @@ audit:
       include_categories: ["file", "network"]
       min_risk_level: "medium"
     resource:
-      service_name: "my-agentsh"
+      service_name: "my-agentmon"
       extra_attributes:
         environment: "production"
 `
@@ -222,7 +222,7 @@ audit:
 	if otel.Filter.MinRiskLevel != "medium" {
 		t.Errorf("filter.min_risk_level = %q", otel.Filter.MinRiskLevel)
 	}
-	if otel.Resource.ServiceName != "my-agentsh" {
+	if otel.Resource.ServiceName != "my-agentmon" {
 		t.Errorf("resource.service_name = %q", otel.Resource.ServiceName)
 	}
 }
@@ -257,8 +257,8 @@ audit:
 	if otel.Batch.MaxSize != 512 {
 		t.Errorf("default batch.max_size = %d, want 512", otel.Batch.MaxSize)
 	}
-	if otel.Resource.ServiceName != "agentsh" {
-		t.Errorf("default resource.service_name = %q, want agentsh", otel.Resource.ServiceName)
+	if otel.Resource.ServiceName != "agentmon" {
+		t.Errorf("default resource.service_name = %q, want agentmon", otel.Resource.ServiceName)
 	}
 }
 
@@ -271,8 +271,8 @@ audit:
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	os.WriteFile(path, []byte(yaml), 0644)
 
-	t.Setenv("AGENTSH_OTEL_ENDPOINT", "otel.prod:4317")
-	t.Setenv("AGENTSH_OTEL_PROTOCOL", "http")
+	t.Setenv("AGENTMON_OTEL_ENDPOINT", "otel.prod:4317")
+	t.Setenv("AGENTMON_OTEL_PROTOCOL", "http")
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -333,7 +333,7 @@ audit:
 **Step 6: Run tests**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feat-otel-export && go test ./internal/config/ -run TestOTEL -v
+cd /home/eran/work/agentmon/.worktrees/feat-otel-export && go test ./internal/config/ -run TestOTEL -v
 ```
 
 Expected: All 4 OTEL config tests pass.
@@ -502,7 +502,7 @@ func TestFilter_Combined(t *testing.T) {
 **Step 2: Run tests to verify they fail**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feat-otel-export && go test ./internal/store/otel/ -run TestFilter -v
+cd /home/eran/work/agentmon/.worktrees/feat-otel-export && go test ./internal/store/otel/ -run TestFilter -v
 ```
 
 Expected: Compilation error — package and types don't exist yet.
@@ -599,7 +599,7 @@ func (f *Filter) Match(eventType, category, riskLevel string) bool {
 **Step 4: Run tests**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feat-otel-export && go test ./internal/store/otel/ -run TestFilter -v
+cd /home/eran/work/agentmon/.worktrees/feat-otel-export && go test ./internal/store/otel/ -run TestFilter -v
 ```
 
 Expected: All filter tests pass.
@@ -624,7 +624,7 @@ git commit -m "feat(otel): add event filter with glob patterns, categories, and 
 **Step 1: Add OTEL SDK dependencies**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feat-otel-export && go get go.opentelemetry.io/otel/sdk/log go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp
+cd /home/eran/work/agentmon/.worktrees/feat-otel-export && go get go.opentelemetry.io/otel/sdk/log go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp
 ```
 
 **Step 2: Write converter tests**
@@ -638,7 +638,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	"go.opentelemetry.io/otel/attribute"
 	otellog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/trace"
@@ -749,15 +749,15 @@ func TestConvertToLogRecord_Attributes(t *testing.T) {
 	attrs := logRecordAttrs(rec)
 	assertAttr(t, attrs, "process.pid", int64(100))
 	assertAttr(t, attrs, "process.parent_pid", int64(50))
-	assertAttr(t, attrs, "agentsh.event.type", "file_write")
-	assertAttr(t, attrs, "agentsh.session.id", "sess-1")
-	assertAttr(t, attrs, "agentsh.command.id", "cmd-1")
-	assertAttr(t, attrs, "agentsh.decision", "allow")
-	assertAttr(t, attrs, "agentsh.policy.rule", "allow-workspace")
+	assertAttr(t, attrs, "agentmon.event.type", "file_write")
+	assertAttr(t, attrs, "agentmon.session.id", "sess-1")
+	assertAttr(t, attrs, "agentmon.command.id", "cmd-1")
+	assertAttr(t, attrs, "agentmon.decision", "allow")
+	assertAttr(t, attrs, "agentmon.policy.rule", "allow-workspace")
 }
 
 func TestBuildResource(t *testing.T) {
-	res := buildResource("my-agentsh", map[string]string{"env": "prod"})
+	res := buildResource("my-agentmon", map[string]string{"env": "prod"})
 
 	attrs := res.Attributes()
 	found := map[string]string{}
@@ -767,7 +767,7 @@ func TestBuildResource(t *testing.T) {
 		}
 	}
 
-	if found["service.name"] != "my-agentsh" {
+	if found["service.name"] != "my-agentmon" {
 		t.Errorf("service.name = %q", found["service.name"])
 	}
 	if found["env"] != "prod" {
@@ -809,7 +809,7 @@ func assertAttr(t *testing.T, attrs map[string]otellog.Value, key string, want a
 **Step 3: Run tests to verify they fail**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feat-otel-export && go test ./internal/store/otel/ -run TestConvert -v
+cd /home/eran/work/agentmon/.worktrees/feat-otel-export && go test ./internal/store/otel/ -run TestConvert -v
 ```
 
 Expected: Compilation error — converter functions don't exist.
@@ -826,14 +826,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	otellog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
-// convertToLogRecord converts an agentsh Event to an OTEL LogRecord.
+// convertToLogRecord converts an agentmon Event to an OTEL LogRecord.
 func convertToLogRecord(ev types.Event) otellog.Record {
 	var rec otellog.Record
 
@@ -905,43 +905,43 @@ func eventAttributes(ev types.Event) []otellog.KeyValue {
 		attrs = append(attrs, otellog.String("process.executable.path", ev.Filename))
 	}
 
-	// agentsh namespace
+	// agentmon namespace
 	if ev.ID != "" {
-		attrs = append(attrs, otellog.String("agentsh.event.id", ev.ID))
+		attrs = append(attrs, otellog.String("agentmon.event.id", ev.ID))
 	}
-	attrs = append(attrs, otellog.String("agentsh.event.type", ev.Type))
+	attrs = append(attrs, otellog.String("agentmon.event.type", ev.Type))
 	if ev.SessionID != "" {
-		attrs = append(attrs, otellog.String("agentsh.session.id", ev.SessionID))
+		attrs = append(attrs, otellog.String("agentmon.session.id", ev.SessionID))
 	}
 	if ev.CommandID != "" {
-		attrs = append(attrs, otellog.String("agentsh.command.id", ev.CommandID))
+		attrs = append(attrs, otellog.String("agentmon.command.id", ev.CommandID))
 	}
 	if ev.Source != "" {
-		attrs = append(attrs, otellog.String("agentsh.source", ev.Source))
+		attrs = append(attrs, otellog.String("agentmon.source", ev.Source))
 	}
 	if ev.Path != "" {
-		attrs = append(attrs, otellog.String("agentsh.path", ev.Path))
+		attrs = append(attrs, otellog.String("agentmon.path", ev.Path))
 	}
 	if ev.Domain != "" {
-		attrs = append(attrs, otellog.String("agentsh.domain", ev.Domain))
+		attrs = append(attrs, otellog.String("agentmon.domain", ev.Domain))
 	}
 	if ev.Remote != "" {
-		attrs = append(attrs, otellog.String("agentsh.remote", ev.Remote))
+		attrs = append(attrs, otellog.String("agentmon.remote", ev.Remote))
 	}
 	if ev.Operation != "" {
-		attrs = append(attrs, otellog.String("agentsh.operation", ev.Operation))
+		attrs = append(attrs, otellog.String("agentmon.operation", ev.Operation))
 	}
 	if ev.EffectiveAction != "" {
-		attrs = append(attrs, otellog.String("agentsh.effective_action", ev.EffectiveAction))
+		attrs = append(attrs, otellog.String("agentmon.effective_action", ev.EffectiveAction))
 	}
 
 	// Policy info
 	if ev.Policy != nil {
 		if ev.Policy.Decision != "" {
-			attrs = append(attrs, otellog.String("agentsh.decision", string(ev.Policy.Decision)))
+			attrs = append(attrs, otellog.String("agentmon.decision", string(ev.Policy.Decision)))
 		}
 		if ev.Policy.Rule != "" {
-			attrs = append(attrs, otellog.String("agentsh.policy.rule", ev.Policy.Rule))
+			attrs = append(attrs, otellog.String("agentmon.policy.rule", ev.Policy.Rule))
 		}
 	}
 
@@ -957,14 +957,14 @@ func eventAttributes(ev types.Event) []otellog.KeyValue {
 				switch val := v.(type) {
 				case string:
 					if val != "" {
-						attrs = append(attrs, otellog.String("agentsh."+key, val))
+						attrs = append(attrs, otellog.String("agentmon."+key, val))
 					}
 				case int:
-					attrs = append(attrs, otellog.Int("agentsh."+key, val))
+					attrs = append(attrs, otellog.Int("agentmon."+key, val))
 				case int64:
-					attrs = append(attrs, otellog.Int64("agentsh."+key, val))
+					attrs = append(attrs, otellog.Int64("agentmon."+key, val))
 				case float64:
-					attrs = append(attrs, otellog.Float64("agentsh."+key, val))
+					attrs = append(attrs, otellog.Float64("agentmon."+key, val))
 				}
 			}
 		}
@@ -1009,7 +1009,7 @@ func extractSpanID(ev types.Event) (trace.SpanID, bool) {
 	return sid, true
 }
 
-// buildResource creates an OTEL Resource with agentsh service attributes.
+// buildResource creates an OTEL Resource with agentmon service attributes.
 func buildResource(serviceName string, extraAttrs map[string]string) *resource.Resource {
 	attrs := []resource.Option{
 		resource.WithAttributes(semconv.ServiceName(serviceName)),
@@ -1057,7 +1057,7 @@ func buildResource(serviceName string, extraAttrs map[string]string) *resource.R
 **Step 5: Run tests**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feat-otel-export && go test ./internal/store/otel/ -run "TestConvert|TestBuild" -v
+cd /home/eran/work/agentmon/.worktrees/feat-otel-export && go test ./internal/store/otel/ -run "TestConvert|TestBuild" -v
 ```
 
 Expected: All converter tests pass.
@@ -1091,8 +1091,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestStore_AppendEvent_Filtered(t *testing.T) {
@@ -1192,9 +1192,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/pkg/types"
 
 	otellog "go.opentelemetry.io/otel/log"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
@@ -1207,7 +1207,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 )
 
-// Store exports agentsh events via OpenTelemetry.
+// Store exports agentmon events via OpenTelemetry.
 type Store struct {
 	filter *Filter
 	res    *resource.Resource
@@ -1292,7 +1292,7 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 				sdklog.WithExportTimeout(batchTimeout),
 			)),
 		)
-		s.logger = s.logProvider.Logger("agentsh")
+		s.logger = s.logProvider.Logger("agentmon")
 	}
 
 	// Initialize trace exporter and provider
@@ -1395,7 +1395,7 @@ func newTestStore(t *testing.T, filter *Filter) (*testableStore, error) {
 	// Use a simple log exporter that counts records
 	exporter := &countingLogExporter{}
 
-	res := buildResource("agentsh-test", nil)
+	res := buildResource("agentmon-test", nil)
 	provider := sdklog.NewLoggerProvider(
 		sdklog.WithResource(res),
 		sdklog.WithProcessor(sdklog.NewSimpleProcessor(exporter)),
@@ -1405,7 +1405,7 @@ func newTestStore(t *testing.T, filter *Filter) (*testableStore, error) {
 		filter:     filter,
 		res:        res,
 		logProvider: provider,
-		logger:     provider.Logger("agentsh-test"),
+		logger:     provider.Logger("agentmon-test"),
 		enableLogs: true,
 	}
 
@@ -1439,7 +1439,7 @@ Note: You'll need `"sync/atomic"` in the test imports for the `atomic.Int64`. Ad
 **Step 3: Run tests**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feat-otel-export && go test ./internal/store/otel/ -v
+cd /home/eran/work/agentmon/.worktrees/feat-otel-export && go test ./internal/store/otel/ -v
 ```
 
 Expected: All tests pass (filter + converter + store tests).
@@ -1447,7 +1447,7 @@ Expected: All tests pass (filter + converter + store tests).
 **Step 4: Verify cross-compilation**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feat-otel-export && GOOS=windows go build ./...
+cd /home/eran/work/agentmon/.worktrees/feat-otel-export && GOOS=windows go build ./...
 ```
 
 **Step 5: Commit**
@@ -1471,7 +1471,7 @@ git commit -m "feat(otel): implement OTEL event store with log export and batchi
 In `internal/server/server.go`, add the import:
 
 ```go
-otelstore "github.com/agentsh/agentsh/internal/store/otel"
+otelstore "github.com/diffsec/agentmon/internal/store/otel"
 ```
 
 In the `New` function, after the webhook store creation block (after line ~147, before the `var eventStores` line), add:
@@ -1508,7 +1508,7 @@ Then in the `eventStores` assembly block (around line ~150), add:
 **Step 2: Build and test**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feat-otel-export && go build ./... && go test ./internal/server/ -v
+cd /home/eran/work/agentmon/.worktrees/feat-otel-export && go build ./... && go test ./internal/server/ -v
 ```
 
 Expected: Build succeeds, existing server tests pass.
@@ -1516,13 +1516,13 @@ Expected: Build succeeds, existing server tests pass.
 **Step 3: Cross-compile check**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feat-otel-export && GOOS=windows go build ./...
+cd /home/eran/work/agentmon/.worktrees/feat-otel-export && GOOS=windows go build ./...
 ```
 
 **Step 4: Run full test suite**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feat-otel-export && go test ./...
+cd /home/eran/work/agentmon/.worktrees/feat-otel-export && go test ./...
 ```
 
 Expected: All tests pass.
@@ -1590,8 +1590,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // TestIntegration_OTELCollector requires Docker and the OTEL Collector image.
@@ -1641,7 +1641,7 @@ func TestIntegration_OTELCollector(t *testing.T) {
 		Signals:  config.OTELSignalsConfig{Logs: true},
 		Batch:    config.OTELBatchConfig{MaxSize: 10, Timeout: "1s"},
 		Filter:   config.OTELFilterConfig{},
-		Resource: config.OTELResourceConfig{ServiceName: "agentsh-integration-test"},
+		Resource: config.OTELResourceConfig{ServiceName: "agentmon-integration-test"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1690,7 +1690,7 @@ func TestIntegration_OTELCollector(t *testing.T) {
 	}
 
 	output := string(data)
-	if !contains(output, "agentsh-integration-test") {
+	if !contains(output, "agentmon-integration-test") {
 		t.Error("output missing service name")
 	}
 	if !contains(output, "file_write") {
@@ -1717,7 +1717,7 @@ func containsSubstr(s, substr string) bool {
 **Step 3: Run integration test (if Docker available)**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feat-otel-export && go test -tags otel_integration -v -timeout 120s ./internal/store/otel/
+cd /home/eran/work/agentmon/.worktrees/feat-otel-export && go test -tags otel_integration -v -timeout 120s ./internal/store/otel/
 ```
 
 Expected: Test passes if Docker is available and OTEL collector image can be pulled.
@@ -1725,7 +1725,7 @@ Expected: Test passes if Docker is available and OTEL collector image can be pul
 **Step 4: Run full test suite to ensure nothing is broken**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feat-otel-export && go test ./...
+cd /home/eran/work/agentmon/.worktrees/feat-otel-export && go test ./...
 ```
 
 Expected: All existing + new tests pass. The integration test is skipped without the build tag.

@@ -3,7 +3,7 @@ package tor
 import (
 	"net"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // PolicyAdapter adapts *Policy to policy.TorChecker (policy→tor would be

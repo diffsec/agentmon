@@ -10,13 +10,13 @@ import (
 )
 
 func TestValidateCodeSignature_InvalidPath(t *testing.T) {
-	err := validateCodeSignature("/nonexistent/binary", "WCKWMMKJ35")
+	err := validateCodeSignature("/nonexistent/binary", "LWSYS6YTUZ")
 	assert.Error(t, err, "should fail for nonexistent binary")
 }
 
 func TestValidateCodeSignature_UnsignedBinary(t *testing.T) {
 	// /usr/bin/true is Apple-signed, not our team ID
-	err := validateCodeSignature("/usr/bin/true", "WCKWMMKJ35")
+	err := validateCodeSignature("/usr/bin/true", "LWSYS6YTUZ")
 	assert.Error(t, err, "should fail for binary signed by different team")
 }
 

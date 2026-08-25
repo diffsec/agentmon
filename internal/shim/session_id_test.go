@@ -16,7 +16,7 @@ func stringsTrim(s string) string { return strings.TrimSpace(s) }
 func TestResolveSessionID_UsesEnvSessionID(t *testing.T) {
 	dir := t.TempDir()
 	env := map[string]string{
-		"AGENTSH_SESSION_ID": "sess-env-123",
+		"AGENTMON_SESSION_ID": "sess-env-123",
 	}
 
 	id, path, err := ResolveSessionID(ResolveSessionIDOptions{
@@ -42,8 +42,8 @@ func TestResolveSessionID_EnvSessionIDWinsOverSessionFile(t *testing.T) {
 	dir := t.TempDir()
 	sessFile := filepath.Join(dir, "sid.txt")
 	env := map[string]string{
-		"AGENTSH_SESSION_ID":   "sess-env-123",
-		"AGENTSH_SESSION_FILE": sessFile,
+		"AGENTMON_SESSION_ID":   "sess-env-123",
+		"AGENTMON_SESSION_FILE": sessFile,
 	}
 
 	id, path, err := ResolveSessionID(ResolveSessionIDOptions{
@@ -71,7 +71,7 @@ func TestResolveSessionID_UsesSessionFile(t *testing.T) {
 	dir := t.TempDir()
 	sessFile := filepath.Join(dir, "sid.txt")
 	env := map[string]string{
-		"AGENTSH_SESSION_FILE": sessFile,
+		"AGENTMON_SESSION_FILE": sessFile,
 	}
 
 	id1, path1, err := ResolveSessionID(ResolveSessionIDOptions{
@@ -126,7 +126,7 @@ func TestResolveSessionID_WorkspaceScope_UsesGitRoot(t *testing.T) {
 
 	base := filepath.Join(dir, "run")
 	env := map[string]string{
-		"AGENTSH_SESSION_SCOPE": "workspace",
+		"AGENTMON_SESSION_SCOPE": "workspace",
 	}
 
 	id1, path1, err := ResolveSessionID(ResolveSessionIDOptions{
@@ -165,7 +165,7 @@ func TestResolveSessionID_GlobalScope(t *testing.T) {
 	dir := t.TempDir()
 	base := filepath.Join(dir, "run")
 	env := map[string]string{
-		"AGENTSH_SESSION_SCOPE": "global",
+		"AGENTMON_SESSION_SCOPE": "global",
 	}
 
 	id1, path1, err := ResolveSessionID(ResolveSessionIDOptions{
@@ -201,7 +201,7 @@ func TestResolveSessionID_FallbacksToSessionDefaultWhenAllBaseDirsFail(t *testin
 		t.Fatal(err)
 	}
 	env := map[string]string{
-		"AGENTSH_SESSION_SCOPE": "global",
+		"AGENTMON_SESSION_SCOPE": "global",
 	}
 
 	id, path, err := ResolveSessionID(ResolveSessionIDOptions{

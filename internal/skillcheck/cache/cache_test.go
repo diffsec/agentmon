@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 func TestPutThenGet(t *testing.T) {

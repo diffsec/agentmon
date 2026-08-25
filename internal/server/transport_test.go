@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestServer_UnixSocketServesHealth(t *testing.T) {
@@ -212,7 +212,7 @@ func writeSelfSignedKeypair(certPath, keyPath string) error {
 	tmpl := x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
-			CommonName: "agentsh-test",
+			CommonName: "agentmon-test",
 		},
 		NotBefore:             time.Now().Add(-time.Minute),
 		NotAfter:              time.Now().Add(10 * time.Minute),

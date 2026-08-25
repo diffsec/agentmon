@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // MemoryProvider is an in-memory secrets.SecretProvider for use in

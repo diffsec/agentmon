@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Close the file/network/signal-policy gap when commands are spawned outside agentsh server's process tree (sandbox-SDK pattern: Tensorlake, E2B, Modal). The shim invokes the existing `agentsh-unixwrap` machinery on its own process before execve, so kernel filters govern the user's command even though it isn't a descendant of the agentsh server.
+**Goal:** Close the file/network/signal-policy gap when commands are spawned outside agentmon server's process tree (sandbox-SDK pattern: Tensorlake, E2B, Modal). The shim invokes the existing `agentmon-unixwrap` machinery on its own process before execve, so kernel filters govern the user's command even though it isn't a descendant of the agentmon server.
 
-**Architecture:** Reuse `/api/v1/sessions/{id}/wrap-init` with a new `Mode: "shim"` request field. The server always returns the same populated response regardless of Mode — install/skip is the shim's decision, governed by its `mode=auto/on/off` config (fail-closed: an old server returning a populated response triggers an install). Per-invocation listener cleanup for shim-mode wraps. Shim uses the **same socketpair-relay pattern** as `internal/cli/wrap_linux.go`'s `platformSetupWrap`: create an AF_UNIX SOCK_SEQPACKET socketpair, pass the child end to the wrapper as fd 3, act as relay (receive notify fd via SCM_RIGHTS, forward to server, send ACK byte back through socketpair), then wait and propagate exit code. Then launches `agentsh-unixwrap` as a **child process** via `runAndExit` (NOT `syscall.Exec`) with `AGENTSH_NOTIFY_SOCK_FD=3` set. (Direct-connect from shim to the server's notify socket does NOT work: the server's `acceptNotifyFD` never sends the ACK byte that the wrapper's `waitForACK` blocks on.) **The shim always installs** when mode != off — there is no portable, unforgeable way to detect "already installed by us" (env-var markers are caller-controlled; `Seccomp:2` is true for any container default profile). Filter stacking up to the kernel's 64-filter limit covers realistic nesting depths. Default-on with one operator override (`shim_install=auto|on|off` in `/etc/agentsh/shim.conf` — there is no server-side YAML config; see Task 10 superseded note). Fail-closed. **IMPORTANT: the install branch runs BEFORE the `AGENTSH_IN_SESSION=1` recursion guard** — `AGENTSH_IN_SESSION` is caller-controllable, so gating install on it would let a malicious sandbox-SDK supervisor pre-set the env var and bypass enforcement. The recursion guard remains in place for the agentsh-exec proxy path only (where recursion would deadlock). Server-spawned children running the install branch install again — wasteful but safe.
+**Architecture:** Reuse `/api/v1/sessions/{id}/wrap-init` with a new `Mode: "shim"` request field. The server always returns the same populated response regardless of Mode — install/skip is the shim's decision, governed by its `mode=auto/on/off` config (fail-closed: an old server returning a populated response triggers an install). Per-invocation listener cleanup for shim-mode wraps. Shim uses the **same socketpair-relay pattern** as `internal/cli/wrap_linux.go`'s `platformSetupWrap`: create an AF_UNIX SOCK_SEQPACKET socketpair, pass the child end to the wrapper as fd 3, act as relay (receive notify fd via SCM_RIGHTS, forward to server, send ACK byte back through socketpair), then wait and propagate exit code. Then launches `agentmon-unixwrap` as a **child process** via `runAndExit` (NOT `syscall.Exec`) with `AGENTMON_NOTIFY_SOCK_FD=3` set. (Direct-connect from shim to the server's notify socket does NOT work: the server's `acceptNotifyFD` never sends the ACK byte that the wrapper's `waitForACK` blocks on.) **The shim always installs** when mode != off — there is no portable, unforgeable way to detect "already installed by us" (env-var markers are caller-controlled; `Seccomp:2` is true for any container default profile). Filter stacking up to the kernel's 64-filter limit covers realistic nesting depths. Default-on with one operator override (`shim_install=auto|on|off` in `/etc/agentmon/shim.conf` — there is no server-side YAML config; see Task 10 superseded note). Fail-closed. **IMPORTANT: the install branch runs BEFORE the `AGENTMON_IN_SESSION=1` recursion guard** — `AGENTMON_IN_SESSION` is caller-controllable, so gating install on it would let a malicious sandbox-SDK supervisor pre-set the env var and bypass enforcement. The recursion guard remains in place for the agentmon-exec proxy path only (where recursion would deadlock). Server-spawned children running the install branch install again — wasteful but safe.
 
 **Tech Stack:** Go 1.x, Linux-only (`+build linux`), seccomp-bpf user-notify, Landlock, Unix domain sockets with SCM_RIGHTS. No new dependencies.
 
@@ -23,16 +23,16 @@
 - `internal/shim/kernelinstall/install_linux_test.go` — unit tests against an httptest server simulating wrap-init.
 - `internal/api/wrap_shim_mode_test.go` — server-side regression test that `Mode: "shim"` returns the same shape of response as agent mode (populated `WrapperBinary`); locks in the no-server-side-predicate contract.
 - `internal/api/seccomp_wrapper_shim_install_test.go` — integration test: bash spawns in a sibling process tree; assert reads of a tempdir-based deny target are blocked.
-- `docs/cookbook/sandbox-sdk-integrations.md` — operator-facing doc for `shim_install=auto|on|off` in `/etc/agentsh/shim.conf` and the integration model.
+- `docs/cookbook/sandbox-sdk-integrations.md` — operator-facing doc for `shim_install=auto|on|off` in `/etc/agentmon/shim.conf` and the integration model.
 
 **Modified:**
 - `pkg/types/sessions.go` — `WrapInitRequest.Mode` field. (No new response field — install/skip is signalled by `WrapperBinary` presence; see Architecture.)
 - `internal/api/wrap.go` — `wrapInitCore` accepts `Mode == "shim"` (consumed only by Task 3 lifecycle change; no install/skip predicate — see iter-2 simplification in Task 2).
 - `internal/api/wrap_linux.go` — `acceptNotifyFD` accepts an optional teardown context for per-invocation cleanup.
-- ~~`internal/config/config.go`~~ — **NOT modified.** Originally planned, dropped per iter-9: a YAML `sandbox.shim_install.mode` field has no runtime path to the shim. The trusted source is `/etc/agentsh/shim.conf` only. See Task 10's superseded note.
-- `internal/shim/conf.go` — `ShimConf.ShimInstall string` (parsed from `shim_install=` line in `/etc/agentsh/shim.conf`). NOTE: `internal/config/config.go` is intentionally NOT modified — see Task 10's superseded note.
+- ~~`internal/config/config.go`~~ — **NOT modified.** Originally planned, dropped per iter-9: a YAML `sandbox.shim_install.mode` field has no runtime path to the shim. The trusted source is `/etc/agentmon/shim.conf` only. See Task 10's superseded note.
+- `internal/shim/conf.go` — `ShimConf.ShimInstall string` (parsed from `shim_install=` line in `/etc/agentmon/shim.conf`). NOTE: `internal/config/config.go` is intentionally NOT modified — see Task 10's superseded note.
 - `internal/shim/conf_test.go` — coverage for the new key.
-- `cmd/agentsh-shell-shim/main.go` — insert kernelinstall branch BEFORE the existing `if inSession == "1"` recursion guard (not after the agentsh-exec proxy, before it — install branch must run before the caller-controllable `AGENTSH_IN_SESSION` check).
+- `cmd/agentmon-shell-shim/main.go` — insert kernelinstall branch BEFORE the existing `if inSession == "1"` recursion guard (not after the agentmon-exec proxy, before it — install branch must run before the caller-controllable `AGENTMON_IN_SESSION` check).
 
 ---
 
@@ -55,7 +55,7 @@ type WrapInitRequest struct {
 	AgentCommand string   `json:"agent_command"`
 	AgentArgs    []string `json:"agent_args,omitempty"`
 	CallerUID    int      `json:"caller_uid,omitempty"`
-	// Mode selects wrap lifecycle. "agent" (default, used by `agentsh wrap`)
+	// Mode selects wrap lifecycle. "agent" (default, used by `agentmon wrap`)
 	// keeps the notify listener alive for the session lifetime. "shim"
 	// (used by the shell shim) tears the listener down when the wrapped
 	// process exits. An empty string (field absent on the wire) is treated
@@ -132,8 +132,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // TestWrapInit_ShimMode_ListenerExitsAfterOneConnection verifies that when
@@ -281,7 +281,7 @@ Append to `internal/shim/conf_test.go`:
 ```go
 func TestShimConf_ShimInstall(t *testing.T) {
 	dir := t.TempDir()
-	confDir := filepath.Join(dir, "etc", "agentsh")
+	confDir := filepath.Join(dir, "etc", "agentmon")
 	if err := os.MkdirAll(confDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +310,7 @@ func TestShimConf_ShimInstall_DefaultsAuto(t *testing.T) {
 
 func TestShimConf_ShimInstall_InvalidValue(t *testing.T) {
 	dir := t.TempDir()
-	confDir := filepath.Join(dir, "etc", "agentsh")
+	confDir := filepath.Join(dir, "etc", "agentmon")
 	_ = os.MkdirAll(confDir, 0o755)
 	_ = os.WriteFile(filepath.Join(confDir, "shim.conf"), []byte("shim_install=maybe\n"), 0o644)
 
@@ -434,7 +434,7 @@ Create `internal/shim/kernelinstall/mode.go`:
 ```go
 // Package kernelinstall lets the shim install seccomp + Landlock on its own
 // process before execve, so the user's command inherits the filter even when
-// the shim is not a child of the agentsh server (sandbox-SDK pattern).
+// the shim is not a child of the agentmon server (sandbox-SDK pattern).
 package kernelinstall
 
 import "fmt"
@@ -465,8 +465,8 @@ func (m Mode) String() string {
 // ResolveMode picks the effective mode from the trusted config-file value
 // and the (untrusted, caller-controlled) env-var override.
 //
-// Trust model: /etc/agentsh/shim.conf is root-owned and admin-managed,
-// so its value is authoritative. The AGENTSH_SHIM_INSTALL env var is
+// Trust model: /etc/agentmon/shim.conf is root-owned and admin-managed,
+// so its value is authoritative. The AGENTMON_SHIM_INSTALL env var is
 // readable from the caller's environment, so a malicious sandbox-SDK
 // supervisor could pre-set it. To prevent silent bypass, the env var
 // is honored ONLY if it would STRENGTHEN the effective mode (i.e.,
@@ -554,7 +554,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // TestInstall_ShortCircuitsWhenNothingRequired asserts that when wrap-init
@@ -607,7 +607,7 @@ func TestInstall_FailsClosedOnServerError(t *testing.T) {
 
 // TestInstall_AutoSilentSkipOnServerError covers Mode=auto: server errors
 // should fall through to skip (the shim then continues with its existing
-// agentsh-exec proxy path).
+// agentmon-exec proxy path).
 func TestInstall_AutoSilentSkipOnServerError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "boom", http.StatusInternalServerError)
@@ -638,7 +638,7 @@ func TestInstall_AutoSilentSkipOnServerError(t *testing.T) {
 // NOTE for implementer: this test will need a test-injectable "launch
 // wrapper" hook on InstallParams (or a package-level var) so the test
 // can intercept the exec/relay step without actually spawning
-// agentsh-unixwrap. Model this after the acceptNotifyFDForTest seam in
+// agentmon-unixwrap. Model this after the acceptNotifyFDForTest seam in
 // Task 3. Document the seam in a comment noting it is test-only.
 func TestInstall_BuildsExecPlan(t *testing.T) {
 	dir := t.TempDir()
@@ -651,9 +651,9 @@ func TestInstall_BuildsExecPlan(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(types.WrapInitResponse{
-			WrapperBinary: "/usr/bin/agentsh-unixwrap",
+			WrapperBinary: "/usr/bin/agentmon-unixwrap",
 			NotifySocket:  socketPath,
-			WrapperEnv:    map[string]string{"AGENTSH_SECCOMP_CONFIG": "{}"},
+			WrapperEnv:    map[string]string{"AGENTMON_SECCOMP_CONFIG": "{}"},
 		})
 	}))
 	defer srv.Close()
@@ -671,26 +671,26 @@ func TestInstall_BuildsExecPlan(t *testing.T) {
 	if res.Action != ResultExec {
 		t.Fatalf("got action %v, want ResultExec", res.Action)
 	}
-	if res.ExecPath != "/usr/bin/agentsh-unixwrap" {
+	if res.ExecPath != "/usr/bin/agentmon-unixwrap" {
 		t.Fatalf("got ExecPath %q", res.ExecPath)
 	}
-	wantArgs := []string{"agentsh-unixwrap", "--", "/bin/bash", "-c", "echo hi"}
+	wantArgs := []string{"agentmon-unixwrap", "--", "/bin/bash", "-c", "echo hi"}
 	if len(res.ExecArgs) != len(wantArgs) {
 		t.Fatalf("got args %v, want %v", res.ExecArgs, wantArgs)
 	}
 	hasFD := false
 	for _, e := range res.ExecEnv {
-		if strings.HasPrefix(e, "AGENTSH_NOTIFY_SOCK_FD=") {
+		if strings.HasPrefix(e, "AGENTMON_NOTIFY_SOCK_FD=") {
 			hasFD = true
 		}
 	}
 	if !hasFD {
-		t.Fatal("AGENTSH_NOTIFY_SOCK_FD not in env")
+		t.Fatal("AGENTMON_NOTIFY_SOCK_FD not in env")
 	}
 	// Signal fd must NOT be forwarded (shim mode strips signal env).
 	for _, e := range res.ExecEnv {
-		if strings.HasPrefix(e, "AGENTSH_SIGNAL_SOCK_FD=") {
-			t.Fatalf("AGENTSH_SIGNAL_SOCK_FD must not appear in shim mode env; got %q", e)
+		if strings.HasPrefix(e, "AGENTMON_SIGNAL_SOCK_FD=") {
+			t.Fatalf("AGENTMON_SIGNAL_SOCK_FD must not appear in shim mode env; got %q", e)
 		}
 	}
 }
@@ -714,7 +714,7 @@ import "fmt"
 type InstallParams struct {
 	ServerBaseURL string
 	SessionID     string
-	APIKey        string // for X-API-Key auth header (read from AGENTSH_API_KEY in the shim wiring)
+	APIKey        string // for X-API-Key auth header (read from AGENTMON_API_KEY in the shim wiring)
 	Mode          Mode
 	RealShell     string
 	ShellArgs     []string
@@ -795,8 +795,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // (InstallParams, Result, ResultAction, ResultSkip/Exec/FailClosed, and
@@ -834,7 +834,7 @@ const wrapInitTimeout = 5 * time.Second
 //  2. Create an AF_UNIX SOCK_SEQPACKET socketpair. Parent end stays in
 //     the shim (this function); child end becomes fd 3 in the wrapper.
 //  3. Launch the wrapper as a child process (NOT syscall.Exec) with
-//     AGENTSH_NOTIFY_SOCK_FD=3 pointing at the child end.
+//     AGENTMON_NOTIFY_SOCK_FD=3 pointing at the child end.
 //  4. Shim (parent end) receives the seccomp notify fd from the wrapper
 //     via SCM_RIGHTS.
 //  5. Shim dials the server's NotifySocket and forwards the notify fd
@@ -875,7 +875,7 @@ func Install(p InstallParams) (Result, error) {
 			return Result{}, fmt.Errorf("wrap-init: %w", err)
 		}
 		// ModeAuto: silent skip on server unreachable / 5xx. The shim's
-		// existing agentsh-exec proxy path will handle the request.
+		// existing agentmon-exec proxy path will handle the request.
 		return Result{Action: ResultSkip, Reason: err.Error()}, nil
 	}
 
@@ -896,15 +896,15 @@ func Install(p InstallParams) (Result, error) {
 		return Result{Action: ResultSkip}, nil
 	}
 
-	// Build the wrapper environment. Strip AGENTSH_SIGNAL_SOCK_FD before
+	// Build the wrapper environment. Strip AGENTMON_SIGNAL_SOCK_FD before
 	// merging WrapperEnv: the shim does not open SignalSocket or pass an
 	// inherited fd 4, so the wrapper would dereference a stale fd and either
 	// fail or silently lose signal enforcement. Signal-filter support in shim
 	// mode is deferred (see Open Issues / Limitations in Task 11).
 	env := append([]string{}, p.Env...)
-	env = appendOrReplace(env, "AGENTSH_NOTIFY_SOCK_FD=3") // child end of socketpair is always fd 3
+	env = appendOrReplace(env, "AGENTMON_NOTIFY_SOCK_FD=3") // child end of socketpair is always fd 3
 	for k, v := range resp.WrapperEnv {
-		if k == "AGENTSH_SIGNAL_SOCK_FD" {
+		if k == "AGENTMON_SIGNAL_SOCK_FD" {
 			continue // signal filter not yet supported in shim mode — see Task 11 Limitations
 		}
 		env = appendOrReplace(env, k+"="+v)
@@ -1023,32 +1023,32 @@ git commit -m "feat(shim): kernelinstall.Install dials wrap-init and builds exec
 
 ## Phase 4 — Wire kernelinstall into the shell shim
 
-### Task 7: Insert install branch in `cmd/agentsh-shell-shim/main.go`
+### Task 7: Insert install branch in `cmd/agentmon-shell-shim/main.go`
 
 **Files:**
-- Modify: `cmd/agentsh-shell-shim/main.go` (insert BEFORE the existing `if inSession == "1"` block — the install branch must run before the recursion guard)
+- Modify: `cmd/agentmon-shell-shim/main.go` (insert BEFORE the existing `if inSession == "1"` block — the install branch must run before the recursion guard)
 
 - [ ] **Step 1: Add the call site**
 
-In `cmd/agentsh-shell-shim/main.go`, insert the kernelinstall block BEFORE the existing `if inSession == "1"` recursion guard (around line 41). The placement is deliberate — see the comment in the code:
+In `cmd/agentmon-shell-shim/main.go`, insert the kernelinstall block BEFORE the existing `if inSession == "1"` recursion guard (around line 41). The placement is deliberate — see the comment in the code:
 
 ```go
 // Try shim-installed kernel enforcement (issues #267 + #268). When the
-// shim is not in the agentsh server's process tree (sandbox-SDK
+// shim is not in the agentmon server's process tree (sandbox-SDK
 // pattern), file/network/signal policy needs to be installed by the
 // shim itself before execve.
 //
-// IMPORTANT: this branch deliberately runs BEFORE the AGENTSH_IN_SESSION
+// IMPORTANT: this branch deliberately runs BEFORE the AGENTMON_IN_SESSION
 // recursion guard. The env var is caller-controllable, so gating the
 // install branch on it would let a malicious sandbox-SDK supervisor
-// pre-set AGENTSH_IN_SESSION=1 and bypass kernel enforcement entirely.
+// pre-set AGENTMON_IN_SESSION=1 and bypass kernel enforcement entirely.
 // In the legitimate server-spawned-child case, the install branch
 // just installs again — wasteful (filter stacking) but safe. The
-// in-session guard remains in place for the agentsh-exec proxy that
+// in-session guard remains in place for the agentmon-exec proxy that
 // follows it (where recursion would actually deadlock).
 //
 // IMPLEMENTATION NOTE: The current shim's main.go computes `conf`,
-// `sessID`, and `realShell` AFTER the AGENTSH_IN_SESSION guard. Moving
+// `sessID`, and `realShell` AFTER the AGENTMON_IN_SESSION guard. Moving
 // the install branch before that guard requires moving those
 // initializations up too — or computing them inline in the install
 // branch. Implementer should reorder the existing setup steps so the
@@ -1059,14 +1059,14 @@ In `cmd/agentsh-shell-shim/main.go`, insert the kernelinstall block BEFORE the e
 // in-session bypass path, document the trade-off and either accept
 // the side effect or replicate the relevant logic.
 {
-    mode, modeErr := kernelinstall.ResolveMode(conf.ShimInstall, os.Getenv("AGENTSH_SHIM_INSTALL"))
+    mode, modeErr := kernelinstall.ResolveMode(conf.ShimInstall, os.Getenv("AGENTMON_SHIM_INSTALL"))
     if modeErr != nil {
-        fatalWithHint(126, fmt.Sprintf("agentsh-shell-shim: shim_install mode: %v", modeErr), "")
+        fatalWithHint(126, fmt.Sprintf("agentmon-shell-shim: shim_install mode: %v", modeErr), "")
     }
     res, installErr := kernelinstall.Install(kernelinstall.InstallParams{
         ServerBaseURL: serverHTTPBaseURL(),
         SessionID:     sessID,
-        APIKey:        os.Getenv("AGENTSH_API_KEY"),
+        APIKey:        os.Getenv("AGENTMON_API_KEY"),
         Mode:          mode,
         RealShell:     realShell,
         ShellArgs:     os.Args[1:],
@@ -1078,8 +1078,8 @@ In `cmd/agentsh-shell-shim/main.go`, insert the kernelinstall block BEFORE the e
         CallerUID:     os.Getuid(),
     })
     if installErr != nil {
-        fatalWithHint(126, fmt.Sprintf("agentsh-shell-shim: kernel install: %v", installErr),
-            "To disable, set shim_install=off in /etc/agentsh/shim.conf")
+        fatalWithHint(126, fmt.Sprintf("agentmon-shell-shim: kernel install: %v", installErr),
+            "To disable, set shim_install=off in /etc/agentmon/shim.conf")
     }
     switch res.Action {
     case kernelinstall.ResultExec:
@@ -1089,12 +1089,12 @@ In `cmd/agentsh-shell-shim/main.go`, insert the kernelinstall block BEFORE the e
     case kernelinstall.ResultFailClosed:
         // mode=on on a platform/kernel that can't install (e.g., non-Linux,
         // missing seccomp/Landlock, etc.). Reason carries the explanation.
-        fatalWithHint(126, "agentsh-shell-shim: kernel install fail-closed: "+res.Reason,
-            "To disable, set shim_install=off in /etc/agentsh/shim.conf")
+        fatalWithHint(126, "agentmon-shell-shim: kernel install fail-closed: "+res.Reason,
+            "To disable, set shim_install=off in /etc/agentmon/shim.conf")
     case kernelinstall.ResultSkip:
         // mode=auto with non-actionable failure (server unreachable, 5xx,
         // empty wrap-init response, etc.). Fall through to the existing
-        // agentsh-exec proxy path below (which carries the AGENTSH_IN_SESSION
+        // agentmon-exec proxy path below (which carries the AGENTMON_IN_SESSION
         // recursion guard).
     }
 }
@@ -1107,20 +1107,20 @@ if inSession == "1" {
 Add the import at the top of the file:
 
 ```go
-	"github.com/agentsh/agentsh/internal/shim/kernelinstall"
+	"github.com/diffsec/agentmon/internal/shim/kernelinstall"
 ```
 
 - [ ] **Step 2: Add the `serverHTTPBaseURL` helper**
 
-At the bottom of `cmd/agentsh-shell-shim/main.go` (next to `serverAddrFromEnv`), add:
+At the bottom of `cmd/agentmon-shell-shim/main.go` (next to `serverAddrFromEnv`), add:
 
 ```go
-// serverHTTPBaseURL returns the HTTP base URL for the agentsh server,
+// serverHTTPBaseURL returns the HTTP base URL for the agentmon server,
 // suitable for kernelinstall.Install. Defaults to the local server when
-// AGENTSH_SERVER is unset. Returns the URL even when the server is
+// AGENTMON_SERVER is unset. Returns the URL even when the server is
 // unreachable; the caller's Mode dictates how that error is handled.
 func serverHTTPBaseURL() string {
-	v := strings.TrimSpace(os.Getenv("AGENTSH_SERVER"))
+	v := strings.TrimSpace(os.Getenv("AGENTMON_SERVER"))
 	if v != "" {
 		return v
 	}
@@ -1130,19 +1130,19 @@ func serverHTTPBaseURL() string {
 
 - [ ] **Step 3: Build to verify compile**
 
-Run: `go build ./cmd/agentsh-shell-shim/`
+Run: `go build ./cmd/agentmon-shell-shim/`
 Expected: no errors.
 
 - [ ] **Step 4: Verify cross-compile**
 
-Run: `GOOS=windows go build ./cmd/agentsh-shell-shim/`
+Run: `GOOS=windows go build ./cmd/agentmon-shell-shim/`
 Expected: no errors (kernelinstall has the non-Linux stub).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add cmd/agentsh-shell-shim/main.go
-git commit -m "feat(shim): wire kernelinstall before agentsh-exec proxy path"
+git add cmd/agentmon-shell-shim/main.go
+git commit -m "feat(shim): wire kernelinstall before agentmon-exec proxy path"
 ```
 
 ---
@@ -1180,7 +1180,7 @@ import (
 	"testing"
 )
 
-// TestShimInstall_SiblingProcessTree starts the agentsh server, then
+// TestShimInstall_SiblingProcessTree starts the agentmon server, then
 // spawns bash via the shim from a process tree that is *not* a child of
 // the server (mirroring the sandbox-SDK pattern from issue #267/#268).
 // Asserts that `cat /etc/shadow` is blocked even though the shim is in
@@ -1192,7 +1192,7 @@ import (
 // We use a tempdir-based deny target instead of /etc/shadow because the
 // latter is already 0600 root:root in most test environments, so a read
 // attempt fails on Unix DAC alone — the test would pass even with no
-// agentsh enforcement at all (false positive). The tempdir file is
+// agentmon enforcement at all (false positive). The tempdir file is
 // readable by the test user by default, so a successful deny *only*
 // happens if Landlock actually blocks the read.
 func TestShimInstall_SiblingProcessTree(t *testing.T) {
@@ -1202,7 +1202,7 @@ func TestShimInstall_SiblingProcessTree(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Sanity check: without agentsh, the test user can read the file.
+	// Sanity check: without agentmon, the test user can read the file.
 	// If this fails, the environment is wrong (not the policy).
 	if _, err := os.ReadFile(denyFile); err != nil {
 		t.Fatalf("environment check failed: test user cannot read %s without policy: %v", denyFile, err)
@@ -1212,13 +1212,13 @@ func TestShimInstall_SiblingProcessTree(t *testing.T) {
 	defer srv.Close()
 
 	shimPath := buildShim(t)
-	wrapPath := buildWrap(t) // ensures agentsh-unixwrap is on PATH
+	wrapPath := buildWrap(t) // ensures agentmon-unixwrap is on PATH
 
 	cmd := exec.CommandContext(context.Background(), shimPath, "-c", "cat "+denyFile)
 	cmd.Env = append(os.Environ(),
-		"AGENTSH_SERVER="+srv.URL,
-		"AGENTSH_SESSION_ID=test-shim-install",
-		"AGENTSH_SHIM_INSTALL=on",
+		"AGENTMON_SERVER="+srv.URL,
+		"AGENTMON_SESSION_ID=test-shim-install",
+		"AGENTMON_SHIM_INSTALL=on",
 		"PATH="+filepath.Dir(wrapPath)+":"+os.Getenv("PATH"),
 	)
 	out, err := cmd.CombinedOutput()
@@ -1274,7 +1274,7 @@ Add to `seccomp_wrapper_shim_install_test.go`:
 // installs filters at BOTH levels (filter stacking is allowed up to the
 // kernel's 64-filter limit), and that the inner shell's read of the
 // deny-target is still blocked. We don't try to deduplicate nested
-// installs — there's no portable, unforgeable signal for "agentsh already
+// installs — there's no portable, unforgeable signal for "agentmon already
 // installed here", so always-install is the safe choice.
 //
 // Uses a tempdir-based deny target (not /etc/shadow) so the test cannot
@@ -1297,9 +1297,9 @@ func TestShimInstall_NestedInstallsCompose(t *testing.T) {
 
 	cmd := exec.Command(shimPath, "-c", "bash -c 'cat "+denyFile+"'")
 	cmd.Env = append(os.Environ(),
-		"AGENTSH_SERVER="+srv.URL,
-		"AGENTSH_SESSION_ID=test-shim-nested",
-		"AGENTSH_SHIM_INSTALL=on",
+		"AGENTMON_SERVER="+srv.URL,
+		"AGENTMON_SESSION_ID=test-shim-nested",
+		"AGENTMON_SHIM_INSTALL=on",
 		"PATH="+filepath.Dir(wrapPath)+":"+os.Getenv("PATH"),
 	)
 	out, err := cmd.CombinedOutput()
@@ -1334,7 +1334,7 @@ git commit -m "test(api): nested shim invocations compose filters; inner shell s
 
 ### Task 10: ~~Add `sandbox.shim_install` config block~~ — REMOVED (roborev iter 9)
 
-**Status: dropped from plan.** A YAML `sandbox.shim_install.mode` field has no runtime path to the shim (the shim reads `/etc/agentsh/shim.conf`, not the server's YAML), so adding the YAML field would be operator-confusing — the documented setting would have no effect. The trusted source of the shim's mode is `/etc/agentsh/shim.conf` only, written by the agentsh installer/packaging (or by the operator directly). The cookbook doc (Task 11) documents `shim.conf` and the `AGENTSH_SHIM_INSTALL` env-strengthen-only override.
+**Status: dropped from plan.** A YAML `sandbox.shim_install.mode` field has no runtime path to the shim (the shim reads `/etc/agentmon/shim.conf`, not the server's YAML), so adding the YAML field would be operator-confusing — the documented setting would have no effect. The trusted source of the shim's mode is `/etc/agentmon/shim.conf` only, written by the agentmon installer/packaging (or by the operator directly). The cookbook doc (Task 11) documents `shim.conf` and the `AGENTMON_SHIM_INSTALL` env-strengthen-only override.
 
 If a future iteration wants to thread the YAML value through, the right place is the wrap-init response: server adds an advisory `shim_install_mode` field; shim takes the strengthen-only MAX of (shim.conf, env, server-advised). That's deferred — out of scope for the initial cut.
 
@@ -1352,9 +1352,9 @@ Create `docs/cookbook/sandbox-sdk-integrations.md`:
 ```markdown
 # Sandbox SDK integrations (Tensorlake / E2B / Modal / Daytona)
 
-When agentsh runs as a service that supervises commands spawned by a
-sandbox SDK, the spawned commands are siblings of the agentsh server,
-not descendants. Kernel filters loaded on the agentsh server's process
+When agentmon runs as a service that supervises commands spawned by a
+sandbox SDK, the spawned commands are siblings of the agentmon server,
+not descendants. Kernel filters loaded on the agentmon server's process
 (Landlock, seccomp-notify) do not govern them.
 
 `shim_install` closes that gap by having the shell shim install
@@ -1364,7 +1364,7 @@ the SDK spawned it into.
 
 ## Configuration
 
-The trusted source is `/etc/agentsh/shim.conf` (root-owned, admin-managed):
+The trusted source is `/etc/agentmon/shim.conf` (root-owned, admin-managed):
 
 ```
 shim_install=auto    # auto | on | off  (default: auto)
@@ -1373,7 +1373,7 @@ shim_install=auto    # auto | on | off  (default: auto)
 - `auto` (default): shim calls wrap-init. Installs when the server
   returns a populated wrapper response (the standard shape — the
   server has no install/skip predicate). Falls through to the existing
-  agentsh-exec proxy ONLY when wrap-init itself fails (server
+  agentmon-exec proxy ONLY when wrap-init itself fails (server
   unreachable, 5xx, network error) — i.e., before the shim has
   committed to launching the wrapper.
 - `on`: shim must install. wrap-init failures exit 126 with a hint
@@ -1386,9 +1386,9 @@ is no fall-through after that point. On Daytona/Fargate (no-new-privs)
 the wrapper's seccomp install will EPERM and the wrapper exits
 non-zero; the shim propagates that exit code (no silent skip).
 
-The override env var is `AGENTSH_SHIM_INSTALL=auto|on|off`. The env var
+The override env var is `AGENTMON_SHIM_INSTALL=auto|on|off`. The env var
 may only **strengthen** enforcement, never weaken it: the trusted source
-is `/etc/agentsh/shim.conf` (root-owned, admin-managed). If the env var
+is `/etc/agentmon/shim.conf` (root-owned, admin-managed). If the env var
 would produce a weaker mode than the config (e.g., config says `on` and
 env says `off`), the env var is silently ignored and the config wins.
 
@@ -1399,13 +1399,13 @@ Per shim invocation, when install is required:
 1. Shim calls wrap-init and receives WrapperBinary + NotifySocket path.
 2. Shim creates an AF_UNIX SOCK_SEQPACKET socketpair. Parent end stays
    in the shim; child end becomes fd 3 in the wrapper.
-3. Sets `AGENTSH_NOTIFY_SOCK_FD=3` in the wrapper environment.
-4. Launches `agentsh-unixwrap` as a **child process** via `runAndExit` (NOT `syscall.Exec`). The shim stays alive as the parent, keeping its pipes open so sandbox toolboxes (Daytona, E2B) that track the spawned PID's output don't lose it when the wrapper runs.
+3. Sets `AGENTMON_NOTIFY_SOCK_FD=3` in the wrapper environment.
+4. Launches `agentmon-unixwrap` as a **child process** via `runAndExit` (NOT `syscall.Exec`). The shim stays alive as the parent, keeping its pipes open so sandbox toolboxes (Daytona, E2B) that track the spawned PID's output don't lose it when the wrapper runs.
 5. Shim acts as relay: receives the seccomp notify fd from the wrapper
    via SCM_RIGHTS on the parent end of the socketpair, dials the server's
    NotifySocket, forwards the notify fd, then sends the ACK byte back
    through the socketpair. The wrapper's `waitForACK` unblocks.
-6. `agentsh-unixwrap` applies Landlock, then execve's the user's shell.
+6. `agentmon-unixwrap` applies Landlock, then execve's the user's shell.
 7. The user's command runs under both filters. The shim waits for the
    wrapper child to exit and propagates the exit code.
 
@@ -1415,24 +1415,24 @@ and easily covers realistic nesting depths. There is no portable,
 unforgeable way to detect "the active filter is *our* filter" without
 elevated privileges (env-var markers are caller-controlled; a
 container's default seccomp profile already sets `Seccomp:2` so that
-kernel-state field can't be used to recognize agentsh's install). The
+kernel-state field can't be used to recognize agentmon's install). The
 safe choice is to always install when the shim is not in-session.
 
 ## Limitations
 
 - **Signal filter not enforced in shim mode.** When the server session
   has signal-filter rules enabled, `WrapperEnv` includes
-  `AGENTSH_SIGNAL_SOCK_FD=4`. The shim does not open `SignalSocket` or
+  `AGENTMON_SIGNAL_SOCK_FD=4`. The shim does not open `SignalSocket` or
   pass an inherited fd 4, so the shim's Install strips
-  `AGENTSH_SIGNAL_SOCK_FD` from the wrapper environment. Signal-rule
+  `AGENTMON_SIGNAL_SOCK_FD` from the wrapper environment. Signal-rule
   enforcement remains a server-spawned-only feature until a future
   iteration extends the relay to handle the second socketpair (same
   pattern, doubled). Operators relying on signal rules must use the
   server-spawned path.
 - **Direct SDK exec** (`sb.exec("cat", [...])` without going through
   any shell) bypasses the shim. The fix on that path is to integrate
-  the SDK with `agentsh exec` directly. Tracked as a separate concern.
-- **No-new-privileges / restricted seccomp environments** (Daytona, Fargate, some container LSM profiles) reject the wrapper's seccomp install. Once the shim has committed to install (wrap-init returned a usable response and the wrapper was launched), the wrapper's non-zero exit code is propagated to the shim's caller as-is in BOTH `mode=auto` and `mode=on` — there is no silent skip. The current `agentsh-unixwrap` exits with status `1` on install failure (not 126); the shim faithfully relays that. To avoid breakage, operators on these environments should set `shim_install=off` in `/etc/agentsh/shim.conf` and use ptrace-pid mode (#269) instead.
+  the SDK with `agentmon exec` directly. Tracked as a separate concern.
+- **No-new-privileges / restricted seccomp environments** (Daytona, Fargate, some container LSM profiles) reject the wrapper's seccomp install. Once the shim has committed to install (wrap-init returned a usable response and the wrapper was launched), the wrapper's non-zero exit code is propagated to the shim's caller as-is in BOTH `mode=auto` and `mode=on` — there is no silent skip. The current `agentmon-unixwrap` exits with status `1` on install failure (not 126); the shim faithfully relays that. To avoid breakage, operators on these environments should set `shim_install=off` in `/etc/agentmon/shim.conf` and use ptrace-pid mode (#269) instead.
 - **Per-invocation cost** is ~5–10 ms (HTTP wrap-init + exec hop +
   filter install). Acceptable for sandbox-SDK use; not recommended for
   workloads that fork thousands of short-lived commands per second.
@@ -1479,7 +1479,7 @@ Expected: all PASS or documented SKIP (Landlock/seccomp-notify not available in 
 
 - [ ] **Step 4: Smoke test the issue's repro grid**
 
-Create a tiny throwaway script that exercises the same set of denies as Eran's `agentsh-tensorlake/DETECT.md`:
+Create a tiny throwaway script that exercises the same set of denies as Eran's `agentmon-tensorlake/DETECT.md`:
 
 ```bash
 for cmd in 'sudo whoami' 'kill -9 1' 'cat /etc/shadow' 'touch /etc/x'; do

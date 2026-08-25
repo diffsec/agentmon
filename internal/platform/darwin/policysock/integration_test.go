@@ -10,7 +10,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // shortSockPath returns a short Unix socket path under /tmp to avoid the
@@ -27,8 +27,8 @@ func shortSockPath(t *testing.T) string {
 }
 
 func TestIntegration_FullPolicyFlow(t *testing.T) {
-	if os.Getenv("AGENTSH_INTEGRATION") != "1" {
-		t.Skip("set AGENTSH_INTEGRATION=1 to run")
+	if os.Getenv("AGENTMON_INTEGRATION") != "1" {
+		t.Skip("set AGENTMON_INTEGRATION=1 to run")
 	}
 
 	// Create real policy
@@ -167,8 +167,8 @@ func (h *mockPNACLHandler) Configure(blockingEnabled bool, decisionTimeout float
 }
 
 func TestIntegration_PNACLFlow(t *testing.T) {
-	if os.Getenv("AGENTSH_INTEGRATION") != "1" {
-		t.Skip("set AGENTSH_INTEGRATION=1 to run")
+	if os.Getenv("AGENTMON_INTEGRATION") != "1" {
+		t.Skip("set AGENTMON_INTEGRATION=1 to run")
 	}
 
 	// Create basic policy handler
@@ -326,8 +326,8 @@ func TestIntegration_PNACLFlow(t *testing.T) {
 }
 
 func TestIntegration_ExecCheckWithHandler(t *testing.T) {
-	if os.Getenv("AGENTSH_INTEGRATION") != "1" {
-		t.Skip("set AGENTSH_INTEGRATION=1 to run")
+	if os.Getenv("AGENTMON_INTEGRATION") != "1" {
+		t.Skip("set AGENTMON_INTEGRATION=1 to run")
 	}
 
 	// Create basic policy (needed for PolicyAdapter as PolicyHandler)
@@ -428,7 +428,7 @@ func TestIntegration_ExecCheckWithHandler(t *testing.T) {
 			Decision: "redirect",
 			Action:   "redirect",
 			Rule:     "redirect-git",
-			Message:  "redirecting to agentsh-stub",
+			Message:  "redirecting to agentmon-stub",
 		}
 
 		resp := sendTestRequest(t, sockPath, PolicyRequest{
@@ -451,8 +451,8 @@ func TestIntegration_ExecCheckWithHandler(t *testing.T) {
 }
 
 func TestIntegration_ExecCheckAllDecisions(t *testing.T) {
-	if os.Getenv("AGENTSH_INTEGRATION") != "1" {
-		t.Skip("set AGENTSH_INTEGRATION=1 to run")
+	if os.Getenv("AGENTMON_INTEGRATION") != "1" {
+		t.Skip("set AGENTMON_INTEGRATION=1 to run")
 	}
 
 	// Create basic policy
@@ -525,8 +525,8 @@ func TestIntegration_ExecCheckAllDecisions(t *testing.T) {
 }
 
 func TestIntegration_ExecCheckFallbackToCommand(t *testing.T) {
-	if os.Getenv("AGENTSH_INTEGRATION") != "1" {
-		t.Skip("set AGENTSH_INTEGRATION=1 to run")
+	if os.Getenv("AGENTMON_INTEGRATION") != "1" {
+		t.Skip("set AGENTMON_INTEGRATION=1 to run")
 	}
 
 	// Create policy with command rules
@@ -607,8 +607,8 @@ func (h *mockExecHandler) CheckExec(executable string, args []string, pid int32,
 }
 
 func TestIntegration_PNACLNoHandler(t *testing.T) {
-	if os.Getenv("AGENTSH_INTEGRATION") != "1" {
-		t.Skip("set AGENTSH_INTEGRATION=1 to run")
+	if os.Getenv("AGENTMON_INTEGRATION") != "1" {
+		t.Skip("set AGENTMON_INTEGRATION=1 to run")
 	}
 
 	// Create server without PNACL handler

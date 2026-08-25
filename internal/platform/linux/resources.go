@@ -11,8 +11,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/limits"
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/limits"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // cgroupResourceLimiter implements platform.ResourceLimiter by delegating to

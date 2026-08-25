@@ -18,18 +18,18 @@ import (
 	"strings"
 	"time"
 
-	unixmon "github.com/agentsh/agentsh/internal/netmonitor/unix"
-	"github.com/agentsh/agentsh/internal/ptrace"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/signal"
-	"github.com/agentsh/agentsh/internal/wraphandoff"
-	"github.com/agentsh/agentsh/pkg/types"
+	unixmon "github.com/diffsec/agentmon/internal/netmonitor/unix"
+	"github.com/diffsec/agentmon/internal/ptrace"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/signal"
+	"github.com/diffsec/agentmon/internal/wraphandoff"
+	"github.com/diffsec/agentmon/pkg/types"
 	"golang.org/x/sys/unix"
 )
 
 var (
 	errWrapNotSupported = errors.New("wrap is only supported on Linux")
-	errWrapperNotFound  = errors.New("seccomp wrapper binary not found (agentsh-unixwrap not in PATH)")
+	errWrapperNotFound  = errors.New("seccomp wrapper binary not found (agentmon-unixwrap not in PATH)")
 )
 
 // recvFDFromConn receives a file descriptor from a Unix socket connection using SCM_RIGHTS.
@@ -104,9 +104,9 @@ func startNotifyHandlerForWrap(ctx context.Context, notifyFD *os.File, sessionID
 				}
 
 				// Create stub symlink for execve redirect
-				stubPath, err := exec.LookPath("agentsh-stub")
+				stubPath, err := exec.LookPath("agentmon-stub")
 				if err != nil {
-					slog.Warn("wrap: agentsh-stub not found, redirect will deny",
+					slog.Warn("wrap: agentmon-stub not found, redirect will deny",
 						"error", err, "session_id", sessionID)
 				} else {
 					// Normalize to absolute path in case LookPath returns relative
@@ -201,7 +201,7 @@ func startNotifyHandlerForWrap(ctx context.Context, notifyFD *os.File, sessionID
 // startSignalHandlerForWrap starts the signal filter handler for a wrap session.
 func startSignalHandlerForWrap(ctx context.Context, signalFD *os.File, sessionID string, a *App, s *session.Session) {
 	// Route through the session's effective policy engine so per-session
-	// signal rules are honored (canyonroad/agentsh#191). Previously this
+	// signal rules are honored (diffsec/agentmon#191). Previously this
 	// function read a.policy directly, which silently ignored rules
 	// authored in any non-default policy file.
 	engine := a.policyEngineFor(s)

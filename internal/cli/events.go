@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/internal/store/sqlite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/internal/store/sqlite"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -80,7 +80,7 @@ func newEventsQueryCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if directDB {
 				if dbPath == "" {
-					dbPath = getenvDefault("AGENTSH_DB_PATH", "./data/events.db")
+					dbPath = getenvDefault("AGENTMON_DB_PATH", "./data/events.db")
 				}
 				st, err := sqlite.Open(dbPath)
 				if err != nil {

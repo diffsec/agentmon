@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan phase-by-phase.
 
-**Goal:** Address Tier 1 and Tier 2 security gaps identified in the agentsh security audit.
+**Goal:** Address Tier 1 and Tier 2 security gaps identified in the agentmon security audit.
 
 **Architecture:** Three phased releases - Audit Hardening, Auth Expansion, MCP Security - each building on the previous to create defense-in-depth.
 
@@ -16,7 +16,7 @@ Foundation for compliance and forensics. ~3 weeks.
 
 ### 1.1 Tamper-Proof Audit Logs
 
-**Problem:** Current audit logs (JSONL/SQLite) can be modified if the agentsh process or disk is compromised. No cryptographic proof of integrity.
+**Problem:** Current audit logs (JSONL/SQLite) can be modified if the agentmon process or disk is compromised. No cryptographic proof of integrity.
 
 **Solution:** HMAC chain where each log entry includes a hash of the previous entry, creating an append-only verifiable chain.
 
@@ -34,14 +34,14 @@ Foundation for compliance and forensics. ~3 weeks.
 
 **Key management:** HMAC key derived from a root secret in config. For higher security, support external KMS (future phase).
 
-**Verification:** New CLI command `agentsh audit verify --path <log>` walks the chain and reports any breaks or tampering.
+**Verification:** New CLI command `agentmon audit verify --path <log>` walks the chain and reports any breaks or tampering.
 
 **Config:**
 ```yaml
 audit:
   integrity:
     enabled: true
-    key_file: /etc/agentsh/audit-integrity.key
+    key_file: /etc/agentmon/audit-integrity.key
 ```
 
 **Files:**
@@ -68,10 +68,10 @@ audit:
   encryption:
     enabled: true
     key_source: file
-    key_file: /etc/agentsh/audit.key
+    key_file: /etc/agentmon/audit.key
 ```
 
-**Key rotation:** Support re-encryption command `agentsh audit rekey --new-key <path>`.
+**Key rotation:** Support re-encryption command `agentmon audit rekey --new-key <path>`.
 
 **Files:**
 - `internal/audit/crypto.go` - encryption/decryption helpers
@@ -95,7 +95,7 @@ audit:
   "event_type": "policy.loaded",
   "policy_name": "default",
   "policy_version": "sha256:abc123",
-  "policy_path": "/etc/agentsh/policies/default.yaml",
+  "policy_path": "/etc/agentmon/policies/default.yaml",
   "loaded_by": "startup"
 }
 
@@ -135,8 +135,8 @@ audit:
 
 **CLI commands:**
 ```bash
-agentsh backup --output /path/to/backup.tar.gz
-agentsh restore --input /path/to/backup.tar.gz --verify
+agentmon backup --output /path/to/backup.tar.gz
+agentmon restore --input /path/to/backup.tar.gz --verify
 ```
 
 **Files:**
@@ -161,7 +161,7 @@ Stronger identity and approval mechanisms. ~3 weeks.
 1. Session creation → Generate WebAuthn challenge, store in session
 2. Approval needed → Return challenge to approval UI
 3. User touches security key → Browser/CLI signs challenge
-4. agentsh verifies signature against registered credential
+4. agentmon verifies signature against registered credential
 5. Approval granted
 
 **Config:**
@@ -171,8 +171,8 @@ approvals:
   mode: webauthn
   timeout: 5m
   webauthn:
-    rp_id: "agentsh.local"
-    rp_name: "agentsh"
+    rp_id: "agentmon.local"
+    rp_name: "agentmon"
     rp_origins:
       - "http://localhost:18080"
     user_verification: preferred
@@ -201,14 +201,14 @@ auth:
   type: oidc
   oidc:
     issuer: "https://corp.okta.com"
-    client_id: "agentsh-server"
-    audience: "agentsh"
+    client_id: "agentmon-server"
+    audience: "agentmon"
     jwks_cache_ttl: 1h
     claim_mappings:
       operator_id: "sub"
       groups: "groups"
     allowed_groups:
-      - "agentsh-operators"
+      - "agentmon-operators"
     group_policy_map:
       "sre-team": "privileged"
       "dev-team": "restricted"
@@ -285,10 +285,10 @@ sandbox:
 
 **CLI commands:**
 ```bash
-agentsh mcp pins list
-agentsh mcp pins trust --server github --tool create_issue
-agentsh mcp pins diff --server github --tool create_issue
-agentsh mcp pins reset --server github --tool create_issue
+agentmon mcp pins list
+agentmon mcp pins trust --server github --tool create_issue
+agentmon mcp pins diff --server github --tool create_issue
+agentmon mcp pins reset --server github --tool create_issue
 ```
 
 **Files:**

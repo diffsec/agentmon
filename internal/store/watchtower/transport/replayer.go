@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
 )
 
 // ReplayerOptions controls replay batching. Both bounds are advisory and

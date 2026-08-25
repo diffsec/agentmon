@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	ocsfpb "github.com/canyonroad/wtp-protos/gen/go/canyonroad/wtp/v1/ocsf"
 )
 
@@ -24,7 +24,7 @@ func appProjector(activity uint32, agentInternal bool) Projector {
 			Severity:      strp(severityFromPolicy(ev.Policy)),
 			Metadata:      buildMetadata(ev),
 			Actor:         buildActor(ev),
-			AppName:       strp("agentsh"),
+			AppName:       strp("agentmon"),
 			AgentInternal: boolp(agentInternal),
 		}
 		if ev.CommandID != "" {

@@ -7,9 +7,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	classifybuiltins "github.com/agentsh/agentsh/internal/db/classify/postgres/builtins"
-	"github.com/agentsh/agentsh/internal/db/service"
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	classifybuiltins "github.com/diffsec/agentmon/internal/db/classify/postgres/builtins"
+	"github.com/diffsec/agentmon/internal/db/service"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 )
 
 // Decode turns a parsed *internal/policy.Policy into a fully validated and

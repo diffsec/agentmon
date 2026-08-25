@@ -7,8 +7,8 @@ import (
 
 	"google.golang.org/grpc/metadata"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/testserver"
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/internal/store/watchtower/testserver"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
 )
 
 func TestServer_CapturesAuthorizationMetadata(t *testing.T) {

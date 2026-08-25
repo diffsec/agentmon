@@ -526,7 +526,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/catalog"
+	"github.com/diffsec/agentmon/internal/db/catalog"
 )
 
 func TestCatalogSnapshotStore_LoadOrGetCachesByServiceDatabaseUser(t *testing.T) {
@@ -613,7 +613,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/catalog"
+	"github.com/diffsec/agentmon/internal/db/catalog"
 )
 
 type catalogRuntimeContext struct {
@@ -948,8 +948,8 @@ package postgres
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/catalog"
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/catalog"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func testCatalogContext() catalogRuntimeContext {
@@ -1089,9 +1089,9 @@ Create `internal/db/proxy/postgres/resolve_runtime.go`:
 package postgres
 
 import (
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
-	"github.com/agentsh/agentsh/internal/db/catalog"
-	"github.com/agentsh/agentsh/internal/db/effects"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
+	"github.com/diffsec/agentmon/internal/db/catalog"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func resolveStatementCatalog(stmt effects.ClassifiedStatement, ctx catalogRuntimeContext) effects.ClassifiedStatement {
@@ -1586,7 +1586,7 @@ d := policy.Evaluate(cs, rs, policy.ServiceID(pc.svc.Name))
 Update `internal/db/proxy/postgres/approvalwait_test.go` imports to include:
 
 ```go
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 ```
 
 Append this test to the same file:

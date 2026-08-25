@@ -37,10 +37,10 @@ func TestExecCmd_InvalidatesStaleSessionFile(t *testing.T) {
 		t.Fatal("session file should exist before test")
 	}
 
-	// Disable auto-start (uses AGENTSH_NO_AUTO)
-	t.Setenv("AGENTSH_NO_AUTO", "1")
-	// Don't set AGENTSH_SESSION_ROOT so auto-create doesn't kick in
-	t.Setenv("AGENTSH_SESSION_ROOT", "")
+	// Disable auto-start (uses AGENTMON_NO_AUTO)
+	t.Setenv("AGENTMON_NO_AUTO", "1")
+	// Don't set AGENTMON_SESSION_ROOT so auto-create doesn't kick in
+	t.Setenv("AGENTMON_SESSION_ROOT", "")
 
 	// Build the root command to get the proper flag setup
 	root := NewRoot("test")
@@ -89,8 +89,8 @@ func TestExecCmd_DoesNotDeleteWithoutSessionFile(t *testing.T) {
 	defer server.Close()
 
 	// Disable auto-start
-	t.Setenv("AGENTSH_NO_AUTO", "1")
-	t.Setenv("AGENTSH_SESSION_ROOT", "")
+	t.Setenv("AGENTMON_NO_AUTO", "1")
+	t.Setenv("AGENTMON_SESSION_ROOT", "")
 
 	// Build the root command WITHOUT --session-file
 	root := NewRoot("test")
@@ -130,7 +130,7 @@ func TestExecCmd_BashDashC(t *testing.T) {
 	}))
 	defer server.Close()
 
-	t.Setenv("AGENTSH_NO_AUTO", "1")
+	t.Setenv("AGENTMON_NO_AUTO", "1")
 
 	root := NewRoot("test")
 	root.SetArgs([]string{
@@ -191,8 +191,8 @@ func TestExecCmd_AutoCreatesSessionBeforeInvalidating(t *testing.T) {
 		t.Fatalf("failed to write session file: %v", err)
 	}
 
-	// Enable auto (don't set AGENTSH_NO_AUTO)
-	t.Setenv("AGENTSH_NO_AUTO", "")
+	// Enable auto (don't set AGENTMON_NO_AUTO)
+	t.Setenv("AGENTMON_NO_AUTO", "")
 
 	root := NewRoot("test")
 	root.SetArgs([]string{

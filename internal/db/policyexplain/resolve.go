@@ -3,8 +3,8 @@ package policyexplain
 import (
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/db/catalog"
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/catalog"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 const catalogSessionStateChangedReason = "session_state_changed"

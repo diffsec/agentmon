@@ -223,7 +223,7 @@ func TestComputeMissingPermissions_SysExtBranches(t *testing.T) {
 	p := &Permissions{}
 	p.computeMissingPermissions()
 	mp := findMissing(t, p, "System Extension")
-	if !strings.Contains(mp.HowToEnable, "Install the agentsh macOS app bundle") {
+	if !strings.Contains(mp.HowToEnable, "Install the agentmon macOS app bundle") {
 		t.Errorf("HowToEnable = %q, want install guidance", mp.HowToEnable)
 	}
 
@@ -297,7 +297,7 @@ func TestComputeMissingPermissions_ProbeFailedBranch(t *testing.T) {
 	if !strings.Contains(mp.HowToEnable, p.SysExtDetail) {
 		t.Errorf("HowToEnable = %q, want embedded detail", mp.HowToEnable)
 	}
-	if strings.Contains(mp.HowToEnable, "Install the agentsh macOS app bundle") {
+	if strings.Contains(mp.HowToEnable, "Install the agentmon macOS app bundle") {
 		t.Errorf("HowToEnable = %q, must not show install guidance on probe failure", mp.HowToEnable)
 	}
 }

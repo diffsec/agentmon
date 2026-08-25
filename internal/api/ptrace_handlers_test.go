@@ -8,14 +8,14 @@ import (
 	"syscall"
 	"testing"
 
-	dbevents "github.com/agentsh/agentsh/internal/db/events"
-	dbservice "github.com/agentsh/agentsh/internal/db/service"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/ptrace"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/types"
+	dbevents "github.com/diffsec/agentmon/internal/db/events"
+	dbservice "github.com/diffsec/agentmon/internal/db/service"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/ptrace"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type captureBypassEmitter struct {
@@ -95,7 +95,7 @@ func newDBUnavoidabilityEngine(t *testing.T) *policy.Engine {
 				Domains:  []string{"db.internal"},
 				Ports:    []int{5432},
 				Decision: "deny",
-				Message:  "Direct database egress is blocked; use the AgentSH DB proxy",
+				Message:  "Direct database egress is blocked; use the AgentMon DB proxy",
 			},
 		},
 		CommandRules: []policy.CommandRule{
@@ -104,7 +104,7 @@ func newDBUnavoidabilityEngine(t *testing.T) *policy.Engine {
 				Commands:     []string{"ssh"},
 				ArgsPatterns: []string{`(^|\s)-L(\s|[^\s]*:).*:(5432)(\s|$)`},
 				Decision:     "deny",
-				Message:      "DB port forwarding is blocked by AgentSH DB unavoidability",
+				Message:      "DB port forwarding is blocked by AgentMon DB unavoidability",
 			},
 		},
 	}
@@ -153,7 +153,7 @@ func TestHandleNetwork_DBUnavoidabilityDenyEmitsBypassAttempt(t *testing.T) {
 	if ev.Fields["rule_name"] != "db-appdb-deny-direct" || ev.Fields["bypass_mode"] != dbservice.BypassModeTCPDirect {
 		t.Fatalf("unexpected bypass rule fields: %+v", ev.Fields)
 	}
-	if ev.Fields["destination"] != "db.internal:5432" || ev.Fields["reason"] != "Direct database egress is blocked; use the AgentSH DB proxy" {
+	if ev.Fields["destination"] != "db.internal:5432" || ev.Fields["reason"] != "Direct database egress is blocked; use the AgentMon DB proxy" {
 		t.Fatalf("unexpected bypass detail fields: %+v", ev.Fields)
 	}
 }
@@ -192,7 +192,7 @@ func TestHandleExecve_DBUnavoidabilityDenyEmitsBypassAttempt(t *testing.T) {
 	if ev.Fields["rule_name"] != "db-bypass-ssh-forward" || ev.Fields["bypass_mode"] != dbservice.BypassModePortForwardTool {
 		t.Fatalf("unexpected bypass rule fields: %+v", ev.Fields)
 	}
-	if ev.Fields["destination"] != "db-service-ports" || ev.Fields["reason"] != "DB port forwarding is blocked by AgentSH DB unavoidability" {
+	if ev.Fields["destination"] != "db-service-ports" || ev.Fields["reason"] != "DB port forwarding is blocked by AgentMon DB unavoidability" {
 		t.Fatalf("unexpected bypass detail fields: %+v", ev.Fields)
 	}
 }
@@ -269,7 +269,7 @@ func TestHandleFile_SoftDelete(t *testing.T) {
 	}{
 		{
 			name:       "delete with configured trash returns soft-delete",
-			trashPath:  ".agentsh_trash",
+			trashPath:  ".agentmon_trash",
 			workspace:  workspace,
 			operation:  "delete",
 			path:       workspace + "/file.txt",
@@ -277,7 +277,7 @@ func TestHandleFile_SoftDelete(t *testing.T) {
 		},
 		{
 			name:       "rmdir with configured trash returns soft-delete",
-			trashPath:  ".agentsh_trash",
+			trashPath:  ".agentmon_trash",
 			workspace:  workspace,
 			operation:  "rmdir",
 			path:       workspace + "/subdir",
@@ -285,7 +285,7 @@ func TestHandleFile_SoftDelete(t *testing.T) {
 		},
 		{
 			name:       "non-delete op with soft_delete policy falls through to allow",
-			trashPath:  ".agentsh_trash",
+			trashPath:  ".agentmon_trash",
 			workspace:  workspace,
 			operation:  "read",
 			path:       workspace + "/file.txt",

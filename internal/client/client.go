@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type Client struct {
@@ -324,7 +324,7 @@ func (c *Client) addAuth(req *http.Request) {
 	if c.apiKey != "" {
 		req.Header.Set("X-API-Key", c.apiKey)
 	}
-	// Propagate W3C trace context so agentsh events nest under the caller's trace
+	// Propagate W3C trace context so agentmon events nest under the caller's trace
 	if tp := os.Getenv("TRACEPARENT"); tp != "" {
 		req.Header.Set("Traceparent", tp)
 	}

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 // SkillsShConfig configures the skills.sh provenance provider.

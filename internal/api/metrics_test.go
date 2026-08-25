@@ -6,12 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/metrics"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/metrics"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
 )
 
 func TestRouter_MetricsEnabledServesPath(t *testing.T) {
@@ -36,7 +36,7 @@ func TestRouter_MetricsEnabledServesPath(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
-	if !strings.Contains(rr.Body.String(), "agentsh_") {
+	if !strings.Contains(rr.Body.String(), "agentmon_") {
 		t.Fatalf("expected metrics body, got %q", rr.Body.String())
 	}
 }

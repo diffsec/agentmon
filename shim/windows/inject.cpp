@@ -11,7 +11,7 @@
 int wmain(int argc, wchar_t* argv[]) {
     if (argc < 2) {
         fwprintf(stderr, L"Usage: %s <program> [args...]\n", argv[0]);
-        fwprintf(stderr, L"\nLaunches a program with agentsh environment variable protection.\n");
+        fwprintf(stderr, L"\nLaunches a program with agentmon environment variable protection.\n");
         return 1;
     }
 

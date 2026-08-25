@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/store/watchtower"
-	"github.com/agentsh/agentsh/internal/store/watchtower/chain"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/store/watchtower"
+	"github.com/diffsec/agentmon/internal/store/watchtower/chain"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // testHMACKey is a fixed 32-byte HMAC key used across watchtower tests.

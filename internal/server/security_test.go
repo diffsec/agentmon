@@ -3,7 +3,7 @@ package server
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestDetectAndValidateSecurityMode_AutoMode(t *testing.T) {

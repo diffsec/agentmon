@@ -6,7 +6,7 @@ The macOS system extension (SysExt) crashes within seconds of receiving Full Dis
 
 Root causes:
 
-1. **Dead XPC Service.** The SysExt connects to `ai.canyonroad.agentsh.xpc`, an XPC Service embedded in the app bundle. System extensions run as separate processes in `/Library/SystemExtensions/` and cannot reach app-embedded XPC Services. Every XPC call goes into a dead connection.
+1. **Dead XPC Service.** The SysExt connects to `dev.diffsec.agentmon.xpc`, an XPC Service embedded in the app bundle. System extensions run as separate processes in `/Library/SystemExtensions/` and cannot reach app-embedded XPC Services. Every XPC call goes into a dead connection.
 
 2. **AUTH events go unanswered.** When AUTH handlers hit the `.fallthrough_` path (file rules) or the `checkExecPipeline` path (exec), they retain the AUTH message, send an XPC call, and wait for a completion handler. The completion handler never fires because the XPC service is dead. The retained AUTH message never gets a response. The process that triggered the operation blocks. After the deadline, endpointsecurityd kills the extension.
 
@@ -23,7 +23,7 @@ AUTH handlers never do IPC. They evaluate from in-process cached policy rules an
 ### Approach: Local-Only AUTH with Async IPC
 
 - All AUTH decisions (allow, deny, redirect-deny) are made locally from `SessionPolicyCache`
-- A new `PolicySocketClient` connects directly to the Go server's Unix socket (`/var/run/agentsh/policy.sock`) for async operations only
+- A new `PolicySocketClient` connects directly to the Go server's Unix socket (`/var/run/agentmon/policy.sock`) for async operations only
 - The dead XPC Service is bypassed entirely
 - Session registration uses Darwin notifications (signal) + socket (data pull)
 
@@ -146,7 +146,7 @@ func evaluateExec(path: String, pid: pid_t) -> (CacheDecision, String?) {
 2. `evaluateExec` matches a redirect rule, returns `.deny`
 3. Handler calls `es_respond_auth_result(DENY)` immediately
 4. Handler fires an async notification to the Go server: "PID X tried `/usr/bin/git` with args [...], denied for redirect"
-5. Go server receives the notification and spawns `agentsh-stub`
+5. Go server receives the notification and spawns `agentmon-stub`
 6. If the socket is down, the deny still happened — the stub just won't spawn
 
 **`exec_redirect_notify` request schema** (sent over Unix socket to Go server):
@@ -164,7 +164,7 @@ func evaluateExec(path: String, pid: pid_t) -> (CacheDecision, String?) {
 }
 ```
 
-This reuses the existing `PolicyRequest` struct fields. The Go server's `handleRequest` switch adds a case for `exec_redirect_notify` that spawns `agentsh-stub`. No response is expected (fire-and-forget)
+This reuses the existing `PolicyRequest` struct fields. The Go server's `handleRequest` switch adds a case for `exec_redirect_notify` that spawns `agentmon-stub`. No response is expected (fire-and-forget)
 
 **Rule evaluation order:** Deny > redirect > allow > default. This is fixed precedence, not dependent on rule ordering in the snapshot. The Go server can send rules in any order; the SysExt always evaluates deny first. This matches the existing `evaluateFile` behavior.
 
@@ -190,7 +190,7 @@ This reuses the existing `PolicyRequest` struct fields. The Go server's `handleR
 
 ### 3. Async IPC Channel (PolicySocketClient)
 
-**New `PolicySocketClient` class** replaces all `xpcProxy` usage in the SysExt. Connects directly to `/var/run/agentsh/policy.sock`, reuses the existing JSON protocol.
+**New `PolicySocketClient` class** replaces all `xpcProxy` usage in the SysExt. Connects directly to `/var/run/agentmon/policy.sock`, reuses the existing JSON protocol.
 
 ```
 PolicySocketClient
@@ -222,7 +222,7 @@ Design constraints:
 Session registration without XPC, using Darwin notifications as signals and the socket for data:
 
 1. Go server starts a session, defines policy rules
-2. Go server posts Darwin notification `ai.canyonroad.agentsh.session-registered`
+2. Go server posts Darwin notification `dev.diffsec.agentmon.session-registered`
 3. SysExt receives the notification
 4. SysExt connects to the socket if not already connected (the Darwin notification doubles as a "server is alive" signal, triggering initial connect if needed)
 5. SysExt calls `fetchPolicySnapshot` over the Unix socket
@@ -230,7 +230,7 @@ Session registration without XPC, using Darwin notifications as signals and the 
 7. SysExt creates `SessionCache` and registers in `SessionPolicyCache`
 8. AUTH handlers now evaluate rules for PIDs in this session
 
-**Policy updates:** Same as today — Go server posts `ai.canyonroad.agentsh.policy-updated`, SysExt pulls updated snapshot, `SessionPolicyCache.updateSession()` replaces rules if version is newer.
+**Policy updates:** Same as today — Go server posts `dev.diffsec.agentmon.policy-updated`, SysExt pulls updated snapshot, `SessionPolicyCache.updateSession()` replaces rules if version is newer.
 
 **Session end:** Go server posts a notification, SysExt pulls the update, calls `SessionPolicyCache.unregisterSession()`.
 
@@ -309,7 +309,7 @@ The existing `activeESFClient` global in `main.swift` is replaced by `ESFClient.
 | File | Change |
 |------|--------|
 | `internal/platform/darwin/xpc/protocol.go` | Add `exec_redirect_notify` request type |
-| `internal/platform/darwin/xpc/server.go` | Handle `exec_redirect_notify` — spawn `agentsh-stub` |
+| `internal/platform/darwin/xpc/server.go` | Handle `exec_redirect_notify` — spawn `agentmon-stub` |
 | `internal/platform/darwin/notify.go` | Add `NotifySessionRegistered()` Darwin notification |
 | `internal/platform/darwin/xpc/snapshot.go` | Add `exec_rules` array, `defaults.exec`, and `root_pid` to `PolicySnapshotResponse` |
 

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // TestProxy_SSEStreamingRealTime tests that SSE events are streamed in real-time

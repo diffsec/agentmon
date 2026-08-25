@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -30,7 +30,7 @@ func TestAlpineEnvInject_BashBuiltinDisabled(t *testing.T) {
 	ctx := context.Background()
 
 	// Build Alpine/musl binaries
-	agentshBin, unixwrapBin, startupScript := buildAlpineBinaries(t)
+	agentmonBin, unixwrapBin, startupScript := buildAlpineBinaries(t)
 
 	temp := t.TempDir()
 
@@ -47,7 +47,7 @@ func TestAlpineEnvInject_BashBuiltinDisabled(t *testing.T) {
 	workspace := filepath.Join(temp, "workspace")
 	mustMkdir(t, workspace)
 
-	endpoint, cleanup := startAlpineServerContainer(t, ctx, agentshBin, unixwrapBin, startupScript, configPath, policiesDir, workspace)
+	endpoint, cleanup := startAlpineServerContainer(t, ctx, agentmonBin, unixwrapBin, startupScript, configPath, policiesDir, workspace)
 	t.Cleanup(cleanup)
 
 	cli := client.New(endpoint, "test-key")
@@ -165,9 +165,9 @@ func TestAlpineEnvInject_BashBuiltinDisabled(t *testing.T) {
 	}
 }
 
-// buildAlpineBinaries builds the agentsh binaries using an Alpine container
+// buildAlpineBinaries builds the agentmon binaries using an Alpine container
 // to ensure they're statically linked against musl.
-func buildAlpineBinaries(t *testing.T) (agentsh, unixwrap, startupScript string) {
+func buildAlpineBinaries(t *testing.T) (agentmon, unixwrap, startupScript string) {
 	t.Helper()
 
 	wd, err := os.Getwd()
@@ -188,8 +188,8 @@ func buildAlpineBinaries(t *testing.T) (agentsh, unixwrap, startupScript string)
 	}
 
 	outputDir := t.TempDir()
-	agentshOut := filepath.Join(outputDir, "agentsh")
-	unixwrapOut := filepath.Join(outputDir, "agentsh-unixwrap")
+	agentmonOut := filepath.Join(outputDir, "agentmon")
+	unixwrapOut := filepath.Join(outputDir, "agentmon-unixwrap")
 	startupOut := filepath.Join(outputDir, "bash_startup.sh")
 
 	// Copy the bash_startup.sh script
@@ -212,21 +212,21 @@ apk add --no-cache gcc musl-dev libseccomp-dev libseccomp-static git make file
 
 cd /src
 
-# Build agentsh with static musl + libseccomp
+# Build agentmon with static musl + libseccomp
 CGO_ENABLED=1 \
 CGO_LDFLAGS="-static -lseccomp" \
 go build -buildvcs=false -ldflags='-s -w -extldflags "-static"' \
-  -o /output/agentsh ./cmd/agentsh
+  -o /output/agentmon ./cmd/agentmon
 
-# Build agentsh-unixwrap with static musl + libseccomp
+# Build agentmon-unixwrap with static musl + libseccomp
 CGO_ENABLED=1 \
 CGO_LDFLAGS="-static -lseccomp" \
 go build -buildvcs=false -ldflags='-s -w -extldflags "-static"' \
-  -o /output/agentsh-unixwrap ./cmd/agentsh-unixwrap
+  -o /output/agentmon-unixwrap ./cmd/agentmon-unixwrap
 
 # Verify they're statically linked
-file /output/agentsh
-file /output/agentsh-unixwrap
+file /output/agentmon
+file /output/agentmon-unixwrap
 `
 
 	buildScriptPath := filepath.Join(outputDir, "build.sh")
@@ -270,23 +270,23 @@ file /output/agentsh-unixwrap
 	}
 
 	// Verify binaries exist
-	if _, err := os.Stat(agentshOut); err != nil {
-		t.Fatalf("agentsh binary not found: %v", err)
+	if _, err := os.Stat(agentmonOut); err != nil {
+		t.Fatalf("agentmon binary not found: %v", err)
 	}
 	if _, err := os.Stat(unixwrapOut); err != nil {
-		t.Fatalf("agentsh-unixwrap binary not found: %v", err)
+		t.Fatalf("agentmon-unixwrap binary not found: %v", err)
 	}
 
-	return agentshOut, unixwrapOut, startupOut
+	return agentmonOut, unixwrapOut, startupOut
 }
 
-func startAlpineServerContainer(t *testing.T, ctx context.Context, agentshBin, unixwrapBin, startupScript, configPath, policiesDir, workspace string) (string, func()) {
+func startAlpineServerContainer(t *testing.T, ctx context.Context, agentmonBin, unixwrapBin, startupScript, configPath, policiesDir, workspace string) (string, func()) {
 	t.Helper()
 
 	binds := []testcontainers.ContainerMount{
-		testcontainers.BindMount(agentshBin, "/usr/local/bin/agentsh"),
-		testcontainers.BindMount(unixwrapBin, "/usr/local/bin/agentsh-unixwrap"),
-		testcontainers.BindMount(startupScript, "/usr/lib/agentsh/bash_startup.sh"),
+		testcontainers.BindMount(agentmonBin, "/usr/local/bin/agentmon"),
+		testcontainers.BindMount(unixwrapBin, "/usr/local/bin/agentmon-unixwrap"),
+		testcontainers.BindMount(startupScript, "/usr/lib/agentmon/bash_startup.sh"),
 		testcontainers.BindMount(configPath, "/config.yaml"),
 		testcontainers.BindMount(filepath.Join(filepath.Dir(configPath), "keys.yaml"), "/keys.yaml"),
 		testcontainers.BindMount(policiesDir, "/policies"),
@@ -297,7 +297,7 @@ func startAlpineServerContainer(t *testing.T, ctx context.Context, agentshBin, u
 		Image:        "alpine:3.21",
 		ExposedPorts: []string{"18080/tcp"},
 		// Install bash for testing (Alpine uses ash by default)
-		Cmd: []string{"/bin/sh", "-c", "apk add --no-cache bash && /usr/local/bin/agentsh server --config /config.yaml"},
+		Cmd: []string{"/bin/sh", "-c", "apk add --no-cache bash && /usr/local/bin/agentmon server --config /config.yaml"},
 		Mounts:     binds,
 		Privileged: true,
 		CapAdd:     []string{"SYS_ADMIN"},
@@ -417,7 +417,7 @@ sandbox:
     execve:
       enabled: false
   env_inject:
-    BASH_ENV: "/usr/lib/agentsh/bash_startup.sh"
+    BASH_ENV: "/usr/lib/agentmon/bash_startup.sh"
 policies:
   dir: "/policies"
   default: "env-inject-test"

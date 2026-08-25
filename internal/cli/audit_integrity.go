@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 var allowedResetReasonCodes = []string{

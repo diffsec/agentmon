@@ -36,7 +36,7 @@ Two trigger paths feed one pipeline:
 1. An **fsnotify-based watcher** observes the watch roots for new `SKILL.md`
    landings (covers all install paths: git clone, marketplace plugin,
    manual `cp`).
-2. An **`agentsh skillcheck` CLI** for one-off scans, hook integrations,
+2. An **`agentmon skillcheck` CLI** for one-off scans, hook integrations,
    and quarantine management.
 
 Three scanners ship in v1, plus two stubs for v2:
@@ -61,13 +61,13 @@ vector ([Snyk Labs ClawHavoc analysis][clawhavoc],
 [Embrace The Red on hidden Unicode in skills][etr]). Installation
 happens through many channels — git clone, marketplace plugins,
 manual copies — and once a `SKILL.md` lands in a watched directory it
-is loadable by the next agent session. Today agentsh has no enforcement
+is loadable by the next agent session. Today agentmon has no enforcement
 layer for this artifact class even though it has a complete pattern
 for the analogous npm/pip case (`internal/pkgcheck/`).
 
 This design extends that protection to skills using the same
 architectural pattern, the same verdict spectrum, and the same audit
-sink, so operators have one mental model for "agentsh blocked
+sink, so operators have one mental model for "agentmon blocked
 something dangerous from being installed."
 
 [clawhavoc]: https://repello.ai/blog/clawhavoc-supply-chain-attack
@@ -76,7 +76,7 @@ something dangerous from being installed."
 
 ## Non-Goals
 
-- **Web-uploaded skill zips** (claude.ai web app). agentsh has no
+- **Web-uploaded skill zips** (claude.ai web app). agentmon has no
   chokepoint there; that is Repello SkillCheck's product surface, not
   ours. Add later only if we ship a server-side scanner product.
 - **MCP server scanning.** Out of scope for this spec; covered (today
@@ -102,7 +102,7 @@ Two triggers, two reasons:
   fresh dir under `~/.claude/skills/` or `~/.claude/plugins/*/skills/`.
   Post-write trigger — see "Quarantine" below for the race-window
   argument.
-- **`agentsh skillcheck` CLI** is a fall-through for explicit hook
+- **`agentmon skillcheck` CLI** is a fall-through for explicit hook
   integrations (Claude Code `SessionStart`/`PreToolUse`) and manual
   audits.
 
@@ -121,7 +121,7 @@ Web zips and other skill formats are deferred (see Non-Goals).
 ## Architecture
 
 ```
-              fsnotify watch                  agentsh skillcheck <path>
+              fsnotify watch                  agentmon skillcheck <path>
                 ~/.claude/skills/                       │
                 ~/.claude/plugins/*/skills/             │
                        │                                │
@@ -174,7 +174,7 @@ internal/skillcheck/
   cache/              # mirrors pkgcheck/cache, content-addressed
     cache.go
     cache_test.go
-  cli.go              # `agentsh skillcheck {scan, scan --all, list-quarantined,
+  cli.go              # `agentmon skillcheck {scan, scan --all, list-quarantined,
                       # restore, doctor, cache prune}`
   cli_test.go
   daemon.go           # wires watcher + orchestrator into long-running daemon
@@ -370,7 +370,7 @@ If none resolve **and** the provider is enabled:
 - Each scan returns `ScanResponse{ Metadata: { Error: "snyk: no
   executable found" } }`. The orchestrator's `OnFailure` handles the
   rest (recommended default `OnFailure: warn` for snyk).
-- `agentsh skillcheck doctor` reports the failure with remediation
+- `agentmon skillcheck doctor` reports the failure with remediation
   text ("install uvx via `pipx install uv`, or run `pipx install
   snyk-agent-scan` and set `providers.snyk.binary_path`").
 
@@ -478,19 +478,19 @@ The design accepts this trade-off and documents it.
 ## CLI Surface
 
 ```
-agentsh skillcheck scan <path>          # one-off scan, prints verdict
-agentsh skillcheck scan --all           # walk both watch roots
-agentsh skillcheck list-quarantined     # show quarantined skills
-agentsh skillcheck restore <skill-name> # restore from trash + add to
+agentmon skillcheck scan <path>          # one-off scan, prints verdict
+agentmon skillcheck scan --all           # walk both watch roots
+agentmon skillcheck list-quarantined     # show quarantined skills
+agentmon skillcheck restore <skill-name> # restore from trash + add to
                                         # restore-allowlist for the
                                         # next watcher event
-agentsh skillcheck doctor               # provider availability report
-agentsh skillcheck cache prune          # clear cache
+agentmon skillcheck doctor               # provider availability report
+agentmon skillcheck cache prune          # clear cache
 ```
 
 `scan` and `scan --all` exit non-zero on `block` (for hook
 integrations: a Claude Code `SessionStart` hook can call
-`agentsh skillcheck scan --all` and abort startup if any skill is
+`agentmon skillcheck scan --all` and abort startup if any skill is
 blocked).
 
 ## Audit Events

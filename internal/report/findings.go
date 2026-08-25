@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Sensitive path patterns for anomaly detection.
@@ -161,7 +161,7 @@ func detectFindings(events []types.Event) []Finding {
 			Severity:    SeverityWarning,
 			Category:    "soft_delete",
 			Title:       "Files soft-deleted",
-			Description: "Files were moved to trash (recoverable via agentsh trash)",
+			Description: "Files were moved to trash (recoverable via agentmon trash)",
 			Count:       len(softDeleteEvents),
 			Events:      softDeleteEvents,
 		})

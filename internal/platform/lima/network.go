@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 const (
-	// iptablesChain is the custom chain name for agentsh rules
-	iptablesChain = "AGENTSH"
+	// iptablesChain is the custom chain name for agentmon rules
+	iptablesChain = "AGENTMON"
 )
 
 // Network implements platform.NetworkInterceptor for Lima.
@@ -59,7 +59,7 @@ func (n *Network) Setup(config platform.NetConfig) error {
 
 	n.config = config
 
-	// Create custom chain for agentsh rules
+	// Create custom chain for agentmon rules
 	_, _ = n.platform.RunInLima("sudo", "iptables", "-t", "nat", "-N", iptablesChain)
 
 	// Flush existing rules in our chain

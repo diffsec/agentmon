@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestStore_FlushesOnBatchSize(t *testing.T) {

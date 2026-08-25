@@ -12,8 +12,8 @@ Implement standalone SwiftUI macOS app that shows modal approval dialogs when PN
 - `macos/ApprovalDialog/ApprovalDialog.entitlements` - App entitlements
 
 **Details:**
-- Bundle ID: `com.agentsh.approval-dialog`
-- URL scheme: `agentsh-approval://`
+- Bundle ID: `com.agentmon.approval-dialog`
+- URL scheme: `agentmon-approval://`
 - Minimum macOS: 11.0
 
 ### Task 2: Implement ServerClient
@@ -21,7 +21,7 @@ Implement standalone SwiftUI macOS app that shows modal approval dialogs when PN
 - `macos/ApprovalDialog/ServerClient.swift`
 
 **Details:**
-- Unix socket client for `/var/run/agentsh/policy.sock`
+- Unix socket client for `/var/run/agentmon/policy.sock`
 - `fetchApproval(requestID:)` - Get pending approval by ID
 - `submitDecision(requestID:decision:permanent:)` - Submit user decision
 - JSON serialization matching Go server protocol
@@ -44,7 +44,7 @@ Implement standalone SwiftUI macOS app that shows modal approval dialogs when PN
 
 **Details:**
 - SwiftUI @main entry point
-- Handle `onOpenURL` for `agentsh-approval://approve?id=xxx`
+- Handle `onOpenURL` for `agentmon-approval://approve?id=xxx`
 - Fetch request details via ServerClient
 - Show ApprovalView
 - Activate app to front
@@ -67,12 +67,12 @@ Implement standalone SwiftUI macOS app that shows modal approval dialogs when PN
 
 **Details:**
 - Build ApprovalDialog.app via xcodebuild
-- Copy to AgentSH.app/Contents/Resources/
+- Copy to AgentMon.app/Contents/Resources/
 - Code signing
 
 ## Verification
 
 1. Build all Swift targets successfully
 2. Run existing XPC and PNACL tests (should still pass)
-3. Manual test: `open "agentsh-approval://approve?id=test"` launches app
+3. Manual test: `open "agentmon-approval://approve?id=test"` launches app
 4. Manual test: Dialog shows with mock data, buttons work

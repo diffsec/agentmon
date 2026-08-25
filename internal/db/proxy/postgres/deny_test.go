@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 func TestSynthErrorAndRFQ_WritesErrorThenRFQI(t *testing.T) {

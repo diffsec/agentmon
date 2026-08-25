@@ -171,7 +171,7 @@ In `initPtraceTracer`, immediately after the `if !cfg.Enabled { … return }` bl
 
 ## Task 4: The real behavioral probe `ProbePtraceInject` (capable model)
 
-**Files:** Create `internal/ptrace/inject_probe_linux.go`. Child sentinel hook: `cmd/agentsh/main.go` (or wherever `ProbeSeccompInstall`'s child sentinel is detected — mirror it). Test: `internal/ptrace/inject_probe_test.go` (`//go:build integration && linux`).
+**Files:** Create `internal/ptrace/inject_probe_linux.go`. Child sentinel hook: `cmd/agentmon/main.go` (or wherever `ProbeSeccompInstall`'s child sentinel is detected — mirror it). Test: `internal/ptrace/inject_probe_test.go` (`//go:build integration && linux`).
 
 **This is the hard, fidelity-critical task — use a capable model.** Follow these precedents exactly:
 - Re-exec/sentinel/`sync.Once` structure: `internal/netmonitor/unix/seccomp_install_probe_linux.go` (`ProbeSeccompInstall`, `installProbeOnce`, two-factor child detection: sentinel argv + ≥16-char env token).
@@ -205,7 +205,7 @@ func ProbePtraceInject() InjectProbeResult // sync.Once cached
 
 - [ ] **Step 6: Integration test** (`//go:build integration && linux`): `ProbePtraceInject().Injectable == true` on the CI kernel (injection works there); assert no leaked children (`pgrep`-style check or that `cmd.Wait` returned). `requirePtrace(t)` skip guard.
 
-- [ ] **Step 7: Verify** `go build ./internal/ptrace/`, `go vet`, `go test -tags 'integration linux' ./internal/ptrace/ -run InjectProbe`, and `go test ./internal/ptrace/` (unit). Confirm the child sentinel path doesn't interfere with normal `agentsh` startup (no sentinel ⇒ no-op).
+- [ ] **Step 7: Verify** `go build ./internal/ptrace/`, `go vet`, `go test -tags 'integration linux' ./internal/ptrace/ -run InjectProbe`, and `go test ./internal/ptrace/` (unit). Confirm the child sentinel path doesn't interfere with normal `agentmon` startup (no sentinel ⇒ no-op).
 
 - [ ] **Step 8: Commit** (`feat(ptrace,#369): ProbePtraceInject — behavioral mmap-inject reliability probe`).
 
@@ -219,7 +219,7 @@ func ProbePtraceInject() InjectProbeResult // sync.Once cached
 ```go
 //go:build linux
 package capabilities
-import "github.com/agentsh/agentsh/internal/ptrace"
+import "github.com/diffsec/agentmon/internal/ptrace"
 func checkPtraceInject() (bool, string) {
 	r := ptrace.ProbePtraceInject()
 	return r.Injectable, r.Detail
@@ -235,7 +235,7 @@ Non-linux stub: `func checkPtraceInject() (bool, string) { return false, "" }`.
 ```
 (Only probe when the ptrace capability exists — avoids the fork cost otherwise.)
 
-- [ ] **Step 3: Verify** `go build ./...`, `go test ./internal/capabilities/ ./internal/server/`, and confirm `agentsh detect` compiles. Check there is no import cycle (`capabilities` → `ptrace`); if one exists, move `ProbePtraceInject` behind an interface or have `api` set `PtraceInjectable` instead. **If import cycle: STOP and report** — fall back to having `initPtraceTracer` (api) own the probe and pass the result to detect via config/state rather than capabilities importing ptrace.
+- [ ] **Step 3: Verify** `go build ./...`, `go test ./internal/capabilities/ ./internal/server/`, and confirm `agentmon detect` compiles. Check there is no import cycle (`capabilities` → `ptrace`); if one exists, move `ProbePtraceInject` behind an interface or have `api` set `PtraceInjectable` instead. **If import cycle: STOP and report** — fall back to having `initPtraceTracer` (api) own the probe and pass the result to detect via config/state rather than capabilities importing ptrace.
 
 - [ ] **Step 4: Commit** (`feat(capabilities,#369): wire ProbePtraceInject into DetectSecurityCapabilities`).
 

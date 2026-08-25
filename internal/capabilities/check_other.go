@@ -1,10 +1,10 @@
 //go:build !linux
 
 // Package capabilities provides runtime checks for kernel and system
-// capabilities required by agentsh sandbox features.
+// capabilities required by agentmon sandbox features.
 package capabilities
 
-import "github.com/agentsh/agentsh/internal/config"
+import "github.com/diffsec/agentmon/internal/config"
 
 // CheckResult represents the result of a single capability check.
 type CheckResult struct {

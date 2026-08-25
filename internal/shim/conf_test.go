@@ -13,9 +13,9 @@ func TestShimConfPath(t *testing.T) {
 		root string
 		want string
 	}{
-		{"/", filepath.Join("/", "etc", "agentsh", "shim.conf")},
-		{"/rootfs", filepath.Join("/rootfs", "etc", "agentsh", "shim.conf")},
-		{"", filepath.Join("/", "etc", "agentsh", "shim.conf")},
+		{"/", filepath.Join("/", "etc", "agentmon", "shim.conf")},
+		{"/rootfs", filepath.Join("/rootfs", "etc", "agentmon", "shim.conf")},
+		{"", filepath.Join("/", "etc", "agentmon", "shim.conf")},
 	}
 	for _, tt := range tests {
 		got := ShimConfPath(tt.root)
@@ -114,7 +114,7 @@ func TestReadShimConf_Unreadable(t *testing.T) {
 		t.Skip("test requires non-root")
 	}
 	root := t.TempDir()
-	confDir := filepath.Join(root, "etc", "agentsh")
+	confDir := filepath.Join(root, "etc", "agentmon")
 	if err := os.MkdirAll(confDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +146,7 @@ func TestWriteShimConf_CreatesDirectoryAndFile(t *testing.T) {
 
 	// Check directory permissions (Unix only — Windows doesn't use POSIX modes).
 	if runtime.GOOS != "windows" {
-		dirInfo, err := os.Stat(filepath.Join(root, "etc", "agentsh"))
+		dirInfo, err := os.Stat(filepath.Join(root, "etc", "agentmon"))
 		if err != nil {
 			t.Fatalf("stat dir: %v", err)
 		}
@@ -174,7 +174,7 @@ func TestWriteShimConf_CreatesDirectoryAndFile(t *testing.T) {
 	}
 
 	// Check header comment.
-	if !strings.Contains(string(data), "# Written by: agentsh shim install-shell") {
+	if !strings.Contains(string(data), "# Written by: agentmon shim install-shell") {
 		t.Fatalf("expected header in content, got %q", string(data))
 	}
 }
@@ -245,10 +245,10 @@ func TestShimConf_ShimInstall_InvalidValue(t *testing.T) {
 	}
 }
 
-// writeTestConf writes content to {root}/etc/agentsh/shim.conf.
+// writeTestConf writes content to {root}/etc/agentmon/shim.conf.
 func writeTestConf(t *testing.T, root, content string) {
 	t.Helper()
-	dir := filepath.Join(root, "etc", "agentsh")
+	dir := filepath.Join(root, "etc", "agentmon")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

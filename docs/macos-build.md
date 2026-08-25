@@ -2,7 +2,7 @@
 
 > **Alpha:** The ESF+NE build path is in Alpha. Build steps, signing requirements, and bundle structure may change between releases.
 
-This guide covers building agentsh for macOS using ESF (Endpoint Security Framework) + NE (Network Extension).
+This guide covers building agentmon for macOS using ESF (Endpoint Security Framework) + NE (Network Extension).
 
 ## Install via Homebrew
 
@@ -10,7 +10,7 @@ The easiest way to install on macOS:
 
 ```bash
 brew tap canyonroad/tap
-brew install --cask agentsh
+brew install --cask agentmon
 ```
 
 After installation, approve the system extension in **System Settings > General > Login Items & Extensions**.
@@ -56,9 +56,9 @@ security find-identity -v -p codesigning
 make build-macos-go
 
 # This creates, in build/go-local/ (arm64):
-# - agentsh             (CGO enabled, `nofuse` tag — required for system extension support)
-# - agentsh-shell-shim  (CGO disabled)
-# - agentsh-stub        (CGO disabled)
+# - agentmon             (CGO enabled, `nofuse` tag — required for system extension support)
+# - agentmon-shell-shim  (CGO disabled)
+# - agentmon-stub        (CGO disabled)
 ```
 
 #### 2. Build Swift Components
@@ -68,7 +68,7 @@ make build-macos-go
 make build-swift
 
 # This builds:
-# - ai.canyonroad.agentsh.SysExt.systemextension
+# - dev.diffsec.agentmon.SysExt.systemextension
 # - xpc.xpc
 ```
 
@@ -96,25 +96,25 @@ SIGNING_IDENTITY="Apple Development" make sign-bundle
 SIGNING_IDENTITY="Developer ID Application" make build-macos-enterprise
 ```
 
-The target finishes by running `scripts/verify-macos-bundle.sh build/AgentSH.app`, which fails the build if the provisioning profiles are missing from the bundle.
+The target finishes by running `scripts/verify-macos-bundle.sh build/AgentMon.app`, which fails the build if the provisioning profiles are missing from the bundle.
 
 ### Output Structure
 
 ```
-build/AgentSH.app/
+build/AgentMon.app/
 ├── Contents/
 │   ├── Info.plist
 │   ├── embedded.provisionprofile
 │   ├── MacOS/
-│   │   ├── agentsh                    # Go binary (CGO, nofuse)
-│   │   ├── agentsh-shell-shim
-│   │   └── agentsh-stub
+│   │   ├── agentmon                    # Go binary (CGO, nofuse)
+│   │   ├── agentmon-shell-shim
+│   │   └── agentmon-stub
 │   ├── Library/
 │   │   └── SystemExtensions/
-│   │       └── ai.canyonroad.agentsh.SysExt.systemextension/
+│   │       └── dev.diffsec.agentmon.SysExt.systemextension/
 │   │           ├── Contents/
 │   │           │   ├── MacOS/
-│   │           │   │   └── ai.canyonroad.agentsh.SysExt  # ESF + NE
+│   │           │   │   └── dev.diffsec.agentmon.SysExt  # ESF + NE
 │   │           │   ├── embedded.provisionprofile
 │   │           │   └── Info.plist
 │   └── XPCServices/
@@ -131,7 +131,7 @@ After installing the ESF+NE app bundle, users must approve the System Extension:
 
 1. **First launch** - macOS will prompt "System Extension Blocked"
 2. **Open System Settings** > General > Login Items & Extensions
-3. **Allow** the agentsh System Extension
+3. **Allow** the agentmon System Extension
 4. **Restart may be required** for Network Extension activation
 
 This is a one-time approval per machine.
@@ -179,7 +179,7 @@ SIGNING_IDENTITY="Apple Development: you@email.com (TEAMID)" make sign-bundle
 
 **"ESF client initialization failed"**
 - App must be signed with valid ESF entitlement and provisioning profile
-- Check code signing: `codesign -dv --entitlements - AgentSH.app`
+- Check code signing: `codesign -dv --entitlements - AgentMon.app`
 
 ## Cross-Compilation
 
@@ -187,10 +187,10 @@ Building macOS binaries from Linux (Go only, not Swift):
 
 ```bash
 # For Apple Silicon
-GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o agentsh-darwin-arm64 ./cmd/agentsh
+GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o agentmon-darwin-arm64 ./cmd/agentmon
 
 # For Intel Mac
-GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o agentsh-darwin-amd64 ./cmd/agentsh
+GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o agentmon-darwin-amd64 ./cmd/agentmon
 ```
 
 **Note:** CGO_ENABLED=0 means no ESF support. The binary will run in observation-only mode. Swift components (ESF+NE) must be built on macOS.

@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Harden `agentsh wrap` so wrapped agents receive session network proxy env and, on Linux, cannot exec the real agent until cgroup/eBPF setup has succeeded or explicitly degraded according to config.
+**Goal:** Harden `agentmon wrap` so wrapped agents receive session network proxy env and, on Linux, cannot exec the real agent until cgroup/eBPF setup has succeeded or explicitly degraded according to config.
 
 **Architecture:** Keep proxy env injection in the CLI wrap launch path. Add a small Linux-only notify handoff helper package so the CLI, shim relay, and API agree on sending the seccomp notify fd plus wrapper PID metadata and receiving a server setup status. On the server, apply the existing cgroup/eBPF setup to the wrapper PID before acknowledging the wrapper, and clean it up when the notify handler exits.
 
-**Tech Stack:** Go, Unix domain sockets with `SCM_RIGHTS`, cgroup v2 manager, existing cgroup eBPF connect/sendmsg programs, existing `agentsh-unixwrap` ACK handshake.
+**Tech Stack:** Go, Unix domain sockets with `SCM_RIGHTS`, cgroup v2 manager, existing cgroup eBPF connect/sendmsg programs, existing `agentmon-unixwrap` ACK handshake.
 
 ---
 
@@ -25,7 +25,7 @@
 
 - Modify `internal/cli/wrap_linux.go`
   - Forward wrapper PID metadata to the server.
-  - Wait for server setup success before ACKing `agentsh-unixwrap`.
+  - Wait for server setup success before ACKing `agentmon-unixwrap`.
   - Keep signal fd forwarding on the legacy no-status path.
 
 - Modify `internal/cli/wrap_test.go`
@@ -58,7 +58,7 @@
   - Add focused tests for eBPF requiring a concrete cgroup.
 
 - Modify `docs/ebpf.md`
-  - Document `agentsh wrap` coverage and the cgroups requirement.
+  - Document `agentmon wrap` coverage and the cgroups requirement.
 
 ---
 
@@ -99,8 +99,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -587,7 +587,7 @@ to:
 In `internal/cli/wrap_linux.go`, add the import:
 
 ```go
-	"github.com/agentsh/agentsh/internal/wraphandoff"
+	"github.com/diffsec/agentmon/internal/wraphandoff"
 ```
 
 Change the notify `postStart` closure from:
@@ -693,7 +693,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/wraphandoff"
+	"github.com/diffsec/agentmon/internal/wraphandoff"
 )
 
 func TestForwardNotifyFDWithPIDWaitsForServerOK(t *testing.T) {
@@ -807,7 +807,7 @@ git commit -m "fix(wrap): wait for server notify setup"
 In `internal/shim/kernelinstall/install_linux.go`, add:
 
 ```go
-	"github.com/agentsh/agentsh/internal/wraphandoff"
+	"github.com/diffsec/agentmon/internal/wraphandoff"
 ```
 
 Replace:
@@ -908,7 +908,7 @@ Add imports if missing:
 	"net"
 	"path/filepath"
 
-	"github.com/agentsh/agentsh/internal/wraphandoff"
+	"github.com/diffsec/agentmon/internal/wraphandoff"
 ```
 
 - [ ] **Step 3: Run focused shim tests**
@@ -997,7 +997,7 @@ func defaultWrapCgroupSetupForNotify(ctx context.Context, a *App, s *session.Ses
 Ensure `internal/api/wrap.go` imports `github.com/google/uuid` and already has `fmt`, `context`, `session`, and `policy` available. If `policy` is not imported in this file, add:
 
 ```go
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 ```
 
 - [ ] **Step 2: Change notify handler signature to accept cleanup**
@@ -1033,7 +1033,7 @@ Update the Windows and other platform stubs to accept the same `cleanup func() e
 In `internal/api/wrap.go`, add:
 
 ```go
-	"github.com/agentsh/agentsh/internal/wraphandoff"
+	"github.com/diffsec/agentmon/internal/wraphandoff"
 ```
 
 Replace the block that calls `unixConn.File()` and `recvFDFromConn(file)` with:
@@ -1239,7 +1239,7 @@ func TestAcceptNotifyFD_RejectsMissingMetadataWhenEBPFRequired(t *testing.T) {
 Add imports if missing:
 
 ```go
-	"github.com/agentsh/agentsh/internal/wraphandoff"
+	"github.com/diffsec/agentmon/internal/wraphandoff"
 ```
 
 - [ ] **Step 6: Run focused API tests**
@@ -1279,12 +1279,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/limits"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/limits"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
 )
 
 func TestApplyCgroupV2_EBPFEnabledRequiresCgroupManager(t *testing.T) {
@@ -1416,9 +1416,9 @@ git commit -m "fix(ebpf): require cgroup for ebpf setup"
 In `docs/ebpf.md`, after the "Enforcement model" section, add:
 
 ```markdown
-## `agentsh wrap`
+## `agentmon wrap`
 
-On Linux, `agentsh wrap` attaches the wrapped agent process tree to cgroup eBPF before `agentsh-unixwrap` is acknowledged and allowed to exec the real agent. This protects wrapped subprocesses even when they remove `HTTP_PROXY`, `HTTPS_PROXY`, or related proxy environment variables.
+On Linux, `agentmon wrap` attaches the wrapped agent process tree to cgroup eBPF before `agentmon-unixwrap` is acknowledged and allowed to exec the real agent. This protects wrapped subprocesses even when they remove `HTTP_PROXY`, `HTTPS_PROXY`, or related proxy environment variables.
 
 This requires `sandbox.cgroups.enabled: true`. If `sandbox.network.ebpf.required: true` and cgroups or eBPF setup cannot complete, wrap setup fails before the real agent starts.
 
@@ -1430,10 +1430,10 @@ Domain rules are still enforced by resolving literal domains to IP/port map entr
 Run:
 
 ```bash
-rg -n "agentsh wrap|sandbox.cgroups.enabled|domain strings" docs/ebpf.md
+rg -n "agentmon wrap|sandbox.cgroups.enabled|domain strings" docs/ebpf.md
 ```
 
-Expected: output includes the new `agentsh wrap` section and cgroups requirement.
+Expected: output includes the new `agentmon wrap` section and cgroups requirement.
 
 - [ ] **Step 3: Commit**
 

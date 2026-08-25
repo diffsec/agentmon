@@ -15,15 +15,15 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/agentsh/agentsh/internal/config"
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
+	"github.com/diffsec/agentmon/pkg/types"
 	seccomp "github.com/seccomp/libseccomp-golang"
 	"github.com/stretchr/testify/require"
 	gounix "golang.org/x/sys/unix"
 )
 
-const socketRuleHelperEnv = "AGENTSH_TEST_SOCKET_RULE_HELPER"
+const socketRuleHelperEnv = "AGENTMON_TEST_SOCKET_RULE_HELPER"
 const socketRuleHelperNotifyLog = "notify_log"
 const socketRuleHelperErrnoTupleUnix = "errno_tuple_unix"
 const socketRuleHelperDirtyFragNetlinkXFRM = "dirtyfrag_netlink_xfrm"

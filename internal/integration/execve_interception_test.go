@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	unixmon "github.com/agentsh/agentsh/internal/netmonitor/unix"
-	"github.com/agentsh/agentsh/internal/policy"
+	unixmon "github.com/diffsec/agentmon/internal/netmonitor/unix"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // TestExecveInterception_HandlerLogic tests the handler without actual seccomp
@@ -54,7 +54,7 @@ func TestExecveInterception_HandlerLogic(t *testing.T) {
 		MaxArgc:        1000,
 		MaxArgvBytes:   65536,
 		OnTruncated:    "deny",
-		InternalBypass: []string{"/usr/local/bin/agentsh"},
+		InternalBypass: []string{"/usr/local/bin/agentmon"},
 	}
 
 	// Create wrapper that adapts policy.Engine to PolicyChecker
@@ -104,12 +104,12 @@ func TestExecveInterception_HandlerLogic(t *testing.T) {
 		ctx := unixmon.ExecveContext{
 			PID:       1004,
 			ParentPID: 1000,
-			Filename:  "/usr/local/bin/agentsh",
-			Argv:      []string{"agentsh", "exec"},
+			Filename:  "/usr/local/bin/agentmon",
+			Argv:      []string{"agentmon", "exec"},
 			Truncated: false,
 		}
 		result, _ := h.Handle(context.Background(), ctx)
-		assert.True(t, result.Allow, "agentsh should bypass")
+		assert.True(t, result.Allow, "agentmon should bypass")
 		assert.Equal(t, "internal_bypass", result.Rule)
 	})
 

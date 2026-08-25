@@ -107,7 +107,7 @@ func BuildEnv(pol ResolvedEnvPolicy, baseEnv []string, addKeys map[string]string
 	}
 
 	// Internal variables that MUST always be present (bypass policy filtering).
-	// These are required for agentsh internals to function correctly.
+	// These are required for agentmon internals to function correctly.
 	for k, v := range addKeys {
 		if isInternalVar(k) {
 			allowed[k] = v
@@ -204,11 +204,11 @@ func ValidateEnvPolicy(p EnvPolicy) error {
 	return nil
 }
 
-// isInternalVar returns true for agentsh internal variables that must
+// isInternalVar returns true for agentmon internal variables that must
 // always be present regardless of policy filtering. These are required
-// for agentsh internals to function correctly (e.g., recursion guards).
+// for agentmon internals to function correctly (e.g., recursion guards).
 func isInternalVar(name string) bool {
-	return strings.HasPrefix(name, "AGENTSH_")
+	return strings.HasPrefix(name, "AGENTMON_")
 }
 
 // defaultSecretDeny contains environment variables that are blocked by default

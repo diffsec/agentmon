@@ -1,21 +1,21 @@
 #!/bin/bash
-# install-macos.sh - macOS installation script for agentsh
+# install-macos.sh - macOS installation script for agentmon
 #
 # Usage:
-#   curl -fsSL https://get.agentsh.dev/macos | bash
+#   curl -fsSL https://get.agentmon.dev/macos | bash
 #   ./install-macos.sh [version]
 #
 # Environment variables:
-#   AGENTSH_VERSION - version to install (default: latest)
-#   AGENTSH_MODE - installation mode: fuse-t, lima, network-only (default: interactive)
-#   AGENTSH_INSTALL_DIR - installation directory (default: /usr/local/bin)
+#   AGENTMON_VERSION - version to install (default: latest)
+#   AGENTMON_MODE - installation mode: fuse-t, lima, network-only (default: interactive)
+#   AGENTMON_INSTALL_DIR - installation directory (default: /usr/local/bin)
 
 set -e
 
-VERSION="${AGENTSH_VERSION:-${1:-latest}}"
-MODE="${AGENTSH_MODE:-}"
-INSTALL_DIR="${AGENTSH_INSTALL_DIR:-/usr/local/bin}"
-GITHUB_REPO="agentsh/agentsh"
+VERSION="${AGENTMON_VERSION:-${1:-latest}}"
+MODE="${AGENTMON_MODE:-}"
+INSTALL_DIR="${AGENTMON_INSTALL_DIR:-/usr/local/bin}"
+GITHUB_REPO="diffsec/agentmon"
 
 # Colors for output
 RED='\033[0;31m'
@@ -82,23 +82,23 @@ install_lima() {
         brew install lima
     fi
 
-    # Create agentsh VM if it doesn't exist
-    if ! limactl list 2>/dev/null | grep -q "agentsh"; then
-        info "Creating agentsh Lima VM..."
-        limactl create --name=agentsh template://ubuntu-lts
+    # Create agentmon VM if it doesn't exist
+    if ! limactl list 2>/dev/null | grep -q "agentmon"; then
+        info "Creating agentmon Lima VM..."
+        limactl create --name=agentmon template://ubuntu-lts
 
-        info "Starting agentsh VM..."
-        limactl start agentsh
+        info "Starting agentmon VM..."
+        limactl start agentmon
 
-        info "Installing agentsh inside Lima VM..."
-        limactl shell agentsh -- bash -c 'curl -fsSL https://get.agentsh.dev/linux | bash'
+        info "Installing agentmon inside Lima VM..."
+        limactl shell agentmon -- bash -c 'curl -fsSL https://get.agentmon.dev/linux | bash'
     else
-        info "agentsh Lima VM already exists"
+        info "agentmon Lima VM already exists"
 
         # Make sure it's running
-        if ! limactl list 2>/dev/null | grep -q "agentsh.*Running"; then
-            info "Starting agentsh VM..."
-            limactl start agentsh
+        if ! limactl list 2>/dev/null | grep -q "agentmon.*Running"; then
+            info "Starting agentmon VM..."
+            limactl start agentmon
         fi
     fi
 
@@ -109,26 +109,26 @@ install_lima() {
 configure_pf() {
     info "Configuring pf for network interception..."
 
-    local pf_conf="/etc/pf.anchors/com.agentsh"
+    local pf_conf="/etc/pf.anchors/com.agentmon"
 
     if [[ ! -f "$pf_conf" ]]; then
         sudo tee "$pf_conf" > /dev/null << 'EOF'
-# agentsh network interception rules
-# These rules redirect traffic through the agentsh proxy
+# agentmon network interception rules
+# These rules redirect traffic through the agentmon proxy
 
-# Redirect outbound HTTP/HTTPS through agentsh
+# Redirect outbound HTTP/HTTPS through agentmon
 # rdr pass on lo0 inet proto tcp from any to any port 80 -> 127.0.0.1 port 8080
 # rdr pass on lo0 inet proto tcp from any to any port 443 -> 127.0.0.1 port 8443
 
-# Placeholder - actual rules configured at runtime by agentsh
+# Placeholder - actual rules configured at runtime by agentmon
 EOF
         info "Created pf anchor file"
     fi
 
     # Check if anchor is in pf.conf
-    if ! grep -q "com.agentsh" /etc/pf.conf 2>/dev/null; then
+    if ! grep -q "com.agentmon" /etc/pf.conf 2>/dev/null; then
         warn "pf anchor not configured in /etc/pf.conf"
-        warn "You may need to add: anchor \"com.agentsh\""
+        warn "You may need to add: anchor \"com.agentmon\""
     fi
 
     echo -e "${GREEN}✅ pf configured for network interception${NC}"
@@ -165,8 +165,8 @@ get_latest_version() {
     echo "$latest"
 }
 
-# Download and install agentsh binary
-install_agentsh() {
+# Download and install agentmon binary
+install_agentmon() {
     local version="$VERSION"
     local arch=$(detect_arch)
 
@@ -174,13 +174,13 @@ install_agentsh() {
         version=$(get_latest_version)
     fi
 
-    info "Installing agentsh ${version} for darwin/${arch}..."
+    info "Installing agentmon ${version} for darwin/${arch}..."
 
-    local download_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/agentsh-darwin-${arch}"
-    local tmp_file="/tmp/agentsh-$$"
+    local download_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/agentmon-darwin-${arch}"
+    local tmp_file="/tmp/agentmon-$$"
 
     if ! curl -fsSL "$download_url" -o "$tmp_file"; then
-        error "Failed to download agentsh from ${download_url}"
+        error "Failed to download agentmon from ${download_url}"
         exit 1
     fi
 
@@ -191,9 +191,9 @@ install_agentsh() {
         sudo mkdir -p "$INSTALL_DIR"
     fi
 
-    sudo mv "$tmp_file" "${INSTALL_DIR}/agentsh"
+    sudo mv "$tmp_file" "${INSTALL_DIR}/agentmon"
 
-    echo -e "${GREEN}✅ agentsh installed to ${INSTALL_DIR}/${NC}"
+    echo -e "${GREEN}✅ agentmon installed to ${INSTALL_DIR}/${NC}"
 }
 
 # Download and install envshim helper
@@ -221,11 +221,11 @@ install_envshim() {
 
 # Verify installation
 verify_installation() {
-    if command -v agentsh &> /dev/null; then
+    if command -v agentmon &> /dev/null; then
         info "Verification successful!"
-        agentsh version 2>/dev/null || true
+        agentmon version 2>/dev/null || true
     else
-        warn "agentsh not found in PATH. You may need to add ${INSTALL_DIR} to your PATH."
+        warn "agentmon not found in PATH. You may need to add ${INSTALL_DIR} to your PATH."
     fi
 }
 
@@ -260,29 +260,29 @@ print_instructions() {
 
     echo ""
     echo "============================================"
-    echo "  agentsh installed successfully!"
+    echo "  agentmon installed successfully!"
     echo "============================================"
     echo ""
 
     case $mode in
         fuse-t)
             echo "Run with:"
-            echo "  sudo agentsh server"
+            echo "  sudo agentmon server"
             echo ""
             echo "Security level: 70% (file + network interception)"
             ;;
         lima)
             echo "Run with:"
-            echo "  limactl shell agentsh -- agentsh server"
+            echo "  limactl shell agentmon -- agentmon server"
             echo ""
             echo "Or use the native wrapper:"
-            echo "  agentsh server --mode=lima"
+            echo "  agentmon server --mode=lima"
             echo ""
             echo "Security level: 85% (full Linux isolation)"
             ;;
         network-only)
             echo "Run with:"
-            echo "  sudo agentsh server"
+            echo "  sudo agentmon server"
             echo ""
             echo "Note: File monitoring is observation-only without FUSE-T"
             echo "Security level: 50% (network only)"
@@ -290,11 +290,11 @@ print_instructions() {
     esac
 
     echo ""
-    echo "Check status with: agentsh status"
+    echo "Check status with: agentmon status"
     echo ""
     echo "Configuration:"
-    echo "  Default config: ~/.config/agentsh/config.yml"
-    echo "  Default policy: ~/.config/agentsh/policy.yml"
+    echo "  Default config: ~/.config/agentmon/config.yml"
+    echo "  Default policy: ~/.config/agentmon/policy.yml"
     echo ""
     echo "Documentation:"
     echo "  https://github.com/${GITHUB_REPO}"
@@ -303,7 +303,7 @@ print_instructions() {
 
 # Main installation flow
 main() {
-    echo "agentsh macOS Installer"
+    echo "agentmon macOS Installer"
     echo "======================="
     echo ""
 
@@ -333,18 +333,18 @@ main() {
             check_homebrew
             install_fuse_t
             configure_pf
-            install_agentsh
+            install_agentmon
             install_envshim
             ;;
         lima)
             check_homebrew
             install_lima
-            install_agentsh
+            install_agentmon
             install_envshim
             ;;
         network-only)
             configure_pf
-            install_agentsh
+            install_agentmon
             install_envshim
             ;;
         *)

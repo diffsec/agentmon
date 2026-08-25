@@ -5,13 +5,13 @@
 
 ## Overview
 
-Control network access per-process with allow/deny/approve rules for hostnames, IPs, CIDRs, ports, and protocols. Works for both agentsh-spawned processes and external applications like Claude Code, Claude Desktop, or Cursor.
+Control network access per-process with allow/deny/approve rules for hostnames, IPs, CIDRs, ports, and protocols. Works for both agentmon-spawned processes and external applications like Claude Code, Claude Desktop, or Cursor.
 
 ### Goals
 
 - Define allow/deny lists of hostnames, IPs, and CIDRs per process
 - Support process identification by name, path, or bundle ID (macOS)
-- Apply policies to external apps (not spawned by agentsh) and child processes within sessions
+- Apply policies to external apps (not spawned by agentmon) and child processes within sessions
 - Interactive approval flow for unknown destinations
 - Cross-platform support: Linux, macOS, Windows
 
@@ -167,7 +167,7 @@ All platforms communicate decisions to a common Go service (`internal/netmonitor
 - Configurable timeout per approval mode (default: 30s)
 - On timeout: configurable fallback (`deny`, `allow`, or `use_default`)
 
-## Integration with agentsh
+## Integration with agentmon
 
 ### New Package: `internal/netmonitor/pnacl/`
 
@@ -200,23 +200,23 @@ type NetworkACLEvent struct {
 
 ```bash
 # Manage network ACL
-agentsh network-acl list                    # Show active rules
-agentsh network-acl add <process> <target>  # Add rule interactively
-agentsh network-acl remove <rule-id>        # Remove rule
-agentsh network-acl test <process> <target> # Test what decision would be made
+agentmon network-acl list                    # Show active rules
+agentmon network-acl add <process> <target>  # Add rule interactively
+agentmon network-acl remove <rule-id>        # Remove rule
+agentmon network-acl test <process> <target> # Test what decision would be made
 
 # Monitor live
-agentsh network-acl watch                   # Stream connection attempts
-agentsh network-acl watch --process claude  # Filter by process
+agentmon network-acl watch                   # Stream connection attempts
+agentmon network-acl watch --process claude  # Filter by process
 
 # Learning mode
-agentsh network-acl learn --process claude-code --duration 1h
+agentmon network-acl learn --process claude-code --duration 1h
 # ^ Runs in audit mode, then generates suggested policy
 ```
 
 ### Existing Integration Points
 
-- Hooks into `internal/session/` for agentsh-spawned process tracking
+- Hooks into `internal/session/` for agentmon-spawned process tracking
 - Uses `internal/approvals/` for prompt delivery
 - Writes to `internal/store/` for audit persistence
 
@@ -263,11 +263,11 @@ agentsh network-acl learn --process claude-code --duration 1h
 
 | Platform | Mechanism | Trigger |
 |----------|-----------|---------|
-| Linux | systemd user service (`~/.config/systemd/user/agentsh.service`) | User login |
-| macOS | LaunchAgent (`~/Library/LaunchAgents/com.agentsh.pnacl.plist`) | User login |
+| Linux | systemd user service (`~/.config/systemd/user/agentmon.service`) | User login |
+| macOS | LaunchAgent (`~/Library/LaunchAgents/com.agentmon.pnacl.plist`) | User login |
 | Windows | Task Scheduler or Registry Run key | User login |
 
-Non-interactive environments (CI/CD, servers) use regular `agentsh session create` as they do today.
+Non-interactive environments (CI/CD, servers) use regular `agentmon session create` as they do today.
 
 ### Session Context Capture
 
@@ -292,7 +292,7 @@ type PNACLSession struct {
 
 ### Startup Flow
 
-1. OS triggers agentsh-daemon start
+1. OS triggers agentmon-daemon start
 2. Gather context:
    - ComputerName: `os.Hostname()`
    - ComputerIP: enumerate network interfaces
@@ -305,15 +305,15 @@ type PNACLSession struct {
 ### CLI for Daemon Management
 
 ```bash
-agentsh daemon install    # Install startup integration for current OS
-agentsh daemon uninstall  # Remove startup integration
-agentsh daemon status     # Show current session info (name, IP, user, uptime)
-agentsh daemon restart    # Restart monitoring with fresh session
+agentmon daemon install    # Install startup integration for current OS
+agentmon daemon uninstall  # Remove startup integration
+agentmon daemon status     # Show current session info (name, IP, user, uptime)
+agentmon daemon restart    # Restart monitoring with fresh session
 ```
 
 ### Session Persistence
 
-- Session ID persists across agentsh restarts (within same login session)
+- Session ID persists across agentmon restarts (within same login session)
 - New session created on: reboot, logout/login, or explicit `daemon restart`
 - Events tied to session ID for audit correlation
 
@@ -364,7 +364,7 @@ func TestPNACL_WithMockBackend(t *testing.T) {
 
 ```bash
 # test-pnacl.sh - Run against real processes
-agentsh network-acl learn --process curl --duration 30s &
+agentmon network-acl learn --process curl --duration 30s &
 curl https://api.anthropic.com  # Should be captured
 curl https://example.com        # Should be captured
 # Review generated policy
@@ -399,8 +399,8 @@ curl https://example.com        # Should be captured
 
 ### Phase 4: CLI & Daemon (Linux)
 
-- Add `agentsh network-acl` commands (list, add, remove, test, watch)
-- Add `agentsh daemon` commands (install, uninstall, status, restart)
+- Add `agentmon network-acl` commands (list, add, remove, test, watch)
+- Add `agentmon daemon` commands (install, uninstall, status, restart)
 - Implement systemd user service generation
 - Session context capture (hostname, IP, username)
 - Learning mode implementation

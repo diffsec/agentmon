@@ -20,8 +20,8 @@
 | `internal/netmonitor/unix/addfd_linux.go` | Modify | Add `ProbeWaitKillable()` kernel version check |
 | `internal/netmonitor/unix/addfd_linux_test.go` | Modify | Add test for `ProbeWaitKillable()` |
 | `internal/netmonitor/unix/seccomp_linux.go` | Modify | Add `SetWaitKill(true)` in `InstallFilterWithConfig()` |
-| `cmd/agentsh-unixwrap/main.go` | Modify | Add `blockSIGURG()` + `runtime.LockOSThread()` before exec |
-| `cmd/agentsh-unixwrap/sigurg_test.go` | Create | Unit test for `blockSIGURG()` |
+| `cmd/agentmon-unixwrap/main.go` | Modify | Add `blockSIGURG()` + `runtime.LockOSThread()` before exec |
+| `cmd/agentmon-unixwrap/sigurg_test.go` | Create | Unit test for `blockSIGURG()` |
 
 **Refinement from spec:** The spec says to call `SetWaitKill(true)` and log if it fails. However, the failure point is actually `filt.Load()` — if the kernel doesn't recognize `SECCOMP_FILTER_FLAG_WAIT_KILLABLE_RECV`, the entire filter load fails with EINVAL, not just SetWaitKill. To avoid a retry-on-Load-failure path, we probe the kernel version first (>= 6.0) using the existing `parseKernelVersion()` helper, following the same pattern as `ProbeAddFDSupport()`.
 
@@ -36,7 +36,7 @@
 - [ ] **Step 1: Upgrade the dependency**
 
 ```bash
-cd /home/eran/work/agentsh && go get github.com/seccomp/libseccomp-golang@v0.11.0
+cd /home/eran/work/agentmon && go get github.com/seccomp/libseccomp-golang@v0.11.0
 ```
 
 - [ ] **Step 2: Tidy modules**
@@ -195,12 +195,12 @@ and the wrapper's SIGURG block (next commit) provides equivalent protection."
 ### Task 3: Add blockSIGURG to wrapper (TDD)
 
 **Files:**
-- Create: `cmd/agentsh-unixwrap/sigurg_test.go`
-- Modify: `cmd/agentsh-unixwrap/main.go:196-206` — add `blockSIGURG()` function and call before exec
+- Create: `cmd/agentmon-unixwrap/sigurg_test.go`
+- Modify: `cmd/agentmon-unixwrap/main.go:196-206` — add `blockSIGURG()` function and call before exec
 
 - [ ] **Step 1: Write the failing test**
 
-Create `cmd/agentsh-unixwrap/sigurg_test.go`:
+Create `cmd/agentmon-unixwrap/sigurg_test.go`:
 
 ```go
 //go:build linux && cgo
@@ -268,14 +268,14 @@ func TestBlockSIGURG(t *testing.T) {
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-go test ./cmd/agentsh-unixwrap/ -run TestBlockSIGURG -v
+go test ./cmd/agentmon-unixwrap/ -run TestBlockSIGURG -v
 ```
 
 Expected: FAIL — `blockSIGURG` is undefined.
 
 - [ ] **Step 3: Implement blockSIGURG**
 
-In `cmd/agentsh-unixwrap/main.go`, add `"runtime"` and `"unsafe"` to the imports.
+In `cmd/agentmon-unixwrap/main.go`, add `"runtime"` and `"unsafe"` to the imports.
 
 Add the `blockSIGURG` function after `waitForACK` (after line 258):
 
@@ -308,14 +308,14 @@ func blockSIGURG() {
 - [ ] **Step 4: Run test to verify it passes**
 
 ```bash
-go test ./cmd/agentsh-unixwrap/ -run TestBlockSIGURG -v
+go test ./cmd/agentmon-unixwrap/ -run TestBlockSIGURG -v
 ```
 
 Expected: PASS.
 
 - [ ] **Step 5: Wire blockSIGURG into the exec path**
 
-In `cmd/agentsh-unixwrap/main.go`, right before the `syscall.Exec` call (currently line 204), add:
+In `cmd/agentmon-unixwrap/main.go`, right before the `syscall.Exec` call (currently line 204), add:
 
 ```go
 	// Block SIGURG on this OS thread to prevent Go's ~10ms async preemption
@@ -358,7 +358,7 @@ Expected: All builds and tests pass. The `//go:build linux && cgo` tags on both 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add cmd/agentsh-unixwrap/main.go cmd/agentsh-unixwrap/sigurg_test.go
+git add cmd/agentmon-unixwrap/main.go cmd/agentmon-unixwrap/sigurg_test.go
 git commit -m "fix(seccomp): block SIGURG before exec to prevent ERESTARTSYS loop
 
 Go's async preemption sends SIGURG every ~10ms, which interrupts

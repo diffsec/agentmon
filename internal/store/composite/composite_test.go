@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	storepkg "github.com/agentsh/agentsh/internal/store"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	storepkg "github.com/diffsec/agentmon/internal/store"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type fakeEventStore struct {

@@ -159,11 +159,11 @@ func TestRunInAppContainerWithEnv(t *testing.T) {
     defer ac.Delete()
 
     env := map[string]string{
-        "AGENTSH_TEST_VAR": "injected_value",
+        "AGENTMON_TEST_VAR": "injected_value",
     }
 
     proc, err := ac.RunInAppContainer(
-        `cmd.exe /c echo %AGENTSH_TEST_VAR%`,
+        `cmd.exe /c echo %AGENTMON_TEST_VAR%`,
         "",
         true,
         env,

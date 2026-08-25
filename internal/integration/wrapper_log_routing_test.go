@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/testcontainers/testcontainers-go"
 )
 
@@ -25,7 +25,7 @@ func TestExecPath_WrapperLogRoutedOffCommandStderr(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	agentshBin, unixwrapBin := buildSeccompBinaries(t)
+	agentmonBin, unixwrapBin := buildSeccompBinaries(t)
 	temp := t.TempDir()
 
 	configPath := filepath.Join(temp, "config.yaml")
@@ -40,7 +40,7 @@ func TestExecPath_WrapperLogRoutedOffCommandStderr(t *testing.T) {
 	workspace := filepath.Join(temp, "workspace")
 	mustMkdir(t, workspace)
 
-	ctr, endpoint, cleanup := startWrapSeccompServerContainer(t, ctx, agentshBin, unixwrapBin, configPath, keysPath, policiesDir, workspace)
+	ctr, endpoint, cleanup := startWrapSeccompServerContainer(t, ctx, agentmonBin, unixwrapBin, configPath, keysPath, policiesDir, workspace)
 	t.Cleanup(cleanup)
 
 	cli := client.New(endpoint, "test-key")

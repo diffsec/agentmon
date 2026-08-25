@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/netmonitor/pnacl"
+	"github.com/diffsec/agentmon/internal/netmonitor/pnacl"
 	"github.com/cilium/ebpf"
 )
 

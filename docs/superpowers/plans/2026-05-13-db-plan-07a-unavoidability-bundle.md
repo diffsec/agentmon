@@ -50,7 +50,7 @@ func TestConnectRedirectRuleValidation_UnixTarget(t *testing.T) {
 			rule: ConnectRedirectRule{
 				Name:           "db-appdb-redirect",
 				Match:          "^db\\.internal:5432$",
-				RedirectToUnix: "/run/agentsh/sessions/sess-1/db/appdb.sock",
+				RedirectToUnix: "/run/agentmon/sessions/sess-1/db/appdb.sock",
 			},
 		},
 		{
@@ -59,7 +59,7 @@ func TestConnectRedirectRuleValidation_UnixTarget(t *testing.T) {
 				Name:           "db-appdb-redirect",
 				Match:          "^db\\.internal:5432$",
 				RedirectTo:     "proxy.internal:15432",
-				RedirectToUnix: "/run/agentsh/sessions/sess-1/db/appdb.sock",
+				RedirectToUnix: "/run/agentmon/sessions/sess-1/db/appdb.sock",
 			},
 			wantErr: true,
 		},
@@ -96,8 +96,8 @@ func TestEvaluateConnectRedirect_UnixTarget(t *testing.T) {
 			{
 				Name:           "db-appdb-redirect",
 				Match:          "^db\\.internal:5432$",
-				RedirectToUnix: "/run/agentsh/sessions/sess-1/db/appdb.sock",
-				Message:        "Routed through AgentSH DB proxy",
+				RedirectToUnix: "/run/agentmon/sessions/sess-1/db/appdb.sock",
+				Message:        "Routed through AgentMon DB proxy",
 			},
 		},
 	}
@@ -113,13 +113,13 @@ func TestEvaluateConnectRedirect_UnixTarget(t *testing.T) {
 	if got.RedirectTo != "" {
 		t.Fatalf("RedirectTo = %q, want empty tcp target", got.RedirectTo)
 	}
-	if got.RedirectToUnix != "/run/agentsh/sessions/sess-1/db/appdb.sock" {
+	if got.RedirectToUnix != "/run/agentmon/sessions/sess-1/db/appdb.sock" {
 		t.Fatalf("RedirectToUnix = %q", got.RedirectToUnix)
 	}
 	if got.Rule != "db-appdb-redirect" {
 		t.Fatalf("Rule = %q", got.Rule)
 	}
-	if got.Message != "Routed through AgentSH DB proxy" {
+	if got.Message != "Routed through AgentMon DB proxy" {
 		t.Fatalf("Message = %q", got.Message)
 	}
 }
@@ -240,13 +240,13 @@ func TestConnectDialTarget_UnixRedirect(t *testing.T) {
 		OriginalPort:    "5432",
 		Redirect: &policy.ConnectRedirectResult{
 			Matched:        true,
-			RedirectToUnix: "/run/agentsh/sessions/sess-1/db/appdb.sock",
+			RedirectToUnix: "/run/agentmon/sessions/sess-1/db/appdb.sock",
 		},
 	})
 	if got.Network != "unix" {
 		t.Fatalf("Network = %q, want unix", got.Network)
 	}
-	if got.Address != "/run/agentsh/sessions/sess-1/db/appdb.sock" {
+	if got.Address != "/run/agentmon/sessions/sess-1/db/appdb.sock" {
 		t.Fatalf("Address = %q", got.Address)
 	}
 }
@@ -576,7 +576,7 @@ func validBundleService(name string) Service {
 		},
 		Listen: Listener{
 			Kind: "unix",
-			Path: "/run/agentsh/sessions/sess-1/db/" + name + ".sock",
+			Path: "/run/agentmon/sessions/sess-1/db/" + name + ".sock",
 		},
 		TLSMode: "terminate_reissue",
 	}
@@ -606,7 +606,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 const (
@@ -655,7 +655,7 @@ func GenerateBundle(cfg Config, opts BundleOptions) (Bundle, error) {
 		Policy: policy.Policy{
 			Version:     1,
 			Name:        "db-unavoidability-" + sanitizeRulePart(opts.SessionID),
-			Description: "Generated DB unavoidability bundle for AgentSH session " + opts.SessionID,
+			Description: "Generated DB unavoidability bundle for AgentMon session " + opts.SessionID,
 		},
 	}, nil
 }
@@ -761,7 +761,7 @@ func TestGenerateBundle_SingleServiceCoreRules(t *testing.T) {
 	if redirect.Name != "db-appdb-redirect" {
 		t.Fatalf("redirect name = %q", redirect.Name)
 	}
-	if redirect.RedirectToUnix != "/run/agentsh/sessions/sess-1/db/appdb.sock" {
+	if redirect.RedirectToUnix != "/run/agentmon/sessions/sess-1/db/appdb.sock" {
 		t.Fatalf("redirect_to_unix = %q", redirect.RedirectToUnix)
 	}
 	if redirect.RedirectTo != "" {
@@ -805,7 +805,7 @@ func TestGenerateBundle_MultipleServicesHaveStableNames(t *testing.T) {
 	warehouse := validBundleService("warehouse-db")
 	warehouse.Upstream.Host = "warehouse.internal"
 	warehouse.Upstream.Port = 15432
-	warehouse.Listen.Path = "/run/agentsh/sessions/sess-1/db/warehouse.sock"
+	warehouse.Listen.Path = "/run/agentmon/sessions/sess-1/db/warehouse.sock"
 
 	b, err := GenerateBundle(Config{Services: []Service{app, warehouse}}, BundleOptions{
 		SessionID:        "sess-1",
@@ -876,7 +876,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 ```
 
@@ -903,7 +903,7 @@ func GenerateBundle(cfg Config, opts BundleOptions) (Bundle, error) {
 		Policy: policy.Policy{
 			Version:     1,
 			Name:        "db-unavoidability-" + sanitizeRulePart(opts.SessionID),
-			Description: "Generated DB unavoidability bundle for AgentSH session " + opts.SessionID,
+			Description: "Generated DB unavoidability bundle for AgentMon session " + opts.SessionID,
 		},
 	}
 	for _, svc := range cfg.Services {
@@ -930,17 +930,17 @@ func addCoreServiceRules(b *Bundle, svc Service) {
 		RedirectToUnix: svc.Listen.Path,
 		Visibility:     "audit_only",
 		OnFailure:      "fail_closed",
-		Message:        "Routed through AgentSH DB proxy",
+		Message:        "Routed through AgentMon DB proxy",
 	})
 	addMetadata(b, redirectName, svc.Name, BypassModeTCPDirect, destination)
 
 	b.Policy.NetworkRules = append(b.Policy.NetworkRules, policy.NetworkRule{
 		Name:        networkName,
-		Description: "Deny direct DB egress; traffic must use AgentSH DB proxy",
+		Description: "Deny direct DB egress; traffic must use AgentMon DB proxy",
 		Domains:     []string{strings.ToLower(svc.Upstream.Host)},
 		Ports:       []int{svc.Upstream.Port},
 		Decision:    "deny",
-		Message:     "Direct database egress is blocked; use the AgentSH DB proxy",
+		Message:     "Direct database egress is blocked; use the AgentMon DB proxy",
 	})
 	addMetadata(b, networkName, svc.Name, BypassModeTCPDirect, destination)
 
@@ -953,7 +953,7 @@ func addCoreServiceRules(b *Bundle, svc Service) {
 		},
 		Operations: []string{"connect"},
 		Decision:   "deny",
-		Message:    "Direct local database socket access is blocked; use the AgentSH DB proxy",
+		Message:    "Direct local database socket access is blocked; use the AgentMon DB proxy",
 	})
 	addMetadata(b, unixName, svc.Name, BypassModeUnixSocket, "postgres-local-sockets")
 }
@@ -985,7 +985,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 ```
 
@@ -1105,7 +1105,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 ```
 
@@ -1134,7 +1134,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 ```
 
@@ -1187,7 +1187,7 @@ func addResolvedIPRules(ctx context.Context, b *Bundle, svc Service, opts Bundle
 			CIDRs:       []string{cidr},
 			Ports:       []int{svc.Upstream.Port},
 			Decision:    "deny",
-			Message:     "Direct database egress is blocked; use the AgentSH DB proxy",
+			Message:     "Direct database egress is blocked; use the AgentMon DB proxy",
 		})
 		addMetadata(b, name, svc.Name, BypassModeDNSAlias, destination)
 	}
@@ -1321,17 +1321,17 @@ Add helpers:
 func addBypassToolRules(b *Bundle, services []Service) {
 	portPattern := dbPortPattern(services)
 	rules := []policy.CommandRule{
-		{Name: "db-bypass-ssh-forward", Commands: []string{"ssh"}, ArgsPatterns: []string{"(^|\\s)-L(\\s|[^\\s]*:).*:(" + portPattern + ")(\\s|$)"}, Decision: "deny", Message: "DB port forwarding is blocked by AgentSH DB unavoidability"},
-		{Name: "db-bypass-socat", Commands: []string{"socat"}, ArgsPatterns: []string{"(?i)(tcp-listen|listen|tcp:).*(" + portPattern + ")"}, Decision: "deny", Message: "DB socket forwarding is blocked by AgentSH DB unavoidability"},
-		{Name: "db-bypass-kubectl-port-forward", Commands: []string{"kubectl"}, ArgsPatterns: []string{"(^|\\s)port-forward(\\s|$).*(:" + portPattern + "|\\s" + portPattern + ":)"}, Decision: "deny", Message: "DB port forwarding is blocked by AgentSH DB unavoidability"},
-		{Name: "db-bypass-cloud-sql-proxy", Commands: []string{"cloud-sql-proxy"}, ArgsPatterns: []string{".*"}, Decision: "deny", Message: "Cloud SQL proxy is blocked by AgentSH DB unavoidability"},
-		{Name: "db-bypass-gcloud-sql-connect", Commands: []string{"gcloud"}, ArgsPatterns: []string{"(^|\\s)sql\\s+connect(\\s|$)"}, Decision: "deny", Message: "gcloud SQL connect is blocked by AgentSH DB unavoidability"},
-		{Name: "db-bypass-aws-rds-connect", Commands: []string{"aws"}, ArgsPatterns: []string{"(^|\\s)rds\\s+connect(\\s|$)"}, Decision: "deny", Message: "AWS RDS connect is blocked by AgentSH DB unavoidability"},
-		{Name: "db-bypass-chisel", Commands: []string{"chisel"}, ArgsPatterns: []string{".*"}, Decision: "deny", Message: "Tunnel tool is blocked by AgentSH DB unavoidability"},
-		{Name: "db-bypass-gost", Commands: []string{"gost"}, ArgsPatterns: []string{".*"}, Decision: "deny", Message: "Tunnel tool is blocked by AgentSH DB unavoidability"},
-		{Name: "db-bypass-frpc", Commands: []string{"frpc"}, ArgsPatterns: []string{".*"}, Decision: "deny", Message: "Tunnel tool is blocked by AgentSH DB unavoidability"},
-		{Name: "db-bypass-netcat", Commands: []string{"nc", "ncat"}, ArgsPatterns: []string{"(?i)(-l|--listen|(" + portPattern + "))"}, Decision: "deny", Message: "Raw TCP forwarding is blocked by AgentSH DB unavoidability"},
-		{Name: "db-bypass-container-net-host", Commands: []string{"docker", "podman", "nerdctl"}, ArgsPatterns: []string{"(^|\\s)(run|create)(\\s|$).*(--net=host|--network=host)"}, Decision: "deny", Message: "Host-network containers are blocked by AgentSH DB unavoidability"},
+		{Name: "db-bypass-ssh-forward", Commands: []string{"ssh"}, ArgsPatterns: []string{"(^|\\s)-L(\\s|[^\\s]*:).*:(" + portPattern + ")(\\s|$)"}, Decision: "deny", Message: "DB port forwarding is blocked by AgentMon DB unavoidability"},
+		{Name: "db-bypass-socat", Commands: []string{"socat"}, ArgsPatterns: []string{"(?i)(tcp-listen|listen|tcp:).*(" + portPattern + ")"}, Decision: "deny", Message: "DB socket forwarding is blocked by AgentMon DB unavoidability"},
+		{Name: "db-bypass-kubectl-port-forward", Commands: []string{"kubectl"}, ArgsPatterns: []string{"(^|\\s)port-forward(\\s|$).*(:" + portPattern + "|\\s" + portPattern + ":)"}, Decision: "deny", Message: "DB port forwarding is blocked by AgentMon DB unavoidability"},
+		{Name: "db-bypass-cloud-sql-proxy", Commands: []string{"cloud-sql-proxy"}, ArgsPatterns: []string{".*"}, Decision: "deny", Message: "Cloud SQL proxy is blocked by AgentMon DB unavoidability"},
+		{Name: "db-bypass-gcloud-sql-connect", Commands: []string{"gcloud"}, ArgsPatterns: []string{"(^|\\s)sql\\s+connect(\\s|$)"}, Decision: "deny", Message: "gcloud SQL connect is blocked by AgentMon DB unavoidability"},
+		{Name: "db-bypass-aws-rds-connect", Commands: []string{"aws"}, ArgsPatterns: []string{"(^|\\s)rds\\s+connect(\\s|$)"}, Decision: "deny", Message: "AWS RDS connect is blocked by AgentMon DB unavoidability"},
+		{Name: "db-bypass-chisel", Commands: []string{"chisel"}, ArgsPatterns: []string{".*"}, Decision: "deny", Message: "Tunnel tool is blocked by AgentMon DB unavoidability"},
+		{Name: "db-bypass-gost", Commands: []string{"gost"}, ArgsPatterns: []string{".*"}, Decision: "deny", Message: "Tunnel tool is blocked by AgentMon DB unavoidability"},
+		{Name: "db-bypass-frpc", Commands: []string{"frpc"}, ArgsPatterns: []string{".*"}, Decision: "deny", Message: "Tunnel tool is blocked by AgentMon DB unavoidability"},
+		{Name: "db-bypass-netcat", Commands: []string{"nc", "ncat"}, ArgsPatterns: []string{"(?i)(-l|--listen|(" + portPattern + "))"}, Decision: "deny", Message: "Raw TCP forwarding is blocked by AgentMon DB unavoidability"},
+		{Name: "db-bypass-container-net-host", Commands: []string{"docker", "podman", "nerdctl"}, ArgsPatterns: []string{"(^|\\s)(run|create)(\\s|$).*(--net=host|--network=host)"}, Decision: "deny", Message: "Host-network containers are blocked by AgentMon DB unavoidability"},
 	}
 	for _, r := range rules {
 		r.Description = "Convenience detection for DB proxy bypass attempts; destination egress deny is the security boundary"

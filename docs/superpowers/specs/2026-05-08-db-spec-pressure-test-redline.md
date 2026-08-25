@@ -1,7 +1,7 @@
-# AgentSH DB Access Spec v0.7 — Pressure-Test Redline
+# AgentMon DB Access Spec v0.7 — Pressure-Test Redline
 
 **Date:** 2026-05-08
-**Target spec:** `docs/agentsh-db-access-spec.md` (v0.7, marked "implementation-frozen")
+**Target spec:** `docs/agentmon-db-access-spec.md` (v0.7, marked "implementation-frozen")
 **Purpose:** Surface concerns before code is written. Each item is a proposed spec edit. Reviewer decides accept / reject / defer; survivors merge as v0.8 with a §0 changelog entry.
 
 The spec is structurally sound. The 23 items below are bugs, contradictions, missing failure cases, and operator footguns — not architectural reconsiderations.
@@ -128,13 +128,13 @@ policies:
 
 ### R10. Proxy identity and listener authentication (the big one)
 
-**Issue.** §12.4 says: *"process token issued by the AgentSH supervisor at proxy launch; the supervisor checks token validity against its internal registry on every egress evaluation."* No such token, registry, or per-rule process-identity field exists in the codebase today. `NetworkRule` (`internal/policy/model.go`) has no process-identity columns. The spec's primitive is aspirational.
+**Issue.** §12.4 says: *"process token issued by the AgentMon supervisor at proxy launch; the supervisor checks token validity against its internal registry on every egress evaluation."* No such token, registry, or per-rule process-identity field exists in the codebase today. `NetworkRule` (`internal/policy/model.go`) has no process-identity columns. The spec's primitive is aspirational.
 
 Separately, §11.2/§11.3 don't specify how the proxy *listener* authenticates inbound connections. `connect_redirect` covers the agent's TCP connect()s, but a co-resident non-agent process on the same host can connect to the proxy's localhost listener directly — bypassing the redirect — and speak SQL through it. The unavoidability claim is silent on this.
 
 **Edit (§12.4 — replace existing prose).**
 
-> The proxy egress exemption is implemented via **SessionID-keyed rule evaluation**, AgentSH's existing process-tracking primitive (set at ptrace attach in `internal/ptrace/attach.go`; consulted in `internal/policy/engine.go` `CheckNetworkCtx`). Mechanism:
+> The proxy egress exemption is implemented via **SessionID-keyed rule evaluation**, AgentMon's existing process-tracking primitive (set at ptrace attach in `internal/ptrace/attach.go`; consulted in `internal/policy/engine.go` `CheckNetworkCtx`). Mechanism:
 >
 > 1. The supervisor launches the DB proxy as a separate process under a distinct SessionID, outside the agent's ptrace tree.
 > 2. Per-service `network_rules` deny egress to declared DB destinations *for the agent's SessionID*. The proxy's SessionID is not subject to those rules (or carries explicit allow rules).
@@ -147,7 +147,7 @@ Separately, §11.2/§11.3 don't specify how the proxy *listener* authenticates i
 
 > The proxy listens on a Unix domain socket or localhost TCP port. Inbound connections must be authenticated to the agent's SessionID before any Postgres protocol is accepted. Authentication mechanism:
 >
-> - **Unix socket (preferred).** SO_PEERCRED returns the connecting process's PID and UID. The proxy resolves PID to TGID to SessionID via the existing AgentSH ptrace registry and matches against the configured agent SessionID for this proxy instance. Unix sockets are placed at a path the agent's `file_rules` permit and other tenants do not.
+> - **Unix socket (preferred).** SO_PEERCRED returns the connecting process's PID and UID. The proxy resolves PID to TGID to SessionID via the existing AgentMon ptrace registry and matches against the configured agent SessionID for this proxy instance. Unix sockets are placed at a path the agent's `file_rules` permit and other tenants do not.
 > - **Localhost TCP (fallback).** The proxy verifies the inbound TCP socket's `SO_PEERCRED` (`getsockopt(TCP_INFO)` on Linux) where available; on platforms without per-socket peer creds for TCP, the proxy refuses to start in localhost-TCP mode and the operator must use Unix sockets.
 >
 > An inbound connection that fails authentication is closed with no protocol response. Event `db_listener_auth_fail` emitted with `peer_pid`, `peer_session_id`, and `reason`.

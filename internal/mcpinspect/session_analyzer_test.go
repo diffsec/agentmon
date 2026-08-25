@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // boolPtr returns a pointer to the given bool value.

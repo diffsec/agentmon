@@ -10,15 +10,15 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/agentsh/agentsh/pkg/ptygrpc"
+	"github.com/diffsec/agentmon/pkg/ptygrpc"
 )
 
 type ptyGRPCServer struct {
 	app *App
-	ptygrpc.UnimplementedAgentshPTYServer
+	ptygrpc.UnimplementedAgentmonPTYServer
 }
 
-func (s *ptyGRPCServer) ExecPTY(stream ptygrpc.AgentshPTY_ExecPTYServer) error {
+func (s *ptyGRPCServer) ExecPTY(stream ptygrpc.AgentmonPTY_ExecPTYServer) error {
 	if s == nil || s.app == nil {
 		return status.Error(codes.Unimplemented, "pty not implemented")
 	}

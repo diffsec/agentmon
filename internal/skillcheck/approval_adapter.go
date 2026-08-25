@@ -6,7 +6,7 @@ import (
 )
 
 // ApprovalBackend is the function signature the adapter delegates to. The
-// real wiring (in cmd/agentsh) passes a closure that calls into
+// real wiring (in cmd/agentmon) passes a closure that calls into
 // internal/approval/dialog. Tests inject a stub.
 type ApprovalBackend func(ctx context.Context, prompt string) (bool, error)
 

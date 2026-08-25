@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fix two bugs causing the seccomp file_monitor to deny all writes in the `agentsh wrap` path (63/73 → 73/73).
+**Goal:** Fix two bugs causing the seccomp file_monitor to deny all writes in the `agentmon wrap` path (63/73 → 73/73).
 
 **Architecture:** Two independent fixes: (1) add `prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY)` in the wrapper before exec so the server can read tracee memory under Yama ptrace_scope=1, and (2) thread the session-specific policy engine (with expanded `${PROJECT_ROOT}`) through to the wrap path's notify handler.
 
@@ -13,7 +13,7 @@
 ### Task 1: Add PR_SET_PTRACER_ANY to wrapper
 
 **Files:**
-- Modify: `cmd/agentsh-unixwrap/main.go:142-153`
+- Modify: `cmd/agentmon-unixwrap/main.go:142-153`
 
 - [ ] **Step 1: Add the prctl call before exec**
 
@@ -34,7 +34,7 @@ Reference: `golang.org/x/sys/unix` provides both `Prctl`, `PR_SET_PTRACER`, and 
 
 - [ ] **Step 2: Verify it compiles**
 
-Run: `go build ./cmd/agentsh-unixwrap/`
+Run: `go build ./cmd/agentmon-unixwrap/`
 Expected: success, no errors
 
 - [ ] **Step 3: Verify cross-compilation**
@@ -45,7 +45,7 @@ Expected: success (wrapper is linux-only, build-tagged)
 - [ ] **Step 4: Commit**
 
 ```bash
-git add cmd/agentsh-unixwrap/main.go
+git add cmd/agentmon-unixwrap/main.go
 git commit -m "fix: add PR_SET_PTRACER_ANY to wrapper for Yama ptrace_scope=1
 
 Under Yama ptrace_scope=1 (Ubuntu/Debian default), the server cannot use

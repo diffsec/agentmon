@@ -25,7 +25,7 @@
 - Design: `docs/superpowers/specs/2026-05-10-db-plan-04c-simple-query-events-design.md`
 - Macro design: `docs/superpowers/specs/2026-05-10-db-plan-04-pg-proxy-skeleton-design.md`
 - Roadmap: `docs/superpowers/specs/2026-05-08-db-access-phase-1-roadmap-design.md` §3 Plan 04c
-- Spec: `docs/agentsh-db-access-spec.md` v0.8 §7.1, §7.7, §8, §10.2, §10.3, §14.1, §14.3, §14.4
+- Spec: `docs/agentmon-db-access-spec.md` v0.8 §7.1, §7.7, §8, §10.2, §10.3, §14.1, §14.3, §14.4
 - Predecessor plan: `docs/superpowers/plans/2026-05-10-db-plan-04b2-upstream-passthrough.md`
 
 ---
@@ -679,7 +679,7 @@ import (
 	// ...existing...
 	"sync/atomic"
 
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
 )
 ```
 
@@ -763,7 +763,7 @@ package postgres
 import (
 	"fmt"
 
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
 )
 
 // buildClassifierMap constructs one Parser per distinct dialect across the
@@ -812,7 +812,7 @@ package postgres
 import (
 	"testing"
 
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
 )
 
 func TestBuildClassifierMap_PerDialect(t *testing.T) {
@@ -936,7 +936,7 @@ type connState struct {
 }
 ```
 
-Add the import `"github.com/agentsh/agentsh/internal/db/policy"` if not already present.
+Add the import `"github.com/diffsec/agentmon/internal/db/policy"` if not already present.
 
 - [ ] **Step 4: Capture the byte in `forwardAuth`**
 
@@ -1003,7 +1003,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/events"
 )
 
 func TestSimpleQueryLoop_RejectsExtendedQuery(t *testing.T) {
@@ -1153,7 +1153,7 @@ func (pc *proxyConn) emitFrameTooLarge(ctx context.Context, size int) {
 		ClientIdentity: pc.state.clientIdentity,
 		Kind:           "db_handshake_fail",
 		ErrorCode:      "FRAME_TOO_LARGE",
-		Reason:         fmt.Sprintf("statement too large for AgentSH proxy: %d bytes > %d cap", size, pc.srv.cfg.MaxQueryBytes),
+		Reason:         fmt.Sprintf("statement too large for AgentMon proxy: %d bytes > %d cap", size, pc.srv.cfg.MaxQueryBytes),
 		PeerUID:        pc.state.peerUID,
 	})
 }
@@ -1173,7 +1173,7 @@ func (pc *proxyConn) emitUnsupportedFrame(ctx context.Context, errorCode, frameT
 		ClientIdentity: pc.state.clientIdentity,
 		Kind:           "db_handshake_fail",
 		ErrorCode:      errorCode,
-		Reason:         "frame " + frameType + " not supported in AgentSH proxy phase 1",
+		Reason:         "frame " + frameType + " not supported in AgentMon proxy phase 1",
 		PeerUID:        pc.state.peerUID,
 	})
 }
@@ -1240,11 +1240,11 @@ func (pc *proxyConn) handleUnsupportedFrame(ctx context.Context, msg pgproto3.Fr
 	frameType := fmt.Sprintf("%T", msg)
 	if _, isFunc := msg.(*pgproto3.FunctionCall); isFunc {
 		pc.emitUnsupportedFrame(ctx, "FUNCTION_CALL_PROTOCOL_DENIED", "FunctionCall")
-		_ = pc.synthesizeError("42501", "FunctionCall sub-protocol denied by AgentSH policy")
+		_ = pc.synthesizeError("42501", "FunctionCall sub-protocol denied by AgentMon policy")
 		return errUnsupportedFrame
 	}
 	pc.emitUnsupportedFrame(ctx, "EXTENDED_QUERY_NOT_SUPPORTED", frameType)
-	_ = pc.synthesizeError("0A000", "Extended Query / COPY / FunctionCall not supported in AgentSH proxy phase 1")
+	_ = pc.synthesizeError("0A000", "Extended Query / COPY / FunctionCall not supported in AgentMon proxy phase 1")
 	return errUnsupportedFrame
 }
 
@@ -1351,7 +1351,7 @@ func (pc *proxyConn) handleQuery(ctx context.Context, q *pgproto3.Query) error {
 	if len(q.String) > pc.srv.cfg.MaxQueryBytes {
 		pc.emitFrameTooLarge(ctx, len(q.String))
 		_ = pc.synthErrorAndRFQ("54000",
-			fmt.Sprintf("statement too large for AgentSH proxy: %d bytes > %d cap",
+			fmt.Sprintf("statement too large for AgentMon proxy: %d bytes > %d cap",
 				len(q.String), pc.srv.cfg.MaxQueryBytes))
 		return errFrameTooLargeClose
 	}
@@ -1740,7 +1740,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 func TestSynthErrorAndRFQ_WritesErrorThenRFQI(t *testing.T) {
@@ -1844,7 +1844,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 const (
@@ -1892,17 +1892,17 @@ func pickDenySynth(decisions []policy.Decision) (string, string) {
 		return rendered, sqlstate
 	}
 	// Defensive: caller is supposed to ensure anyDeny.
-	return "denied by AgentSH policy", sqlstateInsufficientPrivilege
+	return "denied by AgentMon policy", sqlstateInsufficientPrivilege
 }
 
 func renderDenyMessage(d policy.Decision) string {
 	if d.RuleName != "" {
-		return fmt.Sprintf("denied by AgentSH policy: %s", d.RuleName)
+		return fmt.Sprintf("denied by AgentMon policy: %s", d.RuleName)
 	}
 	if d.Reason != "" {
-		return fmt.Sprintf("denied by AgentSH policy: %s", d.Reason)
+		return fmt.Sprintf("denied by AgentMon policy: %s", d.Reason)
 	}
-	return "denied by AgentSH policy"
+	return "denied by AgentMon policy"
 }
 ```
 
@@ -1950,10 +1950,10 @@ import (
 	"testing"
 	"time"
 
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 func TestBuildStatementEvent_FullTier_VerbatimSlice(t *testing.T) {
@@ -2110,10 +2110,10 @@ import (
 	"fmt"
 	"strings"
 
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 // buildArgs collects the inputs to buildStatementEvent. Keeping them in a
@@ -2455,7 +2455,7 @@ func (pc *proxyConn) handleQuery(ctx context.Context, q *pgproto3.Query) error {
 	if len(q.String) > pc.srv.cfg.MaxQueryBytes {
 		pc.emitFrameTooLarge(ctx, len(q.String))
 		_ = pc.synthErrorAndRFQ(sqlstateProgramLimitExceeded,
-			fmt.Sprintf("statement too large for AgentSH proxy: %d bytes > %d cap",
+			fmt.Sprintf("statement too large for AgentMon proxy: %d bytes > %d cap",
 				len(q.String), pc.srv.cfg.MaxQueryBytes))
 		return errFrameTooLargeClose
 	}
@@ -2555,7 +2555,7 @@ func (pc *proxyConn) emitAllowEvents(
 }
 ```
 
-Add the required imports: `"crypto/sha256"`, `"encoding/hex"`, `"github.com/agentsh/agentsh/internal/db/effects"`, `"github.com/agentsh/agentsh/internal/db/policy"`, `classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"`.
+Add the required imports: `"crypto/sha256"`, `"encoding/hex"`, `"github.com/diffsec/agentmon/internal/db/effects"`, `"github.com/diffsec/agentmon/internal/db/policy"`, `classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"`.
 
 - [ ] **Step 4: Add `SyncSink.DrainStatements()` if missing**
 
@@ -2916,7 +2916,7 @@ Replace with:
 }
 ```
 
-Add the `"github.com/agentsh/agentsh/internal/db/policy"` import if not present.
+Add the `"github.com/diffsec/agentmon/internal/db/policy"` import if not present.
 
 - [ ] **Step 6: Run tests to confirm passing**
 
@@ -3089,7 +3089,7 @@ func pgErrCodeOrEmpty(err error) string {
 
 The fixture `newSpineEnv` + `withSpinePolicy` + `env.PgxConnString()` + `env.Upstream.BytesReceivedAfterStartup()` must be authored to:
 1. Bind the proxy to a `t.TempDir()` Unix socket.
-2. Issue the AgentSH CA via the existing `tlsleaf` package.
+2. Issue the AgentMon CA via the existing `tlsleaf` package.
 3. Build a `pgxpool`-friendly conn string with `sslmode=verify-full`, `sslrootcert=` set to the CA path, `host=` set to the Unix socket dir.
 4. Spin a fake upstream from `testupstream_test.go` (extend with `BytesReceivedAfterStartup` if missing).
 

@@ -17,9 +17,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/service"
 )
 
 // startFakeUpstreamForTLSTest binds a tls listener with the supplied tls.Config

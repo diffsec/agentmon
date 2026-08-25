@@ -111,7 +111,7 @@ req, err := readSocksRequest(conn)                              // blocks foreve
 
 `net.DialTimeout` bounds only the *upstream* dial (20s); the *client*-side
 handshake reads are unbounded. A sandboxed command can open many connections to
-the redirected Tor SOCKS port, stall each handshake, and exhaust agentsh's
+the redirected Tor SOCKS port, stall each handshake, and exhaust agentmon's
 host-side goroutines/fds, DoSing monitoring for the session. The new `RESOLVE`
 path inherits the exposure (a second blocking `readSocksRequest(conn)`).
 

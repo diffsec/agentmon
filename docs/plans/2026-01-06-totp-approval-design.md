@@ -14,7 +14,7 @@ Add TOTP (Time-based One-Time Password) as a third approval mode for human-in-th
 |----------|--------|-----------|
 | Secret scope | Per-session | Fresh secret each session, no persistent state, secret dies with session |
 | Secret display | CLI + ASCII QR code | Works in terminal, no external dependencies, easy to scan |
-| Mode enablement | Config-based | `approvals.mode: totp` in agentsh.yaml, consistent with existing modes |
+| Mode enablement | Config-based | `approvals.mode: totp` in agentmon.yaml, consistent with existing modes |
 
 ## Architecture
 
@@ -72,11 +72,11 @@ func GenerateTOTPSecret() (string, error) {
 ### URI Format
 
 ```
-otpauth://totp/agentsh:{session_id_prefix}?secret={base32_secret}&issuer=agentsh
+otpauth://totp/agentmon:{session_id_prefix}?secret={base32_secret}&issuer=agentmon
 ```
 
-- **Label:** `agentsh:{first 8 chars of session ID}` for identification
-- **Issuer:** `agentsh` for app organization
+- **Label:** `agentmon:{first 8 chars of session ID}` for identification
+- **Issuer:** `agentmon` for app organization
 - **Algorithm:** SHA1 (default, widely supported)
 - **Digits:** 6 (standard)
 - **Period:** 30 seconds (standard)
@@ -160,7 +160,7 @@ Use `github.com/pquerna/otp/totp` for validation:
 ### Schema Update
 
 ```yaml
-# In agentsh.yaml
+# In agentmon.yaml
 approvals:
   mode: totp           # Options: "local_tty" | "api" | "totp"
   timeout: 5m          # How long to wait for TOTP code

@@ -29,18 +29,18 @@ Steps 1-4 are unavoidable (ptrace must attach for syscall interception). Step 5 
 
 ### Design
 
-A new binary `agentsh-loader` that wraps every exec in ptrace mode:
+A new binary `agentmon-loader` that wraps every exec in ptrace mode:
 
 ```
 Before: fork → exec(cmd, args...) → tracer attaches → inject BPF → run
-After:  fork → exec(agentsh-loader, cmd, args...) → loader installs BPF → exec(cmd) → tracer attaches (filter already present) → run
+After:  fork → exec(agentmon-loader, cmd, args...) → loader installs BPF → exec(cmd) → tracer attaches (filter already present) → run
 ```
 
-### Loader binary (`cmd/agentsh-loader/main.go`)
+### Loader binary (`cmd/agentmon-loader/main.go`)
 
 ~60 lines. Linux-only (`//go:build linux`).
 
-**Arguments**: `agentsh-loader --filter-fd=N -- cmd arg1 arg2 ...`
+**Arguments**: `agentmon-loader --filter-fd=N -- cmd arg1 arg2 ...`
 
 **Behavior**:
 1. Parse `--filter-fd=N` from args, find `--` separator, remaining args are the real command
@@ -73,11 +73,11 @@ When ptrace is active and `SeccompPrefilter` is enabled:
 5. Wrap the command: instead of `exec.Command(cmd, args...)`, use `exec.Command(loaderPath, "--filter-fd=N", "--", cmd, args...)`
 6. Append read end to `cmd.ExtraFiles` — the fd number is `3 + len(cmd.ExtraFiles)` at the point of appending (Go assigns ExtraFiles fds starting at 3). Calculate N from this before appending.
 
-**Network namespace interaction**: When a session has a network namespace (`ns != ""`), the command is rewritten as `ip netns exec <ns> <cmd> <args...>`. The loader wrapping must be applied to the inner command (inside the netns wrapper): `ip netns exec <ns> agentsh-loader --filter-fd=N -- cmd args...`. The loader installs the filter, then execs the real command inside the namespace. The filter persists across exec.
+**Network namespace interaction**: When a session has a network namespace (`ns != ""`), the command is rewritten as `ip netns exec <ns> <cmd> <args...>`. The loader wrapping must be applied to the inner command (inside the netns wrapper): `ip netns exec <ns> agentmon-loader --filter-fd=N -- cmd args...`. The loader installs the filter, then execs the real command inside the namespace. The filter persists across exec.
 
 The filter is compiled once per session (or per config change) and cached. The pipe write is ~200-500 bytes — negligible.
 
-**Loader path resolution**: The loader binary path is resolved at server startup (check `/usr/bin/agentsh-loader`, then `$PATH`). If not found, fall back to existing deferred injection. Store the resolved path in a config field.
+**Loader path resolution**: The loader binary path is resolved at server startup (check `/usr/bin/agentmon-loader`, then `$PATH`). If not found, fall back to existing deferred injection. Store the resolved path in a config field.
 
 ### Tracer-side changes (`internal/ptrace/attach.go`)
 
@@ -106,8 +106,8 @@ This means:
 
 ### Fallback behavior
 
-If `agentsh-loader` is not found at startup:
-- Log a warning: "agentsh-loader not found, falling back to deferred BPF injection"
+If `agentmon-loader` is not found at startup:
+- Log a warning: "agentmon-loader not found, falling back to deferred BPF injection"
 - Set `loaderPath = ""` — exec path skips the wrapper
 - All existing behavior preserved — zero regression risk
 
@@ -115,13 +115,13 @@ If `agentsh-loader` is not found at startup:
 
 **Dockerfile.bench** — add build and copy:
 ```dockerfile
-RUN go build -o /out/agentsh          ./cmd/agentsh && \
-    go build -o /out/agentsh-shell-shim ./cmd/agentsh-shell-shim && \
-    go build -o /out/agentsh-unixwrap  ./cmd/agentsh-unixwrap && \
-    go build -o /out/agentsh-stub      ./cmd/agentsh-stub && \
-    go build -o /out/agentsh-loader    ./cmd/agentsh-loader
+RUN go build -o /out/agentmon          ./cmd/agentmon && \
+    go build -o /out/agentmon-shell-shim ./cmd/agentmon-shell-shim && \
+    go build -o /out/agentmon-unixwrap  ./cmd/agentmon-unixwrap && \
+    go build -o /out/agentmon-stub      ./cmd/agentmon-stub && \
+    go build -o /out/agentmon-loader    ./cmd/agentmon-loader
 
-COPY --from=builder /out/agentsh-loader    /usr/bin/agentsh-loader
+COPY --from=builder /out/agentmon-loader    /usr/bin/agentmon-loader
 ```
 
 **Makefile** — no changes needed (existing `go build ./...` covers all `cmd/` binaries).
@@ -203,12 +203,12 @@ if t.hasSysemu && state.HasPrefilter {
 
 | File | Changes |
 |---|---|
-| `cmd/agentsh-loader/main.go` | New — loader binary |
+| `cmd/agentmon-loader/main.go` | New — loader binary |
 | `internal/api/exec.go` | Wrap command with loader in ptrace mode |
 | `internal/ptrace/attach.go` | `WithPrefilterInstalled` option, skip deferred injection |
 | `internal/ptrace/tracer.go` | Add `hasSysemu` field, SYSEMU deny path |
 | `internal/ptrace/seccomp_filter.go` | Export filter serialization for loader |
-| `Dockerfile.bench` | Build and copy agentsh-loader |
+| `Dockerfile.bench` | Build and copy agentmon-loader |
 
 ## Testing
 

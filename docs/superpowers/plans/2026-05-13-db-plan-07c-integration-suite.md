@@ -4,9 +4,9 @@
 
 **Goal:** Add a CI-required real Postgres integration suite for DB Plan 07 and update the DB access docs so `policies.db.unavoidability: enforce` is the high-assurance recommendation for declared Phase 1 Postgres services.
 
-**Architecture:** The suite runs under the existing `integration` build tag, starts Postgres and AgentSH server containers on the same Docker bridge network, creates an AgentSH session with DB unavoidability enforce mode, and executes a small `pgx` helper binary through the AgentSH exec API so the proxy listener can authenticate the owning SessionID through ptrace. Small production changes expose the per-session DB proxy socket in API session snapshots and publish normalized DB statement events through the existing composite store and event broker.
+**Architecture:** The suite runs under the existing `integration` build tag, starts Postgres and AgentMon server containers on the same Docker bridge network, creates an AgentMon session with DB unavoidability enforce mode, and executes a small `pgx` helper binary through the AgentMon exec API so the proxy listener can authenticate the owning SessionID through ptrace. Small production changes expose the per-session DB proxy socket in API session snapshots and publish normalized DB statement events through the existing composite store and event broker.
 
-**Tech Stack:** Go, `testcontainers-go`, Docker, `postgres:16-alpine`, `github.com/jackc/pgx/v5`, AgentSH REST client, existing `internal/db/proxy/postgres` proxy, existing `integration` build tag.
+**Tech Stack:** Go, `testcontainers-go`, Docker, `postgres:16-alpine`, `github.com/jackc/pgx/v5`, AgentMon REST client, existing `internal/db/proxy/postgres` proxy, existing `integration` build tag.
 
 ---
 
@@ -18,9 +18,9 @@
 - Modify: `internal/api/db_lifecycle_sink.go` - map `dbevents.DBEvent` into `types.Event` and publish statement, cancel, and COPY events through the API/store/broker path.
 - Modify: `internal/api/db_lifecycle_sink_test.go` - add mapping and broker-publication tests for DB statement events.
 - Create: `internal/integration/db07cclient/main.go` - Linux-container helper binary that uses `pgx` to connect through either the proxy Unix socket or direct TCP and exercises scalar, exec, tx-deny, cancel, COPY TO, and COPY FROM modes.
-- Create: `internal/integration/db_postgres_07c_test.go` - Docker-backed real Postgres integration suite with AgentSH server container, DB policy/config writers, session event polling, and tests for SQL flows, cancel/COPY, direct TCP bypass, and listener auth failure.
+- Create: `internal/integration/db_postgres_07c_test.go` - Docker-backed real Postgres integration suite with AgentMon server container, DB policy/config writers, session event polling, and tests for SQL flows, cancel/COPY, direct TCP bypass, and listener auth failure.
 - Modify: `docs/superpowers/specs/2026-05-13-db-plan-07-split-unavoidability-design.md` - record 07c as the CI closeout gate for Plan 07.
-- Modify: `docs/agentsh-db-access-spec.md` - update Phase 1 operator guidance for `policies.db.unavoidability: enforce` with scope caveats.
+- Modify: `docs/agentmon-db-access-spec.md` - update Phase 1 operator guidance for `policies.db.unavoidability: enforce` with scope caveats.
 
 ## Task 1: Expose Session DB Proxy Socket In API Snapshots
 
@@ -122,8 +122,8 @@ import (
 	"testing"
 	"time"
 
-	dbevents "github.com/agentsh/agentsh/internal/db/events"
-	appevents "github.com/agentsh/agentsh/internal/events"
+	dbevents "github.com/diffsec/agentmon/internal/db/events"
+	appevents "github.com/diffsec/agentmon/internal/events"
 )
 ```
 
@@ -251,10 +251,10 @@ import (
 	"encoding/json"
 	"strings"
 
-	dbevents "github.com/agentsh/agentsh/internal/db/events"
-	appevents "github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/types"
+	dbevents "github.com/diffsec/agentmon/internal/db/events"
+	appevents "github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 ```
 
@@ -388,7 +388,7 @@ type output struct {
 func main() {
 	var (
 		dsn      = flag.String("dsn", "", "direct PostgreSQL DSN")
-		socket   = flag.String("socket", "", "AgentSH DB proxy Unix socket path")
+		socket   = flag.String("socket", "", "AgentMon DB proxy Unix socket path")
 		mode     = flag.String("mode", "scalar", "scalar, exec, tx-deny, cancel, copy-to, or copy-from")
 		sqlText  = flag.String("sql", "select 1", "SQL statement")
 		data     = flag.String("data", "", "COPY FROM STDIN payload")
@@ -587,8 +587,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
@@ -719,7 +719,7 @@ func startDB07CEnvironment(t *testing.T, ctx context.Context) db07cEnv {
 	containerDSN := "postgres://app:secret@pg07c:5432/app?sslmode=disable"
 
 	temp := t.TempDir()
-	agentshBin := buildAgentshBinary(t)
+	agentmonBin := buildAgentmonBinary(t)
 	clientBin := buildDB07CClientBinary(t)
 	policiesDir := filepath.Join(temp, "policies")
 	mustMkdir(t, policiesDir)
@@ -729,7 +729,7 @@ func startDB07CEnvironment(t *testing.T, ctx context.Context) db07cEnv {
 	workspace := filepath.Join(temp, "workspace")
 	mustMkdir(t, workspace)
 
-	endpoint, server, serverCleanup := startDB07CServerContainer(t, ctx, netw.Name, agentshBin, clientBin, filepath.Join(temp, "config.yaml"), policiesDir, workspace)
+	endpoint, server, serverCleanup := startDB07CServerContainer(t, ctx, netw.Name, agentmonBin, clientBin, filepath.Join(temp, "config.yaml"), policiesDir, workspace)
 	env := db07cEnv{
 		client:            client.New(endpoint, "test-key"),
 		server:            server,
@@ -779,14 +779,14 @@ func repoRoot07C(t *testing.T) string {
 	}
 }
 
-func startDB07CServerContainer(t *testing.T, ctx context.Context, networkName, agentshBin, dbClientBin, configPath, policiesDir, workspace string) (string, testcontainers.Container, func()) {
+func startDB07CServerContainer(t *testing.T, ctx context.Context, networkName, agentmonBin, dbClientBin, configPath, policiesDir, workspace string) (string, testcontainers.Container, func()) {
 	t.Helper()
 	req := testcontainers.ContainerRequest{
 		Image:        "debian:bookworm-slim",
 		ExposedPorts: []string{"18080/tcp"},
-		Cmd:          []string{"/usr/local/bin/agentsh", "server", "--config", "/config.yaml"},
+		Cmd:          []string{"/usr/local/bin/agentmon", "server", "--config", "/config.yaml"},
 		Mounts: []testcontainers.ContainerMount{
-			testcontainers.BindMount(agentshBin, "/usr/local/bin/agentsh"),
+			testcontainers.BindMount(agentmonBin, "/usr/local/bin/agentmon"),
 			testcontainers.BindMount(dbClientBin, "/usr/local/bin/db07c-client"),
 			testcontainers.BindMount(configPath, "/config.yaml"),
 			testcontainers.BindMount(filepath.Join(filepath.Dir(configPath), "keys.yaml"), "/keys.yaml"),
@@ -796,7 +796,7 @@ func startDB07CServerContainer(t *testing.T, ctx context.Context, networkName, a
 		Privileged:      true,
 		CapAdd:          []string{"SYS_ADMIN", "SYS_PTRACE"},
 		Networks:        []string{networkName},
-		NetworkAliases:  map[string][]string{networkName: []string{"agentsh07c"}},
+		NetworkAliases:  map[string][]string{networkName: []string{"agentmon07c"}},
 		HostConfigModifier: func(hc *container.HostConfig) {
 			hc.SecurityOpt = []string{"apparmor:unconfined", "seccomp:unconfined"}
 			if _, err := os.Stat("/dev/fuse"); err == nil {
@@ -818,18 +818,18 @@ func startDB07CServerContainer(t *testing.T, ctx context.Context, networkName, a
 			if logs, logErr := ctr.Logs(ctx); logErr == nil {
 				defer logs.Close()
 				b, _ := io.ReadAll(logs)
-				t.Logf("07c AgentSH logs:\n%s", string(b))
+				t.Logf("07c AgentMon logs:\n%s", string(b))
 			}
 		}
-		t.Fatalf("07c start AgentSH container: %v", err)
+		t.Fatalf("07c start AgentMon container: %v", err)
 	}
 	host, err := ctr.Host(ctx)
 	if err != nil {
-		t.Fatalf("07c AgentSH host: %v", err)
+		t.Fatalf("07c AgentMon host: %v", err)
 	}
 	port, err := ctr.MappedPort(ctx, "18080/tcp")
 	if err != nil {
-		t.Fatalf("07c AgentSH mapped port: %v", err)
+		t.Fatalf("07c AgentMon mapped port: %v", err)
 	}
 	endpoint := fmt.Sprintf("http://%s:%s", host, port.Port())
 	return endpoint, ctr, func() { _ = ctr.Terminate(context.Background()) }
@@ -1073,8 +1073,8 @@ Use these rules while making the file compile:
 
 - Keep the build tag `//go:build integration && linux`.
 - Keep `db07c-client` execution inside `cli.Exec` for proxy-path SQL; host-process `pgx` connections may only seed and inspect upstream state.
-- Keep direct listener auth failure outside the AgentSH session by using `env.server.Exec`.
-- Keep direct TCP bypass inside the AgentSH-governed session by using `cli.Exec` with `-dsn postgres://app:secret@pg07c:5432/app?sslmode=disable`.
+- Keep direct listener auth failure outside the AgentMon session by using `env.server.Exec`.
+- Keep direct TCP bypass inside the AgentMon-governed session by using `cli.Exec` with `-dsn postgres://app:secret@pg07c:5432/app?sslmode=disable`.
 - Keep event polling through `cli.QuerySessionEvents` so the suite proves API-visible audit data.
 
 - [ ] **Step 4: Run the core tests and commit**
@@ -1219,7 +1219,7 @@ git commit -m "test: cover db 07c postgres protocol features"
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-05-13-db-plan-07-split-unavoidability-design.md`
-- Modify: `docs/agentsh-db-access-spec.md`
+- Modify: `docs/agentmon-db-access-spec.md`
 - Modify: `docs/superpowers/specs/2026-05-13-db-plan-07c-integration-suite-design.md`
 
 - [ ] **Step 1: Update Plan 07 split document**
@@ -1227,21 +1227,21 @@ git commit -m "test: cover db 07c postgres protocol features"
 In `docs/superpowers/specs/2026-05-13-db-plan-07-split-unavoidability-design.md`, update the closeout language so it says:
 
 ```markdown
-Plan 07c is the CI closeout gate: it runs `go test -v -tags=integration ./internal/integration/...` against a real `postgres:16-alpine` container, exercises the AgentSH Postgres proxy path through a governed session, and asserts `db_bypass_attempt` plus `db_listener_auth_fail` lifecycle events. Plan 07 is complete only after that suite passes in CI.
+Plan 07c is the CI closeout gate: it runs `go test -v -tags=integration ./internal/integration/...` against a real `postgres:16-alpine` container, exercises the AgentMon Postgres proxy path through a governed session, and asserts `db_bypass_attempt` plus `db_listener_auth_fail` lifecycle events. Plan 07 is complete only after that suite passes in CI.
 ```
 
 Also update the final status sentence to:
 
 ```markdown
-After 07c passes in CI, Plan 07 is complete and DB Access Phase 1 recommends `policies.db.unavoidability: enforce` for declared Postgres services inside the AgentSH-governed process tree.
+After 07c passes in CI, Plan 07 is complete and DB Access Phase 1 recommends `policies.db.unavoidability: enforce` for declared Postgres services inside the AgentMon-governed process tree.
 ```
 
 - [ ] **Step 2: Update the DB access spec operator guidance**
 
-In `docs/agentsh-db-access-spec.md`, update the Plan 07/Phase 1 guidance near the unavoidability sections so it contains these points in prose:
+In `docs/agentmon-db-access-spec.md`, update the Plan 07/Phase 1 guidance near the unavoidability sections so it contains these points in prose:
 
 ```markdown
-For declared Phase 1 Postgres services, `policies.db.unavoidability: enforce` is the high-assurance recommendation once the Plan 07c real-Postgres integration suite is passing in CI. The claim is scoped to processes inside the AgentSH-governed process tree, declared DB services, and an uncompromised AgentSH supervisor plus DB proxy. Aurora Postgres, Redshift, CockroachDB, MySQL, and MariaDB remain outside the automated high-assurance CI claim for Phase 1.
+For declared Phase 1 Postgres services, `policies.db.unavoidability: enforce` is the high-assurance recommendation once the Plan 07c real-Postgres integration suite is passing in CI. The claim is scoped to processes inside the AgentMon-governed process tree, declared DB services, and an uncompromised AgentMon supervisor plus DB proxy. Aurora Postgres, Redshift, CockroachDB, MySQL, and MariaDB remain outside the automated high-assurance CI claim for Phase 1.
 ```
 
 - [ ] **Step 3: Mark the 07c design as implemented**
@@ -1271,7 +1271,7 @@ Expected: no output.
 Commit:
 
 ```bash
-git add docs/superpowers/specs/2026-05-13-db-plan-07-split-unavoidability-design.md docs/agentsh-db-access-spec.md docs/superpowers/specs/2026-05-13-db-plan-07c-integration-suite-design.md
+git add docs/superpowers/specs/2026-05-13-db-plan-07-split-unavoidability-design.md docs/agentmon-db-access-spec.md docs/superpowers/specs/2026-05-13-db-plan-07c-integration-suite-design.md
 git commit -m "docs: close db plan 07 guidance"
 ```
 
@@ -1338,7 +1338,7 @@ If verification required code or docs fixes, commit them:
 
 ```bash
 git status --short
-git add pkg/types/sessions.go internal/session/manager.go internal/session/manager_test.go internal/api/db_lifecycle_sink.go internal/api/db_lifecycle_sink_test.go internal/integration/db07cclient/main.go internal/integration/db_postgres_07c_test.go docs/superpowers/specs/2026-05-13-db-plan-07-split-unavoidability-design.md docs/agentsh-db-access-spec.md docs/superpowers/specs/2026-05-13-db-plan-07c-integration-suite-design.md internal/db/proxy/postgres
+git add pkg/types/sessions.go internal/session/manager.go internal/session/manager_test.go internal/api/db_lifecycle_sink.go internal/api/db_lifecycle_sink_test.go internal/integration/db07cclient/main.go internal/integration/db_postgres_07c_test.go docs/superpowers/specs/2026-05-13-db-plan-07-split-unavoidability-design.md docs/agentmon-db-access-spec.md docs/superpowers/specs/2026-05-13-db-plan-07c-integration-suite-design.md internal/db/proxy/postgres
 git commit -m "test: finish db plan 07c integration suite"
 ```
 

@@ -1,16 +1,16 @@
 # Design: `daemon install --force` must reload the running service (#439)
 
 **Date:** 2026-08-05
-**Issue:** [#439](https://github.com/canyonroad/agentsh/issues/439)
+**Issue:** [#439](https://github.com/diffsec/agentmon/issues/439)
 **Status:** Approved
 
 ## Problem
 
-`agentsh daemon install --force` on macOS writes the new launchd plist but never
+`agentmon daemon install --force` on macOS writes the new launchd plist but never
 reloads it. `launchctl load` fails with "service already loaded" — which is the
 normal case under `--force`, since an installation already exists — and the code
 downgrades the failure to a `Warning:` line and returns success. launchd keeps
-running the old job definition until a manual `agentsh daemon restart` or
+running the old job definition until a manual `agentmon daemon restart` or
 re-login. The #437 deprecation notice tells users to run exactly this command,
 so the documented remediation appears not to work.
 
@@ -56,7 +56,7 @@ func reloadLaunchdService(plistPath string) error {
     ...
 }
 
-// restartSystemdIfActive restarts the agentsh user unit only when it is
+// restartSystemdIfActive restarts the agentmon user unit only when it is
 // currently active, so install keeps its existing behavior of never being
 // the thing that first starts the daemon on Linux. The bool reports whether
 // a restart occurred, so the caller can print the success message only in
@@ -64,11 +64,11 @@ func reloadLaunchdService(plistPath string) error {
 func restartSystemdIfActive() (restarted bool, err error)
 ```
 
-`restartSystemdIfActive` checks `systemctl --user is-active agentsh` using
+`restartSystemdIfActive` checks `systemctl --user is-active agentmon` using
 `exec.Command(...).Output()` (as `getCurrentSession` already does), **not**
 `runSystemctl`, which wires stdout/stderr to the terminal and would leak
 `inactive` to the user. Only when the output is `active` does it run
-`systemctl --user restart agentsh` (via `runSystemctl`).
+`systemctl --user restart agentmon` (via `runSystemctl`).
 
 ### Call-site changes
 
@@ -83,7 +83,7 @@ func restartSystemdIfActive() (restarted bool, err error)
   bug.
 - `installSystemdService`: after `daemon-reload` and `enable`, call
   `restartSystemdIfActive()`. On error, return a hard error stating the unit
-  file was written and suggesting `systemctl --user restart agentsh`. When a
+  file was written and suggesting `systemctl --user restart agentmon`. When a
   restart occurs, print `Service restarted with updated configuration`. When
   the unit is not active, behavior is unchanged, including the
   "To start the daemon now" hint.
@@ -101,7 +101,7 @@ test redirection. Unify on `os.UserHomeDir()`; `user.Current()` drops out of
 and the unit's `Environment=HOME=` value come from `user.Current().HomeDir`.
 Switch those to `os.UserHomeDir()` as well, for the same reason — without it,
 the Linux test cases below would write to the developer's real
-`~/.config/systemd/user/agentsh.service`. `user.Current()` remains in that
+`~/.config/systemd/user/agentmon.service`. `user.Current()` remains in that
 function solely for `Uid` (the `XDG_RUNTIME_DIR=/run/user/%s` template value),
 which has no filesystem effect.
 
@@ -140,7 +140,7 @@ Cases:
 2. macOS `--force` over an existing plist: same ordering assertion.
 3. macOS load failure (fake exits non-zero for `load`): install returns an
    error mentioning the plist path.
-4. Linux `--force` with `is-active` reporting `active`: `restart agentsh` is
+4. Linux `--force` with `is-active` reporting `active`: `restart agentmon` is
    invoked after `daemon-reload`/`enable`.
 5. Linux `--force` with `is-active` reporting `inactive`: no `restart` call;
    command succeeds.

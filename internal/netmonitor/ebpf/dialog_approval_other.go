@@ -2,7 +2,7 @@
 
 package ebpf
 
-import "github.com/agentsh/agentsh/internal/netmonitor/pnacl"
+import "github.com/diffsec/agentmon/internal/netmonitor/pnacl"
 
 // SetupDialogApproval is a no-op on non-Linux platforms.
 // On Linux, this configures the monitor to use native OS dialogs for approval prompts.

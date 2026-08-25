@@ -7,7 +7,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/netmonitor/pnacl"
+	"github.com/diffsec/agentmon/internal/netmonitor/pnacl"
 )
 
 // ConnectionHolder is not supported on non-Linux platforms.

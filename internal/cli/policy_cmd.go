@@ -9,12 +9,12 @@ import (
 	"sort"
 	"strings"
 
-	dbpolicy "github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/policyexplain"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/policy/signing"
-	"github.com/agentsh/agentsh/internal/policygen"
-	"github.com/agentsh/agentsh/pkg/types"
+	dbpolicy "github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policyexplain"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy/signing"
+	"github.com/diffsec/agentmon/internal/policygen"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +26,7 @@ func newPolicyCmd() *cobra.Command {
 		Use:   "policy",
 		Short: "Manage policies",
 	}
-	cmd.PersistentFlags().StringVar(&configPath, "config", "", "Config file path (defaults to AGENTSH_CONFIG or config.yml)")
+	cmd.PersistentFlags().StringVar(&configPath, "config", "", "Config file path (defaults to AGENTMON_CONFIG or config.yml)")
 	cmd.PersistentFlags().StringVar(&dir, "dir", "", "Policies directory (overrides config policies.dir)")
 
 	cmd.AddCommand(&cobra.Command{
@@ -128,13 +128,13 @@ would allow only the operations that were performed during that session.
 
 Examples:
   # Generate policy from latest session
-  agentsh policy generate latest --output=ci-policy.yaml
+  agentmon policy generate latest --output=ci-policy.yaml
 
   # Generate with custom name and threshold
-  agentsh policy generate abc123 --name=production-build --threshold=10
+  agentmon policy generate abc123 --name=production-build --threshold=10
 
   # Quick preview to stdout
-  agentsh policy generate latest`,
+  agentmon policy generate latest`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sessionArg := args[0]
@@ -146,7 +146,7 @@ Examples:
 
 			if genDirectDB {
 				if genDBPath == "" {
-					genDBPath = getenvDefault("AGENTSH_DB_PATH", "./data/events.db")
+					genDBPath = getenvDefault("AGENTMON_DB_PATH", "./data/events.db")
 				}
 				sess, events, err = loadReportFromDB(ctx, genDBPath, sessionArg)
 			} else {

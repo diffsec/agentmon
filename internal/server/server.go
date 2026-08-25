@@ -20,31 +20,31 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/api"
-	"github.com/agentsh/agentsh/internal/approvals"
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/auth"
-	"github.com/agentsh/agentsh/internal/capabilities"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	limitspkg "github.com/agentsh/agentsh/internal/limits"
-	"github.com/agentsh/agentsh/internal/mcpregistry"
-	"github.com/agentsh/agentsh/internal/metrics"
-	"github.com/agentsh/agentsh/internal/ocsf"
-	"github.com/agentsh/agentsh/internal/pkgcheck"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/skillcheck"
-	"github.com/agentsh/agentsh/internal/skillcheck/cache"
-	storepkg "github.com/agentsh/agentsh/internal/store"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/internal/store/jsonl"
-	otelstore "github.com/agentsh/agentsh/internal/store/otel"
-	"github.com/agentsh/agentsh/internal/store/sqlite"
-	"github.com/agentsh/agentsh/internal/store/webhook"
-	"github.com/agentsh/agentsh/internal/threatfeed"
-	"github.com/agentsh/agentsh/internal/tor"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/api"
+	"github.com/diffsec/agentmon/internal/approvals"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/auth"
+	"github.com/diffsec/agentmon/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	limitspkg "github.com/diffsec/agentmon/internal/limits"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
+	"github.com/diffsec/agentmon/internal/metrics"
+	"github.com/diffsec/agentmon/internal/ocsf"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck/cache"
+	storepkg "github.com/diffsec/agentmon/internal/store"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/internal/store/jsonl"
+	otelstore "github.com/diffsec/agentmon/internal/store/otel"
+	"github.com/diffsec/agentmon/internal/store/sqlite"
+	"github.com/diffsec/agentmon/internal/store/webhook"
+	"github.com/diffsec/agentmon/internal/threatfeed"
+	"github.com/diffsec/agentmon/internal/tor"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -144,7 +144,7 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 
 	// These config-schema invariants are also enforced by config.validateConfig
-	// (run by config.Load), so `agentsh config validate` catches them pre-deploy
+	// (run by config.Load), so `agentmon config validate` catches them pre-deploy
 	// (issue #376). The calls here are defense-in-depth for any server built from
 	// a config that did not pass through config.Load. New config-schema invariants
 	// belong in config.validateConfig, not here.
@@ -161,7 +161,7 @@ func New(cfg *config.Config) (*Server, error) {
 		cfg.Policies.Default,
 		cfg.Policies.Allowed,
 		cfg.Policies.ManifestPath,
-		os.Getenv("AGENTSH_POLICY_NAME"),
+		os.Getenv("AGENTMON_POLICY_NAME"),
 	)
 	pm.SetSigningConfig(cfg.Policies.Signing.SigningMode(), cfg.Policies.Signing.TrustStore)
 	p, err := pm.Get()
@@ -561,7 +561,7 @@ func New(cfg *config.Config) (*Server, error) {
 	app := api.NewApp(cfg, sessions, store, engine, broker, apiKeyAuth, oidcAuth, approvalsMgr, metricsCollector, policyLoader, cgroupMgr, torPol)
 	// Publish to the WTP install hook so subsequent pushed-policy
 	// receipts can SwapPolicy in-process (next CheckCommand sees the
-	// new rules without an agentsh restart).
+	// new rules without an agentmon restart).
 	appHolder.Store(app)
 	appCloser := app.Close // ensure cleanup on error paths below
 	defer func() {
@@ -848,7 +848,7 @@ func New(cfg *config.Config) (*Server, error) {
 		unixPath := cfg.Server.UnixSocket.Path
 		if err := os.MkdirAll(filepath.Dir(unixPath), 0o755); err != nil {
 			if isPermissionErr(err) {
-				fmt.Fprintf(os.Stderr, "agentsh: unix socket disabled (mkdir): %v\n", err)
+				fmt.Fprintf(os.Stderr, "agentmon: unix socket disabled (mkdir): %v\n", err)
 				goto unixDone
 			}
 			_ = store.Close()
@@ -858,7 +858,7 @@ func New(cfg *config.Config) (*Server, error) {
 		unixLn, err := net.Listen("unix", unixPath)
 		if err != nil {
 			if isPermissionErr(err) {
-				fmt.Fprintf(os.Stderr, "agentsh: unix socket disabled (listen): %v\n", err)
+				fmt.Fprintf(os.Stderr, "agentmon: unix socket disabled (listen): %v\n", err)
 				goto unixDone
 			}
 			_ = store.Close()
@@ -876,7 +876,7 @@ func New(cfg *config.Config) (*Server, error) {
 		}
 		if err := os.Chmod(unixPath, perms); err != nil {
 			if isPermissionErr(err) {
-				fmt.Fprintf(os.Stderr, "agentsh: unix socket disabled (chmod): %v\n", err)
+				fmt.Fprintf(os.Stderr, "agentmon: unix socket disabled (chmod): %v\n", err)
 				_ = unixLn.Close()
 				goto unixDone
 			}

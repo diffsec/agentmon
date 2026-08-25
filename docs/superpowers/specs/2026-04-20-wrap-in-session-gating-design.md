@@ -1,9 +1,9 @@
-# Wrap AGENTSH_IN_SESSION Gating Design
+# Wrap AGENTMON_IN_SESSION Gating Design
 
 ## Summary
 
-`agentsh wrap` currently launches child processes with `AGENTSH_SESSION_ID` but not
-`AGENTSH_IN_SESSION`. The shell shim uses `AGENTSH_IN_SESSION=1` as its recursion
+`agentmon wrap` currently launches child processes with `AGENTMON_SESSION_ID` but not
+`AGENTMON_IN_SESSION`. The shell shim uses `AGENTMON_IN_SESSION=1` as its recursion
 guard and direct-bypass signal.
 
 At first glance this looks like a straightforward consistency bug. It is not.
@@ -12,7 +12,7 @@ At first glance this looks like a straightforward consistency bug. It is not.
 - Strong modes already control descendant `exec` activity outside the shim.
 - Weak modes still rely on the shim for command steering.
 
-Setting `AGENTSH_IN_SESSION=1` unconditionally under `wrap` would bypass the shim
+Setting `AGENTMON_IN_SESSION=1` unconditionally under `wrap` would bypass the shim
 in weak modes and can reduce enforcement. The fix must therefore be capability-
 gated, not blanket.
 
@@ -20,10 +20,10 @@ gated, not blanket.
 
 Today there are three overlapping facts:
 
-1. The shim treats `AGENTSH_IN_SESSION=1` as "safe to bypass shim logic and exec
+1. The shim treats `AGENTMON_IN_SESSION=1` as "safe to bypass shim logic and exec
    the real shell directly."
-2. The normal `agentsh exec` path injects `AGENTSH_IN_SESSION=1`.
-3. `agentsh wrap` does not.
+2. The normal `agentmon exec` path injects `AGENTMON_IN_SESSION=1`.
+3. `agentmon wrap` does not.
 
 This creates an inconsistency, but not all wrap sessions are equivalent:
 
@@ -36,14 +36,14 @@ nested shells. A blanket env var change would be unsafe.
 
 ## Goal
 
-Make `wrap` set `AGENTSH_IN_SESSION=1` only when nested shells can safely bypass
+Make `wrap` set `AGENTMON_IN_SESSION=1` only when nested shells can safely bypass
 the shim because descendant exec policy is already enforced by the active wrap
 mechanism.
 
 ## Non-Goals
 
 - Do not change shim semantics.
-- Do not redefine `AGENTSH_SESSION_ID` to mean "already in session."
+- Do not redefine `AGENTMON_SESSION_ID` to mean "already in session."
 - Do not force all wrapped sessions to behave identically if their enforcement
   capabilities differ.
 - Do not broaden fallback behavior to look "consistent" at the cost of weaker
@@ -96,7 +96,7 @@ This defaults ambiguous or weak modes to fail-safe behavior.
 
 ### 3. Use Only That Boolean In The CLI
 
-The CLI should append `AGENTSH_IN_SESSION=1` only when
+The CLI should append `AGENTMON_IN_SESSION=1` only when
 `SafeToBypassShellShim=true`.
 
 This applies to:
@@ -111,28 +111,28 @@ setup fails and `wrapCfg == nil`.
 
 ### 4. Keep Shim Semantics Unchanged
 
-The shim should continue to interpret `AGENTSH_IN_SESSION=1` as:
+The shim should continue to interpret `AGENTMON_IN_SESSION=1` as:
 
 > "Do not re-enter shim enforcement; execute the real shell directly."
 
-No new shim-side heuristics should be added for `AGENTSH_SESSION_ID`.
+No new shim-side heuristics should be added for `AGENTMON_SESSION_ID`.
 
 ## Why This Is Better Than The Alternatives
 
-### Alternative A: Always Set `AGENTSH_IN_SESSION`
+### Alternative A: Always Set `AGENTMON_IN_SESSION`
 
 Rejected because it is unsafe in fallback and weak modes. It would bypass the
 shim even when `wrap` is not independently enforcing descendant exec policy.
 
-### Alternative B: Never Set `AGENTSH_IN_SESSION` Under `wrap`
+### Alternative B: Never Set `AGENTMON_IN_SESSION` Under `wrap`
 
 Rejected because it preserves the current mismatch and keeps redundant shim
 re-entry even in strong modes where `wrap` already owns descendant exec policy.
 
-### Alternative C: Teach The Shim That `AGENTSH_SESSION_ID` Implies In-Session
+### Alternative C: Teach The Shim That `AGENTMON_SESSION_ID` Implies In-Session
 
 Rejected because it overloads session identity with enforcement capability.
-`AGENTSH_SESSION_ID` means "which session," not "safe to bypass shim."
+`AGENTMON_SESSION_ID` means "which session," not "safe to bypass shim."
 
 ## Data Flow
 
@@ -140,7 +140,7 @@ Rejected because it overloads session identity with enforcement capability.
 2. The server computes `SafeToBypassShellShim`.
 3. The flag is returned in `WrapInitResponse`.
 4. The CLI builds the launch environment.
-5. The CLI injects `AGENTSH_IN_SESSION=1` only when the flag is true.
+5. The CLI injects `AGENTMON_IN_SESSION=1` only when the flag is true.
 6. Nested shells bypass the shim only in strong interception modes.
 
 ## Testing Plan
@@ -159,15 +159,15 @@ Add tests for the wrap-init response flag:
 
 Extend wrap launch config tests to assert:
 
-- `AGENTSH_IN_SESSION=1` is present when `SafeToBypassShellShim=true`
-- `AGENTSH_IN_SESSION=1` is absent when `SafeToBypassShellShim=false`
+- `AGENTMON_IN_SESSION=1` is present when `SafeToBypassShellShim=true`
+- `AGENTMON_IN_SESSION=1` is absent when `SafeToBypassShellShim=false`
 
 ### Fallback Test
 
 Add or extend a test confirming:
 
 - when interception setup fails and `runWrap` falls back to direct launch,
-  `AGENTSH_IN_SESSION` is not injected
+  `AGENTMON_IN_SESSION` is not injected
 
 ### Integration Coverage
 
@@ -186,7 +186,7 @@ Update wrap-related docs to say:
 - nested shells bypass the shim only in strong interception modes
 - direct/fallback or no-exec-interception modes retain shim steering
 
-Do not change docs to imply that `AGENTSH_SESSION_ID` alone means "in session."
+Do not change docs to imply that `AGENTMON_SESSION_ID` alone means "in session."
 
 ## Open Question
 

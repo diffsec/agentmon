@@ -12,8 +12,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 	smithy "github.com/aws/smithy-go"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/secretstest"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/secretstest"
 )
 
 // mockSMClient implements smClient for testing.

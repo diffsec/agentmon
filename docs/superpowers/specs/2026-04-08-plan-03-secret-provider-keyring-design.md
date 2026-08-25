@@ -8,7 +8,7 @@
 
 ## Goal
 
-Land the abstraction agentsh's session-start path will use to fetch real credentials from external stores, plus the first concrete provider (OS keyring). After this plan merges, future plans (Plan 4: Vault, Plan 5: AWS Secrets Manager, etc.) can drop in a new file under `internal/proxy/secrets/<provider>/` and require zero changes to the interface or URI parser.
+Land the abstraction agentmon's session-start path will use to fetch real credentials from external stores, plus the first concrete provider (OS keyring). After this plan merges, future plans (Plan 4: Vault, Plan 5: AWS Secrets Manager, etc.) can drop in a new file under `internal/proxy/secrets/<provider>/` and require zero changes to the interface or URI parser.
 
 ## Scope
 
@@ -25,7 +25,7 @@ Land the abstraction agentsh's session-start path will use to fetch real credent
 ### Deferred to later plans
 
 - **Provider registry / config loader** — the YAML `providers:` section parser. Lands when the second provider (Plan 4) needs it, or as its own glue plan.
-- **Auth-chaining resolver** — the loader-time pass that resolves `keyring://agentsh/vault_token` and feeds the result into a Vault provider's constructor. Plan 4's job.
+- **Auth-chaining resolver** — the loader-time pass that resolves `keyring://agentmon/vault_token` and feeds the result into a Vault provider's constructor. Plan 4's job.
 - **Wiring into `internal/session/`** — Plan 10.
 - **Connection to `credsub.Table`** — Plan 10.
 - **`pkg/secrets` cleanup** — `pkg/secrets/` is dormant (zero callers in the daemon). Plan 3 leaves it alone. A separate cleanup PR after Plans 4–5 land Vault and AWS in the new location will delete it.
@@ -304,7 +304,7 @@ func (r SecretRef) String() string {
 
 | URI | Scheme | Host | Path | Field |
 |---|---|---|---|---|
-| `keyring://agentsh/vault_token` | `keyring` | `agentsh` | `vault_token` | `` |
+| `keyring://agentmon/vault_token` | `keyring` | `agentmon` | `vault_token` | `` |
 | `vault://kv/data/github#token` | `vault` | `kv` | `data/github` | `token` |
 | `aws-sm://prod/api-keys/anthropic` | `aws-sm` | `prod` | `api-keys/anthropic` | `` |
 | `op://Personal/Stripe/credential` | `op` | `Personal` | `Stripe/credential` | `` |
@@ -337,7 +337,7 @@ func (r SecretRef) String() string {
 // internal/proxy/secrets/keyring/config.go
 package keyring
 
-import secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+import secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 
 // Config configures the keyring provider.
 //
@@ -365,7 +365,7 @@ import (
 
     keyringlib "github.com/zalando/go-keyring"
 
-    secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+    secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // Provider is an OS-keyring-backed SecretProvider.
@@ -396,7 +396,7 @@ func New(_ Config) (*Provider, error) {
     // either nil (probe key happened to exist — fine) or
     // keyringlib.ErrNotFound. Any other error means the
     // backend itself is unreachable.
-    _, err := keyringlib.Get("agentsh-probe", "agentsh-keyring-availability-probe")
+    _, err := keyringlib.Get("agentmon-probe", "agentmon-keyring-availability-probe")
     if err != nil && !errors.Is(err, keyringlib.ErrNotFound) {
         return nil, fmt.Errorf("%w: %s", secrets.ErrKeyringUnavailable, err)
     }
@@ -472,7 +472,7 @@ func (p *Provider) Close() error {
 
 ### Behavioral choices
 
-1. **Construction probe.** `New` issues one `keyringlib.Get` against a sentinel (service=`agentsh-probe`, user=`...availability-probe`). The library wraps the underlying OS error. We accept either `nil` or `ErrNotFound` and reject anything else as `ErrKeyringUnavailable`. This is the "fail loud at construction" behavior settled in brainstorming.
+1. **Construction probe.** `New` issues one `keyringlib.Get` against a sentinel (service=`agentmon-probe`, user=`...availability-probe`). The library wraps the underlying OS error. We accept either `nil` or `ErrNotFound` and reject anything else as `ErrKeyringUnavailable`. This is the "fail loud at construction" behavior settled in brainstorming.
 2. **No `ErrUnauthorized` mapping.** The zalando library doesn't expose an unauthorized-distinct error from any of its three backends. Treating unknown errors as transport failures is honest. A future provider with a clearer signal can return `ErrUnauthorized`.
 3. **Context honored only at the boundaries.** The library's call signatures don't take a context. We check `ctx.Err()` before the call. We do NOT spawn a goroutine to race the call against ctx — that creates an orphan goroutine on cancel and the zalando call is fast enough that it isn't worth it.
 4. **`closed` is a soft check.** A concurrent `Fetch` running when `Close` is called isn't aborted; the in-flight `Fetch` finishes, the next `Fetch` errors. Matches `sync.Once`-style cleanup semantics.
@@ -500,10 +500,10 @@ All round-trip tests use `t.Skip("OS keyring not available on this host")` if `N
 Round-trip tests use a unique service+account name per test run:
 
 ```go
-account := fmt.Sprintf("agentsh-test-%s-%d", t.Name(), time.Now().UnixNano())
+account := fmt.Sprintf("agentmon-test-%s-%d", t.Name(), time.Now().UnixNano())
 ```
 
-Cleaned up via `t.Cleanup(func() { _ = keyringlib.Delete(service, account) })`. Service name is also test-namespaced (`agentsh-test`), so a developer's actual `agentsh` keyring entries are never touched.
+Cleaned up via `t.Cleanup(func() { _ = keyringlib.Delete(service, account) })`. Service name is also test-namespaced (`agentmon-test`), so a developer's actual `agentmon` keyring entries are never touched.
 
 ## Section 5 — MemoryProvider (test fake)
 
@@ -520,7 +520,7 @@ import (
     "sync"
     "time"
 
-    secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+    secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // MemoryProvider is an in-memory SecretProvider for use in tests.
@@ -632,7 +632,7 @@ func (e stringError) Error() string { return string(e) }
 ### Test coverage (`memory_test.go`)
 
 - `TestNewMemoryProvider_CopiesSeed` — mutate seed map after construction, fetch returns the original value.
-- `TestFetch_HappyPath` — seed `keyring://agentsh/x` → `[]byte("foo")`, fetch returns `"foo"`.
+- `TestFetch_HappyPath` — seed `keyring://agentmon/x` → `[]byte("foo")`, fetch returns `"foo"`.
 - `TestFetch_NotFound` — empty seed, fetch returns `secrets.ErrNotFound`.
 - `TestFetch_ReturnsCopy` — fetch, mutate the returned `Value`, fetch again, verify second result is unmutated.
 - `TestFetch_AfterClose` — Close, then Fetch, expects `errClosed`.
@@ -794,7 +794,7 @@ Three things that might trip the implementer:
 
 1. **`go-keyring` doesn't take a `context.Context`.** The implementer will be tempted to wrap the call in a goroutine and `select` on `ctx.Done()`. Don't. Orphan goroutine, no real cancellation in the OS layer. Document and move on. Best-effort context honoring is checking `ctx.Err()` before the call.
 
-2. **macOS Keychain prompts.** First write to a new service may prompt the user "agentsh wants to access your Keychain — Always Allow / Allow Once / Deny." On a developer machine this is fine; in CI the macOS runner has a pre-unlocked Keychain. Tests use a unique per-run service name so any one prompt doesn't carry across runs.
+2. **macOS Keychain prompts.** First write to a new service may prompt the user "agentmon wants to access your Keychain — Always Allow / Allow Once / Deny." On a developer machine this is fine; in CI the macOS runner has a pre-unlocked Keychain. Tests use a unique per-run service name so any one prompt doesn't carry across runs.
 
 3. **Linux Secret Service availability is brittle.** `dbus-launch` may or may not be running. The construction probe is the right gate, but the implementer should NOT try to start D-Bus themselves — that's the operator's job. The error message should be actionable: "OS keyring unreachable: D-Bus session bus not running. On a desktop this normally launches automatically; in a headless environment, start `dbus-daemon --session` or use a different secret backend."
 

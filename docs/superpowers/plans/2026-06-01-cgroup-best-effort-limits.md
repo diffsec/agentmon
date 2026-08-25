@@ -73,7 +73,7 @@ In `internal/config/config.go`, modify `SandboxCgroupsConfig`:
 type SandboxCgroupsConfig struct {
 	Enabled bool `yaml:"enabled"`
 	// BasePath is a cgroupfs directory under which per-command cgroups will be created.
-	// If empty, agentsh will default to the current process cgroup.
+	// If empty, agentmon will default to the current process cgroup.
 	// Note: this should be a path under /sys/fs/cgroup (or relative to the current process cgroup dir).
 	BasePath string `yaml:"base_path"`
 	// BestEffort, when true, degrades unenforceable per-command resource limits
@@ -200,13 +200,13 @@ func (f *fakeCgroupFS) WriteFile(p string, data []byte, perm os.FileMode) error 
 
 - [ ] **Step 2: Write the failing probe test**
 
-Add to `internal/limits/cgroupv2_probe_test.go`. Mirror the existing top-level setup (see the test seeding `agentsh.slice/memory.max` around line 64-95):
+Add to `internal/limits/cgroupv2_probe_test.go`. Mirror the existing top-level setup (see the test seeding `agentmon.slice/memory.max` around line 64-95):
 
 ```go
 func TestProbe_TopLevelMemoryMaxNotWritable_DowngradesFromTopLevel(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EBUSY // force fallback to top-level
@@ -226,7 +226,7 @@ func TestProbe_TopLevelMemoryMaxNotWritable_DowngradesFromTopLevel(t *testing.T)
 func TestProbe_TopLevelMemoryMaxNotWritable_UpgradesToAttachOnly(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EBUSY
@@ -265,7 +265,7 @@ In `internal/limits/cgroupv2_probe.go`, add near `probeNestedWritability` (`:253
 // Writing the value "max" is a safe no-op the kernel always accepts when the
 // file is writable. The probe child is removed before returning. See #411.
 func probeTopLevelLimitWritability(fs cgroupFS, sliceDir string) error {
-	name := fmt.Sprintf("agentsh.limit-probe-%d-%d", os.Getpid(), time.Now().UnixNano())
+	name := fmt.Sprintf("agentmon.limit-probe-%d-%d", os.Getpid(), time.Now().UnixNano())
 	probeDir := filepath.Join(sliceDir, name)
 	if err := fs.Mkdir(probeDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir probe child: %w", err)
@@ -343,7 +343,7 @@ Add to `internal/limits/cgroupv2_manager_test.go` (mirror `TestManagerApply_TopL
 func TestManagerApply_TopLevelMemoryMaxWriteEPERM_ReturnsTypedErrorAndCleansUp(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EBUSY
@@ -358,16 +358,16 @@ func TestManagerApply_TopLevelMemoryMaxWriteEPERM_ReturnsTypedErrorAndCleansUp(t
 	}
 
 	// Now make the per-command child memory.max write fail (deterministic path).
-	childMemMax := DefaultSliceDir + "/agentsh-sess-cmd/memory.max"
+	childMemMax := DefaultSliceDir + "/agentmon-sess-cmd/memory.max"
 	f.writeErrs[childMemMax] = syscall.EPERM
 
-	_, err = m.Apply("agentsh-sess-cmd", 1234, CgroupV2Limits{MaxMemoryBytes: 8 << 20})
+	_, err = m.Apply("agentmon-sess-cmd", 1234, CgroupV2Limits{MaxMemoryBytes: 8 << 20})
 	var rlErr *CgroupResourceLimitsUnavailableError
 	if !errors.As(err, &rlErr) {
 		t.Fatalf("error type: got %T (%v), want *CgroupResourceLimitsUnavailableError", err, err)
 	}
 	// The empty child dir must have been removed.
-	if _, statErr := f.Stat(DefaultSliceDir + "/agentsh-sess-cmd"); statErr == nil {
+	if _, statErr := f.Stat(DefaultSliceDir + "/agentmon-sess-cmd"); statErr == nil {
 		t.Errorf("orphan child cgroup dir left behind after EPERM write")
 	}
 }
@@ -619,7 +619,7 @@ git commit -m "fix(#411): best-effort degrade for unenforceable cgroup limits (n
 **Files:**
 - Modify: `internal/netmonitor/unix/seccomp_linux.go:518-523`
 
-**Context (independent of the cgroup fix):** This `slog.Info` is emitted by the `agentsh-unixwrap` wrapper process, whose slog default handler writes to **the wrapped command's stderr** (the wrapper uses stdlib `log`→stderr; slog default → stderr at Info). The wrapper has no log-forwarding channel to the server (server.log lines come from the server process), so per the spec's fallback we downgrade this single per-exec line to `Debug`. Operators who need the #369 `wait_killable` diagnostic can raise the wrapper's slog level.
+**Context (independent of the cgroup fix):** This `slog.Info` is emitted by the `agentmon-unixwrap` wrapper process, whose slog default handler writes to **the wrapped command's stderr** (the wrapper uses stdlib `log`→stderr; slog default → stderr at Info). The wrapper has no log-forwarding channel to the server (server.log lines come from the server process), so per the spec's fallback we downgrade this single per-exec line to `Debug`. Operators who need the #369 `wait_killable` diagnostic can raise the wrapper's slog level.
 
 - [ ] **Step 1: Downgrade the line**
 
@@ -628,7 +628,7 @@ In `internal/netmonitor/unix/seccomp_linux.go`, change the `slog.Info` at `:518`
 ```go
 	// Per-exec diagnostic. Emitted from the unixwrap wrapper whose slog lands on
 	// the wrapped command's stderr; keep at Debug so machine-readable command
-	// output (e.g. `agentsh detect --output json`) is not corrupted. #369/#411.
+	// output (e.g. `agentmon detect --output json`) is not corrupted. #369/#411.
 	slog.Debug("seccomp: filter loaded",
 		"fd", rawFd,
 		"wait_killable", gotWaitKill,

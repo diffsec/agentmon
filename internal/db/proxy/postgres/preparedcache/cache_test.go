@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func TestCache_PutGet_RoundTrip(t *testing.T) {

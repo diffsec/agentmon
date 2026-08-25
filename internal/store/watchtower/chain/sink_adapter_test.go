@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/store/watchtower/chain"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/store/watchtower/chain"
 )
 
 func testKey() []byte { return bytes.Repeat([]byte("a"), 32) }

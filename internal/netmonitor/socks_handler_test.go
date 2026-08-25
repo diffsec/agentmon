@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/tor"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/tor"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // fakeGatewayPolicy allows exactly one host.

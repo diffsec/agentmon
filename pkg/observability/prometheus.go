@@ -1,5 +1,5 @@
 // Package observability provides Prometheus metrics, OpenTelemetry tracing,
-// and structured logging for agentsh.
+// and structured logging for agentmon.
 package observability
 
 import (
@@ -263,14 +263,14 @@ func (c *PrometheusCollector) Handler(opts HandlerOptions) http.Handler {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 
 		// Server up
-		fmt.Fprint(w, "# HELP agentsh_up Whether the agentsh server is running.\n")
-		fmt.Fprint(w, "# TYPE agentsh_up gauge\n")
-		fmt.Fprint(w, "agentsh_up 1\n\n")
+		fmt.Fprint(w, "# HELP agentmon_up Whether the agentmon server is running.\n")
+		fmt.Fprint(w, "# TYPE agentmon_up gauge\n")
+		fmt.Fprint(w, "agentmon_up 1\n\n")
 
 		// Session metrics
-		fmt.Fprint(w, "# HELP agentsh_sessions_active Number of currently active sessions.\n")
-		fmt.Fprint(w, "# TYPE agentsh_sessions_active gauge\n")
-		fmt.Fprintf(w, "agentsh_sessions_active %d\n\n", c.sessionsActive.Load())
+		fmt.Fprint(w, "# HELP agentmon_sessions_active Number of currently active sessions.\n")
+		fmt.Fprint(w, "# TYPE agentmon_sessions_active gauge\n")
+		fmt.Fprintf(w, "agentmon_sessions_active %d\n\n", c.sessionsActive.Load())
 
 		c.writeSessionsTotal(w)
 		c.writeSessionDurations(w)
@@ -280,9 +280,9 @@ func (c *PrometheusCollector) Handler(opts HandlerOptions) http.Handler {
 		c.writeOperationLatencies(w)
 
 		// Approval metrics
-		fmt.Fprint(w, "# HELP agentsh_approvals_pending Number of pending approvals.\n")
-		fmt.Fprint(w, "# TYPE agentsh_approvals_pending gauge\n")
-		fmt.Fprintf(w, "agentsh_approvals_pending %d\n\n", c.approvalsPending.Load())
+		fmt.Fprint(w, "# HELP agentmon_approvals_pending Number of pending approvals.\n")
+		fmt.Fprint(w, "# TYPE agentmon_approvals_pending gauge\n")
+		fmt.Fprintf(w, "agentmon_approvals_pending %d\n\n", c.approvalsPending.Load())
 
 		c.writeApprovalLatencies(w)
 
@@ -290,36 +290,36 @@ func (c *PrometheusCollector) Handler(opts HandlerOptions) http.Handler {
 		c.writePolicyEvalLatencies(w)
 
 		// Legacy event metrics
-		fmt.Fprint(w, "# HELP agentsh_events_total Total number of events appended.\n")
-		fmt.Fprint(w, "# TYPE agentsh_events_total counter\n")
-		fmt.Fprintf(w, "agentsh_events_total %d\n\n", c.eventsTotal.Load())
+		fmt.Fprint(w, "# HELP agentmon_events_total Total number of events appended.\n")
+		fmt.Fprint(w, "# TYPE agentmon_events_total counter\n")
+		fmt.Fprintf(w, "agentmon_events_total %d\n\n", c.eventsTotal.Load())
 
 		c.writeEventsByType(w)
 
 		// eBPF metrics
-		fmt.Fprint(w, "# HELP agentsh_net_ebpf_dropped_events_total eBPF connect events dropped due to backpressure.\n")
-		fmt.Fprint(w, "# TYPE agentsh_net_ebpf_dropped_events_total counter\n")
-		fmt.Fprintf(w, "agentsh_net_ebpf_dropped_events_total %d\n\n", c.ebpfDropped.Load())
+		fmt.Fprint(w, "# HELP agentmon_net_ebpf_dropped_events_total eBPF connect events dropped due to backpressure.\n")
+		fmt.Fprint(w, "# TYPE agentmon_net_ebpf_dropped_events_total counter\n")
+		fmt.Fprintf(w, "agentmon_net_ebpf_dropped_events_total %d\n\n", c.ebpfDropped.Load())
 
-		fmt.Fprint(w, "# HELP agentsh_net_ebpf_attach_fail_total eBPF attach failures.\n")
-		fmt.Fprint(w, "# TYPE agentsh_net_ebpf_attach_fail_total counter\n")
-		fmt.Fprintf(w, "agentsh_net_ebpf_attach_fail_total %d\n\n", c.ebpfAttachFail.Load())
+		fmt.Fprint(w, "# HELP agentmon_net_ebpf_attach_fail_total eBPF attach failures.\n")
+		fmt.Fprint(w, "# TYPE agentmon_net_ebpf_attach_fail_total counter\n")
+		fmt.Fprintf(w, "agentmon_net_ebpf_attach_fail_total %d\n\n", c.ebpfAttachFail.Load())
 
-		fmt.Fprint(w, "# HELP agentsh_net_ebpf_unavailable_total Times eBPF was unavailable on host.\n")
-		fmt.Fprint(w, "# TYPE agentsh_net_ebpf_unavailable_total counter\n")
-		fmt.Fprintf(w, "agentsh_net_ebpf_unavailable_total %d\n", c.ebpfUnavailable.Load())
+		fmt.Fprint(w, "# HELP agentmon_net_ebpf_unavailable_total Times eBPF was unavailable on host.\n")
+		fmt.Fprint(w, "# TYPE agentmon_net_ebpf_unavailable_total counter\n")
+		fmt.Fprintf(w, "agentmon_net_ebpf_unavailable_total %d\n", c.ebpfUnavailable.Load())
 
 		// Ptrace metrics
 		fmt.Fprint(w, "\n")
-		fmt.Fprint(w, "# HELP agentsh_ptrace_tracees_active Current number of ptrace-traced threads.\n")
-		fmt.Fprint(w, "# TYPE agentsh_ptrace_tracees_active gauge\n")
-		fmt.Fprintf(w, "agentsh_ptrace_tracees_active %d\n\n", c.ptraceTracees.Load())
+		fmt.Fprint(w, "# HELP agentmon_ptrace_tracees_active Current number of ptrace-traced threads.\n")
+		fmt.Fprint(w, "# TYPE agentmon_ptrace_tracees_active gauge\n")
+		fmt.Fprintf(w, "agentmon_ptrace_tracees_active %d\n\n", c.ptraceTracees.Load())
 
 		c.writePtraceAttachFailures(w)
 
-		fmt.Fprint(w, "# HELP agentsh_ptrace_timeouts_total Ptrace max_hold_ms timeouts.\n")
-		fmt.Fprint(w, "# TYPE agentsh_ptrace_timeouts_total counter\n")
-		fmt.Fprintf(w, "agentsh_ptrace_timeouts_total %d\n", c.ptraceTimeouts.Load())
+		fmt.Fprint(w, "# HELP agentmon_ptrace_timeouts_total Ptrace max_hold_ms timeouts.\n")
+		fmt.Fprint(w, "# TYPE agentmon_ptrace_timeouts_total counter\n")
+		fmt.Fprintf(w, "agentmon_ptrace_timeouts_total %d\n", c.ptraceTimeouts.Load())
 	})
 }
 
@@ -328,8 +328,8 @@ func (c *PrometheusCollector) writeSessionsTotal(w http.ResponseWriter) {
 	if len(keys) == 0 {
 		return
 	}
-	fmt.Fprint(w, "# HELP agentsh_sessions_total Total sessions by state and tenant.\n")
-	fmt.Fprint(w, "# TYPE agentsh_sessions_total counter\n")
+	fmt.Fprint(w, "# HELP agentmon_sessions_total Total sessions by state and tenant.\n")
+	fmt.Fprint(w, "# TYPE agentmon_sessions_total counter\n")
 	for _, key := range keys {
 		parts := strings.SplitN(key, ":", 2)
 		state, tenantID := parts[0], ""
@@ -338,7 +338,7 @@ func (c *PrometheusCollector) writeSessionsTotal(w http.ResponseWriter) {
 		}
 		ptr, _ := c.sessionsCreated.Load(key)
 		n := ptr.(*atomic.Uint64).Load()
-		fmt.Fprintf(w, "agentsh_sessions_total{state=%q,tenant_id=%q} %d\n",
+		fmt.Fprintf(w, "agentmon_sessions_total{state=%q,tenant_id=%q} %d\n",
 			escapeLabelValue(state), escapeLabelValue(tenantID), n)
 	}
 	fmt.Fprint(w, "\n")
@@ -357,8 +357,8 @@ func (c *PrometheusCollector) writeSessionDurations(w http.ResponseWriter) {
 	// Histogram buckets in seconds
 	buckets := []float64{1, 10, 60, 300, 900, 3600}
 
-	fmt.Fprint(w, "# HELP agentsh_session_duration_seconds Session duration in seconds.\n")
-	fmt.Fprint(w, "# TYPE agentsh_session_duration_seconds histogram\n")
+	fmt.Fprint(w, "# HELP agentmon_session_duration_seconds Session duration in seconds.\n")
+	fmt.Fprint(w, "# TYPE agentmon_session_duration_seconds histogram\n")
 
 	// Group by tenant_id and exit_state
 	groups := make(map[string][]time.Duration)
@@ -383,14 +383,14 @@ func (c *PrometheusCollector) writeSessionDurations(w http.ResponseWriter) {
 					count++
 				}
 			}
-			fmt.Fprintf(w, "agentsh_session_duration_seconds_bucket{%s,le=\"%.0f\"} %d\n", labels, bucket, count)
+			fmt.Fprintf(w, "agentmon_session_duration_seconds_bucket{%s,le=\"%.0f\"} %d\n", labels, bucket, count)
 		}
-		fmt.Fprintf(w, "agentsh_session_duration_seconds_bucket{%s,le=\"+Inf\"} %d\n", labels, len(durs))
+		fmt.Fprintf(w, "agentmon_session_duration_seconds_bucket{%s,le=\"+Inf\"} %d\n", labels, len(durs))
 		for _, d := range durs {
 			sum += d.Seconds()
 		}
-		fmt.Fprintf(w, "agentsh_session_duration_seconds_sum{%s} %.3f\n", labels, sum)
-		fmt.Fprintf(w, "agentsh_session_duration_seconds_count{%s} %d\n", labels, len(durs))
+		fmt.Fprintf(w, "agentmon_session_duration_seconds_sum{%s} %.3f\n", labels, sum)
+		fmt.Fprintf(w, "agentmon_session_duration_seconds_count{%s} %d\n", labels, len(durs))
 	}
 	fmt.Fprint(w, "\n")
 }
@@ -400,8 +400,8 @@ func (c *PrometheusCollector) writeOperationsTotal(w http.ResponseWriter) {
 	if len(keys) == 0 {
 		return
 	}
-	fmt.Fprint(w, "# HELP agentsh_operations_total Total operations by type and decision.\n")
-	fmt.Fprint(w, "# TYPE agentsh_operations_total counter\n")
+	fmt.Fprint(w, "# HELP agentmon_operations_total Total operations by type and decision.\n")
+	fmt.Fprint(w, "# TYPE agentmon_operations_total counter\n")
 	for _, key := range keys {
 		parts := strings.SplitN(key, ":", 2)
 		opType, decision := parts[0], ""
@@ -410,7 +410,7 @@ func (c *PrometheusCollector) writeOperationsTotal(w http.ResponseWriter) {
 		}
 		ptr, _ := c.operationsTotal.Load(key)
 		n := ptr.(*atomic.Uint64).Load()
-		fmt.Fprintf(w, "agentsh_operations_total{type=%q,decision=%q} %d\n",
+		fmt.Fprintf(w, "agentmon_operations_total{type=%q,decision=%q} %d\n",
 			escapeLabelValue(opType), escapeLabelValue(decision), n)
 	}
 	fmt.Fprint(w, "\n")
@@ -429,8 +429,8 @@ func (c *PrometheusCollector) writeOperationLatencies(w http.ResponseWriter) {
 	// Histogram buckets in seconds
 	buckets := []float64{0.0001, 0.001, 0.01, 0.1, 1, 10}
 
-	fmt.Fprint(w, "# HELP agentsh_operation_latency_seconds Operation interception latency.\n")
-	fmt.Fprint(w, "# TYPE agentsh_operation_latency_seconds histogram\n")
+	fmt.Fprint(w, "# HELP agentmon_operation_latency_seconds Operation interception latency.\n")
+	fmt.Fprint(w, "# TYPE agentmon_operation_latency_seconds histogram\n")
 
 	// Group by type
 	groups := make(map[string][]time.Duration)
@@ -448,14 +448,14 @@ func (c *PrometheusCollector) writeOperationLatencies(w http.ResponseWriter) {
 					count++
 				}
 			}
-			fmt.Fprintf(w, "agentsh_operation_latency_seconds_bucket{%s,le=\"%g\"} %d\n", labels, bucket, count)
+			fmt.Fprintf(w, "agentmon_operation_latency_seconds_bucket{%s,le=\"%g\"} %d\n", labels, bucket, count)
 		}
-		fmt.Fprintf(w, "agentsh_operation_latency_seconds_bucket{%s,le=\"+Inf\"} %d\n", labels, len(lats))
+		fmt.Fprintf(w, "agentmon_operation_latency_seconds_bucket{%s,le=\"+Inf\"} %d\n", labels, len(lats))
 		for _, l := range lats {
 			sum += l.Seconds()
 		}
-		fmt.Fprintf(w, "agentsh_operation_latency_seconds_sum{%s} %.6f\n", labels, sum)
-		fmt.Fprintf(w, "agentsh_operation_latency_seconds_count{%s} %d\n", labels, len(lats))
+		fmt.Fprintf(w, "agentmon_operation_latency_seconds_sum{%s} %.6f\n", labels, sum)
+		fmt.Fprintf(w, "agentmon_operation_latency_seconds_count{%s} %d\n", labels, len(lats))
 	}
 	fmt.Fprint(w, "\n")
 }
@@ -473,8 +473,8 @@ func (c *PrometheusCollector) writeApprovalLatencies(w http.ResponseWriter) {
 	// Histogram buckets in seconds
 	buckets := []float64{1, 5, 10, 30, 60, 300}
 
-	fmt.Fprint(w, "# HELP agentsh_approval_latency_seconds Time to receive approval decision.\n")
-	fmt.Fprint(w, "# TYPE agentsh_approval_latency_seconds histogram\n")
+	fmt.Fprint(w, "# HELP agentmon_approval_latency_seconds Time to receive approval decision.\n")
+	fmt.Fprint(w, "# TYPE agentmon_approval_latency_seconds histogram\n")
 
 	var sum float64
 	for _, bucket := range buckets {
@@ -484,14 +484,14 @@ func (c *PrometheusCollector) writeApprovalLatencies(w http.ResponseWriter) {
 				count++
 			}
 		}
-		fmt.Fprintf(w, "agentsh_approval_latency_seconds_bucket{le=\"%.0f\"} %d\n", bucket, count)
+		fmt.Fprintf(w, "agentmon_approval_latency_seconds_bucket{le=\"%.0f\"} %d\n", bucket, count)
 	}
-	fmt.Fprintf(w, "agentsh_approval_latency_seconds_bucket{le=\"+Inf\"} %d\n", len(latencies))
+	fmt.Fprintf(w, "agentmon_approval_latency_seconds_bucket{le=\"+Inf\"} %d\n", len(latencies))
 	for _, l := range latencies {
 		sum += l.Seconds()
 	}
-	fmt.Fprintf(w, "agentsh_approval_latency_seconds_sum %.3f\n", sum)
-	fmt.Fprintf(w, "agentsh_approval_latency_seconds_count %d\n\n", len(latencies))
+	fmt.Fprintf(w, "agentmon_approval_latency_seconds_sum %.3f\n", sum)
+	fmt.Fprintf(w, "agentmon_approval_latency_seconds_count %d\n\n", len(latencies))
 }
 
 func (c *PrometheusCollector) writePolicyEvalLatencies(w http.ResponseWriter) {
@@ -507,8 +507,8 @@ func (c *PrometheusCollector) writePolicyEvalLatencies(w http.ResponseWriter) {
 	// Histogram buckets in seconds (microsecond-level)
 	buckets := []float64{0.00001, 0.0001, 0.001, 0.01}
 
-	fmt.Fprint(w, "# HELP agentsh_policy_eval_latency_seconds Policy evaluation latency.\n")
-	fmt.Fprint(w, "# TYPE agentsh_policy_eval_latency_seconds histogram\n")
+	fmt.Fprint(w, "# HELP agentmon_policy_eval_latency_seconds Policy evaluation latency.\n")
+	fmt.Fprint(w, "# TYPE agentmon_policy_eval_latency_seconds histogram\n")
 
 	var sum float64
 	for _, bucket := range buckets {
@@ -518,14 +518,14 @@ func (c *PrometheusCollector) writePolicyEvalLatencies(w http.ResponseWriter) {
 				count++
 			}
 		}
-		fmt.Fprintf(w, "agentsh_policy_eval_latency_seconds_bucket{le=\"%g\"} %d\n", bucket, count)
+		fmt.Fprintf(w, "agentmon_policy_eval_latency_seconds_bucket{le=\"%g\"} %d\n", bucket, count)
 	}
-	fmt.Fprintf(w, "agentsh_policy_eval_latency_seconds_bucket{le=\"+Inf\"} %d\n", len(latencies))
+	fmt.Fprintf(w, "agentmon_policy_eval_latency_seconds_bucket{le=\"+Inf\"} %d\n", len(latencies))
 	for _, l := range latencies {
 		sum += l.Seconds()
 	}
-	fmt.Fprintf(w, "agentsh_policy_eval_latency_seconds_sum %.9f\n", sum)
-	fmt.Fprintf(w, "agentsh_policy_eval_latency_seconds_count %d\n\n", len(latencies))
+	fmt.Fprintf(w, "agentmon_policy_eval_latency_seconds_sum %.9f\n", sum)
+	fmt.Fprintf(w, "agentmon_policy_eval_latency_seconds_count %d\n\n", len(latencies))
 }
 
 func (c *PrometheusCollector) writeEventsByType(w http.ResponseWriter) {
@@ -533,15 +533,15 @@ func (c *PrometheusCollector) writeEventsByType(w http.ResponseWriter) {
 	if len(types) == 0 {
 		return
 	}
-	fmt.Fprint(w, "# HELP agentsh_events_by_type_total Total events appended by type.\n")
-	fmt.Fprint(w, "# TYPE agentsh_events_by_type_total counter\n")
+	fmt.Fprint(w, "# HELP agentmon_events_by_type_total Total events appended by type.\n")
+	fmt.Fprint(w, "# TYPE agentmon_events_by_type_total counter\n")
 	for _, t := range types {
 		ptr, _ := c.byType.Load(t)
 		n := uint64(0)
 		if ptr != nil {
 			n = ptr.(*atomic.Uint64).Load()
 		}
-		fmt.Fprintf(w, "agentsh_events_by_type_total{type=%q} %d\n", escapeLabelValue(t), n)
+		fmt.Fprintf(w, "agentmon_events_by_type_total{type=%q} %d\n", escapeLabelValue(t), n)
 	}
 	fmt.Fprint(w, "\n")
 }
@@ -551,12 +551,12 @@ func (c *PrometheusCollector) writePtraceAttachFailures(w http.ResponseWriter) {
 	if len(keys) == 0 {
 		return
 	}
-	fmt.Fprint(w, "# HELP agentsh_ptrace_attach_failures_total Ptrace attach failures by reason.\n")
-	fmt.Fprint(w, "# TYPE agentsh_ptrace_attach_failures_total counter\n")
+	fmt.Fprint(w, "# HELP agentmon_ptrace_attach_failures_total Ptrace attach failures by reason.\n")
+	fmt.Fprint(w, "# TYPE agentmon_ptrace_attach_failures_total counter\n")
 	for _, reason := range keys {
 		ptr, _ := c.ptraceAttachFails.Load(reason)
 		n := ptr.(*atomic.Uint64).Load()
-		fmt.Fprintf(w, "agentsh_ptrace_attach_failures_total{reason=%q} %d\n", reason, n)
+		fmt.Fprintf(w, "agentmon_ptrace_attach_failures_total{reason=%q} %d\n", reason, n)
 	}
 	fmt.Fprint(w, "\n")
 }

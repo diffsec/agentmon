@@ -3,7 +3,7 @@
 **Status:** Approved by operator direction on 2026-05-14.
 **Owner:** Canyon Road
 **Source specs:**
-- `docs/agentsh-db-access-spec.md` v0.8, Phase 2 row.
+- `docs/agentmon-db-access-spec.md` v0.8, Phase 2 row.
 - `docs/superpowers/specs/2026-05-14-db-phase-2-roadmap-design.md`
 - DB Plan 11 Redirect Planner contract.
 

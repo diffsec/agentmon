@@ -1,6 +1,6 @@
 # Embedded LLM Proxy
 
-agentsh includes an embedded HTTP proxy that intercepts all LLM API requests from AI agents, providing Data Loss Prevention (DLP), usage tracking, and audit logging.
+agentmon includes an embedded HTTP proxy that intercepts all LLM API requests from AI agents, providing Data Loss Prevention (DLP), usage tracking, and audit logging.
 
 ## Overview
 
@@ -176,7 +176,7 @@ Usage is logged with each response and aggregated in session reports.
 
 ## Storage Format
 
-Requests and responses are logged to `~/.agentsh/sessions/<session-id>/llm-requests.jsonl`:
+Requests and responses are logged to `~/.agentmon/sessions/<session-id>/llm-requests.jsonl`:
 
 **Request entry:**
 ```json
@@ -221,13 +221,13 @@ Requests and responses are logged to `~/.agentsh/sessions/<session-id>/llm-reque
 
 ```bash
 # Status for latest session
-agentsh proxy status
+agentmon proxy status
 
 # Status for specific session
-agentsh proxy status <session-id>
+agentmon proxy status <session-id>
 
 # JSON output
-agentsh proxy status --json
+agentmon proxy status --json
 ```
 
 **Output:**
@@ -244,7 +244,7 @@ Tokens: 15,230 in / 28,456 out
 
 ```bash
 # Show only LLM events
-agentsh session logs <session-id> --type=llm
+agentmon session logs <session-id> --type=llm
 
 # Available types: llm, fs, net, exec
 ```
@@ -254,7 +254,7 @@ agentsh session logs <session-id> --type=llm
 Session reports automatically include LLM usage when available:
 
 ```bash
-agentsh report <session-id> --level=detailed
+agentmon report <session-id> --level=detailed
 ```
 
 **Report includes:**
@@ -283,7 +283,7 @@ The proxy sets these environment variables for agent processes:
 |----------|-------|---------|
 | `ANTHROPIC_BASE_URL` | `http://127.0.0.1:<port>` | Route Anthropic SDK through proxy |
 | `OPENAI_BASE_URL` | `http://127.0.0.1:<port>` | Route OpenAI SDK through proxy |
-| `AGENTSH_SESSION_ID` | Session ID | Correlate agent requests with session |
+| `AGENTMON_SESSION_ID` | Session ID | Correlate agent requests with session |
 | `<NAME>_API_URL` (or `expose_as`) | `http://127.0.0.1:<port>/svc/<name>/` | Route child code to a declared `http_services` upstream; one variable per service. Names must not collide with the three reserved names above. |
 
 ## Declared HTTP Services
@@ -329,11 +329,11 @@ When the proxy starts, it injects one env var per declared service into the chil
 - If `expose_as` is set, that exact string is used instead.
 - The value is the proxy base URL with the service prefix appended, e.g. `http://127.0.0.1:PORT/svc/github/`.
 - Child code should treat this as the new base URL and append its own path segments — e.g. `/repos/owner/repo/issues` becomes `http://127.0.0.1:PORT/svc/github/repos/owner/repo/issues`.
-- Env var names must match `[A-Za-z_][A-Za-z0-9_]*`, must not be `ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, or `AGENTSH_SESSION_ID`, and must be unique across all declared services (comparison is case-insensitive on Windows).
+- Env var names must match `[A-Za-z_][A-Za-z0-9_]*`, must not be `ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, or `AGENTMON_SESSION_ID`, and must be unique across all declared services (comparison is case-insensitive on Windows).
 
 ### Credential substitution fields
 
-When a service entry includes a `secret:` block, agentsh performs credential substitution
+When a service entry includes a `secret:` block, agentmon performs credential substitution
 so the agent never sees the real credential. The following fields control this behaviour:
 
 | Field | Required | Description |
@@ -362,7 +362,7 @@ When a direct attempt is blocked, an `http_service_denied_direct` event is emitt
 
 ### Logging
 
-HTTP service requests are logged to the same JSONL file as LLM requests (`~/.agentsh/sessions/<session-id>/llm-requests.jsonl`). Log entries carry a `service_kind` discriminator: `"llm"` for LLM proxy traffic and `"http_service"` for declared service traffic. The same storage helpers (`StoreRequestBody`, `StoreResponseBody`) and body-hash recording that apply to LLM entries apply here, so requests and responses are stored and retrievable through the same session-log commands.
+HTTP service requests are logged to the same JSONL file as LLM requests (`~/.agentmon/sessions/<session-id>/llm-requests.jsonl`). Log entries carry a `service_kind` discriminator: `"llm"` for LLM proxy traffic and `"http_service"` for declared service traffic. The same storage helpers (`StoreRequestBody`, `StoreResponseBody`) and body-hash recording that apply to LLM entries apply here, so requests and responses are stored and retrievable through the same session-log commands.
 
 ### When to use http_services
 
@@ -406,10 +406,10 @@ needs to authenticate but should not hold the credential directly.
 
 ```bash
 # Check proxy status
-agentsh proxy status
+agentmon proxy status
 
 # Check session logs for errors
-agentsh session logs <session-id> --type=llm
+agentmon session logs <session-id> --type=llm
 ```
 
 ### Requests Not Routed Through Proxy

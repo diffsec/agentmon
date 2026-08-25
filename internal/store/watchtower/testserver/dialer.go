@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
 )
 
 // DialerFor returns a transport.Dialer backed by this server's

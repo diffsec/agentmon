@@ -67,7 +67,7 @@ type Storage struct {
 }
 
 // NewStorage creates a new storage instance.
-// basePath is the base storage directory (e.g., ~/.agentsh/sessions).
+// basePath is the base storage directory (e.g., ~/.agentmon/sessions).
 // sessionID is the current session ID.
 // storeBodies enables storing full request/response bodies to disk.
 func NewStorage(basePath, sessionID string, storeBodies bool) (*Storage, error) {

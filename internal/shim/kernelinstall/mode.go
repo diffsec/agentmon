@@ -1,6 +1,6 @@
 // Package kernelinstall lets the shim install seccomp + Landlock on its own
 // process before execve, so the user's command inherits the filter even when
-// the shim is not a child of the agentsh server (sandbox-SDK pattern).
+// the shim is not a child of the agentmon server (sandbox-SDK pattern).
 package kernelinstall
 
 import "fmt"
@@ -31,8 +31,8 @@ func (m Mode) String() string {
 // ResolveMode picks the effective mode from the trusted config-file value
 // and the (untrusted, caller-controlled) env-var override.
 //
-// Trust model: /etc/agentsh/shim.conf is root-owned and admin-managed,
-// so its value is authoritative. The AGENTSH_SHIM_INSTALL env var is
+// Trust model: /etc/agentmon/shim.conf is root-owned and admin-managed,
+// so its value is authoritative. The AGENTMON_SHIM_INSTALL env var is
 // readable from the caller's environment, so a malicious sandbox-SDK
 // supervisor could pre-set it. To prevent silent bypass, the env var
 // is honored ONLY if it would STRENGTHEN the effective mode (i.e.,

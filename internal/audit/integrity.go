@@ -19,8 +19,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/audit/kms"
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/audit/kms"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // IntegrityMetadata contains the tamper-proof chain fields for an audit entry.

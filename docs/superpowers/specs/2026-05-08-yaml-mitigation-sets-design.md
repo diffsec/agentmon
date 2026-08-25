@@ -4,14 +4,14 @@
 
 The Dirty Frag work adds the right low-level primitive for advisory response: protocol-aware `socket_rules` that can block narrow `socket(2)` and `socketpair(2)` tuples. Advisory mitigations should be data files, not dedicated Go code paths for each issue.
 
-agentsh needs a generic way to ship and load advisory mitigations while still letting users write explicit low-level rules. The mitigation mechanism should avoid parsing every shipped advisory on startup and should not force users to overblock broad resources such as all `AF_NETLINK` when a narrow protocol rule is enough.
+agentmon needs a generic way to ship and load advisory mitigations while still letting users write explicit low-level rules. The mitigation mechanism should avoid parsing every shipped advisory on startup and should not force users to overblock broad resources such as all `AF_NETLINK` when a narrow protocol rule is enough.
 
 ## Goals
 
 - Represent advisory mitigations as YAML files that expand into existing generic seccomp config primitives.
 - Load only the requested mitigation YAML files.
 - Keep low-level `socket_rules` as the enforcement primitive for Dirty Frag and similar socket-family/protocol mitigations.
-- Support built-in mitigations shipped with agentsh as embedded YAML files and optional external mitigation directories for emergency or private rules.
+- Support built-in mitigations shipped with agentmon as embedded YAML files and optional external mitigation directories for emergency or private rules.
 - Treat external mitigation files as trusted local admin config with guardrails.
 - Fail closed when a requested mitigation cannot be loaded or validated.
 - Preserve the conservative Dirty Frag behavior: block `AF_RXRPC` and `AF_NETLINK` protocol `NETLINK_XFRM`, not all `AF_NETLINK`.
@@ -34,10 +34,10 @@ sandbox:
       - dirtyfrag-conservative
 
     mitigation_dirs:
-      - /etc/agentsh/mitigations
+      - /etc/agentmon/mitigations
 ```
 
-`mitigation_sets` contains requested mitigation IDs. agentsh resolves each ID to one YAML file and loads only those files.
+`mitigation_sets` contains requested mitigation IDs. agentmon resolves each ID to one YAML file and loads only those files.
 
 `mitigation_dirs` is optional. When omitted, only built-in mitigations are available. External files are trusted local admin config, but they must pass permission checks, schema validation, and semantic rule validation.
 
@@ -91,7 +91,7 @@ This keeps lookup path-safe and avoids directory traversal. A requested ID maps 
 
 Lookup order:
 
-1. Built-in mitigation file embedded in the agentsh binary with `go:embed`.
+1. Built-in mitigation file embedded in the agentmon binary with `go:embed`.
 2. External `mitigation_dirs`, in configured order, only when no built-in with that ID exists.
 
 External files do not override built-ins by default. If a requested ID exists as both a built-in file and an external file, v1 rejects the config as an ambiguous duplicate. A later explicit override option can be added if operators need to replace a built-in mitigation.
@@ -111,7 +111,7 @@ The resolver validates in layers:
 7. Run the same semantic validators used for user-authored `socket_rules`, `blocked_socket_families`, and syscall blocks.
 8. Reject duplicate final rule names across user config and all selected mitigations.
 
-If any selected mitigation fails validation, config load fails. agentsh should not silently continue without a requested security mitigation.
+If any selected mitigation fails validation, config load fails. agentmon should not silently continue without a requested security mitigation.
 
 ## Merge Semantics
 
@@ -126,7 +126,7 @@ There is no implicit action override in v1. Mitigation files choose their own ac
 
 ## Observability
 
-When agentsh loads a mitigation file, it logs:
+When agentmon loads a mitigation file, it logs:
 
 - mitigation ID
 - source: built-in or external path
@@ -137,7 +137,7 @@ Audit events emitted by enforcement keep the existing rule-level fields such as 
 
 ## Security Model
 
-External mitigation YAMLs are trusted local admin config. The first version does not require signatures because operators who can write these files can already change agentsh's local policy. The guardrails are strict schema validation, existing semantic validation, permission checks, explicit opt-in directories, and fail-closed loading.
+External mitigation YAMLs are trusted local admin config. The first version does not require signatures because operators who can write these files can already change agentmon's local policy. The guardrails are strict schema validation, existing semantic validation, permission checks, explicit opt-in directories, and fail-closed loading.
 
 Signature enforcement can be added later as a separate trust policy:
 
@@ -147,7 +147,7 @@ sandbox:
     mitigation_trust:
       require_signatures: true
       trusted_keys:
-        - /etc/agentsh/mitigation-pubkey.pem
+        - /etc/agentmon/mitigation-pubkey.pem
 ```
 
 The v1 schema leaves room for that extension without baking signature logic into mitigation expansion.
@@ -193,4 +193,4 @@ Tests should cover:
 
 ## Migration
 
-Because the earlier profile field was introduced only on the current feature branch and has not shipped, there is no public migration burden. Any local branch config that used the old name must be changed to `mitigation_sets`; agentsh should reject the old key instead of silently ignoring it.
+Because the earlier profile field was introduced only on the current feature branch and has not shipped, there is no public migration burden. Any local branch config that used the old name must be changed to `mitigation_sets`; agentmon should reject the old key instead of silently ignoring it.

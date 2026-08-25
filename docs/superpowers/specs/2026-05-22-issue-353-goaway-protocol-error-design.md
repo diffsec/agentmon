@@ -2,8 +2,8 @@
 
 **Date:** 2026-05-22
 **Status:** Design — pending implementation (Stage 1 in this repo; Stage 2 by user in watchtower)
-**Tracking issue:** [#353](https://github.com/canyonroad/agentsh/issues/353)
-**Related repos:** [canyonroad/agentsh](https://github.com/canyonroad/agentsh) (this design's Stage 1), [canyonroad/watchtower](https://github.com/canyonroad/watchtower) (Stage 2)
+**Tracking issue:** [#353](https://github.com/diffsec/agentmon/issues/353)
+**Related repos:** [diffsec/agentmon](https://github.com/diffsec/agentmon) (this design's Stage 1), [canyonroad/watchtower](https://github.com/canyonroad/watchtower) (Stage 2)
 
 ## Problem
 
@@ -43,7 +43,7 @@ enum GoawayCode {
 }
 ```
 
-Watchtower flips its 45 protocol-invariant `RejectFatal` call sites from `UNSPECIFIED` to `PROTOCOL_ERROR`. Agentsh's validator and recv multiplexer require no behavior change — the recv-side log already prints `code.String()`, which will surface `GOAWAY_CODE_PROTOCOL_ERROR` automatically once the enum value is defined.
+Watchtower flips its 45 protocol-invariant `RejectFatal` call sites from `UNSPECIFIED` to `PROTOCOL_ERROR`. Agentmon's validator and recv multiplexer require no behavior change — the recv-side log already prints `code.String()`, which will surface `GOAWAY_CODE_PROTOCOL_ERROR` automatically once the enum value is defined.
 
 Three invariants:
 
@@ -55,7 +55,7 @@ Three invariants:
 
 ### 1. Proto enum addition (both repos, same change)
 
-`proto/canyonroad/wtp/v1/wtp.proto` (agentsh) and `api/proto/wtp/v1/wtp.proto` (watchtower):
+`proto/canyonroad/wtp/v1/wtp.proto` (agentmon) and `api/proto/wtp/v1/wtp.proto` (watchtower):
 
 ```proto
 enum GoawayCode {
@@ -80,7 +80,7 @@ enum GoawayCode {
 
 Both `wtp.pb.go` files are regenerated via the repo's existing buf/protoc pipeline.
 
-### 2. agentsh validator docstring rewrite
+### 2. agentmon validator docstring rewrite
 
 `proto/canyonroad/wtp/v1/validate.go:297-309` — replace the v0.4-era rationale (which explains why UNSPECIFIED is accepted "because every Fatal-with-generic-reason Goaway watchtower sends" defaults to it) with:
 
@@ -178,7 +178,7 @@ No runtime impact. The change is wire schema + documentation. Protobuf enum enco
 
 ## Testing
 
-### agentsh-side (Stage 1)
+### agentmon-side (Stage 1)
 
 1. **`proto/canyonroad/wtp/v1/validate_test.go`** — extend the accepted-code table in `TestValidateGoaway` to include `GoawayCode_GOAWAY_CODE_PROTOCOL_ERROR`. One new table entry.
 
@@ -206,9 +206,9 @@ No runtime impact. The change is wire schema + documentation. Protobuf enum enco
 
 ## Rollout
 
-Two-stage, sequenced agentsh-first:
+Two-stage, sequenced agentmon-first:
 
-**Stage 1 — agentsh PR (this design's scope):**
+**Stage 1 — agentmon PR (this design's scope):**
 
 1. Edit `proto/canyonroad/wtp/v1/wtp.proto`: add `PROTOCOL_ERROR = 6`, refresh `UNSPECIFIED` comment.
 2. Regenerate `proto/canyonroad/wtp/v1/wtp.pb.go`.
@@ -243,7 +243,7 @@ Production effect after Stage 2: agent logs surface `goaway_code=GOAWAY_CODE_PRO
 | v0.4 watchtower | v0.4 agent (theoretical) | Unchanged |
 | v0.5 watchtower (post-Stage-2) | v0.4 agent (theoretical mixed fleet) | Code 6 unknown in v0.4 protoc; `code.String()` returns numeric form, agent reconnects. Not catastrophic; visible only in log cosmetics. |
 
-The Stage 1 → Stage 2 ordering is safety-driven, not correctness-driven: any ordering works, but agentsh-first eliminates the "unknown code 6" cosmetic regression window.
+The Stage 1 → Stage 2 ordering is safety-driven, not correctness-driven: any ordering works, but agentmon-first eliminates the "unknown code 6" cosmetic regression window.
 
 ## Open questions / follow-ups
 

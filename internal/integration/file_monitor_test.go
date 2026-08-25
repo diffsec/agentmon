@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -35,7 +35,7 @@ import (
 func TestFileMonitor_ReadAllowed(t *testing.T) {
 	ctx := context.Background()
 
-	agentshBin, unixwrapBin := buildSeccompBinaries(t)
+	agentmonBin, unixwrapBin := buildSeccompBinaries(t)
 
 	temp := t.TempDir()
 
@@ -53,7 +53,7 @@ func TestFileMonitor_ReadAllowed(t *testing.T) {
 	mustMkdir(t, workspace)
 	writeFile(t, filepath.Join(workspace, "hello.txt"), "hello from workspace")
 
-	endpoint, cleanup := startFileMonitorContainer(t, ctx, agentshBin, unixwrapBin, configPath, policiesDir, workspace)
+	endpoint, cleanup := startFileMonitorContainer(t, ctx, agentmonBin, unixwrapBin, configPath, policiesDir, workspace)
 	t.Cleanup(cleanup)
 
 	cli := client.New(endpoint, "test-key")
@@ -245,7 +245,7 @@ func TestFileMonitor_ReadAllowed(t *testing.T) {
 func TestFileMonitor_NoEmulation(t *testing.T) {
 	ctx := context.Background()
 
-	agentshBin, unixwrapBin := buildSeccompBinaries(t)
+	agentmonBin, unixwrapBin := buildSeccompBinaries(t)
 
 	temp := t.TempDir()
 
@@ -263,7 +263,7 @@ func TestFileMonitor_NoEmulation(t *testing.T) {
 	mustMkdir(t, workspace)
 	writeFile(t, filepath.Join(workspace, "hello.txt"), "hello from workspace")
 
-	endpoint, cleanup := startFileMonitorContainer(t, ctx, agentshBin, unixwrapBin, configPath, policiesDir, workspace)
+	endpoint, cleanup := startFileMonitorContainer(t, ctx, agentmonBin, unixwrapBin, configPath, policiesDir, workspace)
 	t.Cleanup(cleanup)
 
 	cli := client.New(endpoint, "test-key")
@@ -325,12 +325,12 @@ func TestFileMonitor_NoEmulation(t *testing.T) {
 	}
 }
 
-func startFileMonitorContainer(t *testing.T, ctx context.Context, agentshBin, unixwrapBin, configPath, policiesDir, workspace string) (string, func()) {
+func startFileMonitorContainer(t *testing.T, ctx context.Context, agentmonBin, unixwrapBin, configPath, policiesDir, workspace string) (string, func()) {
 	t.Helper()
 
 	binds := []testcontainers.ContainerMount{
-		testcontainers.BindMount(agentshBin, "/usr/local/bin/agentsh"),
-		testcontainers.BindMount(unixwrapBin, "/usr/local/bin/agentsh-unixwrap"),
+		testcontainers.BindMount(agentmonBin, "/usr/local/bin/agentmon"),
+		testcontainers.BindMount(unixwrapBin, "/usr/local/bin/agentmon-unixwrap"),
 		testcontainers.BindMount(configPath, "/config.yaml"),
 		testcontainers.BindMount(filepath.Join(filepath.Dir(configPath), "keys.yaml"), "/keys.yaml"),
 		testcontainers.BindMount(policiesDir, "/policies"),
@@ -340,7 +340,7 @@ func startFileMonitorContainer(t *testing.T, ctx context.Context, agentshBin, un
 	req := testcontainers.ContainerRequest{
 		Image:        "debian:bookworm-slim",
 		ExposedPorts: []string{"18080/tcp"},
-		Cmd:          []string{"/usr/local/bin/agentsh", "server", "--config", "/config.yaml"},
+		Cmd:          []string{"/usr/local/bin/agentmon", "server", "--config", "/config.yaml"},
 		Mounts:       binds,
 		Privileged:   true,
 		CapAdd:       []string{"SYS_ADMIN"},
@@ -394,12 +394,12 @@ func startFileMonitorContainer(t *testing.T, ctx context.Context, agentshBin, un
 // startFileMonitorContainerNoPtrace creates a container WITHOUT CAP_SYS_PTRACE.
 // This simulates environments where the server cannot use ProcessVMReadv on
 // non-descendant processes (the key condition for the file_monitor bug).
-func startFileMonitorContainerNoPtrace(t *testing.T, ctx context.Context, agentshBin, unixwrapBin, configPath, policiesDir, workspace string) (string, func()) {
+func startFileMonitorContainerNoPtrace(t *testing.T, ctx context.Context, agentmonBin, unixwrapBin, configPath, policiesDir, workspace string) (string, func()) {
 	t.Helper()
 
 	binds := []testcontainers.ContainerMount{
-		testcontainers.BindMount(agentshBin, "/usr/local/bin/agentsh"),
-		testcontainers.BindMount(unixwrapBin, "/usr/local/bin/agentsh-unixwrap"),
+		testcontainers.BindMount(agentmonBin, "/usr/local/bin/agentmon"),
+		testcontainers.BindMount(unixwrapBin, "/usr/local/bin/agentmon-unixwrap"),
 		testcontainers.BindMount(configPath, "/config.yaml"),
 		testcontainers.BindMount(filepath.Join(filepath.Dir(configPath), "keys.yaml"), "/keys.yaml"),
 		testcontainers.BindMount(policiesDir, "/policies"),
@@ -409,7 +409,7 @@ func startFileMonitorContainerNoPtrace(t *testing.T, ctx context.Context, agents
 	req := testcontainers.ContainerRequest{
 		Image:        "debian:bookworm-slim",
 		ExposedPorts: []string{"18080/tcp"},
-		Cmd:          []string{"/usr/local/bin/agentsh", "server", "--config", "/config.yaml"},
+		Cmd:          []string{"/usr/local/bin/agentmon", "server", "--config", "/config.yaml"},
 		Mounts:       binds,
 		// NOT Privileged — only grant SYS_ADMIN (needed for seccomp user-notify)
 		CapAdd: []string{"SYS_ADMIN"},
@@ -469,7 +469,7 @@ func startFileMonitorContainerNoPtrace(t *testing.T, ctx context.Context, agents
 func TestFileMonitor_NoPtraceCap(t *testing.T) {
 	ctx := context.Background()
 
-	agentshBin, unixwrapBin := buildSeccompBinaries(t)
+	agentmonBin, unixwrapBin := buildSeccompBinaries(t)
 
 	temp := t.TempDir()
 
@@ -487,7 +487,7 @@ func TestFileMonitor_NoPtraceCap(t *testing.T) {
 	mustMkdir(t, workspace)
 	writeFile(t, filepath.Join(workspace, "hello.txt"), "hello from workspace")
 
-	endpoint, cleanup := startFileMonitorContainerNoPtrace(t, ctx, agentshBin, unixwrapBin, configPath, policiesDir, workspace)
+	endpoint, cleanup := startFileMonitorContainerNoPtrace(t, ctx, agentmonBin, unixwrapBin, configPath, policiesDir, workspace)
 	t.Cleanup(cleanup)
 
 	cli := client.New(endpoint, "test-key")

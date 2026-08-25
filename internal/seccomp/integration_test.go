@@ -18,7 +18,7 @@ func TestSeccompBlocksPtrace(t *testing.T) {
 	}
 
 	// Build the wrapper
-	cmd := exec.Command("go", "build", "-o", "/tmp/test-unixwrap", "./cmd/agentsh-unixwrap")
+	cmd := exec.Command("go", "build", "-o", "/tmp/test-unixwrap", "./cmd/agentmon-unixwrap")
 	cmd.Dir = "../../.."
 	require.NoError(t, cmd.Run())
 	defer os.Remove("/tmp/test-unixwrap")
@@ -35,8 +35,8 @@ func TestSeccompBlocksPtrace(t *testing.T) {
 	// Run wrapper with ptrace blocked
 	wrapCmd := exec.Command("/tmp/test-unixwrap", "--", "/bin/strace", "-p", "1")
 	wrapCmd.Env = append(os.Environ(),
-		"AGENTSH_NOTIFY_SOCK_FD=3",
-		`AGENTSH_SECCOMP_CONFIG={"unix_socket_enabled":true,"blocked_syscalls":["ptrace"]}`,
+		"AGENTMON_NOTIFY_SOCK_FD=3",
+		`AGENTMON_SECCOMP_CONFIG={"unix_socket_enabled":true,"blocked_syscalls":["ptrace"]}`,
 	)
 	wrapCmd.ExtraFiles = []*os.File{notifyFile}
 

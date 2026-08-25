@@ -21,7 +21,7 @@
 
 Run:
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feature-windivert
+cd /home/eran/work/agentmon/.worktrees/feature-windivert
 go get github.com/williamfhe/godivert@latest
 ```
 
@@ -314,7 +314,7 @@ package windows
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // WinDivertHandle is a stub for non-Windows platforms.
@@ -380,7 +380,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 	"github.com/williamfhe/godivert"
 )
 
@@ -774,7 +774,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 func TestWinDivertHandle_SessionPIDs(t *testing.T) {

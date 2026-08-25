@@ -15,11 +15,11 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/agentsh/agentsh/internal/envinject"
-	"github.com/agentsh/agentsh/internal/wrapenv"
-	"github.com/agentsh/agentsh/internal/wraphandoff"
-	"github.com/agentsh/agentsh/internal/wrapperlog"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/envinject"
+	"github.com/diffsec/agentmon/internal/wrapenv"
+	"github.com/diffsec/agentmon/internal/wraphandoff"
+	"github.com/diffsec/agentmon/internal/wrapperlog"
+	"github.com/diffsec/agentmon/pkg/types"
 	"golang.org/x/sys/unix"
 )
 
@@ -96,7 +96,7 @@ func platformSetupWrap(ctx context.Context, wrapResp types.WrapInitResponse, ses
 	}
 
 	// Create a socket pair for the notify fd exchange between the wrapper and this CLI process.
-	// The child end (fds[1]) is inherited by agentsh-unixwrap as ExtraFiles[0] (fd 3).
+	// The child end (fds[1]) is inherited by agentmon-unixwrap as ExtraFiles[0] (fd 3).
 	// The parent end (fds[0]) receives the seccomp notify fd from the wrapper.
 	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_SEQPACKET|unix.SOCK_CLOEXEC, 0)
 	if err != nil {
@@ -143,9 +143,9 @@ func platformSetupWrap(ctx context.Context, wrapResp types.WrapInitResponse, ses
 	// before the internal markers, matching the shim and server-spawned exec
 	// paths so injected vars reach the executed command (issue #374).
 	env = envinject.Apply(env, wrapResp.EnvInject)
-	env = append(env, "AGENTSH_NOTIFY_SOCK_FD=3") // fd 3 = ExtraFiles[0]
+	env = append(env, "AGENTMON_NOTIFY_SOCK_FD=3") // fd 3 = ExtraFiles[0]
 	if hasSignalSocket {
-		env = append(env, "AGENTSH_SIGNAL_SOCK_FD=4") // fd 4 = ExtraFiles[1]
+		env = append(env, "AGENTMON_SIGNAL_SOCK_FD=4") // fd 4 = ExtraFiles[1]
 	}
 
 	// Add wrapper env vars (seccomp config, etc.)
@@ -153,7 +153,7 @@ func platformSetupWrap(ctx context.Context, wrapResp types.WrapInitResponse, ses
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	// Build command: agentsh-unixwrap -- <agent-path> <agent-args...>
+	// Build command: agentmon-unixwrap -- <agent-path> <agent-args...>
 	wrapperArgs := append([]string{"--", agentPath}, agentArgs...)
 
 	notifySocket := wrapResp.NotifySocket

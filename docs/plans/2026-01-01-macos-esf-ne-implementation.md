@@ -443,8 +443,8 @@ package xpc
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestPolicyAdapter_CheckFile_Allow(t *testing.T) {
@@ -509,8 +509,8 @@ Expected: FAIL - NewPolicyAdapter undefined
 package xpc
 
 import (
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // SessionResolver looks up session ID for a process.
@@ -838,7 +838,7 @@ git commit -m "feat(darwin): add session process tracker for XPC"
 
 **Files:**
 - Create: `internal/platform/darwin/sysext.go`
-- Modify: `cmd/agentsh/main.go` (add sysext subcommand)
+- Modify: `cmd/agentmon/main.go` (add sysext subcommand)
 
 **Step 1: Create sysext command structure**
 
@@ -865,7 +865,7 @@ type SysExtStatus struct {
 	Error       string `json:"error,omitempty"`
 }
 
-// SysExtManager manages the agentsh System Extension lifecycle.
+// SysExtManager manages the agentmon System Extension lifecycle.
 type SysExtManager struct {
 	bundlePath string
 	bundleID   string
@@ -879,11 +879,11 @@ func NewSysExtManager() *SysExtManager {
 
 	return &SysExtManager{
 		bundlePath: bundlePath,
-		bundleID:   "com.agentsh.sysext",
+		bundleID:   "com.agentmon.sysext",
 	}
 }
 
-// findAppBundle locates the AgentSH.app bundle.
+// findAppBundle locates the AgentMon.app bundle.
 func findAppBundle(execPath string) string {
 	// If running from within .app bundle
 	if idx := filepath.Index(execPath, ".app/"); idx >= 0 {
@@ -892,9 +892,9 @@ func findAppBundle(execPath string) string {
 
 	// Check common locations
 	candidates := []string{
-		"/Applications/AgentSH.app",
-		filepath.Join(filepath.Dir(execPath), "AgentSH.app"),
-		filepath.Join(filepath.Dir(execPath), "..", "AgentSH.app"),
+		"/Applications/AgentMon.app",
+		filepath.Join(filepath.Dir(execPath), "AgentMon.app"),
+		filepath.Join(filepath.Dir(execPath), "..", "AgentMon.app"),
 	}
 
 	for _, c := range candidates {
@@ -913,7 +913,7 @@ func (m *SysExtManager) Status() (*SysExtStatus, error) {
 	}
 
 	if m.bundlePath == "" {
-		status.Error = "AgentSH.app bundle not found"
+		status.Error = "AgentMon.app bundle not found"
 		return status, nil
 	}
 
@@ -938,7 +938,7 @@ func (m *SysExtManager) Status() (*SysExtStatus, error) {
 // Install requests installation of the System Extension.
 func (m *SysExtManager) Install() error {
 	if m.bundlePath == "" {
-		return fmt.Errorf("AgentSH.app bundle not found; install it first")
+		return fmt.Errorf("AgentMon.app bundle not found; install it first")
 	}
 
 	// The actual installation is triggered by OSSystemExtensionManager in Swift
@@ -1026,15 +1026,15 @@ This phase creates the Swift project structure. **Requires macOS with Xcode.**
 ### Task 6: Create Xcode Project Structure
 
 **Files:**
-- Create: `macos/AgentSH.xcodeproj/` (Xcode project)
-- Create: `macos/AgentSH/` (main app target placeholder)
+- Create: `macos/AgentMon.xcodeproj/` (Xcode project)
+- Create: `macos/AgentMon/` (main app target placeholder)
 - Create: `macos/SysExt/` (System Extension target)
 - Create: `macos/XPCService/` (XPC Service target)
 
 **Step 1: Create directory structure**
 
 ```bash
-mkdir -p macos/AgentSH
+mkdir -p macos/AgentMon
 mkdir -p macos/SysExt
 mkdir -p macos/XPCService
 ```
@@ -1042,17 +1042,17 @@ mkdir -p macos/XPCService
 **Step 2: Create placeholder Info.plist files**
 
 ```xml
-<!-- macos/AgentSH/Info.plist -->
+<!-- macos/AgentMon/Info.plist -->
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.agentsh.app</string>
+    <string>com.agentmon.app</string>
     <key>CFBundleName</key>
-    <string>AgentSH</string>
+    <string>AgentMon</string>
     <key>CFBundleExecutable</key>
-    <string>agentsh</string>
+    <string>agentmon</string>
     <key>CFBundleVersion</key>
     <string>1.0.0</string>
     <key>CFBundleShortVersionString</key>
@@ -1072,11 +1072,11 @@ mkdir -p macos/XPCService
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.agentsh.sysext</string>
+    <string>com.agentmon.sysext</string>
     <key>CFBundleName</key>
-    <string>AgentSH System Extension</string>
+    <string>AgentMon System Extension</string>
     <key>CFBundleExecutable</key>
-    <string>com.agentsh.sysext</string>
+    <string>com.agentmon.sysext</string>
     <key>CFBundleVersion</key>
     <string>1.0.0</string>
     <key>CFBundlePackageType</key>
@@ -1142,7 +1142,7 @@ git commit -m "feat(darwin): add Xcode project structure for System Extension"
 import Foundation
 
 /// Protocol for communication between System Extension and XPC Service.
-@objc protocol AgentshXPCProtocol {
+@objc protocol AgentmonXPCProtocol {
     /// Check if a file operation is allowed.
     func checkFile(
         path: String,
@@ -1177,7 +1177,7 @@ import Foundation
         reply: @escaping (String?) -> Void
     )
 
-    /// Emit an event to the agentsh server.
+    /// Emit an event to the agentmon server.
     func emitEvent(
         event: Data,
         reply: @escaping (Bool) -> Void
@@ -1185,7 +1185,7 @@ import Foundation
 }
 
 /// XPC Service identifier.
-let xpcServiceIdentifier = "com.agentsh.xpc"
+let xpcServiceIdentifier = "com.agentmon.xpc"
 ```
 
 **Step 2: Commit**
@@ -1231,7 +1231,7 @@ class XPCServiceDelegate: NSObject, NSXPCListenerDelegate {
         _ listener: NSXPCListener,
         shouldAcceptNewConnection newConnection: NSXPCConnection
     ) -> Bool {
-        newConnection.exportedInterface = NSXPCInterface(with: AgentshXPCProtocol.self)
+        newConnection.exportedInterface = NSXPCInterface(with: AgentmonXPCProtocol.self)
         newConnection.exportedObject = bridge
         newConnection.resume()
         return true
@@ -1246,8 +1246,8 @@ class XPCServiceDelegate: NSObject, NSXPCListenerDelegate {
 import Foundation
 
 /// Bridges XPC calls to the Go policy server via Unix socket.
-class PolicyBridge: NSObject, AgentshXPCProtocol {
-    private let socketPath = "/var/run/agentsh/policy.sock"
+class PolicyBridge: NSObject, AgentmonXPCProtocol {
+    private let socketPath = "/var/run/agentmon/policy.sock"
     private let timeout: TimeInterval = 5.0
 
     func checkFile(
@@ -1459,17 +1459,17 @@ import EndpointSecurity
 class ESFClient {
     private var client: OpaquePointer?
     private let xpc: NSXPCConnection
-    private var xpcProxy: AgentshXPCProtocol?
+    private var xpcProxy: AgentmonXPCProtocol?
 
     init() {
         // Connect to XPC Service
         xpc = NSXPCConnection(serviceName: xpcServiceIdentifier)
-        xpc.remoteObjectInterface = NSXPCInterface(with: AgentshXPCProtocol.self)
+        xpc.remoteObjectInterface = NSXPCInterface(with: AgentmonXPCProtocol.self)
         xpc.resume()
 
         xpcProxy = xpc.remoteObjectProxyWithErrorHandler { error in
             NSLog("XPC error: \(error)")
-        } as? AgentshXPCProtocol
+        } as? AgentmonXPCProtocol
     }
 
     func start() -> Bool {
@@ -1683,17 +1683,17 @@ import NetworkExtension
 
 class FilterDataProvider: NEFilterDataProvider {
     private var xpc: NSXPCConnection?
-    private var xpcProxy: AgentshXPCProtocol?
+    private var xpcProxy: AgentmonXPCProtocol?
 
     override func startFilter(completionHandler: @escaping (Error?) -> Void) {
         // Connect to XPC Service
         xpc = NSXPCConnection(serviceName: xpcServiceIdentifier)
-        xpc?.remoteObjectInterface = NSXPCInterface(with: AgentshXPCProtocol.self)
+        xpc?.remoteObjectInterface = NSXPCInterface(with: AgentmonXPCProtocol.self)
         xpc?.resume()
 
         xpcProxy = xpc?.remoteObjectProxyWithErrorHandler { error in
             NSLog("XPC error: \(error)")
-        } as? AgentshXPCProtocol
+        } as? AgentmonXPCProtocol
 
         completionHandler(nil)
     }
@@ -1754,17 +1754,17 @@ import NetworkExtension
 
 class DNSProxyProvider: NEDNSProxyProvider {
     private var xpc: NSXPCConnection?
-    private var xpcProxy: AgentshXPCProtocol?
+    private var xpcProxy: AgentmonXPCProtocol?
 
     override func startProxy(options: [String: Any]? = nil, completionHandler: @escaping (Error?) -> Void) {
         // Connect to XPC Service
         xpc = NSXPCConnection(serviceName: xpcServiceIdentifier)
-        xpc?.remoteObjectInterface = NSXPCInterface(with: AgentshXPCProtocol.self)
+        xpc?.remoteObjectInterface = NSXPCInterface(with: AgentmonXPCProtocol.self)
         xpc?.resume()
 
         xpcProxy = xpc?.remoteObjectProxyWithErrorHandler { error in
             NSLog("XPC error: \(error)")
-        } as? AgentshXPCProtocol
+        } as? AgentmonXPCProtocol
 
         completionHandler(nil)
     }
@@ -1845,34 +1845,34 @@ git commit -m "feat(darwin): implement Network Extension providers"
 
 # Build Go binary for macOS
 build-macos-go:
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -o build/AgentSH.app/Contents/MacOS/agentsh ./cmd/agentsh
-	GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build -o build/AgentSH-amd64.app/Contents/MacOS/agentsh ./cmd/agentsh
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -o build/AgentMon.app/Contents/MacOS/agentmon ./cmd/agentmon
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build -o build/AgentMon-amd64.app/Contents/MacOS/agentmon ./cmd/agentmon
 
 # Build Swift components (requires Xcode)
 build-swift:
-	xcodebuild -project macos/AgentSH.xcodeproj -scheme SysExt -configuration Release
-	xcodebuild -project macos/AgentSH.xcodeproj -scheme XPCService -configuration Release
+	xcodebuild -project macos/AgentMon.xcodeproj -scheme SysExt -configuration Release
+	xcodebuild -project macos/AgentMon.xcodeproj -scheme XPCService -configuration Release
 
 # Assemble app bundle
 assemble-bundle: build-macos-go build-swift
-	mkdir -p build/AgentSH.app/Contents/{Library/SystemExtensions,XPCServices,Resources}
-	cp macos/AgentSH/Info.plist build/AgentSH.app/Contents/
-	cp -r build/Release/com.agentsh.sysext.systemextension build/AgentSH.app/Contents/Library/SystemExtensions/
-	cp -r build/Release/com.agentsh.xpc.xpc build/AgentSH.app/Contents/XPCServices/
+	mkdir -p build/AgentMon.app/Contents/{Library/SystemExtensions,XPCServices,Resources}
+	cp macos/AgentMon/Info.plist build/AgentMon.app/Contents/
+	cp -r build/Release/com.agentmon.sysext.systemextension build/AgentMon.app/Contents/Library/SystemExtensions/
+	cp -r build/Release/com.agentmon.xpc.xpc build/AgentMon.app/Contents/XPCServices/
 
 # Sign bundle (requires signing identity)
 sign-bundle:
 	codesign --force --deep --sign "$(SIGNING_IDENTITY)" \
 		--entitlements macos/SysExt/SysExt.entitlements \
-		build/AgentSH.app/Contents/Library/SystemExtensions/com.agentsh.sysext.systemextension
+		build/AgentMon.app/Contents/Library/SystemExtensions/com.agentmon.sysext.systemextension
 	codesign --force --deep --sign "$(SIGNING_IDENTITY)" \
-		build/AgentSH.app/Contents/XPCServices/com.agentsh.xpc.xpc
+		build/AgentMon.app/Contents/XPCServices/com.agentmon.xpc.xpc
 	codesign --force --deep --sign "$(SIGNING_IDENTITY)" \
-		build/AgentSH.app
+		build/AgentMon.app
 
 # Full enterprise build
 build-macos-enterprise: assemble-bundle sign-bundle
-	@echo "Enterprise build complete: build/AgentSH.app"
+	@echo "Enterprise build complete: build/AgentMon.app"
 ```
 
 **Step 2: Commit**
@@ -1905,12 +1905,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestIntegration_FullPolicyFlow(t *testing.T) {
-	if os.Getenv("AGENTSH_INTEGRATION") != "1" {
-		t.Skip("set AGENTSH_INTEGRATION=1 to run")
+	if os.Getenv("AGENTMON_INTEGRATION") != "1" {
+		t.Skip("set AGENTMON_INTEGRATION=1 to run")
 	}
 
 	// Create real policy
@@ -1932,7 +1932,7 @@ func TestIntegration_FullPolicyFlow(t *testing.T) {
 	}
 
 	// Start server
-	sockPath := "/tmp/agentsh-test-policy.sock"
+	sockPath := "/tmp/agentmon-test-policy.sock"
 	tracker := NewSessionTracker()
 	tracker.RegisterProcess("session-test", 12345, 0)
 

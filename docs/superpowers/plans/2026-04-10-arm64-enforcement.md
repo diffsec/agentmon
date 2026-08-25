@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fix arm64 releases to ship with full seccomp/Landlock enforcement, and make `agentsh detect` report accurate scores when the wrapper binary is missing.
+**Goal:** Fix arm64 releases to ship with full seccomp/Landlock enforcement, and make `agentmon detect` report accurate scores when the wrapper binary is missing.
 
 **Architecture:** Two independent changes — (1) cross-compile unixwrap and the server binary for arm64 with CGO enabled using the existing release runner, and (2) add a wrapper-availability check to the detect command that marks seccomp/Landlock backends as unavailable when the wrapper is not on PATH.
 
@@ -142,7 +142,7 @@ Expected: compilation error — `applyWrapperAvailability` not defined.
 Add to `internal/capabilities/detect_linux.go`, before the `Detect()` function:
 
 ```go
-// wrapperDependentBackends lists backends that require agentsh-unixwrap.
+// wrapperDependentBackends lists backends that require agentmon-unixwrap.
 // These are marked unavailable when the wrapper binary is not on PATH.
 var wrapperDependentBackends = map[string]bool{
 	"seccomp-notify": true,
@@ -150,12 +150,12 @@ var wrapperDependentBackends = map[string]bool{
 	"seccomp-execve": true,
 }
 
-// applyWrapperAvailability checks if agentsh-unixwrap is on PATH and marks
+// applyWrapperAvailability checks if agentmon-unixwrap is on PATH and marks
 // wrapper-dependent backends as unavailable if it's missing. Also updates
 // secCaps.FileEnforcement and domain Active fields for consistency.
 // Returns true if the wrapper was found.
 func applyWrapperAvailability(domains []ProtectionDomain, secCaps *SecurityCapabilities) bool {
-	_, err := wrapperLookPath("agentsh-unixwrap")
+	_, err := wrapperLookPath("agentmon-unixwrap")
 	if err == nil {
 		return true
 	}
@@ -214,7 +214,7 @@ func Detect() (*DetectResult, error) {
 	domains := buildLinuxDomains(secCaps)
 
 	// Check wrapper availability before scoring — marks seccomp/landlock
-	// backends unavailable if agentsh-unixwrap is not on PATH.
+	// backends unavailable if agentmon-unixwrap is not on PATH.
 	wrapperFound := applyWrapperAvailability(domains, secCaps)
 
 	score := ComputeScore(domains)
@@ -242,7 +242,7 @@ func Detect() (*DetectResult, error) {
 			Feature: "seccomp-wrapper",
 			Status:  "missing",
 			Impact:  "seccomp and Landlock enforcement disabled — processes run without kernel-level interception",
-			Action:  "install agentsh-unixwrap or rebuild the package with CGO_ENABLED=1",
+			Action:  "install agentmon-unixwrap or rebuild the package with CGO_ENABLED=1",
 		})
 	}
 
@@ -267,7 +267,7 @@ func TestDetect_WrapperMissing_Tip(t *testing.T) {
 	// Override LookPath to simulate missing wrapper
 	orig := wrapperLookPath
 	wrapperLookPath = func(file string) (string, error) {
-		if file == "agentsh-unixwrap" {
+		if file == "agentmon-unixwrap" {
 			return "", exec.ErrNotFound
 		}
 		return exec.LookPath(file)
@@ -323,7 +323,7 @@ Expected: PASS — no regressions.
 git add internal/capabilities/detect_linux.go internal/capabilities/detect_linux_test.go
 git commit -m "fix(detect): mark seccomp/landlock backends unavailable when wrapper binary missing
 
-detect now checks for agentsh-unixwrap on PATH and marks seccomp-notify,
+detect now checks for agentmon-unixwrap on PATH and marks seccomp-notify,
 landlock, and seccomp-execve backends as unavailable when it's not found.
 This makes the protection score reflect actual enforcement state rather
 than just kernel capabilities."
@@ -341,15 +341,15 @@ than just kernel capabilities."
 
 - [ ] **Step 1: Flip server arm64 build to CGO_ENABLED=1**
 
-In `.goreleaser.yml`, replace the `agentsh-linux-arm64` build (lines 24-36):
+In `.goreleaser.yml`, replace the `agentmon-linux-arm64` build (lines 24-36):
 
 Old:
 ```yaml
   # Linux arm64: CGO disabled (cross-compilation complexity)
   # Users get graceful degradation - seccomp features unavailable
-  - id: agentsh-linux-arm64
-    main: ./cmd/agentsh
-    binary: agentsh
+  - id: agentmon-linux-arm64
+    main: ./cmd/agentmon
+    binary: agentmon
     env:
       - CGO_ENABLED=0
     goos:
@@ -363,9 +363,9 @@ Old:
 New:
 ```yaml
   # Linux arm64: CGO enabled for seccomp user-notify support (cross-compiled)
-  - id: agentsh-linux-arm64
-    main: ./cmd/agentsh
-    binary: agentsh
+  - id: agentmon-linux-arm64
+    main: ./cmd/agentmon
+    binary: agentmon
     env:
       - CGO_ENABLED=1
       - CC=aarch64-linux-gnu-gcc
@@ -385,8 +385,8 @@ In `.goreleaser.yml`, after the `unixwrap-linux-amd64` build (after line 103), a
 ```yaml
   # unixwrap: seccomp wrapper for Linux arm64 (cross-compiled)
   - id: unixwrap-linux-arm64
-    main: ./cmd/agentsh-unixwrap
-    binary: agentsh-unixwrap
+    main: ./cmd/agentmon-unixwrap
+    binary: agentmon-unixwrap
     env:
       - CGO_ENABLED=1
       - CC=aarch64-linux-gnu-gcc
@@ -412,14 +412,14 @@ With:
 
 - [ ] **Step 3: Add unixwrap-linux-arm64 to archives**
 
-In `.goreleaser.yml`, in the `agentsh-linux` archive section, add `unixwrap-linux-arm64` to the `ids` list and remove `allow_different_binary_count: true`:
+In `.goreleaser.yml`, in the `agentmon-linux` archive section, add `unixwrap-linux-arm64` to the `ids` list and remove `allow_different_binary_count: true`:
 
 Old:
 ```yaml
-  - id: agentsh-linux
+  - id: agentmon-linux
     ids:
-      - agentsh-linux-amd64
-      - agentsh-linux-arm64
+      - agentmon-linux-amd64
+      - agentmon-linux-arm64
       - shim-linux
       - unixwrap-linux-amd64
       - stub-linux
@@ -431,10 +431,10 @@ Old:
 
 New:
 ```yaml
-  - id: agentsh-linux
+  - id: agentmon-linux
     ids:
-      - agentsh-linux-amd64
-      - agentsh-linux-arm64
+      - agentmon-linux-amd64
+      - agentmon-linux-arm64
       - shim-linux
       - unixwrap-linux-amd64
       - unixwrap-linux-arm64
@@ -449,11 +449,11 @@ In `.goreleaser.yml`, in the `nfpms` section, add `unixwrap-linux-arm64` to the 
 
 Old:
 ```yaml
-  - id: agentsh
-    package_name: agentsh
+  - id: agentmon
+    package_name: agentmon
     ids:
-      - agentsh-linux-amd64
-      - agentsh-linux-arm64
+      - agentmon-linux-amd64
+      - agentmon-linux-arm64
       - shim-linux
       - unixwrap-linux-amd64
       - stub-linux
@@ -462,11 +462,11 @@ Old:
 
 New:
 ```yaml
-  - id: agentsh
-    package_name: agentsh
+  - id: agentmon
+    package_name: agentmon
     ids:
-      - agentsh-linux-amd64
-      - agentsh-linux-arm64
+      - agentmon-linux-amd64
+      - agentmon-linux-arm64
       - shim-linux
       - unixwrap-linux-amd64
       - unixwrap-linux-arm64
@@ -487,7 +487,7 @@ Run: `python3 -c "import yaml; yaml.safe_load(open('.goreleaser.yml'))" && echo 
 git add .goreleaser.yml
 git commit -m "build: add arm64 unixwrap target + enable CGO for arm64 server
 
-Cross-compile agentsh-unixwrap and the server binary for arm64 with
+Cross-compile agentmon-unixwrap and the server binary for arm64 with
 CGO_ENABLED=1 using aarch64-linux-gnu-gcc. Both architectures now ship
 with full seccomp/Landlock/signal enforcement."
 ```
@@ -538,7 +538,7 @@ git add .github/workflows/release.yml
 git commit -m "ci: add libseccomp-dev:arm64 for arm64 cross-compilation
 
 Enables multi-arch apt and installs the arm64 libseccomp headers so
-GoReleaser can cross-compile agentsh-unixwrap and the server binary
+GoReleaser can cross-compile agentmon-unixwrap and the server binary
 for arm64 with CGO enabled."
 ```
 
@@ -550,7 +550,7 @@ for arm64 with CGO enabled."
 
 Run:
 ```bash
-CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig GOOS=linux GOARCH=arm64 go build -o /dev/null ./cmd/agentsh
+CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig GOOS=linux GOARCH=arm64 go build -o /dev/null ./cmd/agentmon
 ```
 Expected: build succeeds (exit 0). If `aarch64-linux-gnu-gcc` or `libseccomp-dev:arm64` is not installed locally, this will fail — that's fine, CI will handle it. Log the result either way.
 
@@ -558,7 +558,7 @@ Expected: build succeeds (exit 0). If `aarch64-linux-gnu-gcc` or `libseccomp-dev
 
 Run:
 ```bash
-CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig GOOS=linux GOARCH=arm64 go build -o /dev/null ./cmd/agentsh-unixwrap
+CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig GOOS=linux GOARCH=arm64 go build -o /dev/null ./cmd/agentmon-unixwrap
 ```
 Expected: same as above — succeeds if cross-compile toolchain is present.
 

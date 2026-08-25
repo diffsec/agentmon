@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -29,7 +29,7 @@ func newSessionAttachCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "agentsh:%s:%s$ ", sessionID, snap.Cwd)
+				fmt.Fprintf(cmd.OutOrStdout(), "agentmon:%s:%s$ ", sessionID, snap.Cwd)
 
 				if !in.Scan() {
 					return in.Err()

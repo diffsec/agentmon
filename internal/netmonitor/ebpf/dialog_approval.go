@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/approval/dialog"
-	"github.com/agentsh/agentsh/internal/netmonitor/pnacl"
+	"github.com/diffsec/agentmon/internal/approval/dialog"
+	"github.com/diffsec/agentmon/internal/netmonitor/pnacl"
 )
 
 // SetupDialogApproval configures the monitor to use native OS dialogs for approval prompts.

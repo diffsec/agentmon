@@ -249,8 +249,8 @@ Create `internal/store/integrity_wrapper.go`:
 package store
 
 import (
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // IntegrityStore wraps a Store and adds integrity metadata to events.
@@ -309,7 +309,7 @@ package store
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/audit"
+	"github.com/diffsec/agentmon/internal/audit"
 )
 
 func TestIntegrityStore_Wrap(t *testing.T) {
@@ -990,53 +990,53 @@ Create `docs/operations/backup-restore.md`:
 ## What to Backup
 
 ### Critical (Required)
-- **Audit database**: `<audit.storage.sqlite_path>` (default: `/var/lib/agentsh/events.db`)
-- **Configuration**: `/etc/agentsh/config.yaml`
-- **Policies**: `<policies.dir>` (default: `/etc/agentsh/policies/`)
+- **Audit database**: `<audit.storage.sqlite_path>` (default: `/var/lib/agentmon/events.db`)
+- **Configuration**: `/etc/agentmon/config.yaml`
+- **Policies**: `<policies.dir>` (default: `/etc/agentmon/policies/`)
 
 ### Important (Recommended)
 - **Encryption keys**: `<audit.encryption.key_file>` and `<audit.integrity.key_file>`
   - Store separately from backups, use secure key management
-- **MCP tool pins**: `~/.agentsh/mcp-pins.json` (when implemented)
+- **MCP tool pins**: `~/.agentmon/mcp-pins.json` (when implemented)
 
 ### Optional
 - **Session data**: `<sessions.base_dir>` - ephemeral, usually not backed up
-- **Application logs**: `/var/log/agentsh/` - for debugging
+- **Application logs**: `/var/log/agentmon/` - for debugging
 
 ## Backup Procedures
 
 ### Manual Backup
 
 ```bash
-# Stop agentsh (optional, for consistency)
-systemctl stop agentsh
+# Stop agentmon (optional, for consistency)
+systemctl stop agentmon
 
 # Create backup directory
-BACKUP_DIR="/backup/agentsh/$(date +%Y%m%d)"
+BACKUP_DIR="/backup/agentmon/$(date +%Y%m%d)"
 mkdir -p "$BACKUP_DIR"
 
 # Backup audit database
-cp /var/lib/agentsh/events.db "$BACKUP_DIR/"
+cp /var/lib/agentmon/events.db "$BACKUP_DIR/"
 
 # Backup config and policies
-cp /etc/agentsh/config.yaml "$BACKUP_DIR/"
-cp -r /etc/agentsh/policies/ "$BACKUP_DIR/"
+cp /etc/agentmon/config.yaml "$BACKUP_DIR/"
+cp -r /etc/agentmon/policies/ "$BACKUP_DIR/"
 
 # Create archive
-tar -czf "$BACKUP_DIR.tar.gz" -C /backup/agentsh "$(date +%Y%m%d)"
+tar -czf "$BACKUP_DIR.tar.gz" -C /backup/agentmon "$(date +%Y%m%d)"
 
-# Restart agentsh
-systemctl start agentsh
+# Restart agentmon
+systemctl start agentmon
 ```
 
-### Using agentsh CLI (Recommended)
+### Using agentmon CLI (Recommended)
 
 ```bash
 # Full backup
-agentsh backup --output /backup/agentsh-$(date +%Y%m%d).tar.gz
+agentmon backup --output /backup/agentmon-$(date +%Y%m%d).tar.gz
 
 # Backup with verification
-agentsh backup --output /backup/agentsh.tar.gz --verify
+agentmon backup --output /backup/agentmon.tar.gz --verify
 ```
 
 ## Restore Procedures
@@ -1044,32 +1044,32 @@ agentsh backup --output /backup/agentsh.tar.gz --verify
 ### Manual Restore
 
 ```bash
-# Stop agentsh
-systemctl stop agentsh
+# Stop agentmon
+systemctl stop agentmon
 
 # Extract backup
-tar -xzf /backup/agentsh-20260106.tar.gz -C /tmp/restore/
+tar -xzf /backup/agentmon-20260106.tar.gz -C /tmp/restore/
 
 # Restore files
-cp /tmp/restore/events.db /var/lib/agentsh/
-cp /tmp/restore/config.yaml /etc/agentsh/
-cp -r /tmp/restore/policies/ /etc/agentsh/
+cp /tmp/restore/events.db /var/lib/agentmon/
+cp /tmp/restore/config.yaml /etc/agentmon/
+cp -r /tmp/restore/policies/ /etc/agentmon/
 
-# Start agentsh
-systemctl start agentsh
+# Start agentmon
+systemctl start agentmon
 
 # Verify
-agentsh audit verify --key-file /etc/agentsh/audit-integrity.key /var/lib/agentsh/events.db
+agentmon audit verify --key-file /etc/agentmon/audit-integrity.key /var/lib/agentmon/events.db
 ```
 
-### Using agentsh CLI
+### Using agentmon CLI
 
 ```bash
 # Restore with verification
-agentsh restore --input /backup/agentsh.tar.gz --verify
+agentmon restore --input /backup/agentmon.tar.gz --verify
 
 # Dry-run (show what would be restored)
-agentsh restore --input /backup/agentsh.tar.gz --dry-run
+agentmon restore --input /backup/agentmon.tar.gz --dry-run
 ```
 
 ## Backup Schedule Recommendations
@@ -1089,9 +1089,9 @@ agentsh restore --input /backup/agentsh.tar.gz --dry-run
 # Never store keys in the same location as data backups
 
 # Example: Store in Vault
-vault kv put secret/agentsh/keys \
-  integrity_key=@/etc/agentsh/audit-integrity.key \
-  encryption_key=@/etc/agentsh/audit.key
+vault kv put secret/agentmon/keys \
+  integrity_key=@/etc/agentmon/audit-integrity.key \
+  encryption_key=@/etc/agentmon/audit.key
 ```
 ```
 
@@ -1115,26 +1115,26 @@ Create `docs/operations/disaster-recovery.md`:
 ### Scenario 1: Server Failure (Same Infrastructure)
 
 1. Provision new server with same OS
-2. Install agentsh: `curl -sSL https://agentsh.io/install.sh | bash`
+2. Install agentmon: `curl -sSL https://agentmon.io/install.sh | bash`
 3. Restore from backup:
    ```bash
-   agentsh restore --input /backup/latest.tar.gz
+   agentmon restore --input /backup/latest.tar.gz
    ```
 4. Restore encryption keys from secure storage
 5. Verify audit chain integrity:
    ```bash
-   agentsh audit verify --key-file /etc/agentsh/audit-integrity.key
+   agentmon audit verify --key-file /etc/agentmon/audit-integrity.key
    ```
-6. Start service: `systemctl start agentsh`
+6. Start service: `systemctl start agentmon`
 7. Verify health: `curl localhost:18080/health`
 
 ### Scenario 2: Data Corruption
 
-1. Stop agentsh: `systemctl stop agentsh`
+1. Stop agentmon: `systemctl stop agentmon`
 2. Identify last known good backup
 3. Verify backup integrity:
    ```bash
-   agentsh audit verify --key-file /path/to/key /backup/events.db
+   agentmon audit verify --key-file /path/to/key /backup/events.db
    ```
 4. Restore verified backup
 5. Investigate corruption cause before resuming
@@ -1155,7 +1155,7 @@ After any recovery:
 - [ ] Service starts without errors
 - [ ] Health endpoint returns 200
 - [ ] Audit log integrity verified
-- [ ] Policies loaded correctly (`agentsh policy list`)
+- [ ] Policies loaded correctly (`agentmon policy list`)
 - [ ] Test session creation works
 - [ ] Test approval workflow (if enabled)
 
@@ -1165,7 +1165,7 @@ After any recovery:
 |------|---------|
 | On-call SRE | [your-oncall] |
 | Security team | [security-contact] |
-| Vendor support | support@agentsh.io |
+| Vendor support | support@agentmon.io |
 ```
 
 **Step 3: Commit**
@@ -1210,18 +1210,18 @@ func newBackupCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "backup",
-		Short: "Create a backup of agentsh data",
+		Short: "Create a backup of agentmon data",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if output == "" {
-				output = fmt.Sprintf("agentsh-backup-%s.tar.gz", time.Now().Format("20060102-150405"))
+				output = fmt.Sprintf("agentmon-backup-%s.tar.gz", time.Now().Format("20060102-150405"))
 			}
 			return createBackup(cmd, output, configPath, verify)
 		},
 	}
 
-	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (default: agentsh-backup-<timestamp>.tar.gz)")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (default: agentmon-backup-<timestamp>.tar.gz)")
 	cmd.Flags().BoolVar(&verify, "verify", false, "Verify backup after creation")
-	cmd.Flags().StringVar(&configPath, "config", "/etc/agentsh/config.yaml", "Path to config file")
+	cmd.Flags().StringVar(&configPath, "config", "/etc/agentmon/config.yaml", "Path to config file")
 
 	return cmd
 }
@@ -1233,7 +1233,7 @@ func newRestoreCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "restore",
-		Short: "Restore agentsh data from backup",
+		Short: "Restore agentmon data from backup",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if input == "" {
 				return fmt.Errorf("--input is required")
@@ -1270,8 +1270,8 @@ func createBackup(cmd *cobra.Command, output, configPath string, verify bool) er
 
 	// TODO: Read config to find audit DB path and policies dir
 	// For now, use defaults
-	auditDB := "/var/lib/agentsh/events.db"
-	policiesDir := "/etc/agentsh/policies"
+	auditDB := "/var/lib/agentmon/events.db"
+	policiesDir := "/etc/agentmon/policies"
 
 	if err := addFileToTar(tw, auditDB, "events.db"); err != nil {
 		fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not backup audit DB: %v\n", err)
@@ -1464,11 +1464,11 @@ go test ./... -v
 **Step 2: Build and verify**
 
 ```bash
-go build ./cmd/agentsh
-./agentsh --help
-./agentsh audit --help
-./agentsh backup --help
-./agentsh restore --help
+go build ./cmd/agentmon
+./agentmon --help
+./agentmon audit --help
+./agentmon backup --help
+./agentmon restore --help
 ```
 
 **Step 3: Test integrity chain manually**

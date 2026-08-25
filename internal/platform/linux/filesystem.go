@@ -11,12 +11,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/fsmonitor"
-	"github.com/agentsh/agentsh/internal/platform"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/trash"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/fsmonitor"
+	"github.com/diffsec/agentmon/internal/platform"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/trash"
+	"github.com/diffsec/agentmon/pkg/types"
 	"golang.org/x/sys/unix"
 )
 
@@ -189,7 +189,7 @@ func probeMountSyscall() bool {
 	}
 	ch := make(chan result, 1)
 	go func() {
-		err := unix.Mount("", "", "agentsh-probe", 0, "")
+		err := unix.Mount("", "", "agentmon-probe", 0, "")
 		ch <- result{err: err}
 	}()
 

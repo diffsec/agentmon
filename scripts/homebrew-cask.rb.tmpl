@@ -1,37 +1,37 @@
-cask "agentsh" do
+cask "agentmon" do
   version "__VERSION__"
   sha256 "__SHA256__"
 
-  url "https://github.com/canyonroad/agentsh/releases/download/v#{version}/AgentSH-v#{version}.dmg"
-  name "AgentSH"
+  url "https://github.com/diffsec/agentmon/releases/download/v#{version}/AgentMon-v#{version}.dmg"
+  name "AgentMon"
   desc "Secure sandboxed shell for AI agents"
-  homepage "https://github.com/canyonroad/agentsh"
+  homepage "https://github.com/diffsec/agentmon"
 
   depends_on macos: ">= :sonoma"
 
-  app "AgentSH.app"
+  app "AgentMon.app"
 
-  binary "#{appdir}/AgentSH.app/Contents/MacOS/agentsh"
-  binary "#{appdir}/AgentSH.app/Contents/MacOS/agentsh-shell-shim"
-  binary "#{appdir}/AgentSH.app/Contents/MacOS/agentsh-stub"
+  binary "#{appdir}/AgentMon.app/Contents/MacOS/agentmon"
+  binary "#{appdir}/AgentMon.app/Contents/MacOS/agentmon-shell-shim"
+  binary "#{appdir}/AgentMon.app/Contents/MacOS/agentmon-stub"
 
-  uninstall quit:      "ai.canyonroad.agentsh",
-            signal:    ["TERM", "agentsh"],
-            launchctl: "ai.canyonroad.agentsh.daemon"
+  uninstall quit:      "dev.diffsec.agentmon",
+            signal:    ["TERM", "agentmon"],
+            launchctl: "dev.diffsec.agentmon.daemon"
 
   zap trash: [
-    "~/Library/Application Support/agentsh",
-    "~/Library/Preferences/ai.canyonroad.agentsh.plist",
-    "~/Library/Caches/ai.canyonroad.agentsh",
-    "~/Library/LaunchAgents/ai.canyonroad.agentsh.daemon.plist",
+    "~/Library/Application Support/agentmon",
+    "~/Library/Preferences/dev.diffsec.agentmon.plist",
+    "~/Library/Caches/dev.diffsec.agentmon",
+    "~/Library/LaunchAgents/dev.diffsec.agentmon.daemon.plist",
   ]
 
   postflight do
-    system "#{appdir}/AgentSH.app/Contents/MacOS/agentsh", "activate-extension"
+    system "#{appdir}/AgentMon.app/Contents/MacOS/agentmon", "activate-extension"
   end
 
   caveats <<~EOS
-    After installation you will be prompted to approve the AgentSH system extension.
+    After installation you will be prompted to approve the AgentMon system extension.
     Go to System Settings -> General -> Login Items & Extensions to allow it.
   EOS
 end

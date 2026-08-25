@@ -33,7 +33,7 @@ Issue #296 surfaces the cost of the current approach: RHEL 10 ships libseccomp 2
 ## Non-goals
 
 - Replacing libseccomp-golang for rule modeling. We keep it for `ScmpFilter` construction.
-- Changing Layer 2 (SIGURG mask in `cmd/agentsh-unixwrap/main.go`). It stays as belt-and-suspenders.
+- Changing Layer 2 (SIGURG mask in `cmd/agentmon-unixwrap/main.go`). It stays as belt-and-suspenders.
 - Touching the Alpine musl build, which keeps its static link against `libseccomp-static` 2.6.0 (Alpine ships 2.6 in `apk`).
 - Adding a kernel-<5.19 CI lane (GitHub runners are kernel 6.x; unit-test stub covers the degradation path).
 - Vendoring libseccomp source into the repo (the design eliminates the need entirely).
@@ -78,7 +78,7 @@ Rule registration unchanged (steps 1, 2 above). The fork happens at load time:
 
 **Deleted:**
 - `internal/netmonitor/unix/seccomp_version_check.go` — `#error` guard no longer needed.
-- `cmd/agentsh-unixwrap/seccomp_version_check.go` — duplicate guard, same reason.
+- `cmd/agentmon-unixwrap/seccomp_version_check.go` — duplicate guard, same reason.
 - `scripts/build-libseccomp.sh` — no source build.
 - `scripts/libseccomp-signing-key.asc` — used only by the build script.
 
@@ -182,7 +182,7 @@ Mirror the release.yml changes — drop the static CGO_LDFLAGS for amd64/arm64 L
 
 1. Add `internal/netmonitor/unix/seccomp_load_linux.go` (new raw loader + pipe exporter).
 2. Modify `internal/netmonitor/unix/seccomp_linux.go`: replace SetWaitKill+Load+GetNotifFd block with ExportBPF+loadFilterWithRetry; emit the startup log line.
-3. Delete `internal/netmonitor/unix/seccomp_version_check.go` and `cmd/agentsh-unixwrap/seccomp_version_check.go`.
+3. Delete `internal/netmonitor/unix/seccomp_version_check.go` and `cmd/agentmon-unixwrap/seccomp_version_check.go`.
 4. Delete `scripts/build-libseccomp.sh` and `scripts/libseccomp-signing-key.asc`.
 5. Update `.github/workflows/release.yml` (build steps + docker-test matrix) and `.goreleaser.yml`.
 6. Add `seccomp_load_linux_test.go`; adapt `seccomp_retry_test.go`; delete `seccomp_waitkill_test.go`; audit `seccomp_wrapper_shim_install_test.go`.

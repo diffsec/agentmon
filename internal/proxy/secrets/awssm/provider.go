@@ -16,7 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	smithy "github.com/aws/smithy-go"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // smClient is the subset of the AWS Secrets Manager API that the

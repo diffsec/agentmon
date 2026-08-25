@@ -1,6 +1,6 @@
 package chain
 
-import "github.com/agentsh/agentsh/internal/audit"
+import "github.com/diffsec/agentmon/internal/audit"
 
 // SinkChainAPI is the test-substitutable surface that watchtower.Store
 // consumes. Production callers wire *WatchtowerSink (which wraps

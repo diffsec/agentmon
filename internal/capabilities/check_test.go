@@ -8,7 +8,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -471,7 +471,7 @@ func TestCheckAll_ErrorFormat(t *testing.T) {
 		name  string
 		value string
 	}{
-		{"header", "agentsh: capability check failed"},
+		{"header", "agentmon: capability check failed"},
 		{"Feature label", "Feature:"},
 		{"Feature value", "seccomp-user-notify"},
 		{"Config label", "Config:"},
@@ -643,7 +643,7 @@ func TestCheckAll_WrapperBinary_UnixSocketsEnabled(t *testing.T) {
 		return CheckResult{
 			Feature:   "seccomp-wrapper-binary",
 			Available: false,
-			Error:     errors.New("wrapper binary \"agentsh-unixwrap\" not found in PATH"),
+			Error:     errors.New("wrapper binary \"agentmon-unixwrap\" not found in PATH"),
 		}
 	}
 
@@ -673,7 +673,7 @@ func TestCheckAll_WrapperBinary_UnixSocketsEnabled(t *testing.T) {
 	if !strings.Contains(errStr, "not found") {
 		t.Errorf("error should mention 'not found', got: %v", err)
 	}
-	if !strings.Contains(errStr, "Install the agentsh-unixwrap binary") {
+	if !strings.Contains(errStr, "Install the agentmon-unixwrap binary") {
 		t.Errorf("error should suggest installing binary, got: %v", err)
 	}
 	// Should NOT suggest kernel upgrade for binary issues
@@ -694,7 +694,7 @@ func TestCheckAll_WrapperBinary_ExecveEnabled(t *testing.T) {
 		return CheckResult{
 			Feature:   "seccomp-wrapper-binary",
 			Available: false,
-			Error:     errors.New("wrapper binary \"agentsh-unixwrap\" not found in PATH"),
+			Error:     errors.New("wrapper binary \"agentmon-unixwrap\" not found in PATH"),
 		}
 	}
 

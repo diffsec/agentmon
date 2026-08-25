@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/proxy/secrets"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/awssm"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/azurekv"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/gcpsm"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/keyring"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/onepassword"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/vault"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/proxy/secrets"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/awssm"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/azurekv"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/gcpsm"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/keyring"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/onepassword"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/vault"
 	"gopkg.in/yaml.v3"
 )
 

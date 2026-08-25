@@ -30,15 +30,15 @@ const (
 	// a defence-in-depth gate, not a security boundary: a deliberate
 	// caller who knows the contract and supplies both factors can
 	// still invoke probe-child mode.
-	probeChildEnv    = "AGENTSH_WAIT_KILLABLE_PROBE_CHILD"
-	probeChildSockFD = "AGENTSH_WAIT_KILLABLE_PROBE_SOCK"
+	probeChildEnv    = "AGENTMON_WAIT_KILLABLE_PROBE_CHILD"
+	probeChildSockFD = "AGENTMON_WAIT_KILLABLE_PROBE_SOCK"
 	probeBinaryPath  = "/bin/true"
 
 	// probeChildArgvSentinel is the marker the parent injects as argv[1]
 	// of the probe child. The child's init() requires this exact value
 	// before honouring the env-var token. A version suffix lets us bump
 	// the protocol later without colliding with old in-flight tests.
-	probeChildArgvSentinel = "--agentsh-internal-wait-killable-probe-child-v1"
+	probeChildArgvSentinel = "--agentmon-internal-wait-killable-probe-child-v1"
 
 	// probeChildStderrCap bounds how much child stderr we propagate back
 	// to the parent on failure. Child diagnostics are short
@@ -334,7 +334,7 @@ func realRunProbeIteration(ctx context.Context) (IterationResult, error) {
 	// RPATH-substitution env) survive into the child. A wholesale
 	// replacement would render the probe non-functional on those
 	// hosts. probeChildEnv is appended last so a pre-existing
-	// AGENTSH_WAIT_KILLABLE_PROBE_CHILD in the parent's environment
+	// AGENTMON_WAIT_KILLABLE_PROBE_CHILD in the parent's environment
 	// cannot override our per-invocation token.
 	cmd.Env = append(os.Environ(),
 		probeChildEnv+"="+ensureProbeChildToken(),

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // ErrApproverNotConfigured is reserved for callers that require an explicit

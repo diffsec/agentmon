@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/internal/trash"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/internal/trash"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -26,12 +26,12 @@ func (memEventStore) Close() error { return nil }
 
 func TestDestroySessionPurgesTrash(t *testing.T) {
 	workspace := t.TempDir()
-	trashDir := filepath.Join(workspace, ".agentsh_trash")
+	trashDir := filepath.Join(workspace, ".agentmon_trash")
 
 	cfg := &config.Config{}
 	enabled := true
 	cfg.Sandbox.FUSE.Audit.Enabled = &enabled
-	cfg.Sandbox.FUSE.Audit.TrashPath = ".agentsh_trash"
+	cfg.Sandbox.FUSE.Audit.TrashPath = ".agentmon_trash"
 	cfg.Sandbox.FUSE.Audit.TTL = "0"
 	cfg.Sandbox.FUSE.Audit.Quota = "0"
 

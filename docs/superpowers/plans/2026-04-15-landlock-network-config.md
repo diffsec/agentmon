@@ -4,7 +4,7 @@
 
 **Goal:** Make `landlock.network.allow_connect_tcp` and `landlock.network.allow_bind_tcp` semantically real on the production (wrapper) path. Replace hardcoded `AllowNetwork=true; AllowBind=true` in `api/wrap.go` and `api/core.go` with reads from config. Default connect=true, bind=false. Validate at config load to prevent self-lockout when sandbox network is enabled. Reserve `bind_ports` with a warning; defer enforcement.
 
-**Architecture:** `LandlockNetworkConfig` fields become `*bool` so we can distinguish "unset" from "set to false" (same pattern already used for `Sandbox.UnixSockets.Enabled` and `Sandbox.Seccomp.FileMonitor.Enabled`). `applyDefaultsWithSource` fills nil pointers with the new defaults. `validateConfig` rejects the self-lockout combination with a descriptive error. The server-side wrapper-config construction sites read `*cfg.Landlock.Network.AllowConnectTCP/AllowBindTCP`. The wrapper binary itself (`cmd/agentsh-unixwrap/main.go`) is unchanged — it already consumes the JSON-passed booleans via `builder.SetNetworkAccess`.
+**Architecture:** `LandlockNetworkConfig` fields become `*bool` so we can distinguish "unset" from "set to false" (same pattern already used for `Sandbox.UnixSockets.Enabled` and `Sandbox.Seccomp.FileMonitor.Enabled`). `applyDefaultsWithSource` fills nil pointers with the new defaults. `validateConfig` rejects the self-lockout combination with a descriptive error. The server-side wrapper-config construction sites read `*cfg.Landlock.Network.AllowConnectTCP/AllowBindTCP`. The wrapper binary itself (`cmd/agentmon-unixwrap/main.go`) is unchanged — it already consumes the JSON-passed booleans via `builder.SetNetworkAccess`.
 
 **Tech Stack:** Go 1.22+, `gopkg.in/yaml.v3`, `github.com/stretchr/testify`, `log/slog`. Linux-only enforcement; non-Linux stubs unaffected.
 
@@ -28,7 +28,7 @@
 - `internal/api/core_test.go` (or existing test file for core path) — add equivalent test for the core.go construction path. If no suitable test file exists, create `internal/api/core_landlock_test.go`.
 
 **No changes needed:**
-- `cmd/agentsh-unixwrap/main.go` — already consumes `cfg.AllowNetwork` and `cfg.AllowBind` correctly.
+- `cmd/agentmon-unixwrap/main.go` — already consumes `cfg.AllowNetwork` and `cfg.AllowBind` correctly.
 - Non-Linux stubs (`ruleset_other.go`, `landlock_hook_other.go`, `landlock_exec_other.go`) — ignore network fields entirely.
 
 ---
@@ -385,7 +385,7 @@ In `internal/config/config.go`, locate `validateConfig` at line 1497. Near the e
 		cfg.Sandbox.Network.Enabled {
 		return fmt.Errorf(
 			"landlock.network.allow_connect_tcp is false but sandbox.network.enabled " +
-				"is true: agent processes cannot reach the agentsh proxy without " +
+				"is true: agent processes cannot reach the agentmon proxy without " +
 				"outbound TCP. Either set landlock.network.allow_connect_tcp to true, " +
 				"or set sandbox.network.enabled to false")
 	}
@@ -409,7 +409,7 @@ git commit -m "$(cat <<'EOF'
 config(landlock): reject allow_connect_tcp=false while sandbox.network is on
 
 validateConfig now returns a descriptive error if the user disables
-outbound TCP under Landlock while the agentsh proxy is active — the
+outbound TCP under Landlock while the agentmon proxy is active — the
 combination silently breaks every session (proxy listens on localhost
 TCP). Failing fast at startup is strictly better than opaque mid-session
 ECONNREFUSED.
@@ -445,9 +445,9 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/capabilities"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/types"
+	"github.com/diffsec/agentmon/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/types"
 )
 
 // TestSetupSeccompWrapper_LandlockNetwork_HonorsConfig verifies that the
@@ -505,9 +505,9 @@ func TestSetupSeccompWrapper_LandlockNetwork_HonorsConfig(t *testing.T) {
 				}
 			}()
 
-			seccompJSON, ok := result.wrappedReq.Env["AGENTSH_SECCOMP_CONFIG"]
+			seccompJSON, ok := result.wrappedReq.Env["AGENTMON_SECCOMP_CONFIG"]
 			if !ok {
-				t.Fatal("AGENTSH_SECCOMP_CONFIG env var not set")
+				t.Fatal("AGENTMON_SECCOMP_CONFIG env var not set")
 			}
 
 			var parsed map[string]any
@@ -540,7 +540,7 @@ Edge case: if a subtest's `connect=false` combined with `SerializedConfigs` for 
 Replace lines 243-246:
 
 ```go
-			// Allow all network by default — agentsh proxy handles network policy.
+			// Allow all network by default — agentmon proxy handles network policy.
 			// Without this, Landlock ABI v4+ blocks ALL TCP connections.
 			seccompCfg.AllowNetwork = true
 			seccompCfg.AllowBind = true
@@ -582,7 +582,7 @@ api(core): honor landlock.network.* instead of hardcoding AllowBind=true
 
 Replace the two hardcoded assignments in setupSeccompWrapper's
 seccompWrapperConfig construction (core.go:243-246) with reads from
-the parsed config. agentsh proxy flows still work by default
+the parsed config. agentmon proxy flows still work by default
 (AllowConnectTCP defaults to true); allow_bind_tcp now takes effect
 (defaults to false).
 
@@ -603,7 +603,7 @@ EOF
 
 - [ ] **Step 5.1: Append failing test to `internal/api/wrap_test.go`**
 
-Add to the imports of `wrap_test.go`: `"encoding/json"` and `"github.com/agentsh/agentsh/internal/capabilities"` (only if not already imported — check first with `grep -n "encoding/json\|capabilities" internal/api/wrap_test.go`).
+Add to the imports of `wrap_test.go`: `"encoding/json"` and `"github.com/diffsec/agentmon/internal/capabilities"` (only if not already imported — check first with `grep -n "encoding/json\|capabilities" internal/api/wrap_test.go`).
 
 Then append:
 
@@ -683,7 +683,7 @@ Expected: FAIL — current wrap.go hardcodes both to true.
 Replace lines 176-178:
 
 ```go
-			// Allow all network by default — agentsh proxy handles network policy.
+			// Allow all network by default — agentmon proxy handles network policy.
 			seccompCfg.AllowNetwork = true
 			seccompCfg.AllowBind = true
 ```
@@ -813,7 +813,7 @@ sandbox:
 }
 ```
 
-Ensure the following imports are present in `wrap_test.go` (check with `grep -n` first — only add what's missing): `"os"`, `"path/filepath"`, `"github.com/agentsh/agentsh/internal/capabilities"`, `"github.com/agentsh/agentsh/internal/config"`. `encoding/json` was already added in Task 5.
+Ensure the following imports are present in `wrap_test.go` (check with `grep -n` first — only add what's missing): `"os"`, `"path/filepath"`, `"github.com/diffsec/agentmon/internal/capabilities"`, `"github.com/diffsec/agentmon/internal/config"`. `encoding/json` was already added in Task 5.
 
 - [ ] **Step 6.2: Run the back-compat test**
 
@@ -898,7 +898,7 @@ Run through this BEFORE handing off the plan.
 | `bind_ports` warning                               | Task 2           |
 | Consumer update `api/core.go`                      | Task 4           |
 | Consumer update `api/wrap.go`                      | Task 5           |
-| Wrapper (`cmd/agentsh-unixwrap`) unchanged         | no task needed   |
+| Wrapper (`cmd/agentmon-unixwrap`) unchanged         | no task needed   |
 | Unit tests (defaults, validation, warning)         | Tasks 2, 3       |
 | Integration tests (core, wrap construction sites)  | Tasks 4, 5       |
 | Back-compat test                                   | Task 6           |

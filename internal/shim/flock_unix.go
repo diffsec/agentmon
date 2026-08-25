@@ -21,8 +21,8 @@ func unlockFile(f *os.File) error {
 // defaultSessionBaseDirs returns platform-specific default directories for session files.
 func defaultSessionBaseDirs(workspaceRoot string) []string {
 	return []string{
-		"/run/agentsh",
-		"/tmp/agentsh",
-		workspaceRoot + "/.agentsh",
+		"/run/agentmon",
+		"/tmp/agentmon",
+		workspaceRoot + "/.agentmon",
 	}
 }

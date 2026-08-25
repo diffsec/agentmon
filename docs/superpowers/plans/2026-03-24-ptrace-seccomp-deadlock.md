@@ -18,8 +18,8 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `cmd/agentsh-unixwrap/main.go` | Modify | Add READY/GO handshake when `AGENTSH_PTRACE_SYNC=1` |
-| `internal/api/core.go` | Modify | Set `AGENTSH_PTRACE_SYNC=1` in wrapper env when ptrace is active |
+| `cmd/agentmon-unixwrap/main.go` | Modify | Add READY/GO handshake when `AGENTMON_PTRACE_SYNC=1` |
+| `internal/api/core.go` | Modify | Set `AGENTMON_PTRACE_SYNC=1` in wrapper env when ptrace is active |
 | `internal/api/notify_linux.go` | Modify | Read READY byte after ACK, signal `ptraceReady` channel |
 | `internal/api/notify_stub.go` | Modify | Update signature to match `notify_linux.go` (cross-compile) |
 | `internal/api/exec.go` | Modify | Reorder hybrid mode + update `startWrapperHandlers` signature |
@@ -30,11 +30,11 @@
 ### Task 1: Wrapper READY/GO handshake
 
 **Files:**
-- Modify: `cmd/agentsh-unixwrap/main.go:77-118`
+- Modify: `cmd/agentmon-unixwrap/main.go:77-118`
 
 - [ ] **Step 1: Add READY/GO handshake and move socket close**
 
-Replace lines 88-118 in `cmd/agentsh-unixwrap/main.go` (from the `}` closing the `if notifFD >= 0` block through the end of Landlock setup). The current code closes `sockFD` at line 91 before signal filter and Landlock. The new code moves the close to after all initialization + READY/GO handshake.
+Replace lines 88-118 in `cmd/agentmon-unixwrap/main.go` (from the `}` closing the `if notifFD >= 0` block through the end of Landlock setup). The current code closes `sockFD` at line 91 before signal filter and Landlock. The new code moves the close to after all initialization + READY/GO handshake.
 
 Current lines 89-118:
 ```go
@@ -76,8 +76,8 @@ Replace with:
 	// Ptrace sync handshake: when the server will attach ptrace after our
 	// seccomp setup, we signal READY and wait for GO before exec. This
 	// prevents ptrace from interfering with seccomp filter installation.
-	// Only runs when notifFD >= 0 (seccomp is active) and AGENTSH_PTRACE_SYNC=1.
-	if notifFD >= 0 && os.Getenv("AGENTSH_PTRACE_SYNC") == "1" {
+	// Only runs when notifFD >= 0 (seccomp is active) and AGENTMON_PTRACE_SYNC=1.
+	if notifFD >= 0 && os.Getenv("AGENTMON_PTRACE_SYNC") == "1" {
 		if _, err := unix.Write(sockFD, []byte{'R'}); err != nil {
 			log.Fatalf("send READY byte: %v", err)
 		}
@@ -91,23 +91,23 @@ Replace with:
 	_ = unix.Close(sockFD)
 ```
 
-Note: the existing `_ = unix.Close(sockFD)` at line 91 is removed. The signal filter and Landlock code is unchanged — just moved before the new READY/GO block. The READY/GO block is guarded by both `notifFD >= 0` (seccomp is active) and `AGENTSH_PTRACE_SYNC=1`. The `waitForACK` helper is reused for the GO byte read (same 1-byte read with EINTR retry).
+Note: the existing `_ = unix.Close(sockFD)` at line 91 is removed. The signal filter and Landlock code is unchanged — just moved before the new READY/GO block. The READY/GO block is guarded by both `notifFD >= 0` (seccomp is active) and `AGENTMON_PTRACE_SYNC=1`. The `waitForACK` helper is reused for the GO byte read (same 1-byte read with EINTR retry).
 
 - [ ] **Step 2: Verify build**
 
-Run: `go build ./cmd/agentsh-unixwrap/`
+Run: `go build ./cmd/agentmon-unixwrap/`
 Expected: success.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add cmd/agentsh-unixwrap/main.go
+git add cmd/agentmon-unixwrap/main.go
 git commit -m "feat: wrapper READY/GO handshake for ptrace sync"
 ```
 
 ---
 
-### Task 2: Server sets `AGENTSH_PTRACE_SYNC=1` in hybrid mode
+### Task 2: Server sets `AGENTMON_PTRACE_SYNC=1` in hybrid mode
 
 **Files:**
 - Modify: `internal/api/core.go:256`
@@ -117,15 +117,15 @@ git commit -m "feat: wrapper READY/GO handshake for ptrace sync"
 In `internal/api/core.go`, find the `extraEnv` map construction at line 256:
 
 ```go
-	extraEnv := map[string]string{"AGENTSH_NOTIFY_SOCK_FD": strconv.Itoa(envFD)}
+	extraEnv := map[string]string{"AGENTMON_NOTIFY_SOCK_FD": strconv.Itoa(envFD)}
 ```
 
 Add the ptrace sync flag immediately after:
 
 ```go
-	extraEnv := map[string]string{"AGENTSH_NOTIFY_SOCK_FD": strconv.Itoa(envFD)}
+	extraEnv := map[string]string{"AGENTMON_NOTIFY_SOCK_FD": strconv.Itoa(envFD)}
 	if a.ptraceTracer != nil {
-		extraEnv["AGENTSH_PTRACE_SYNC"] = "1"
+		extraEnv["AGENTMON_PTRACE_SYNC"] = "1"
 	}
 ```
 
@@ -140,7 +140,7 @@ Expected: success.
 
 ```bash
 git add internal/api/core.go
-git commit -m "feat: set AGENTSH_PTRACE_SYNC=1 in wrapper env for hybrid mode"
+git commit -m "feat: set AGENTMON_PTRACE_SYNC=1 in wrapper env for hybrid mode"
 ```
 
 ---

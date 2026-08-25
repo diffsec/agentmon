@@ -6,7 +6,7 @@
 
 ## Problem
 
-Under systemd, agentsh's own cgroup (e.g. `/sys/fs/cgroup/system.slice/agentsh.service`) contains the agentsh process. The cgroup v2 no-internal-processes rule prevents enabling `subtree_control` when a cgroup has both processes and child cgroups that need controllers. The current probe detects EBUSY and falls through to top-level mode (`/sys/fs/cgroup/agentsh.slice`), which requires root-level cgroup access and prompted users to create workarounds (`base_path` + `ExecStartPre`).
+Under systemd, agentmon's own cgroup (e.g. `/sys/fs/cgroup/system.slice/agentmon.service`) contains the agentmon process. The cgroup v2 no-internal-processes rule prevents enabling `subtree_control` when a cgroup has both processes and child cgroups that need controllers. The current probe detects EBUSY and falls through to top-level mode (`/sys/fs/cgroup/agentmon.slice`), which requires root-level cgroup access and prompted users to create workarounds (`base_path` + `ExecStartPre`).
 
 Separately, deprecated cgroup code paths (`ApplyCgroupV2`, `LinuxLimiter`, `platform/linux/ResourceLimiter`) ignore the config's `BasePath` and silently discard `enableControllers` errors, creating confusion.
 
@@ -14,7 +14,7 @@ Separately, deprecated cgroup code paths (`ApplyCgroupV2`, `LinuxLimiter`, `plat
 
 Two changes:
 
-1. **Auto-leaf-move** — when the probe detects EBUSY on the own cgroup, move the agentsh process into a `leaf` child cgroup, then retry enabling controllers on the parent. This is the standard systemd pattern for processes that need to manage child cgroups.
+1. **Auto-leaf-move** — when the probe detects EBUSY on the own cgroup, move the agentmon process into a `leaf` child cgroup, then retry enabling controllers on the parent. This is the standard systemd pattern for processes that need to manage child cgroups.
 
 2. **Legacy cleanup** — remove all deprecated cgroup code paths so `CgroupManager` is the single source of truth.
 

@@ -288,8 +288,8 @@ Expected: `no Go files in internal/db/policy`.
 - [ ] **Step 3: Write `internal/db/policy/types.go`**
 
 ```go
-// Package policy implements the AgentSH database-access policy evaluator
-// per docs/agentsh-db-access-spec.md §9–§10. The package is platform-agnostic
+// Package policy implements the AgentMon database-access policy evaluator
+// per docs/agentmon-db-access-spec.md §9–§10. The package is platform-agnostic
 // and produces only data types and pure functions; events, approvals, and
 // wire I/O belong to later plans (Plan 04+).
 package policy
@@ -297,7 +297,7 @@ package policy
 import (
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // ServiceID is the operator-supplied identifier of a db_service.
@@ -853,7 +853,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 const approveTimeoutMax = 600 * time.Second
@@ -1147,7 +1147,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func TestCompileStatementRule_GlobMatch(t *testing.T) {
@@ -1296,7 +1296,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 	"github.com/gobwas/glob"
 )
 
@@ -1664,7 +1664,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func loadDB(t *testing.T, src string) (*RuleSet, []Warning, error) {
@@ -1840,7 +1840,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 )
 
 // Decode turns a parsed *internal/policy.Policy into a fully validated and
@@ -2078,8 +2078,8 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 )
 
 // loadRules is a tiny helper used across evaluator tests.
@@ -2332,7 +2332,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func TestEvaluate_MatchObjectResolution(t *testing.T) {
@@ -2367,7 +2367,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func TestEvaluate_MultiEffect_DenyFromAnyEffect(t *testing.T) {
@@ -2403,7 +2403,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // The fold step picks the most-restrictive verb across effects. When two
@@ -2450,7 +2450,7 @@ package policy
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // Evaluate applies the statement-rule policy to a classified statement per
@@ -2885,7 +2885,7 @@ Expected: `undefined: EvaluateConnection`.
 ```go
 package policy
 
-import "github.com/agentsh/agentsh/internal/db/effects"
+import "github.com/diffsec/agentmon/internal/db/effects"
 
 // EvaluateConnection applies connection-rule policy to a candidate connection.
 // Returns implicit deny if no rule matches.
@@ -3153,7 +3153,7 @@ import (
 	_ "embed"
 	"fmt"
 
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 )
 
 //go:embed testdata/sample-policy.yaml
@@ -3190,7 +3190,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // Each row mirrors one example from spec §10.2. Effects are constructed
@@ -3386,7 +3386,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func BenchmarkEvaluate_AllowReadUsers(b *testing.B) {

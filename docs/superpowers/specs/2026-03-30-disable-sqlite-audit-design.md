@@ -5,7 +5,7 @@
 
 ## Problem
 
-AgentSH unconditionally opens a SQLite database for audit event storage. There is no config flag to disable it — if `sqlite_path` is empty, it defaults to `events.db`. Deployments using only JSONL or webhook output waste memory and I/O on an unnecessary database.
+AgentMon unconditionally opens a SQLite database for audit event storage. There is no config flag to disable it — if `sqlite_path` is empty, it defaults to `events.db`. Deployments using only JSONL or webhook output waste memory and I/O on an unnecessary database.
 
 ## Design
 

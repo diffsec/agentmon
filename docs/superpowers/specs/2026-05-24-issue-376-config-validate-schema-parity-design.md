@@ -4,7 +4,7 @@ Issue: #376
 
 ## Summary
 
-`agentsh config validate` reports `ok` for configs the server then rejects at startup, so misconfiguration surfaces at runtime as a generic "connection refused" (via the shim) instead of a clear validation error pre-deploy. The reported case is the `sandbox.ptrace` + `unix_sockets` "execve-only" constraint, which is enforced only at server startup (`cfg.Sandbox.Validate()`), not in the `config.Load` path that `config validate` uses.
+`agentmon config validate` reports `ok` for configs the server then rejects at startup, so misconfiguration surfaces at runtime as a generic "connection refused" (via the shim) instead of a clear validation error pre-deploy. The reported case is the `sandbox.ptrace` + `unix_sockets` "execve-only" constraint, which is enforced only at server startup (`cfg.Sandbox.Validate()`), not in the `config.Load` path that `config validate` uses.
 
 This design makes `config.Load`'s `validateConfig` the single authority for **config-schema** validation by adding the two pure config-schema cross-field validators currently enforced only at startup — `cfg.Sandbox.Validate()` and `cfg.Policies.Signing.Validate()` — with error messages identical to the startup messages. Host/environment checks (capabilities, etc.) intentionally stay at startup.
 
@@ -36,7 +36,7 @@ At the end of `validateConfig` (before its final `return nil`), add:
 
 ```go
 // Config-schema cross-field invariants that the server also enforces at
-// startup. Validated here so `agentsh config validate` (and the shim's
+// startup. Validated here so `agentmon config validate` (and the shim's
 // auto-start path) catch them before deploy rather than surfacing as a
 // generic "server unreachable" at runtime (issue #376). Host/environment
 // checks (capabilities, etc.) intentionally stay at server startup.
@@ -56,7 +56,7 @@ Above the `cfg.Sandbox.Validate()` / `cfg.Policies.Signing.Validate()` calls (`s
 
 ```go
 // These config-schema invariants are also enforced by config.validateConfig
-// (so `agentsh config validate` catches them pre-deploy, issue #376). The
+// (so `agentmon config validate` catches them pre-deploy, issue #376). The
 // calls here are defense-in-depth for any server built from a config that did
 // not pass through config.Load. New config-schema invariants belong in
 // config.validateConfig, not here.

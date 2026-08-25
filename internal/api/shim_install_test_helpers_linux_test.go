@@ -13,11 +13,11 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/capabilities"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
+	"github.com/diffsec/agentmon/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
 )
 
 // landlockSupported returns true when the host kernel supports Landlock ABI v1+.
@@ -28,7 +28,7 @@ func landlockSupported(t *testing.T) bool {
 }
 
 // seccompUserNotifySupported returns true when the kernel supports
-// SECCOMP_RET_USER_NOTIF (required by agentsh-unixwrap).
+// SECCOMP_RET_USER_NOTIF (required by agentmon-unixwrap).
 func seccompUserNotifySupported(t *testing.T) bool {
 	t.Helper()
 	r := capabilities.CheckAll(&config.Config{
@@ -42,7 +42,7 @@ func seccompUserNotifySupported(t *testing.T) bool {
 }
 
 // cgoAvailable returns true when cgo is available in the current build
-// environment (needed to compile agentsh-unixwrap).
+// environment (needed to compile agentmon-unixwrap).
 func cgoAvailable() bool {
 	// The simplest check: try to find a C compiler. go build with CGO_ENABLED=1
 	// fails fast if cc isn't available, so we can also just attempt the build
@@ -84,7 +84,7 @@ type shimInstallTestServerSpec struct {
 	wrapInitCalls *atomic.Int32 // counts successful POST /…/wrap-init requests
 }
 
-// startTestServerWithLandlockDeny starts an in-process agentsh HTTP server
+// startTestServerWithLandlockDeny starts an in-process agentmon HTTP server
 // with Landlock enabled and a deny rule for denyPath (or its parent directory).
 // It also pre-creates a session with the returned sessionID so the shim's
 // wrap-init call finds an existing session.
@@ -110,7 +110,7 @@ func startTestServerWithLandlockDenyOpts(t *testing.T, denyPath string, extraAll
 
 	// Enable unix sockets so the wrap-init path succeeds.
 	enabled := true
-	wrapperBin := "agentsh-unixwrap" // resolved from PATH during the test
+	wrapperBin := "agentmon-unixwrap" // resolved from PATH during the test
 
 	cfg := &config.Config{}
 	cfg.Development.DisableAuth = true
@@ -188,7 +188,7 @@ func startTestServerWithLandlockDenyOpts(t *testing.T, denyPath string, extraAll
 	}
 }
 
-// buildShimBinary compiles agentsh-shell-shim with the -tags shimtest flag and
+// buildShimBinary compiles agentmon-shell-shim with the -tags shimtest flag and
 // returns the path to the binary.  The binary is named "bash" so the shim
 // internally resolves the real shell as "bash.real".
 func buildShimBinary(t *testing.T) string {
@@ -199,33 +199,33 @@ func buildShimBinary(t *testing.T) string {
 	binDir := t.TempDir()
 	shimBin := filepath.Join(binDir, "bash")
 	cmd := exec.Command("go", "build", "-tags", "shimtest", "-o", shimBin,
-		"./cmd/agentsh-shell-shim")
+		"./cmd/agentmon-shell-shim")
 	cmd.Dir = repoRoot(t)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("build agentsh-shell-shim: %v\n%s", err, out)
+		t.Fatalf("build agentmon-shell-shim: %v\n%s", err, out)
 	}
 	return shimBin
 }
 
-// buildWrapBinary compiles agentsh-unixwrap (requires cgo) and returns the
+// buildWrapBinary compiles agentmon-unixwrap (requires cgo) and returns the
 // path to the binary.
 func buildWrapBinary(t *testing.T) string {
 	t.Helper()
 	if runtime.GOOS != "linux" {
-		t.Skip("agentsh-unixwrap is Linux-only")
+		t.Skip("agentmon-unixwrap is Linux-only")
 	}
 	binDir := t.TempDir()
-	wrapBin := filepath.Join(binDir, "agentsh-unixwrap")
-	cmd := exec.Command("go", "build", "-o", wrapBin, "./cmd/agentsh-unixwrap")
+	wrapBin := filepath.Join(binDir, "agentmon-unixwrap")
+	cmd := exec.Command("go", "build", "-o", wrapBin, "./cmd/agentmon-unixwrap")
 	cmd.Dir = repoRoot(t)
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=1")
 	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Logf("build agentsh-unixwrap output:\n%s", out)
+		t.Logf("build agentmon-unixwrap output:\n%s", out)
 		// If cgo isn't available, skip rather than fail.
 		if isNoCGOError(string(out)) {
-			t.Skip("cgo not available — cannot build agentsh-unixwrap")
+			t.Skip("cgo not available — cannot build agentmon-unixwrap")
 		}
-		t.Fatalf("build agentsh-unixwrap: %v\n%s", err, out)
+		t.Fatalf("build agentmon-unixwrap: %v\n%s", err, out)
 	}
 	return wrapBin
 }

@@ -1,4 +1,4 @@
-# Benchmark Realistic Policy for agentsh
+# Benchmark Realistic Policy for agentmon
 # Models real-world enforcement with deny, redirect, and allow rules plus full audit.
 
 version: 1
@@ -300,7 +300,7 @@ file_rules:
       - "/etc/passwd"
       - "/etc/protocols"
       - "/etc/services"
-      - "/etc/agentsh/**"
+      - "/etc/agentmon/**"
       # Dynamic linker and libc runtime files
       - "/etc/ld.so.cache"
       - "/etc/ld.so.preload"

@@ -1,6 +1,6 @@
 # Security Modes
 
-agentsh supports multiple security modes depending on available kernel features. The system automatically detects available primitives and selects the best mode, or you can explicitly configure a specific mode.
+agentmon supports multiple security modes depending on available kernel features. The system automatically detects available primitives and selects the best mode, or you can explicitly configure a specific mode.
 
 ## Overview
 
@@ -34,9 +34,9 @@ Dynamic seatbelt modes generate SBPL profiles from policy at session start — r
 
 ### Mode Selection
 
-By default, agentsh auto-detects the best available mode at startup.
+By default, agentmon auto-detects the best available mode at startup.
 
-**Tip:** Use `agentsh detect` to see what security features are available in your environment before configuring. See [Detecting Available Capabilities](cross-platform.md#detecting-available-capabilities).
+**Tip:** Use `agentmon detect` to see what security features are available in your environment before configuring. See [Detecting Available Capabilities](cross-platform.md#detecting-available-capabilities).
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -170,9 +170,9 @@ ptrace:
 **Monitoring:**
 
 Ptrace mode exposes Prometheus metrics at the `/metrics` endpoint:
-- `agentsh_ptrace_tracees_active` — current number of traced threads (gauge)
-- `agentsh_ptrace_attach_failures_total{reason}` — attach failures by reason: eperm, esrch, other (counter)
-- `agentsh_ptrace_timeouts_total` — max_hold_ms timeout events (counter)
+- `agentmon_ptrace_tracees_active` — current number of traced threads (gauge)
+- `agentmon_ptrace_attach_failures_total{reason}` — attach failures by reason: eperm, esrch, other (counter)
+- `agentmon_ptrace_timeouts_total` — max_hold_ms timeout events (counter)
 
 ## Feature Matrix
 
@@ -230,7 +230,7 @@ Database access control is narrower today. The runtime DB proxy is Linux-only an
    - Per-syscall resume optimization uses `PtraceCont` instead of `PtraceSyscall` for entry-only syscalls, skipping unnecessary exit stops
    - Fd-aware exit stop optimization further reduces overhead by checking the fd tracker at entry: reads on non-status fds and connects to non-TLS ports skip the exit stop entirely
    - Single-threaded event loop may become a bottleneck with many concurrent tracees
-   - Mitigation: Prometheus metrics (`agentsh_ptrace_tracees_active`, `agentsh_ptrace_timeouts_total`) help identify bottlenecks
+   - Mitigation: Prometheus metrics (`agentmon_ptrace_tracees_active`, `agentmon_ptrace_timeouts_total`) help identify bottlenecks
 
 4. **Attach race window**
    - In the exec path, a brief window exists between `cmd.Start()` and `PTRACE_SEIZE` where the child is untraced
@@ -277,7 +277,7 @@ Database access control is narrower today. The runtime DB proxy is Linux-only an
 
 ## Strict Mode
 
-When `strict: true`, agentsh validates that all requirements for the configured mode are met:
+When `strict: true`, agentmon validates that all requirements for the configured mode are met:
 
 ```yaml
 security:
@@ -307,7 +307,7 @@ security:
 
 ## Startup Logging
 
-When agentsh starts, it logs the detected security posture:
+When agentmon starts, it logs the detected security posture:
 
 ```
 INFO  security capabilities detected
@@ -329,7 +329,7 @@ WARN  running in degraded security mode
 
 ## Capability Dropping
 
-Regardless of security mode, agentsh drops dangerous Linux capabilities:
+Regardless of security mode, agentmon drops dangerous Linux capabilities:
 
 ### Always Dropped (Cannot Be Allowed)
 
@@ -437,7 +437,7 @@ Measured with `make bench`, which runs a Dockerized workload under each mode (ba
 
 **Ptrace mode** adds **~3.5x total overhead** with all optimizations enabled. This is expected — ptrace intercepts syscalls via context switches rather than kernel-internal notification. Breakdown:
 
-1. **Per-exec RPC dominates.** Each `agentsh exec` call goes through CLI → HTTP → server → fork/exec (~30ms). The ptrace attach (PTRACE_SEIZE + seccomp BPF injection + WaitAttached) adds ~15ms per exec on top.
+1. **Per-exec RPC dominates.** Each `agentmon exec` call goes through CLI → HTTP → server → fork/exec (~30ms). The ptrace attach (PTRACE_SEIZE + seccomp BPF injection + WaitAttached) adds ~15ms per exec on top.
 
 2. **Deny enforcement is free.** Policy deny short-circuits before fork, so ptrace overhead is zero for denied commands.
 
@@ -465,7 +465,7 @@ Requires Docker with `--cap-add SYS_ADMIN --cap-add SYS_PTRACE --device /dev/fus
 
 ## Related Documentation
 
-- [Detecting Available Capabilities](cross-platform.md#detecting-available-capabilities) - `agentsh detect` command
+- [Detecting Available Capabilities](cross-platform.md#detecting-available-capabilities) - `agentmon detect` command
 - [Seccomp-BPF Syscall Filtering](seccomp.md) - Full seccomp mode details
 - [Policy Documentation](operations/policies.md) - Command and signal policy configuration
 - [Sandbox SDK Integrations](cookbook/sandbox-sdk-integrations.md) - `shim_install` for sibling-process-tree enforcement (Tensorlake / E2B / Modal / Daytona)

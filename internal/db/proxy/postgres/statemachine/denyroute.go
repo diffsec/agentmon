@@ -3,7 +3,7 @@
 package statemachine
 
 import (
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 // DenyRoute returns the Action sequence implementing the spec §14.3 + §14.4

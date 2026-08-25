@@ -64,13 +64,13 @@ func TestSession_DBProxyLifecycle(t *testing.T) {
 	}
 
 	var closed int
-	s.SetDBProxy("/tmp/agentsh-db-test", func() error {
+	s.SetDBProxy("/tmp/agentmon-db-test", func() error {
 		closed++
 		return nil
 	})
 
-	if got := s.DBProxySocketDir(); got != "/tmp/agentsh-db-test" {
-		t.Fatalf("DBProxySocketDir = %q, want /tmp/agentsh-db-test", got)
+	if got := s.DBProxySocketDir(); got != "/tmp/agentmon-db-test" {
+		t.Fatalf("DBProxySocketDir = %q, want /tmp/agentmon-db-test", got)
 	}
 	if err := s.CloseDBProxy(); err != nil {
 		t.Fatalf("CloseDBProxy: %v", err)
@@ -176,9 +176,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	dbpolicy "github.com/agentsh/agentsh/internal/db/policy"
-	dbservice "github.com/agentsh/agentsh/internal/db/service"
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	dbpolicy "github.com/diffsec/agentmon/internal/db/policy"
+	dbservice "github.com/diffsec/agentmon/internal/db/service"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestDBServiceConfigFromProxyServices(t *testing.T) {
@@ -293,13 +293,13 @@ import (
 	"strconv"
 	"time"
 
-	dbpolicy "github.com/agentsh/agentsh/internal/db/policy"
-	dbservice "github.com/agentsh/agentsh/internal/db/service"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
+	dbpolicy "github.com/diffsec/agentmon/internal/db/policy"
+	dbservice "github.com/diffsec/agentmon/internal/db/service"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
 )
 
-const dbProxySessionIdentity = "agentsh-db-proxy"
+const dbProxySessionIdentity = "agentmon-db-proxy"
 
 type defaultDBResolver struct{}
 
@@ -458,10 +458,10 @@ import (
 	"context"
 	"time"
 
-	dbevents "github.com/agentsh/agentsh/internal/db/events"
-	appevents "github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/types"
+	dbevents "github.com/diffsec/agentmon/internal/db/events"
+	appevents "github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type dbAuditSink struct {
@@ -798,7 +798,7 @@ func TestTracerResolveSessionID(t *testing.T) {
 In `internal/ptrace/tracer.go`, add after `TraceeCount`:
 
 ```go
-// ResolveSessionID resolves a Linux PID/TID to the owning AgentSH session.
+// ResolveSessionID resolves a Linux PID/TID to the owning AgentMon session.
 // It first checks an exact traced thread ID, then scans for a matching TGID.
 func (t *Tracer) ResolveSessionID(pid int32) (string, bool) {
 	if t == nil || pid <= 0 {
@@ -970,9 +970,9 @@ import (
 	"testing"
 	"time"
 
-	dbservice "github.com/agentsh/agentsh/internal/db/service"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	dbservice "github.com/diffsec/agentmon/internal/db/service"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type captureAuditEmitter struct {
@@ -1113,9 +1113,9 @@ import (
 	"sync"
 	"time"
 
-	dbservice "github.com/agentsh/agentsh/internal/db/service"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	dbservice "github.com/diffsec/agentmon/internal/db/service"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/google/uuid"
 )
 
@@ -1388,13 +1388,13 @@ Add imports used by the test:
 	"net/http"
 	"os"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	dbservice "github.com/agentsh/agentsh/internal/db/service"
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	dbservice "github.com/diffsec/agentmon/internal/db/service"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 ```
 
 - [ ] **Step 2: Run failing test**
@@ -1497,7 +1497,7 @@ In `internal/api/app.go`, add to `App`:
 	dbBypass *dbevents.BypassEmitter
 ```
 
-Add `dbevents "github.com/agentsh/agentsh/internal/db/events"` to imports.
+Add `dbevents "github.com/diffsec/agentmon/internal/db/events"` to imports.
 
 In `NewApp`, initialize:
 
@@ -1574,8 +1574,8 @@ func TestHandleNetwork_DBUnavoidabilityDenyEmitsBypassAttempt(t *testing.T) {
 Import aliases:
 
 ```go
-	dbevents "github.com/agentsh/agentsh/internal/db/events"
-	dbservice "github.com/agentsh/agentsh/internal/db/service"
+	dbevents "github.com/diffsec/agentmon/internal/db/events"
+	dbservice "github.com/diffsec/agentmon/internal/db/service"
 ```
 
 Use the `captureAuditEmitter` from `internal/db/events/bypass_test.go` as a local copy in this test file because test packages cannot share unexported helpers.
@@ -1647,7 +1647,7 @@ git commit -m "feat: emit db bypass events from ptrace"
 In `internal/netmonitor/proxy.go`, import DB events:
 
 ```go
-	dbevents "github.com/agentsh/agentsh/internal/db/events"
+	dbevents "github.com/diffsec/agentmon/internal/db/events"
 ```
 
 Add to `Proxy`:

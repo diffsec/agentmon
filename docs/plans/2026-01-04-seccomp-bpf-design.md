@@ -6,7 +6,7 @@
 
 ## Overview
 
-This design extends agentsh's existing Unix socket monitoring infrastructure to provide general syscall blocking with seccomp-bpf. The implementation uses `SECCOMP_RET_USER_NOTIF` for socket monitoring (allowing policy decisions) and `SECCOMP_RET_KILL_PROCESS` for blocked syscalls (immediate termination with logging).
+This design extends agentmon's existing Unix socket monitoring infrastructure to provide general syscall blocking with seccomp-bpf. The implementation uses `SECCOMP_RET_USER_NOTIF` for socket monitoring (allowing policy decisions) and `SECCOMP_RET_KILL_PROCESS` for blocked syscalls (immediate termination with logging).
 
 ## Goals
 
@@ -78,7 +78,7 @@ block:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        agentsh server                                │
+│                        agentmon server                                │
 │  ┌─────────────────────────────────────────────────────────────┐    │
 │  │                    Session Manager                           │    │
 │  │  ┌─────────────┐  ┌─────────────────────────────────────┐   │    │
@@ -92,9 +92,9 @@ block:
 └──────────────────────────────┼───────────────────────────────────────┘
                                │
 ┌──────────────────────────────┼───────────────────────────────────────┐
-│  agentsh-unixwrap            │                                       │
+│  agentmon-unixwrap            │                                       │
 │  ┌───────────────────────────┴─────────────────────────────────┐    │
-│  │ 1. Parse config from env (AGENTSH_SECCOMP_CONFIG)           │    │
+│  │ 1. Parse config from env (AGENTMON_SECCOMP_CONFIG)           │    │
 │  │ 2. Build combined filter:                                    │    │
 │  │    - connect() → SECCOMP_RET_USER_NOTIF                     │    │
 │  │    - blocked syscalls → SECCOMP_RET_KILL_PROCESS            │    │
@@ -114,14 +114,14 @@ block:
 
 ### Key Components
 
-1. **agentsh-unixwrap**: Extended to read seccomp config from environment and build combined filter
+1. **agentmon-unixwrap**: Extended to read seccomp config from environment and build combined filter
 2. **Seccomp Handler**: Existing handler continues processing unix socket notifications
 3. **Audit Logger**: New component logs blocked syscall events before process termination
 4. **Config Parser**: Parses YAML config and resolves syscall names to numbers
 
 ## Filter Installation
 
-The filter installation in `agentsh-unixwrap` builds a combined BPF program:
+The filter installation in `agentmon-unixwrap` builds a combined BPF program:
 
 ```go
 // internal/seccomp/filter.go
@@ -160,7 +160,7 @@ func BuildFilter(cfg Config) (*libseccomp.ScmpFilter, error) {
 
 ### Installation Flow
 
-1. `agentsh-unixwrap` reads `AGENTSH_SECCOMP_CONFIG` env var (JSON-encoded config)
+1. `agentmon-unixwrap` reads `AGENTMON_SECCOMP_CONFIG` env var (JSON-encoded config)
 2. Builds combined filter using libseccomp
 3. Installs filter with `SECCOMP_FILTER_FLAG_NEW_LISTENER`
 4. Sends notify fd to parent via pre-established socketpair
@@ -309,9 +309,9 @@ func TestSeccompBlocks_Ptrace(t *testing.T) {
     }
 
     // Start wrapper with ptrace blocked
-    cmd := exec.Command("agentsh-unixwrap", "strace", "-p", "1")
+    cmd := exec.Command("agentmon-unixwrap", "strace", "-p", "1")
     cmd.Env = append(os.Environ(),
-        `AGENTSH_SECCOMP_CONFIG={"blocked_syscalls":["ptrace"]}`)
+        `AGENTMON_SECCOMP_CONFIG={"blocked_syscalls":["ptrace"]}`)
 
     err := cmd.Run()
     require.Error(t, err)
@@ -328,7 +328,7 @@ func TestSeccompBlocks_Ptrace(t *testing.T) {
 # scripts/smoke.sh addition
 
 # Test seccomp blocking
-seccomp_test_cmd="./bin/agentsh exec $sid -- sh -c 'strace -p 1 2>&1 || echo blocked'"
+seccomp_test_cmd="./bin/agentmon exec $sid -- sh -c 'strace -p 1 2>&1 || echo blocked'"
 seccomp_out="$(eval "$seccomp_test_cmd" | tail -n 1)"
 if [[ "$seccomp_out" != "blocked" ]]; then
     # If strace worked, seccomp isn't blocking ptrace

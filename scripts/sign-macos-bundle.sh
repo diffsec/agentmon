@@ -10,25 +10,25 @@
 set -euo pipefail
 
 APP="${1:?usage: SIGNING_IDENTITY=... sign-macos-bundle.sh <app-bundle-path>}"
-SYSEXT="ai.canyonroad.agentsh.SysExt.systemextension"
+SYSEXT="dev.diffsec.agentmon.SysExt.systemextension"
 
 if [ -z "${SIGNING_IDENTITY:-}" ]; then
   echo "error: SIGNING_IDENTITY must be set (see 'security find-identity -v -p codesigning')" >&2
   exit 1
 fi
 
-# 1. Go binaries. agentsh-shell-shim uses minimal (no) entitlements; every
+# 1. Go binaries. agentmon-shell-shim uses minimal (no) entitlements; every
 # other binary gets the app entitlements — this matches the release
 # pipeline's historical per-binary selection exactly.
 for bin in "${APP}/Contents/MacOS"/*; do
   echo "Signing $(basename "$bin")"
-  if [ "$(basename "$bin")" = "agentsh-shell-shim" ]; then
+  if [ "$(basename "$bin")" = "agentmon-shell-shim" ]; then
     codesign --force --sign "$SIGNING_IDENTITY" \
       --options runtime --timestamp \
       "$bin"
   else
     codesign --force --sign "$SIGNING_IDENTITY" \
-      --entitlements macos/AgentSH/agentsh/agentsh.entitlements \
+      --entitlements macos/AgentMon/diffsec/agentmon.entitlements \
       --options runtime --timestamp \
       "$bin"
   fi
@@ -38,7 +38,7 @@ done
 # 2. System Extension
 echo "Signing System Extension"
 codesign --force --sign "$SIGNING_IDENTITY" \
-  --entitlements macos/AgentSH/SysExt.entitlements \
+  --entitlements macos/AgentMon/SysExt.entitlements \
   --options runtime --timestamp \
   "${APP}/Contents/Library/SystemExtensions/${SYSEXT}"
 
@@ -51,14 +51,14 @@ codesign --force --sign "$SIGNING_IDENTITY" \
 # 4. Approval Dialog
 echo "Signing Approval Dialog"
 codesign --force --sign "$SIGNING_IDENTITY" \
-  --entitlements macos/AgentSH/approval-dialog/approval-dialog.entitlements \
+  --entitlements macos/AgentMon/approval-dialog/approval-dialog.entitlements \
   --options runtime --timestamp \
   "${APP}/Contents/Resources/approval-dialog.app"
 
 # 5. Main app bundle
 echo "Signing app bundle"
 codesign --force --sign "$SIGNING_IDENTITY" \
-  --entitlements macos/AgentSH/agentsh/agentsh.entitlements \
+  --entitlements macos/AgentMon/diffsec/agentmon.entitlements \
   --options runtime --timestamp \
   "${APP}"
 

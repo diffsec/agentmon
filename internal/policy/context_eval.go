@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/policy/ancestry"
-	"github.com/agentsh/agentsh/internal/policy/identity"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy/ancestry"
+	"github.com/diffsec/agentmon/internal/policy/identity"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/gobwas/glob"
 )
 

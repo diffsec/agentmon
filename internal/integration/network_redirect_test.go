@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // TestNetworkDNSRedirect tests that DNS queries are redirected according to policy.
@@ -28,7 +28,7 @@ func TestNetworkDNSRedirect(t *testing.T) {
 	// Get the port from the server address
 	_, port, _ := net.SplitHostPort(redirectServer.Addr)
 
-	bin := buildAgentshBinary(t)
+	bin := buildAgentmonBinary(t)
 	temp := t.TempDir()
 
 	policiesDir := filepath.Join(temp, "policies")
@@ -129,7 +129,7 @@ func TestNetworkConnectRedirect(t *testing.T) {
 	// Get the port from the server address
 	_, port, _ := net.SplitHostPort(redirectServer.Addr)
 
-	bin := buildAgentshBinary(t)
+	bin := buildAgentmonBinary(t)
 	temp := t.TempDir()
 
 	policiesDir := filepath.Join(temp, "policies")
@@ -215,7 +215,7 @@ resource_limits:
 func TestNetworkRedirectPolicyValidation(t *testing.T) {
 	ctx := context.Background()
 
-	bin := buildAgentshBinary(t)
+	bin := buildAgentmonBinary(t)
 	temp := t.TempDir()
 
 	policiesDir := filepath.Join(temp, "policies")

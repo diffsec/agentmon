@@ -22,15 +22,15 @@ import (
 // success or the failing errno.
 
 const (
-	installProbeArgvSentinel = "--agentsh-internal-seccomp-install-probe-child-v1"
-	installProbeEnv          = "AGENTSH_SECCOMP_INSTALL_PROBE_CHILD"
+	installProbeArgvSentinel = "--agentmon-internal-seccomp-install-probe-child-v1"
+	installProbeEnv          = "AGENTMON_SECCOMP_INSTALL_PROBE_CHILD"
 	installProbeStderrCap    = 4096
 	// installErrnoPrefix is printed by the child on failure so the parent can
 	// recover the precise errno without encoding it in the exit status.
 	installErrnoPrefix = "INSTALL_ERRNO="
 )
 
-// InstallProbeResult reports whether agentsh can install its NEW_LISTENER
+// InstallProbeResult reports whether agentmon can install its NEW_LISTENER
 // seccomp filter in this environment. Errno is 0 when Installable.
 type InstallProbeResult struct {
 	Installable bool

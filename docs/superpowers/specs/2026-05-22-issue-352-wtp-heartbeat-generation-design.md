@@ -2,7 +2,7 @@
 
 **Status:** approved, ready for implementation plan
 **Date:** 2026-05-22
-**Issue:** [#352](https://github.com/canyonroad/agentsh/issues/352) — WTP v0.5: ServerHeartbeat.generation — carry full watermark tuple
+**Issue:** [#352](https://github.com/diffsec/agentmon/issues/352) — WTP v0.5: ServerHeartbeat.generation — carry full watermark tuple
 **Label:** `wtp-v0.5`
 
 ## Problem

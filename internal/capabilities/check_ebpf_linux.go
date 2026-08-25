@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/agentsh/agentsh/internal/netmonitor/ebpf"
+	"github.com/diffsec/agentmon/internal/netmonitor/ebpf"
 )
 
 // Canary program used by probeEBPF. Exposed as package-level identifiers so

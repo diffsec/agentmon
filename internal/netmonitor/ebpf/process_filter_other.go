@@ -7,7 +7,7 @@ import (
 	"errors"
 	"net"
 
-	"github.com/agentsh/agentsh/internal/netmonitor/pnacl"
+	"github.com/diffsec/agentmon/internal/netmonitor/pnacl"
 )
 
 // ProcessFilter is not supported on non-Linux platforms.

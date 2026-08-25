@@ -54,7 +54,7 @@ registry_rules:
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-registry && go test ./internal/policy -run TestPolicy_RegistryRules -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-registry && go test ./internal/policy -run TestPolicy_RegistryRules -v`
 Expected: FAIL - RegistryRules field does not exist
 
 **Step 3: Add RegistryRule struct to model.go**
@@ -85,13 +85,13 @@ Add to `Policy` struct:
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-registry && go test ./internal/policy -run TestPolicy_RegistryRules -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-registry && go test ./internal/policy -run TestPolicy_RegistryRules -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/windows-registry
+cd /home/eran/work/agentmon/.worktrees/windows-registry
 git add internal/policy/model.go internal/policy/model_test.go
 git commit -m "feat(policy): add RegistryRule to policy model"
 ```
@@ -182,7 +182,7 @@ func TestEngine_CheckRegistry(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-registry && go test ./internal/policy -run TestEngine_CheckRegistry -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-registry && go test ./internal/policy -run TestEngine_CheckRegistry -v`
 Expected: FAIL - CheckRegistry method does not exist
 
 **Step 3: Add compiledRegistryRule and CheckRegistry to engine.go**
@@ -262,13 +262,13 @@ Add `import "sort"` at top.
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-registry && go test ./internal/policy -run TestEngine_CheckRegistry -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-registry && go test ./internal/policy -run TestEngine_CheckRegistry -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/windows-registry
+cd /home/eran/work/agentmon/.worktrees/windows-registry
 git add internal/policy/engine.go internal/policy/engine_test.go
 git commit -m "feat(policy): add CheckRegistry to policy engine"
 ```
@@ -291,8 +291,8 @@ package platform
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestPolicyAdapter_CheckRegistry(t *testing.T) {
@@ -338,7 +338,7 @@ func TestPolicyAdapter_CheckRegistry(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-registry && go test ./internal/platform -run TestPolicyAdapter_CheckRegistry -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-registry && go test ./internal/platform -run TestPolicyAdapter_CheckRegistry -v`
 Expected: FAIL - CheckRegistry method does not exist
 
 **Step 3: Add CheckRegistry to policy_adapter.go**
@@ -358,13 +358,13 @@ func (a *PolicyAdapter) CheckRegistry(path string, op string) Decision {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-registry && go test ./internal/platform -run TestPolicyAdapter_CheckRegistry -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-registry && go test ./internal/platform -run TestPolicyAdapter_CheckRegistry -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/windows-registry
+cd /home/eran/work/agentmon/.worktrees/windows-registry
 git add internal/platform/policy_adapter.go internal/platform/policy_adapter_test.go
 git commit -m "feat(platform): add CheckRegistry to PolicyAdapter"
 ```
@@ -396,13 +396,13 @@ const (
 
 **Step 2: Run tests to verify no regression**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-registry && go test ./internal/platform/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-registry && go test ./internal/platform/... -v`
 Expected: PASS
 
 **Step 3: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/windows-registry
+cd /home/eran/work/agentmon/.worktrees/windows-registry
 git add internal/platform/types.go
 git commit -m "feat(platform): add RegistryOperation type"
 ```
@@ -427,8 +427,8 @@ package windows
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestRegistryPolicyEvaluator_Evaluate(t *testing.T) {
@@ -533,7 +533,7 @@ func TestRegistryPolicyEvaluator_HighRiskPaths(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-registry && go test ./internal/platform/windows -run TestRegistryPolicyEvaluator -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-registry && go test ./internal/platform/windows -run TestRegistryPolicyEvaluator -v`
 Expected: FAIL - NewRegistryPolicyEvaluator does not exist
 
 **Step 3: Create registry_policy.go**
@@ -549,7 +549,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 	"github.com/gobwas/glob"
 )
 
@@ -757,13 +757,13 @@ func matchRegOp(ops map[string]struct{}, op string) bool {
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-registry && go test ./internal/platform/windows -run TestRegistryPolicyEvaluator -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-registry && go test ./internal/platform/windows -run TestRegistryPolicyEvaluator -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/windows-registry
+cd /home/eran/work/agentmon/.worktrees/windows-registry
 git add internal/platform/windows/registry_policy.go internal/platform/windows/registry_policy_test.go
 git commit -m "feat(windows): add RegistryPolicyEvaluator"
 ```
@@ -805,13 +805,13 @@ type RegistryPolicyRule struct {
 
 **Step 2: Run tests to verify no regression**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-registry && go test ./internal/config/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-registry && go test ./internal/config/... -v`
 Expected: PASS
 
 **Step 3: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/windows-registry
+cd /home/eran/work/agentmon/.worktrees/windows-registry
 git add internal/config/policy_loader.go
 git commit -m "feat(config): add priority and cache_ttl to RegistryPolicyRule"
 ```
@@ -892,13 +892,13 @@ func TestDriverClient_RegistryPolicyHandler(t *testing.T) {
 
 **Step 2: Run test**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-registry && go test ./internal/platform/windows -run TestDriverClient_RegistryPolicyHandler -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-registry && go test ./internal/platform/windows -run TestDriverClient_RegistryPolicyHandler -v`
 Expected: Should pass (handler already exists, this validates it works correctly)
 
 **Step 3: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/windows-registry
+cd /home/eran/work/agentmon/.worktrees/windows-registry
 git add internal/platform/windows/driver_client_test.go
 git commit -m "test(windows): add registry policy handler test"
 ```
@@ -996,13 +996,13 @@ func (e *RegistryEventEmitter) EmitRegistryEvent(
 
 **Step 2: Run tests**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-registry && go test ./internal/platform/windows -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-registry && go test ./internal/platform/windows -v`
 Expected: PASS
 
 **Step 3: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/windows-registry
+cd /home/eran/work/agentmon/.worktrees/windows-registry
 git add internal/platform/windows/registry.go
 git commit -m "feat(windows): add RegistryEventEmitter"
 ```
@@ -1027,8 +1027,8 @@ package windows
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestRegistryInterceptor_HandleRequest(t *testing.T) {
@@ -1099,8 +1099,8 @@ func TestRegistryInterceptor_HandleRequest(t *testing.T) {
 package windows
 
 import (
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // RegistryInterceptor handles registry policy enforcement.
@@ -1147,13 +1147,13 @@ func (i *RegistryInterceptor) PolicyHandler() RegistryPolicyHandler {
 
 **Step 3: Run test**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-registry && go test ./internal/platform/windows -run TestRegistryInterceptor -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-registry && go test ./internal/platform/windows -run TestRegistryInterceptor -v`
 Expected: PASS
 
 **Step 4: Commit**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/windows-registry
+cd /home/eran/work/agentmon/.worktrees/windows-registry
 git add internal/platform/windows/registry_interceptor.go internal/platform/windows/registry_interceptor_test.go
 git commit -m "feat(windows): add RegistryInterceptor"
 ```
@@ -1165,21 +1165,21 @@ git commit -m "feat(windows): add RegistryInterceptor"
 **Step 1: Run all tests**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/windows-registry && go test ./... -short
+cd /home/eran/work/agentmon/.worktrees/windows-registry && go test ./... -short
 ```
 Expected: All tests PASS
 
 **Step 2: Run linter**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/windows-registry && golangci-lint run ./...
+cd /home/eran/work/agentmon/.worktrees/windows-registry && golangci-lint run ./...
 ```
 Expected: No errors
 
 **Step 3: Final commit if needed**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/windows-registry
+cd /home/eran/work/agentmon/.worktrees/windows-registry
 git status
 # If any uncommitted changes, commit them
 ```

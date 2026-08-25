@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 )
 
@@ -52,7 +52,7 @@ func newTestStore(t *testing.T, filter *Filter) (*Store, *countingLogExporter) {
 
 	// Use SimpleProcessor for synchronous, predictable behavior in tests.
 	proc := sdklog.NewSimpleProcessor(exp)
-	res := BuildResource("agentsh-test", nil)
+	res := BuildResource("agentmon-test", nil)
 
 	logProvider := sdklog.NewLoggerProvider(
 		sdklog.WithProcessor(proc),
@@ -67,7 +67,7 @@ func newTestStore(t *testing.T, filter *Filter) (*Store, *countingLogExporter) {
 		filter:      filter,
 		resource:    res,
 		logProvider: logProvider,
-		logger:      logProvider.Logger("agentsh-test"),
+		logger:      logProvider.Logger("agentmon-test"),
 		enableLogs:  true,
 	}
 
@@ -194,7 +194,7 @@ func TestStore_AppendEvent_MultipleEvents(t *testing.T) {
 func TestStore_AppendEvent_LogsDisabled(t *testing.T) {
 	exp := &countingLogExporter{}
 	proc := sdklog.NewSimpleProcessor(exp)
-	res := BuildResource("agentsh-test", nil)
+	res := BuildResource("agentmon-test", nil)
 	logProvider := sdklog.NewLoggerProvider(
 		sdklog.WithProcessor(proc),
 		sdklog.WithResource(res),
@@ -204,7 +204,7 @@ func TestStore_AppendEvent_LogsDisabled(t *testing.T) {
 		filter:      &Filter{},
 		resource:    res,
 		logProvider: logProvider,
-		logger:      logProvider.Logger("agentsh-test"),
+		logger:      logProvider.Logger("agentmon-test"),
 		enableLogs:  false, // Logs disabled.
 	}
 	defer s.Close()

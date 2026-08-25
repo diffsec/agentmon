@@ -13,7 +13,7 @@ import (
 type DarwinShimStrategy string
 
 const (
-	// StrategyPATH creates shims in ~/.agentsh/bin that must be added to PATH.
+	// StrategyPATH creates shims in ~/.agentmon/bin that must be added to PATH.
 	StrategyPATH DarwinShimStrategy = "path"
 
 	// StrategyProfile adds hooks to shell profile files (.zshrc, .bashrc).
@@ -25,8 +25,8 @@ type DarwinShimConfig struct {
 	// Strategy selects how to install the shim
 	Strategy DarwinShimStrategy
 
-	// AgentshBinary is the path to the agentsh binary
-	AgentshBinary string
+	// AgentmonBinary is the path to the agentmon binary
+	AgentmonBinary string
 
 	// Shells to shim (for PATH strategy)
 	Shells []string
@@ -41,11 +41,11 @@ func DefaultDarwinShells() []string {
 	return []string{"sh", "bash", "zsh", "dash"}
 }
 
-// InstallDarwinPATH creates wrapper scripts in ~/.agentsh/bin for each shell.
-// Users must add ~/.agentsh/bin to their PATH.
+// InstallDarwinPATH creates wrapper scripts in ~/.agentmon/bin for each shell.
+// Users must add ~/.agentmon/bin to their PATH.
 func InstallDarwinPATH(cfg DarwinShimConfig) error {
-	if cfg.AgentshBinary == "" {
-		cfg.AgentshBinary = "agentsh"
+	if cfg.AgentmonBinary == "" {
+		cfg.AgentmonBinary = "agentmon"
 	}
 	if len(cfg.Shells) == 0 {
 		cfg.Shells = DefaultDarwinShells()
@@ -56,7 +56,7 @@ func InstallDarwinPATH(cfg DarwinShimConfig) error {
 		return fmt.Errorf("get home dir: %w", err)
 	}
 
-	shimDir := filepath.Join(home, ".agentsh", "bin")
+	shimDir := filepath.Join(home, ".agentmon", "bin")
 	if err := os.MkdirAll(shimDir, 0o755); err != nil {
 		return fmt.Errorf("create shim dir: %w", err)
 	}
@@ -64,8 +64,8 @@ func InstallDarwinPATH(cfg DarwinShimConfig) error {
 	for _, shell := range cfg.Shells {
 		shimPath := filepath.Join(shimDir, shell)
 		script := fmt.Sprintf(`#!/bin/bash
-# agentsh shell shim for %s
-# This wrapper routes shell commands through agentsh for policy enforcement.
+# agentmon shell shim for %s
+# This wrapper routes shell commands through agentmon for policy enforcement.
 
 # Find the real shell
 REAL_SHELL=""
@@ -77,18 +77,18 @@ for candidate in /bin/%s /usr/bin/%s /opt/homebrew/bin/%s; do
 done
 
 if [ -z "$REAL_SHELL" ]; then
-    echo "agentsh: cannot find real %s binary" >&2
+    echo "agentmon: cannot find real %s binary" >&2
     exit 1
 fi
 
-# If agentsh is not active, pass through to real shell
-if [ -z "$AGENTSH_SESSION" ] && [ -z "$AGENTSH_ENABLED" ]; then
+# If agentmon is not active, pass through to real shell
+if [ -z "$AGENTMON_SESSION" ] && [ -z "$AGENTMON_ENABLED" ]; then
     exec "$REAL_SHELL" "$@"
 fi
 
-# Route through agentsh
+# Route through agentmon
 exec %s shim-exec "$REAL_SHELL" "$@"
-`, shell, shell, shell, shell, shell, cfg.AgentshBinary)
+`, shell, shell, shell, shell, shell, cfg.AgentmonBinary)
 
 		if err := os.WriteFile(shimPath, []byte(script), 0o755); err != nil {
 			return fmt.Errorf("write shim %s: %w", shimPath, err)
@@ -105,7 +105,7 @@ func UninstallDarwinPATH() error {
 		return fmt.Errorf("get home dir: %w", err)
 	}
 
-	shimDir := filepath.Join(home, ".agentsh", "bin")
+	shimDir := filepath.Join(home, ".agentmon", "bin")
 	if err := os.RemoveAll(shimDir); err != nil {
 		return fmt.Errorf("remove shim dir: %w", err)
 	}
@@ -116,7 +116,7 @@ func UninstallDarwinPATH() error {
 // GetDarwinPATHInstruction returns the instruction for adding shims to PATH.
 func GetDarwinPATHInstruction() string {
 	return `# Add to your shell profile (~/.zshrc or ~/.bashrc):
-export PATH="$HOME/.agentsh/bin:$PATH"`
+export PATH="$HOME/.agentmon/bin:$PATH"`
 }
 
 // ProfileHookConfig configures profile hook installation.
@@ -129,10 +129,10 @@ type ProfileHookConfig struct {
 }
 
 // profileHookMarkerStart is used to identify our additions.
-const profileHookMarkerStart = "# >>> agentsh shell integration >>>"
-const profileHookMarkerEnd = "# <<< agentsh shell integration <<<"
+const profileHookMarkerStart = "# >>> agentmon shell integration >>>"
+const profileHookMarkerEnd = "# <<< agentmon shell integration <<<"
 
-// InstallDarwinProfileHook adds agentsh integration to shell profile files.
+// InstallDarwinProfileHook adds agentmon integration to shell profile files.
 func InstallDarwinProfileHook(cfg ProfileHookConfig) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -140,11 +140,11 @@ func InstallDarwinProfileHook(cfg ProfileHookConfig) error {
 	}
 
 	hook := fmt.Sprintf(`%s
-# When AGENTSH_ENABLED is set, wrap the shell session
-if [[ -z "$AGENTSH_INSIDE" && -n "$AGENTSH_ENABLED" ]]; then
-    export AGENTSH_INSIDE=1
-    if [[ -n "$AGENTSH_SESSION" ]]; then
-        exec agentsh session attach "$AGENTSH_SESSION"
+# When AGENTMON_ENABLED is set, wrap the shell session
+if [[ -z "$AGENTMON_INSIDE" && -n "$AGENTMON_ENABLED" ]]; then
+    export AGENTMON_INSIDE=1
+    if [[ -n "$AGENTMON_SESSION" ]]; then
+        exec agentmon session attach "$AGENTMON_SESSION"
     fi
 fi
 %s
@@ -172,7 +172,7 @@ fi
 	return nil
 }
 
-// UninstallDarwinProfileHook removes agentsh integration from shell profiles.
+// UninstallDarwinProfileHook removes agentmon integration from shell profiles.
 func UninstallDarwinProfileHook(cfg ProfileHookConfig) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -279,7 +279,7 @@ func GetDarwinShimStatus() (*DarwinShimStatus, error) {
 	}
 
 	status := &DarwinShimStatus{
-		PATHDir: filepath.Join(home, ".agentsh", "bin"),
+		PATHDir: filepath.Join(home, ".agentmon", "bin"),
 	}
 
 	// Check PATH-based installation

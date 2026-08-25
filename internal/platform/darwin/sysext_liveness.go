@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	sysExtBundleID     = "ai.canyonroad.agentsh.SysExt"
+	sysExtBundleID     = "dev.diffsec.agentmon.SysExt"
 	livenessCmdTimeout = 5 * time.Second
 )
 
@@ -121,7 +121,7 @@ func parseLaunchdState(output string) (state, lastExit string) {
 	return state, lastExit
 }
 
-// CheckSysExtLiveness probes whether the agentsh system extension is
+// CheckSysExtLiveness probes whether the agentmon system extension is
 // activated AND its process is actually running. Decision table (fail
 // closed — Running requires positive proof of state = running):
 //

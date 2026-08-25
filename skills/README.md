@@ -1,15 +1,15 @@
-# AgentSH Policy Skills
+# AgentMon Policy Skills
 
-AI-assistant skills for creating and editing AgentSH security policies. Works in Claude Code, NanoClaw, and other LLM-powered environments.
+AI-assistant skills for creating and editing AgentMon security policies. Works in Claude Code, NanoClaw, and other LLM-powered environments.
 
 ## Skills
 
 | Skill | Description |
 |-------|-------------|
-| **agentsh-policy-create** | Create new policies from built-in templates, including agent sandbox, CI, HTTP service, and Postgres-family DB policy use cases |
-| **agentsh-policy-edit** | Add, remove, or update rules in existing policies with rule-ordering and DB coverage awareness |
+| **agentmon-policy-create** | Create new policies from built-in templates, including agent sandbox, CI, HTTP service, and Postgres-family DB policy use cases |
+| **agentmon-policy-edit** | Add, remove, or update rules in existing policies with rule-ordering and DB coverage awareness |
 
-Both skills reference a shared schema in `agentsh-policy-shared/schema-reference.md` covering core policy rule categories plus declared HTTP services, secret providers, and Postgres-family database policy blocks.
+Both skills reference a shared schema in `agentmon-policy-shared/schema-reference.md` covering core policy rule categories plus declared HTTP services, secret providers, and Postgres-family database policy blocks.
 
 ## Installation
 
@@ -19,14 +19,14 @@ Copy the skill directories into your Claude Code skills folder:
 
 ```bash
 # Project-level (recommended — other contributors get the skills too)
-cp -r skills/agentsh-policy-create .claude/skills/
-cp -r skills/agentsh-policy-edit .claude/skills/
-cp -r skills/agentsh-policy-shared .claude/skills/
+cp -r skills/agentmon-policy-create .claude/skills/
+cp -r skills/agentmon-policy-edit .claude/skills/
+cp -r skills/agentmon-policy-shared .claude/skills/
 
 # User-level (available in all your projects)
-cp -r skills/agentsh-policy-create ~/.claude/skills/
-cp -r skills/agentsh-policy-edit ~/.claude/skills/
-cp -r skills/agentsh-policy-shared ~/.claude/skills/
+cp -r skills/agentmon-policy-create ~/.claude/skills/
+cp -r skills/agentmon-policy-edit ~/.claude/skills/
+cp -r skills/agentmon-policy-shared ~/.claude/skills/
 ```
 
 ### NanoClaw
@@ -34,14 +34,14 @@ cp -r skills/agentsh-policy-shared ~/.claude/skills/
 Copy the skill directories into your NanoClaw skills folder:
 
 ```bash
-cp -r skills/agentsh-policy-create ~/.nanoclaw/skills/
-cp -r skills/agentsh-policy-edit ~/.nanoclaw/skills/
-cp -r skills/agentsh-policy-shared ~/.nanoclaw/skills/
+cp -r skills/agentmon-policy-create ~/.nanoclaw/skills/
+cp -r skills/agentmon-policy-edit ~/.nanoclaw/skills/
+cp -r skills/agentmon-policy-shared ~/.nanoclaw/skills/
 ```
 
 ### Other LLM environments
 
-Copy the three directories (`agentsh-policy-create`, `agentsh-policy-edit`, `agentsh-policy-shared`) into whatever skills/prompts directory your environment uses. The skills are standard markdown files with YAML frontmatter — any system that loads skill files will work.
+Copy the three directories (`agentmon-policy-create`, `agentmon-policy-edit`, `agentmon-policy-shared`) into whatever skills/prompts directory your environment uses. The skills are standard markdown files with YAML frontmatter — any system that loads skill files will work.
 
 ## Usage
 
@@ -55,4 +55,4 @@ Once installed, the skills activate automatically when you ask your AI assistant
 > "Remove the approval requirement for curl downloads"
 > "Increase the session timeout to 8 hours"
 
-The skills handle template selection, YAML generation, rule ordering (first-match-wins), and validation via `agentsh policy validate`.
+The skills handle template selection, YAML generation, rule ordering (first-match-wins), and validation via `agentmon policy validate`.

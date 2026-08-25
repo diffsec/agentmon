@@ -3,7 +3,7 @@ package postgres
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // classifyOne is a thin test helper that runs the classifier and asserts a

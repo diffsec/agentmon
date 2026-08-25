@@ -214,7 +214,7 @@ func TestAgentDetector_SelfRegistration(t *testing.T) {
 			PID:  1000,
 			Comm: "my-custom-process",
 			Env: map[string]string{
-				"AGENTSH_AGENT_ID": "my-agent-123",
+				"AGENTMON_AGENT_ID": "my-agent-123",
 			},
 		}
 

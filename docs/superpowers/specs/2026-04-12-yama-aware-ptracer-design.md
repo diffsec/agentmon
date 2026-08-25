@@ -20,7 +20,7 @@ Two changes:
 
 ### 1. Yama Detection
 
-**File**: `cmd/agentsh-unixwrap/yama_linux.go` (new)
+**File**: `cmd/agentmon-unixwrap/yama_linux.go` (new)
 
 ```go
 const yamaPtraceScope = "/proc/sys/kernel/yama/ptrace_scope"
@@ -47,7 +47,7 @@ func isYamaActive() bool {
 
 ### 2. Wrapper Changes
 
-**File**: `cmd/agentsh-unixwrap/main.go` (lines 45-54)
+**File**: `cmd/agentmon-unixwrap/main.go` (lines 45-54)
 
 Replace the unconditional `PR_SET_PTRACER` call with Yama-aware logic:
 
@@ -64,7 +64,7 @@ if cfg.ServerPID > 0 {
 }
 ```
 
-**No change to the C ptracer library** (`cmd/agentsh-unixwrap/ptracer/ptracer.c`). It already ignores the prctl return value. The overhead of a failed prctl per child is negligible vs fork/exec cost.
+**No change to the C ptracer library** (`cmd/agentmon-unixwrap/ptracer/ptracer.c`). It already ignores the prctl return value. The overhead of a failed prctl per child is negligible vs fork/exec cost.
 
 ### 3. ProcessVMReadv Self-Test
 
@@ -150,13 +150,13 @@ or set 'sandbox.seccomp.file_monitor.enabled: false' in your config.
 
 | File | Change |
 |---|---|
-| `cmd/agentsh-unixwrap/yama_linux.go` | New — `isYamaActive()` Yama LSM detection |
-| `cmd/agentsh-unixwrap/main.go` | Yama-aware PR_SET_PTRACER logic (lines 45-54) |
+| `cmd/agentmon-unixwrap/yama_linux.go` | New — `isYamaActive()` Yama LSM detection |
+| `cmd/agentmon-unixwrap/main.go` | Yama-aware PR_SET_PTRACER logic (lines 45-54) |
 | `internal/api/pvr_probe_linux.go` | New — `probeProcessVMReadv()`, `probeProcMem()`, `findReadableAddr()` |
 | `internal/api/pvr_probe_linux_test.go` | New — unit tests for probe functions |
 | `internal/api/notify_linux.go` | Self-test insertion in `startNotifyHandler()` |
 | `internal/api/wrap_linux.go` | Self-test insertion in `startNotifyHandlerForWrap()` |
-| `cmd/agentsh-unixwrap/yama_linux_test.go` | New — unit tests for `isYamaActive()` |
+| `cmd/agentmon-unixwrap/yama_linux_test.go` | New — unit tests for `isYamaActive()` |
 
 ## Testing
 
@@ -178,6 +178,6 @@ or set 'sandbox.seccomp.file_monitor.enabled: false' in your config.
 
 ## Out of Scope
 
-- **C ptracer library changes**: `libagentsh-ptracer.so` already ignores prctl errors. Making it Yama-aware would save a failed syscall per child but adds complexity for negligible benefit.
-- **`agentsh detect` Yama tips**: The detect command's capability tips (#217) already cover Yama; this fix is orthogonal.
+- **C ptracer library changes**: `libagentmon-ptracer.so` already ignores prctl errors. Making it Yama-aware would save a failed syscall per child but adds complexity for negligible benefit.
+- **`agentmon detect` Yama tips**: The detect command's capability tips (#217) already cover Yama; this fix is orthogonal.
 - **Handler-level fallback improvements**: The existing `/proc/mem` fallbacks in `readStringWithFallback` and `resolvePathAtWithFallback` are already correct. The self-test catches the case where both mechanisms are broken.

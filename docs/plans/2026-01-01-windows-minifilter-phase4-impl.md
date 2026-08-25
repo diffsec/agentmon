@@ -13,59 +13,59 @@
 ## Prerequisites
 
 - Phase 3 complete (filesystem interception with policy cache)
-- Working in worktree: `/home/eran/work/agentsh/.worktrees/feature-windows-minifilter`
+- Working in worktree: `/home/eran/work/agentmon/.worktrees/feature-windows-minifilter`
 
 ---
 
 ## Task 1: Add Registry Operation Protocol Messages
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/inc/protocol.h`
+- Modify: `drivers/windows/agentmon-minifilter/inc/protocol.h`
 
 **Step 1: Add registry operation enum and structures**
 
-Add after `AGENTSH_POLICY_RESPONSE` struct:
+Add after `AGENTMON_POLICY_RESPONSE` struct:
 
 ```c
 // Registry operation types
-typedef enum _AGENTSH_REGISTRY_OP {
+typedef enum _AGENTMON_REGISTRY_OP {
     REG_OP_CREATE_KEY = 1,
     REG_OP_SET_VALUE = 2,
     REG_OP_DELETE_KEY = 3,
     REG_OP_DELETE_VALUE = 4,
     REG_OP_RENAME_KEY = 5,
     REG_OP_QUERY_VALUE = 6
-} AGENTSH_REGISTRY_OP;
+} AGENTMON_REGISTRY_OP;
 
 // Registry value types (subset of REG_* constants)
-#define AGENTSH_REG_NONE      0
-#define AGENTSH_REG_SZ        1
-#define AGENTSH_REG_DWORD     4
-#define AGENTSH_REG_BINARY    3
-#define AGENTSH_REG_MULTI_SZ  7
-#define AGENTSH_REG_QWORD     11
+#define AGENTMON_REG_NONE      0
+#define AGENTMON_REG_SZ        1
+#define AGENTMON_REG_DWORD     4
+#define AGENTMON_REG_BINARY    3
+#define AGENTMON_REG_MULTI_SZ  7
+#define AGENTMON_REG_QWORD     11
 
 // Maximum value name length
-#define AGENTSH_MAX_VALUE_NAME 256
+#define AGENTMON_MAX_VALUE_NAME 256
 
 // Registry policy check request (driver -> user-mode)
-typedef struct _AGENTSH_REGISTRY_REQUEST {
-    AGENTSH_MESSAGE_HEADER Header;
+typedef struct _AGENTMON_REGISTRY_REQUEST {
+    AGENTMON_MESSAGE_HEADER Header;
     ULONG64 SessionToken;
     ULONG ProcessId;
     ULONG ThreadId;
-    AGENTSH_REGISTRY_OP Operation;
+    AGENTMON_REGISTRY_OP Operation;
     ULONG ValueType;                // REG_SZ, REG_DWORD, etc.
     ULONG DataSize;                 // Size of value data
-    WCHAR KeyPath[AGENTSH_MAX_PATH];
-    WCHAR ValueName[AGENTSH_MAX_VALUE_NAME];
-} AGENTSH_REGISTRY_REQUEST, *PAGENTSH_REGISTRY_REQUEST;
+    WCHAR KeyPath[AGENTMON_MAX_PATH];
+    WCHAR ValueName[AGENTMON_MAX_VALUE_NAME];
+} AGENTMON_REGISTRY_REQUEST, *PAGENTMON_REGISTRY_REQUEST;
 ```
 
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/inc/protocol.h
+git add drivers/windows/agentmon-minifilter/inc/protocol.h
 git commit -m "feat(windows): add registry operation protocol messages"
 ```
 
@@ -74,62 +74,62 @@ git commit -m "feat(windows): add registry operation protocol messages"
 ## Task 2: Create Registry Header
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/inc/registry.h`
+- Create: `drivers/windows/agentmon-minifilter/inc/registry.h`
 
 **Step 1: Write the registry header**
 
 ```c
 // registry.h - Registry interception definitions
-#ifndef _AGENTSH_REGISTRY_H_
-#define _AGENTSH_REGISTRY_H_
+#ifndef _AGENTMON_REGISTRY_H_
+#define _AGENTMON_REGISTRY_H_
 
 #include <fltKernel.h>
 #include "protocol.h"
 
 // Registry filter altitude (slightly higher than filesystem)
-#define AGENTSH_REGISTRY_ALTITUDE L"385210"
+#define AGENTMON_REGISTRY_ALTITUDE L"385210"
 
 // High-risk registry paths count
 #define HIGH_RISK_PATH_COUNT 12
 
 // Initialize registry filtering
 NTSTATUS
-AgentshInitializeRegistryFilter(
+AgentmonInitializeRegistryFilter(
     _In_ PDRIVER_OBJECT DriverObject
     );
 
 // Shutdown registry filtering
 VOID
-AgentshShutdownRegistryFilter(
+AgentmonShutdownRegistryFilter(
     VOID
     );
 
 // Query registry policy from user-mode
 BOOLEAN
-AgentshQueryRegistryPolicy(
+AgentmonQueryRegistryPolicy(
     _In_ ULONG64 SessionToken,
     _In_ ULONG ProcessId,
-    _In_ AGENTSH_REGISTRY_OP Operation,
+    _In_ AGENTMON_REGISTRY_OP Operation,
     _In_ PCWSTR KeyPath,
     _In_opt_ PCWSTR ValueName,
     _In_ ULONG ValueType,
     _In_ ULONG DataSize,
-    _Out_ PAGENTSH_DECISION Decision
+    _Out_ PAGENTMON_DECISION Decision
     );
 
 // Check if path is high-risk (persistence, security)
 BOOLEAN
-AgentshIsHighRiskRegistryPath(
+AgentmonIsHighRiskRegistryPath(
     _In_ PCWSTR KeyPath
     );
 
-#endif // _AGENTSH_REGISTRY_H_
+#endif // _AGENTMON_REGISTRY_H_
 ```
 
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/inc/registry.h
+git add drivers/windows/agentmon-minifilter/inc/registry.h
 git commit -m "feat(windows): add registry interception header"
 ```
 
@@ -138,7 +138,7 @@ git commit -m "feat(windows): add registry interception header"
 ## Task 3: Create Registry Implementation
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/src/registry.c`
+- Create: `drivers/windows/agentmon-minifilter/src/registry.c`
 
 **Step 1: Write the registry implementation**
 
@@ -181,7 +181,7 @@ static const PCWSTR HighRiskPaths[HIGH_RISK_PATH_COUNT] = {
 
 // Check if path is high-risk
 BOOLEAN
-AgentshIsHighRiskRegistryPath(
+AgentmonIsHighRiskRegistryPath(
     _In_ PCWSTR KeyPath
     )
 {
@@ -260,20 +260,20 @@ GetRegistryKeyPath(
 
 // Query registry policy from user-mode
 BOOLEAN
-AgentshQueryRegistryPolicy(
+AgentmonQueryRegistryPolicy(
     _In_ ULONG64 SessionToken,
     _In_ ULONG ProcessId,
-    _In_ AGENTSH_REGISTRY_OP Operation,
+    _In_ AGENTMON_REGISTRY_OP Operation,
     _In_ PCWSTR KeyPath,
     _In_opt_ PCWSTR ValueName,
     _In_ ULONG ValueType,
     _In_ ULONG DataSize,
-    _Out_ PAGENTSH_DECISION Decision
+    _Out_ PAGENTMON_DECISION Decision
     )
 {
     NTSTATUS status;
-    AGENTSH_REGISTRY_REQUEST request = {0};
-    AGENTSH_POLICY_RESPONSE response = {0};
+    AGENTMON_REGISTRY_REQUEST request = {0};
+    AGENTMON_POLICY_RESPONSE response = {0};
     ULONG replyLength = sizeof(response);
     LARGE_INTEGER timeout;
     SIZE_T pathLen;
@@ -283,14 +283,14 @@ AgentshQueryRegistryPolicy(
     *Decision = DECISION_ALLOW;
 
     // Check if client is connected
-    if (!AgentshData.ClientConnected) {
+    if (!AgentmonData.ClientConnected) {
         return FALSE;
     }
 
     // Build request
     request.Header.Type = MSG_POLICY_CHECK_REGISTRY;
     request.Header.Size = sizeof(request);
-    request.Header.RequestId = InterlockedIncrement(&AgentshData.MessageId);
+    request.Header.RequestId = InterlockedIncrement(&AgentmonData.MessageId);
     request.SessionToken = SessionToken;
     request.ProcessId = ProcessId;
     request.ThreadId = HandleToULong(PsGetCurrentThreadId());
@@ -300,8 +300,8 @@ AgentshQueryRegistryPolicy(
 
     // Copy key path
     pathLen = wcslen(KeyPath);
-    if (pathLen >= AGENTSH_MAX_PATH) {
-        pathLen = AGENTSH_MAX_PATH - 1;
+    if (pathLen >= AGENTMON_MAX_PATH) {
+        pathLen = AGENTMON_MAX_PATH - 1;
     }
     RtlCopyMemory(request.KeyPath, KeyPath, pathLen * sizeof(WCHAR));
     request.KeyPath[pathLen] = L'\0';
@@ -309,8 +309,8 @@ AgentshQueryRegistryPolicy(
     // Copy value name if provided
     if (ValueName != NULL) {
         valueLen = wcslen(ValueName);
-        if (valueLen >= AGENTSH_MAX_VALUE_NAME) {
-            valueLen = AGENTSH_MAX_VALUE_NAME - 1;
+        if (valueLen >= AGENTMON_MAX_VALUE_NAME) {
+            valueLen = AGENTMON_MAX_VALUE_NAME - 1;
         }
         RtlCopyMemory(request.ValueName, ValueName, valueLen * sizeof(WCHAR));
         request.ValueName[valueLen] = L'\0';
@@ -321,8 +321,8 @@ AgentshQueryRegistryPolicy(
 
     // Send message to user-mode
     status = FltSendMessage(
-        AgentshData.FilterHandle,
-        &AgentshData.ClientPort,
+        AgentmonData.FilterHandle,
+        &AgentmonData.ClientPort,
         &request,
         sizeof(request),
         &response,
@@ -334,9 +334,9 @@ AgentshQueryRegistryPolicy(
         *Decision = response.Decision;
 
         // Update cache
-        AgentshCacheInsert(
+        AgentmonCacheInsert(
             SessionToken,
-            (AGENTSH_FILE_OP)(Operation + 100),  // Offset to avoid collision with file ops
+            (AGENTMON_FILE_OP)(Operation + 100),  // Offset to avoid collision with file ops
             KeyPath,
             response.Decision,
             response.CacheTTLMs > 0 ? response.CacheTTLMs : CACHE_DEFAULT_TTL_MS
@@ -355,11 +355,11 @@ HandlePreCreateKey(
     _In_ ULONG64 SessionToken
     )
 {
-    WCHAR keyPath[AGENTSH_MAX_PATH];
-    AGENTSH_DECISION decision;
+    WCHAR keyPath[AGENTMON_MAX_PATH];
+    AGENTMON_DECISION decision;
     NTSTATUS status;
 
-    status = GetRegistryKeyPath(Info->RootObject, keyPath, AGENTSH_MAX_PATH);
+    status = GetRegistryKeyPath(Info->RootObject, keyPath, AGENTMON_MAX_PATH);
     if (!NT_SUCCESS(status)) {
         return STATUS_SUCCESS; // Fail-open
     }
@@ -369,7 +369,7 @@ HandlePreCreateKey(
         SIZE_T currentLen = wcslen(keyPath);
         SIZE_T appendLen = Info->CompleteName->Length / sizeof(WCHAR);
 
-        if (currentLen + 1 + appendLen < AGENTSH_MAX_PATH) {
+        if (currentLen + 1 + appendLen < AGENTMON_MAX_PATH) {
             keyPath[currentLen] = L'\\';
             RtlCopyMemory(&keyPath[currentLen + 1], Info->CompleteName->Buffer, Info->CompleteName->Length);
             keyPath[currentLen + 1 + appendLen] = L'\0';
@@ -377,7 +377,7 @@ HandlePreCreateKey(
     }
 
     // Check cache first
-    if (AgentshCacheLookup(SessionToken, (AGENTSH_FILE_OP)(REG_OP_CREATE_KEY + 100), keyPath, &decision)) {
+    if (AgentmonCacheLookup(SessionToken, (AGENTMON_FILE_OP)(REG_OP_CREATE_KEY + 100), keyPath, &decision)) {
         if (decision == DECISION_DENY) {
             return STATUS_ACCESS_DENIED;
         }
@@ -385,7 +385,7 @@ HandlePreCreateKey(
     }
 
     // Query policy
-    if (AgentshQueryRegistryPolicy(
+    if (AgentmonQueryRegistryPolicy(
             SessionToken,
             HandleToULong(PsGetCurrentProcessId()),
             REG_OP_CREATE_KEY,
@@ -410,12 +410,12 @@ HandlePreSetValue(
     _In_ ULONG64 SessionToken
     )
 {
-    WCHAR keyPath[AGENTSH_MAX_PATH];
-    WCHAR valueName[AGENTSH_MAX_VALUE_NAME];
-    AGENTSH_DECISION decision;
+    WCHAR keyPath[AGENTMON_MAX_PATH];
+    WCHAR valueName[AGENTMON_MAX_VALUE_NAME];
+    AGENTMON_DECISION decision;
     NTSTATUS status;
 
-    status = GetRegistryKeyPath(Info->Object, keyPath, AGENTSH_MAX_PATH);
+    status = GetRegistryKeyPath(Info->Object, keyPath, AGENTMON_MAX_PATH);
     if (!NT_SUCCESS(status)) {
         return STATUS_SUCCESS; // Fail-open
     }
@@ -423,8 +423,8 @@ HandlePreSetValue(
     // Extract value name
     if (Info->ValueName != NULL && Info->ValueName->Length > 0) {
         SIZE_T len = Info->ValueName->Length / sizeof(WCHAR);
-        if (len >= AGENTSH_MAX_VALUE_NAME) {
-            len = AGENTSH_MAX_VALUE_NAME - 1;
+        if (len >= AGENTMON_MAX_VALUE_NAME) {
+            len = AGENTMON_MAX_VALUE_NAME - 1;
         }
         RtlCopyMemory(valueName, Info->ValueName->Buffer, len * sizeof(WCHAR));
         valueName[len] = L'\0';
@@ -433,7 +433,7 @@ HandlePreSetValue(
     }
 
     // Check cache first
-    if (AgentshCacheLookup(SessionToken, (AGENTSH_FILE_OP)(REG_OP_SET_VALUE + 100), keyPath, &decision)) {
+    if (AgentmonCacheLookup(SessionToken, (AGENTMON_FILE_OP)(REG_OP_SET_VALUE + 100), keyPath, &decision)) {
         if (decision == DECISION_DENY) {
             return STATUS_ACCESS_DENIED;
         }
@@ -441,7 +441,7 @@ HandlePreSetValue(
     }
 
     // Query policy
-    if (AgentshQueryRegistryPolicy(
+    if (AgentmonQueryRegistryPolicy(
             SessionToken,
             HandleToULong(PsGetCurrentProcessId()),
             REG_OP_SET_VALUE,
@@ -466,17 +466,17 @@ HandlePreDeleteKey(
     _In_ ULONG64 SessionToken
     )
 {
-    WCHAR keyPath[AGENTSH_MAX_PATH];
-    AGENTSH_DECISION decision;
+    WCHAR keyPath[AGENTMON_MAX_PATH];
+    AGENTMON_DECISION decision;
     NTSTATUS status;
 
-    status = GetRegistryKeyPath(Info->Object, keyPath, AGENTSH_MAX_PATH);
+    status = GetRegistryKeyPath(Info->Object, keyPath, AGENTMON_MAX_PATH);
     if (!NT_SUCCESS(status)) {
         return STATUS_SUCCESS; // Fail-open
     }
 
     // Check cache first
-    if (AgentshCacheLookup(SessionToken, (AGENTSH_FILE_OP)(REG_OP_DELETE_KEY + 100), keyPath, &decision)) {
+    if (AgentmonCacheLookup(SessionToken, (AGENTMON_FILE_OP)(REG_OP_DELETE_KEY + 100), keyPath, &decision)) {
         if (decision == DECISION_DENY) {
             return STATUS_ACCESS_DENIED;
         }
@@ -484,7 +484,7 @@ HandlePreDeleteKey(
     }
 
     // Query policy
-    if (AgentshQueryRegistryPolicy(
+    if (AgentmonQueryRegistryPolicy(
             SessionToken,
             HandleToULong(PsGetCurrentProcessId()),
             REG_OP_DELETE_KEY,
@@ -509,12 +509,12 @@ HandlePreDeleteValue(
     _In_ ULONG64 SessionToken
     )
 {
-    WCHAR keyPath[AGENTSH_MAX_PATH];
-    WCHAR valueName[AGENTSH_MAX_VALUE_NAME];
-    AGENTSH_DECISION decision;
+    WCHAR keyPath[AGENTMON_MAX_PATH];
+    WCHAR valueName[AGENTMON_MAX_VALUE_NAME];
+    AGENTMON_DECISION decision;
     NTSTATUS status;
 
-    status = GetRegistryKeyPath(Info->Object, keyPath, AGENTSH_MAX_PATH);
+    status = GetRegistryKeyPath(Info->Object, keyPath, AGENTMON_MAX_PATH);
     if (!NT_SUCCESS(status)) {
         return STATUS_SUCCESS; // Fail-open
     }
@@ -522,8 +522,8 @@ HandlePreDeleteValue(
     // Extract value name
     if (Info->ValueName != NULL && Info->ValueName->Length > 0) {
         SIZE_T len = Info->ValueName->Length / sizeof(WCHAR);
-        if (len >= AGENTSH_MAX_VALUE_NAME) {
-            len = AGENTSH_MAX_VALUE_NAME - 1;
+        if (len >= AGENTMON_MAX_VALUE_NAME) {
+            len = AGENTMON_MAX_VALUE_NAME - 1;
         }
         RtlCopyMemory(valueName, Info->ValueName->Buffer, len * sizeof(WCHAR));
         valueName[len] = L'\0';
@@ -532,7 +532,7 @@ HandlePreDeleteValue(
     }
 
     // Check cache first
-    if (AgentshCacheLookup(SessionToken, (AGENTSH_FILE_OP)(REG_OP_DELETE_VALUE + 100), keyPath, &decision)) {
+    if (AgentmonCacheLookup(SessionToken, (AGENTMON_FILE_OP)(REG_OP_DELETE_VALUE + 100), keyPath, &decision)) {
         if (decision == DECISION_DENY) {
             return STATUS_ACCESS_DENIED;
         }
@@ -540,7 +540,7 @@ HandlePreDeleteValue(
     }
 
     // Query policy
-    if (AgentshQueryRegistryPolicy(
+    if (AgentmonQueryRegistryPolicy(
             SessionToken,
             HandleToULong(PsGetCurrentProcessId()),
             REG_OP_DELETE_VALUE,
@@ -565,17 +565,17 @@ HandlePreRenameKey(
     _In_ ULONG64 SessionToken
     )
 {
-    WCHAR keyPath[AGENTSH_MAX_PATH];
-    AGENTSH_DECISION decision;
+    WCHAR keyPath[AGENTMON_MAX_PATH];
+    AGENTMON_DECISION decision;
     NTSTATUS status;
 
-    status = GetRegistryKeyPath(Info->Object, keyPath, AGENTSH_MAX_PATH);
+    status = GetRegistryKeyPath(Info->Object, keyPath, AGENTMON_MAX_PATH);
     if (!NT_SUCCESS(status)) {
         return STATUS_SUCCESS; // Fail-open
     }
 
     // Check cache first
-    if (AgentshCacheLookup(SessionToken, (AGENTSH_FILE_OP)(REG_OP_RENAME_KEY + 100), keyPath, &decision)) {
+    if (AgentmonCacheLookup(SessionToken, (AGENTMON_FILE_OP)(REG_OP_RENAME_KEY + 100), keyPath, &decision)) {
         if (decision == DECISION_DENY) {
             return STATUS_ACCESS_DENIED;
         }
@@ -583,7 +583,7 @@ HandlePreRenameKey(
     }
 
     // Query policy
-    if (AgentshQueryRegistryPolicy(
+    if (AgentmonQueryRegistryPolicy(
             SessionToken,
             HandleToULong(PsGetCurrentProcessId()),
             REG_OP_RENAME_KEY,
@@ -621,7 +621,7 @@ RegistryCallback(
     notifyClass = (REG_NOTIFY_CLASS)(ULONG_PTR)Argument1;
 
     // Fast path: not a session process?
-    if (!AgentshIsSessionProcess(PsGetCurrentProcessId(), &sessionToken)) {
+    if (!AgentmonIsSessionProcess(PsGetCurrentProcessId(), &sessionToken)) {
         return STATUS_SUCCESS;
     }
 
@@ -650,14 +650,14 @@ RegistryCallback(
 
 // Initialize registry filtering
 NTSTATUS
-AgentshInitializeRegistryFilter(
+AgentmonInitializeRegistryFilter(
     _In_ PDRIVER_OBJECT DriverObject
     )
 {
     NTSTATUS status;
     UNICODE_STRING altitude;
 
-    RtlInitUnicodeString(&altitude, AGENTSH_REGISTRY_ALTITUDE);
+    RtlInitUnicodeString(&altitude, AGENTMON_REGISTRY_ALTITUDE);
 
     status = CmRegisterCallbackEx(
         RegistryCallback,
@@ -669,9 +669,9 @@ AgentshInitializeRegistryFilter(
         );
 
     if (NT_SUCCESS(status)) {
-        DbgPrint("AgentSH: Registry filter initialized (altitude=%wZ)\\n", &altitude);
+        DbgPrint("AgentMon: Registry filter initialized (altitude=%wZ)\\n", &altitude);
     } else {
-        DbgPrint("AgentSH: Failed to register registry callback: 0x%08X\\n", status);
+        DbgPrint("AgentMon: Failed to register registry callback: 0x%08X\\n", status);
     }
 
     return status;
@@ -679,7 +679,7 @@ AgentshInitializeRegistryFilter(
 
 // Shutdown registry filtering
 VOID
-AgentshShutdownRegistryFilter(
+AgentmonShutdownRegistryFilter(
     VOID
     )
 {
@@ -688,7 +688,7 @@ AgentshShutdownRegistryFilter(
     if (gRegistryCookie.QuadPart != 0) {
         status = CmUnRegisterCallback(gRegistryCookie);
         if (NT_SUCCESS(status)) {
-            DbgPrint("AgentSH: Registry filter shutdown\\n");
+            DbgPrint("AgentMon: Registry filter shutdown\\n");
         }
         gRegistryCookie.QuadPart = 0;
     }
@@ -698,7 +698,7 @@ AgentshShutdownRegistryFilter(
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/src/registry.c
+git add drivers/windows/agentmon-minifilter/src/registry.c
 git commit -m "feat(windows): implement registry interception with policy queries"
 ```
 
@@ -707,8 +707,8 @@ git commit -m "feat(windows): implement registry interception with policy querie
 ## Task 4: Update Driver to Use Registry Callbacks
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/inc/driver.h`
-- Modify: `drivers/windows/agentsh-minifilter/src/driver.c`
+- Modify: `drivers/windows/agentmon-minifilter/inc/driver.h`
+- Modify: `drivers/windows/agentmon-minifilter/src/driver.c`
 
 **Step 1: Add include to driver.h**
 
@@ -720,38 +720,38 @@ Add after `#include "filesystem.h"`:
 
 **Step 2: Add registry initialization in driver.c DriverEntry**
 
-After `AgentshInitializeCache()` success, add:
+After `AgentmonInitializeCache()` success, add:
 
 ```c
     // Initialize registry filter
-    status = AgentshInitializeRegistryFilter(DriverObject);
+    status = AgentmonInitializeRegistryFilter(DriverObject);
     if (!NT_SUCCESS(status)) {
-        AgentshShutdownCache();
-        AgentshShutdownProcessTracking();
-        AgentshShutdownCommunication();
-        FltUnregisterFilter(AgentshData.FilterHandle);
+        AgentmonShutdownCache();
+        AgentmonShutdownProcessTracking();
+        AgentmonShutdownCommunication();
+        FltUnregisterFilter(AgentmonData.FilterHandle);
         return status;
     }
 ```
 
-**Step 3: Add registry shutdown in driver.c AgentshFilterUnload**
+**Step 3: Add registry shutdown in driver.c AgentmonFilterUnload**
 
-Before `AgentshShutdownCache()`, add:
+Before `AgentmonShutdownCache()`, add:
 
 ```c
     // Shutdown registry filter
-    AgentshShutdownRegistryFilter();
+    AgentmonShutdownRegistryFilter();
 ```
 
 **Step 4: Update cleanup path for FltStartFiltering failure**
 
 ```c
     if (!NT_SUCCESS(status)) {
-        AgentshShutdownRegistryFilter();
-        AgentshShutdownCache();
-        AgentshShutdownProcessTracking();
-        AgentshShutdownCommunication();
-        FltUnregisterFilter(AgentshData.FilterHandle);
+        AgentmonShutdownRegistryFilter();
+        AgentmonShutdownCache();
+        AgentmonShutdownProcessTracking();
+        AgentmonShutdownCommunication();
+        FltUnregisterFilter(AgentmonData.FilterHandle);
         return status;
     }
 ```
@@ -759,8 +759,8 @@ Before `AgentshShutdownCache()`, add:
 **Step 5: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/inc/driver.h
-git add drivers/windows/agentsh-minifilter/src/driver.c
+git add drivers/windows/agentmon-minifilter/inc/driver.h
+git add drivers/windows/agentmon-minifilter/src/driver.c
 git commit -m "feat(windows): integrate registry callbacks into driver lifecycle"
 ```
 
@@ -769,7 +769,7 @@ git commit -m "feat(windows): integrate registry callbacks into driver lifecycle
 ## Task 5: Update Visual Studio Project
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/agentsh.vcxproj`
+- Modify: `drivers/windows/agentmon-minifilter/agentmon.vcxproj`
 
 **Step 1: Add new files to project**
 
@@ -788,7 +788,7 @@ In the `<ItemGroup>` containing `.h` files, add:
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/agentsh.vcxproj
+git add drivers/windows/agentmon-minifilter/agentmon.vcxproj
 git commit -m "build(windows): add registry files to VS project"
 ```
 
@@ -1104,7 +1104,7 @@ git commit -m "test(windows): add unit tests for registry policy handling"
 **Step 1: Run all tests**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feature-windows-minifilter
+cd /home/eran/work/agentmon/.worktrees/feature-windows-minifilter
 go test ./... -v
 go build ./...
 ```
@@ -1114,8 +1114,8 @@ Expected: All tests pass, build succeeds
 **Step 2: Verify driver files are complete**
 
 ```bash
-ls -la drivers/windows/agentsh-minifilter/src/
-ls -la drivers/windows/agentsh-minifilter/inc/
+ls -la drivers/windows/agentmon-minifilter/src/
+ls -la drivers/windows/agentmon-minifilter/inc/
 ```
 
 Expected: registry.c, registry.h present

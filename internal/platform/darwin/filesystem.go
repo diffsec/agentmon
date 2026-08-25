@@ -5,8 +5,8 @@ package darwin
 import (
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/platform"
-	"github.com/agentsh/agentsh/internal/platform/fuse"
+	"github.com/diffsec/agentmon/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform/fuse"
 )
 
 // Filesystem implements platform.FilesystemInterceptor for macOS.

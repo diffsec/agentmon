@@ -6,7 +6,7 @@ Cross-references:
 - Roadmap: `docs/superpowers/specs/2026-05-08-db-access-phase-1-roadmap-design.md` §3 Plan 04c.
 - Plan 04 skeleton (parent design): `docs/superpowers/specs/2026-05-10-db-plan-04-pg-proxy-skeleton-design.md`.
 - Plan 04b₂ (predecessor): `docs/superpowers/specs/2026-05-10-db-plan-04b2-upstream-passthrough-design.md`.
-- Spec: `docs/agentsh-db-access-spec.md` v0.8 §7.1 (wire framing), §7.7 (search_path), §8 (DBEvent), §10.2 (most-restrictive), §10.3 (redaction tiers), §14.1 / §14.3 / §14.4 (Simple Query and pre-/in-tx deny semantics), §23.4 steps 5+7.
+- Spec: `docs/agentmon-db-access-spec.md` v0.8 §7.1 (wire framing), §7.7 (search_path), §8 (DBEvent), §10.2 (most-restrictive), §10.3 (redaction tiers), §14.1 / §14.3 / §14.4 (Simple Query and pre-/in-tx deny semantics), §23.4 steps 5+7.
 - Predecessors shipped: Plans 01 (effects), 02 (policy), 03 (classify/postgres), 04a (listener), 04b (handshake/TLS), 04b₂ (upstream wiring/passthrough/cancel).
 
 This document covers the package-shape, control-flow, schema, and test decisions for the sub-plan that closes the Phase 1 Simple Query loop. The skeleton design's §6 sketched it; this expands it with the choices settled during brainstorming.
@@ -24,8 +24,8 @@ This document covers the package-shape, control-flow, schema, and test decisions
   - `lastUpstreamRFQ ∈ {0, 'I'}` (out-of-tx / pre-auth): `ErrorResponse` + `ReadyForQuery('I')` locally; loop continues.
   - `lastUpstreamRFQ ∈ {'T', 'E'}` (in-tx): `ErrorResponse` only; close upstream + close client; `tx_context.deny_action = "connection_terminated"`.
 - `approve` rule verb at runtime → synthesize `deny` with `error_code: APPROVE_NOT_YET_SUPPORTED`; emit a config-load warning when `Unavoidability != off` and any rule has `decision: approve`.
-- Frame budget cap: `Q` body > `MaxQueryBytes` (default 1 MiB) → synthetic `ErrorResponse(54000, "statement too large for AgentSH proxy: N bytes > 1 MiB cap")` + `ReadyForQuery('I')` + close; emits a lifecycle event with `error_code: FRAME_TOO_LARGE`.
-- Non-`'Q'` / non-`'X'` frame post-handshake → synthetic `ErrorResponse(0A000, "Extended Query / COPY / FunctionCall not supported in AgentSH proxy phase 1")` + close; lifecycle event `EXTENDED_QUERY_NOT_SUPPORTED` (or `FUNCTION_CALL_PROTOCOL_DENIED` for `'F'`).
+- Frame budget cap: `Q` body > `MaxQueryBytes` (default 1 MiB) → synthetic `ErrorResponse(54000, "statement too large for AgentMon proxy: N bytes > 1 MiB cap")` + `ReadyForQuery('I')` + close; emits a lifecycle event with `error_code: FRAME_TOO_LARGE`.
+- Non-`'Q'` / non-`'X'` frame post-handshake → synthetic `ErrorResponse(0A000, "Extended Query / COPY / FunctionCall not supported in AgentMon proxy phase 1")` + close; lifecycle event `EXTENDED_QUERY_NOT_SUPPORTED` (or `FUNCTION_CALL_PROTOCOL_DENIED` for `'F'`).
 - `events.DBEvent` extended with §8 sub-structs (`TLS`, `Decision`, `Result`, `TxContext`, `Predicates`). 04c populates `Decision`, `Result`, `TxContext.InTransaction`, `TxContext.DenyAction`, `Predicates.HasFilter`, `TLS.Mode`, `TLS.ClientSNI`.
 - `Parser.Normalize(sql string) (string, error)` added to `internal/db/classify/postgres.Parser`. libpg_query backend calls `pg_query_normalize`; pure-Go backend uses a regex literal-scrubber. `statement_digest = sha256:` + hex(SHA-256(Normalize(sql))) for every tier — digest invariant under redaction.
 - Per-dialect classifier map built in `postgres.Server.New()` keyed on `svc.Dialect`. Same dialect across services shares a `Parser` instance. Unexported test hook for fake injection.
@@ -298,7 +298,7 @@ both flushed before returning. Used when `lastUpstreamRFQ ∈ {0, 'I'}`.
 
 - Iterates decisions in order; first denying entry wins (most-restrictive is deterministic per §10.2 with stable rule order).
 - `sqlstate` (on-wire `ErrorResponse.SQLState`): `28000` for connection-rule deny (matches 04b₂'s pattern); `42501` for statement-rule deny (PG-standard "insufficient privilege"); `42501` also for the approve→deny stub case (`decisions[i].Approval != nil`).
-- `rendered`: from `decisions[i].DenyMessage` (Plan 02 template) if present; else `"denied by AgentSH policy: <RuleName>"` (or `"denied by AgentSH policy: <Reason>"` for implicit-deny entries with empty RuleName).
+- `rendered`: from `decisions[i].DenyMessage` (Plan 02 template) if present; else `"denied by AgentMon policy: <RuleName>"` (or `"denied by AgentMon policy: <Reason>"` for implicit-deny entries with empty RuleName).
 
 The synth function only owns the on-wire side. The corresponding `EventResult.ErrorCode` set by the event builder is:
 - `APPROVE_NOT_YET_SUPPORTED` for approve→deny stubs.

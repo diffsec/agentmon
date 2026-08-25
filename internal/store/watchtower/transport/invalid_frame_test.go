@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/metrics"
+	"github.com/diffsec/agentmon/internal/metrics"
 	wtpv1 "github.com/canyonroad/wtp-protos/gen/go/canyonroad/wtp/v1"
 )
 

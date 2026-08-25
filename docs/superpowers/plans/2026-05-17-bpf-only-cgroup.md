@@ -164,7 +164,7 @@ func TestProbe_AttachOnly_ReachedWhenPermitted(t *testing.T) {
 	seedHealthyRoot(f)
 	// Own cgroup advertises controllers but rejects subtree_control writes
 	// for memory — mirrors the stock-Docker scope-cgroup symptom.
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.failSubtreeWrite(own+"/cgroup.subtree_control", "+memory", syscall.ENOTSUP)
@@ -187,7 +187,7 @@ func TestProbe_AttachOnly_ReachedWhenPermitted(t *testing.T) {
 func TestProbe_AttachOnly_FilteredWhenNotPermitted(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.failSubtreeWrite(own+"/cgroup.subtree_control", "+memory", syscall.ENOTSUP)
@@ -226,7 +226,7 @@ func ProbeCgroupsV2Default(ctx context.Context) (*CgroupProbeResult, error) {
 }
 ```
 
-`ProbeCgroupsV2Default` is the no-options variant used by `agentsh detect`. Detect should reflect AttachOnly availability regardless of operator config (operators may run detect to *decide* whether to set `cgroups.enabled=true`), so it always permits attach-only.
+`ProbeCgroupsV2Default` is the no-options variant used by `agentmon detect`. Detect should reflect AttachOnly availability regardless of operator config (operators may run detect to *decide* whether to set `cgroups.enabled=true`), so it always permits attach-only.
 
 Update the existing `newCgroupManagerFS` caller of `ProbeCgroupsV2` to pass `false` (placeholder — Task 4 makes this configurable):
 
@@ -282,7 +282,7 @@ Then add the new helper at the bottom of the file:
 // PID into the test cgroup, then writes it back into the parent's cgroup.procs
 // to release the test cgroup, then rmdirs the test directory.
 func probeAttachOnlyFeasibility(fs cgroupFS, parentDir string) (bool, error) {
-	testDir := filepath.Join(parentDir, "agentsh.probe")
+	testDir := filepath.Join(parentDir, "agentmon.probe")
 	if err := fs.Mkdir(testDir, 0o755); err != nil && !errors.Is(err, syscall.EEXIST) {
 		return false, fmt.Errorf("mkdir %s: %w", testDir, err)
 	}
@@ -328,7 +328,7 @@ enabled in subtree_control, and permitAttachOnly is true, the probe now
 runs an attach-only feasibility check (mkdir + cgroup.procs write + cleanup)
 and returns ModeAttachOnly on success.
 
-ProbeCgroupsV2Default (used by agentsh detect) passes permitAttachOnly=true
+ProbeCgroupsV2Default (used by agentmon detect) passes permitAttachOnly=true
 unconditionally so the detect output reflects host capability honestly.
 newCgroupManagerFS passes false for now — Task 4 makes this caller-driven."
 ```
@@ -402,7 +402,7 @@ Add to `internal/limits/cgroupv2_manager_test.go`:
 func TestManagerApply_AttachOnly_EmptyLimits_Succeeds(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.failSubtreeWrite(own+"/cgroup.subtree_control", "+memory", syscall.ENOTSUP)
@@ -416,7 +416,7 @@ func TestManagerApply_AttachOnly_EmptyLimits_Succeeds(t *testing.T) {
 		t.Fatalf("mode: %q", m.Probe().Mode)
 	}
 
-	cg, err := m.Apply("agentsh-sess-cmd", 4242, CgroupV2Limits{})
+	cg, err := m.Apply("agentmon-sess-cmd", 4242, CgroupV2Limits{})
 	if err != nil {
 		t.Fatalf("apply: %v", err)
 	}
@@ -443,7 +443,7 @@ func TestManagerApply_AttachOnly_EmptyLimits_Succeeds(t *testing.T) {
 func TestManagerApply_AttachOnly_WithLimits_Refuses(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.failSubtreeWrite(own+"/cgroup.subtree_control", "+memory", syscall.ENOTSUP)
@@ -454,7 +454,7 @@ func TestManagerApply_AttachOnly_WithLimits_Refuses(t *testing.T) {
 		t.Fatalf("new manager: %v", err)
 	}
 
-	cg, err := m.Apply("agentsh-sess-cmd", 4242, CgroupV2Limits{MaxMemoryBytes: 16 << 20})
+	cg, err := m.Apply("agentmon-sess-cmd", 4242, CgroupV2Limits{MaxMemoryBytes: 16 << 20})
 	if err == nil {
 		t.Fatalf("expected error, got cg=%v", cg)
 	}
@@ -466,7 +466,7 @@ func TestManagerApply_AttachOnly_WithLimits_Refuses(t *testing.T) {
 		t.Errorf("error carries limits: got %+v", rlErr.Limits)
 	}
 	// No cgroup directory was created.
-	if _, err := f.ReadFile(own + "/agentsh-sess-cmd/cgroup.procs"); err == nil {
+	if _, err := f.ReadFile(own + "/agentmon-sess-cmd/cgroup.procs"); err == nil {
 		t.Errorf("AttachOnly+limits refusal should not create the cgroup")
 	}
 }
@@ -474,14 +474,14 @@ func TestManagerApply_AttachOnly_WithLimits_Refuses(t *testing.T) {
 func TestManagerApply_AttachOnly_CloseRemovesCgroup(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.failSubtreeWrite(own+"/cgroup.subtree_control", "+memory", syscall.ENOTSUP)
 	f.failSubtreeWrite("/sys/fs/cgroup/cgroup.subtree_control", "+memory", syscall.ENOTSUP)
 
 	m, _ := newCgroupManagerFS(context.Background(), f, own, true)
-	cg, err := m.Apply("agentsh-sess-cmd", 4242, CgroupV2Limits{})
+	cg, err := m.Apply("agentmon-sess-cmd", 4242, CgroupV2Limits{})
 	if err != nil {
 		t.Fatalf("apply: %v", err)
 	}
@@ -573,7 +573,7 @@ Existing ModeNested / ModeTopLevel / ModeUnavailable paths unchanged."
 
 - [ ] **Step 1: Identify the `needsCgroup` decision and rewrite**
 
-Find the current cgroupMgr construction logic (around line 125-130, where `appCgroupMgr` is set from the constructor's `cgroupMgr` parameter). The construction itself happens upstream (in cmd/agentsh/main.go or similar) — the predicate that *decides* whether to construct lives at that upstream call site.
+Find the current cgroupMgr construction logic (around line 125-130, where `appCgroupMgr` is set from the constructor's `cgroupMgr` parameter). The construction itself happens upstream (in cmd/agentmon/main.go or similar) — the predicate that *decides* whether to construct lives at that upstream call site.
 
 Find the upstream caller. Search:
 
@@ -653,7 +653,7 @@ if cgroupMgr != nil && (cfg.Sandbox.Network.EBPF.Enabled || cfg.Sandbox.Network.
 
 The spec defers the exact mechanism to the impl plan. The simplest workable choice is to return an error from the upstream cgroup-manager constructor call site (the same place modified in Step 1), before `NewApp` is called:
 
-In the upstream caller (most likely `cmd/agentsh/main.go` or `cmd/agentsh/server.go` — the command's run function), immediately after `NewCgroupManager` succeeds, check:
+In the upstream caller (most likely `cmd/agentmon/main.go` or `cmd/agentmon/server.go` — the command's run function), immediately after `NewCgroupManager` succeeds, check:
 
 ```go
 if cgroupMgr != nil && cfg.Sandbox.Network.EBPF.Required {
@@ -1066,7 +1066,7 @@ The simplest read is: don't filter cgLimits based on mode at all. Apply does the
 Find the existing call to `app.cgroupMgr.Apply(...)` in `applyCgroupV2` (around line 68). Today the error handling looks like:
 
 ```go
-cg, err := app.cgroupMgr.Apply("agentsh-"+sanitizeCgroupTag(sessionID)+"-"+sanitizeCgroupTag(cmdID), pid, cgLimits)
+cg, err := app.cgroupMgr.Apply("agentmon-"+sanitizeCgroupTag(sessionID)+"-"+sanitizeCgroupTag(cmdID), pid, cgLimits)
 if err != nil {
 	var ue *limits.CgroupUnavailableError
 	if errors.As(err, &ue) {
@@ -1172,7 +1172,7 @@ package capabilities
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/limits"
+	"github.com/diffsec/agentmon/internal/limits"
 )
 
 func TestCheckCgroupsV2ResourceLimits_NestedAvailable(t *testing.T) {
@@ -1420,7 +1420,7 @@ In `internal/capabilities/tips.go`, find the existing tip definitions block (the
 	{Tip: Tip{
 		Feature: "ebpf_cgroup_attach",
 		Impact:  "Network rules (domain-based denies) won't enforce against subprocesses",
-		Action:  "eBPF cgroup_connect requires CAP_BPF (or CAP_SYS_ADMIN), /sys/fs/bpf mounted, and kernel CONFIG_CGROUP_BPF. Check `agentsh detect` output for the specific blocker.",
+		Action:  "eBPF cgroup_connect requires CAP_BPF (or CAP_SYS_ADMIN), /sys/fs/bpf mounted, and kernel CONFIG_CGROUP_BPF. Check `agentmon detect` output for the specific blocker.",
 	}},
 },
 ```
@@ -1463,8 +1463,8 @@ Replace the existing `> **Prerequisite:** the eBPF runtime is attached inside th
 ```markdown
 > **`sandbox.cgroups.enabled: true` is optional for eBPF enforcement.**
 > The eBPF cgroup_connect program attaches to a per-session cgroup created
-> by agentsh. When `cgroups.enabled: false` and `ebpf.{enabled,enforce}: true`,
-> agentsh probes the host for "attach-only" cgroup feasibility (mkdir +
+> by agentmon. When `cgroups.enabled: false` and `ebpf.{enabled,enforce}: true`,
+> agentmon probes the host for "attach-only" cgroup feasibility (mkdir +
 > attach pid without enabling resource controllers) and uses that path
 > if available. Set `cgroups.enabled: true` only if you also want resource
 > limits (memory, cpu, pids). If the operator wants strict enforcement
@@ -1485,8 +1485,8 @@ If you set `sandbox.cgroups.enabled: true` to get memory/cpu/pids
 resource limits, stock Docker has an extra step: container scopes
 ship with empty `cgroup.subtree_control`, and writing `+memory` from
 inside the container returns `ENOTSUP` even with `CAP_SYS_ADMIN`. The
-agentsh cgroup manager will fail to enable the `memory` controller
-and refuse commands that request resource limits. `agentsh detect`
+agentmon cgroup manager will fail to enable the `memory` controller
+and refuse commands that request resource limits. `agentmon detect`
 surfaces this as:
 
   RESOURCE LIMITS
@@ -1502,7 +1502,7 @@ Then `systemctl daemon-reload && systemctl restart docker` and rerun
 the container.
 
 **Not required for eBPF network enforcement.** With `cgroups.enabled:
-false, ebpf.enabled: true`, agentsh activates attach-only mode and
+false, ebpf.enabled: true`, agentmon activates attach-only mode and
 the BPF cgroup_connect program runs without any controllers enabled.
 `--cap-add SYS_ADMIN --cap-add BPF -v /sys/fs/bpf:/sys/fs/bpf:rw` on
 `docker run` are still required for the attach itself.
@@ -1561,7 +1561,7 @@ Spec sections traced to tasks:
 - Section C (Call-site predicate widening) → Tasks 4, 6, 7, 9.
 - Section D (Failure & required matrix) → Task 6 (startup hard-fail), Task 8 (wrap-time dispatch).
 - Section E (Logs) → Task 6.
-- Section E (`agentsh detect` output split) → Tasks 10, 11.
+- Section E (`agentmon detect` output split) → Tasks 10, 11.
 - Section E (Tips ladder) → Task 12.
 - Section F (Testing) → tests across Tasks 3, 5, 8, 9, 10, 11.
 - Section G (Migration & compatibility) → docs in Task 13; behavior changes called out in commit messages.

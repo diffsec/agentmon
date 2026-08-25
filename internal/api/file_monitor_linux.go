@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/capabilities"
-	"github.com/agentsh/agentsh/internal/config"
-	unixmon "github.com/agentsh/agentsh/internal/netmonitor/unix"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/config"
+	unixmon "github.com/diffsec/agentmon/internal/netmonitor/unix"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 var (

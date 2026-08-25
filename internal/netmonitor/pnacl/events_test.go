@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // MockAppender implements EventAppender for testing.

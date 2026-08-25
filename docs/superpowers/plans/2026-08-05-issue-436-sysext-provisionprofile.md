@@ -4,7 +4,7 @@
 
 **Goal:** Embed the SysExt provisioning profile into the `.systemextension` bundle in the release pipeline, and add a release-blocking verification script so a bundle whose restricted entitlements lack a granting profile can never ship again.
 
-**Architecture:** Two independent artifacts. (1) A one-hunk change to `.github/workflows/release.yml` copying `macos/AgentSH/AgentSH_SysExt_Distribution.provisionprofile` into the sysext bundle during assembly, before the inside-out signing step seals it. (2) A standalone bash script `scripts/verify-macos-bundle.sh` that cross-checks each bundle's signed entitlements against its embedded profile, wired in as a workflow step between signing and notarization.
+**Architecture:** Two independent artifacts. (1) A one-hunk change to `.github/workflows/release.yml` copying `macos/AgentMon/AgentMon_SysExt_Distribution.provisionprofile` into the sysext bundle during assembly, before the inside-out signing step seals it. (2) A standalone bash script `scripts/verify-macos-bundle.sh` that cross-checks each bundle's signed entitlements against its embedded profile, wired in as a workflow step between signing and notarization.
 
 **Tech Stack:** GitHub Actions YAML, bash 3.2 (macOS `/bin/bash`), macOS-native tools only: `security`, `codesign`, `plutil`, `/usr/libexec/PlistBuddy`, `date`.
 
@@ -19,13 +19,13 @@
 **The bug:** macOS refuses (via AMFI, at exec time) to run any binary signed with a *restricted* entitlement — like `com.apple.developer.endpoint-security.client` — unless the binary's bundle embeds a provisioning profile (`Contents/embedded.provisionprofile`) that grants that entitlement. `codesign --verify` and Apple's notarization do **not** check this, so a broken bundle sails through the pipeline and only fails on user machines, silently. That is exactly what shipped in v0.17.0–v0.20.5.
 
 **Verified facts about this repo (do not re-derive; already confirmed):**
-- `macos/AgentSH/AgentSH_SysExt_Distribution.provisionprofile` decodes to: app ID `WCKWMMKJ35.ai.canyonroad.agentsh.SysExt`, grants `endpoint-security.client` + `networking.networkextension`, `ProvisionsAllDevices: true`, expires `2044-03-27T19:47:48Z`.
-- `macos/AgentSH/AgentSH_Distribution.provisionprofile` (app profile, already embedded by the workflow): app ID `WCKWMMKJ35.ai.canyonroad.agentsh`, grants `system-extension.install`, `ProvisionsAllDevices: true`, expires `2044-03-27T05:34:09Z`.
-- SysExt entitlements file (`macos/AgentSH/SysExt.entitlements`): `endpoint-security.client` (boolean) and `networking.networkextension` (**array** — this is why the profile check is key-presence, not `== true`).
-- App entitlements file (`macos/AgentSH/agentsh/agentsh.entitlements`): `system-extension.install` (boolean) only.
+- `macos/AgentMon/AgentMon_SysExt_Distribution.provisionprofile` decodes to: app ID `LWSYS6YTUZ.dev.diffsec.agentmon.SysExt`, grants `endpoint-security.client` + `networking.networkextension`, `ProvisionsAllDevices: true`, expires `2044-03-27T19:47:48Z`.
+- `macos/AgentMon/AgentMon_Distribution.provisionprofile` (app profile, already embedded by the workflow): app ID `LWSYS6YTUZ.dev.diffsec.agentmon`, grants `system-extension.install`, `ProvisionsAllDevices: true`, expires `2044-03-27T05:34:09Z`.
+- SysExt entitlements file (`macos/AgentMon/SysExt.entitlements`): `endpoint-security.client` (boolean) and `networking.networkextension` (**array** — this is why the profile check is key-presence, not `== true`).
+- App entitlements file (`macos/AgentMon/diffsec/agentmon.entitlements`): `system-extension.install` (boolean) only.
 - The profile's `TeamIdentifier` is a plist **array**; read element 0.
 - `plutil -convert json` fails on decoded profiles (plist `date` values). Use `plutil -extract <key> raw` and PlistBuddy. All extraction commands in the script below were validated against the real decoded profiles on this machine.
-- `/Applications/AgentSH.app` is NOT installed on this dev machine — the "real broken artifact" test from the spec is replaced by an ad-hoc-signed fixture (Task 1, steps 4–5), which reproduces the same failure shape without needing certificates.
+- `/Applications/AgentMon.app` is NOT installed on this dev machine — the "real broken artifact" test from the spec is replaced by an ad-hoc-signed fixture (Task 1, steps 4–5), which reproduces the same failure shape without needing certificates.
 
 **No Go code changes anywhere in this plan** — the CLAUDE.md cross-compile/test gates don't apply (nothing Go is touched); do not run them.
 
@@ -42,16 +42,16 @@ Create `scripts/verify-macos-bundle.sh` with exactly this content:
 
 ```bash
 #!/bin/bash
-# verify-macos-bundle.sh — verify provisioning profiles inside AgentSH.app.
+# verify-macos-bundle.sh — verify provisioning profiles inside AgentMon.app.
 #
 # AMFI refuses to exec any binary signed with a restricted entitlement unless
 # its bundle embeds a provisioning profile granting that entitlement. Neither
 # codesign --verify nor notarization checks this, so a broken bundle only
 # fails on user machines (issue #436). This script is the release gate for
 # that condition, and is equally runnable against an installed
-# /Applications/AgentSH.app or a mounted DMG when triaging user reports.
+# /Applications/AgentMon.app or a mounted DMG when triaging user reports.
 #
-# Usage: scripts/verify-macos-bundle.sh /path/to/AgentSH.app
+# Usage: scripts/verify-macos-bundle.sh /path/to/AgentMon.app
 #
 # Exit codes: 0 all checks pass (warnings allowed), 1 check failures,
 # 2 usage/environment error.
@@ -60,7 +60,7 @@ Create `scripts/verify-macos-bundle.sh` with exactly this content:
 set -u
 
 PLISTBUDDY=/usr/libexec/PlistBuddy
-SYSEXT_REL="Contents/Library/SystemExtensions/ai.canyonroad.agentsh.SysExt.systemextension"
+SYSEXT_REL="Contents/Library/SystemExtensions/dev.diffsec.agentmon.SysExt.systemextension"
 # Restricted entitlements this project uses. Apple publishes no
 # machine-readable classification; extend this list when a new restricted
 # entitlement is adopted.
@@ -84,7 +84,7 @@ die()  { printf 'error: %s\n' "$1" >&2; exit 2; }
 for tool in security codesign plutil date "$PLISTBUDDY"; do
   command -v "$tool" >/dev/null 2>&1 || die "required tool not found: $tool"
 done
-[ $# -eq 1 ] || die "usage: $0 /path/to/AgentSH.app"
+[ $# -eq 1 ] || die "usage: $0 /path/to/AgentMon.app"
 
 APP="${1%/}"
 [ -f "$APP/Contents/Info.plist" ] || die "not an app bundle (no Contents/Info.plist): $APP"
@@ -234,7 +234,7 @@ scripts/verify-macos-bundle.sh /tmp; echo "exit=$?"
 ```
 Expected output:
 ```
-error: usage: scripts/verify-macos-bundle.sh /path/to/AgentSH.app
+error: usage: scripts/verify-macos-bundle.sh /path/to/AgentMon.app
 exit=2
 error: not an app bundle (no Contents/Info.plist): /tmp
 exit=2
@@ -245,9 +245,9 @@ exit=2
 This is the detector's failing-test: an ad-hoc-signed bundle claiming restricted entitlements with **no** embedded profiles — the exact shape of the shipped bug. Build it in the scratchpad (do NOT commit it). `$SCRATCHPAD` below means this session's scratchpad directory. Run all commands in steps 4–5 from the repo root (the `macos/...` and `scripts/...` paths are repo-relative).
 
 ```bash
-cd /Users/eran/work/canyonroad/agentsh
-FIX="$SCRATCHPAD/fixture/AgentSH.app"
-SX="$FIX/Contents/Library/SystemExtensions/ai.canyonroad.agentsh.SysExt.systemextension"
+cd /Users/eran/work/diffsec/agentmon
+FIX="$SCRATCHPAD/fixture/AgentMon.app"
+SX="$FIX/Contents/Library/SystemExtensions/dev.diffsec.agentmon.SysExt.systemextension"
 rm -rf "$SCRATCHPAD/fixture"
 mkdir -p "$FIX/Contents/MacOS" "$SX/Contents/MacOS"
 
@@ -255,8 +255,8 @@ cat > "$FIX/Contents/Info.plist" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>CFBundleIdentifier</key><string>ai.canyonroad.agentsh</string>
-  <key>CFBundleExecutable</key><string>agentsh</string>
+  <key>CFBundleIdentifier</key><string>dev.diffsec.agentmon</string>
+  <key>CFBundleExecutable</key><string>agentmon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
 </dict></plist>
 EOF
@@ -264,17 +264,17 @@ cat > "$SX/Contents/Info.plist" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>CFBundleIdentifier</key><string>ai.canyonroad.agentsh.SysExt</string>
-  <key>CFBundleExecutable</key><string>ai.canyonroad.agentsh.SysExt</string>
+  <key>CFBundleIdentifier</key><string>dev.diffsec.agentmon.SysExt</string>
+  <key>CFBundleExecutable</key><string>dev.diffsec.agentmon.SysExt</string>
   <key>CFBundlePackageType</key><string>SYSX</string>
 </dict></plist>
 EOF
-cp /bin/ls "$FIX/Contents/MacOS/agentsh"
-cp /bin/ls "$SX/Contents/MacOS/ai.canyonroad.agentsh.SysExt"
+cp /bin/ls "$FIX/Contents/MacOS/agentmon"
+cp /bin/ls "$SX/Contents/MacOS/dev.diffsec.agentmon.SysExt"
 
 # Ad-hoc sign (no certificate needed) with the real entitlements files.
-codesign -s - -f --entitlements macos/AgentSH/SysExt.entitlements "$SX"
-codesign -s - -f --entitlements macos/AgentSH/agentsh/agentsh.entitlements "$FIX"
+codesign -s - -f --entitlements macos/AgentMon/SysExt.entitlements "$SX"
+codesign -s - -f --entitlements macos/AgentMon/diffsec/agentmon.entitlements "$FIX"
 
 scripts/verify-macos-bundle.sh "$FIX"; echo "exit=$?"
 ```
@@ -293,23 +293,23 @@ If output differs, fix the script — do not adjust expectations.
 The Developer ID certificate isn't available locally, so the ad-hoc signature's missing team is the ONLY expected failure; everything else must pass. This validates the positive-path parsing against the real profiles.
 
 ```bash
-cp macos/AgentSH/AgentSH_Distribution.provisionprofile "$FIX/Contents/embedded.provisionprofile"
-cp macos/AgentSH/AgentSH_SysExt_Distribution.provisionprofile "$SX/Contents/embedded.provisionprofile"
+cp macos/AgentMon/AgentMon_Distribution.provisionprofile "$FIX/Contents/embedded.provisionprofile"
+cp macos/AgentMon/AgentMon_SysExt_Distribution.provisionprofile "$SX/Contents/embedded.provisionprofile"
 # Re-sign so the signature covers the added files (order: inner bundle first).
-codesign -s - -f --entitlements macos/AgentSH/SysExt.entitlements "$SX"
-codesign -s - -f --entitlements macos/AgentSH/agentsh/agentsh.entitlements "$FIX"
+codesign -s - -f --entitlements macos/AgentMon/SysExt.entitlements "$SX"
+codesign -s - -f --entitlements macos/AgentMon/diffsec/agentmon.entitlements "$FIX"
 
 scripts/verify-macos-bundle.sh "$FIX"; echo "exit=$?"
 ```
 
 Expected: `exit=1` with exactly 2 failures (`app: code signature has no team identifier (ad-hoc or unsigned?)` and the same for `sysext`), and these passes, all present:
 - `app: embedded.provisionprofile present and decodable`
-- `app: profile application-identifier matches WCKWMMKJ35.ai.canyonroad.agentsh`
+- `app: profile application-identifier matches LWSYS6YTUZ.dev.diffsec.agentmon`
 - `app: ProvisionsAllDevices=true`
 - `app: profile valid until 2044-03-27T05:34:09Z`
 - `app: restricted entitlement com.apple.developer.system-extension.install granted by profile`
 - `sysext: embedded.provisionprofile present and decodable`
-- `sysext: profile application-identifier matches WCKWMMKJ35.ai.canyonroad.agentsh.SysExt`
+- `sysext: profile application-identifier matches LWSYS6YTUZ.dev.diffsec.agentmon.SysExt`
 - `sysext: ProvisionsAllDevices=true`
 - `sysext: profile valid until 2044-03-27T19:47:48Z`
 - `sysext: restricted entitlement com.apple.developer.endpoint-security.client granted by profile`
@@ -406,7 +406,7 @@ Embed both real profiles and re-sign as in Task 1 step 5, then run. Expected: `e
 Re-sign the fixture's sysext with the WRONG entitlements file (the app's):
 
 ```bash
-codesign -s - -f --entitlements macos/AgentSH/agentsh/agentsh.entitlements "$SX"
+codesign -s - -f --entitlements macos/AgentMon/diffsec/agentmon.entitlements "$SX"
 scripts/verify-macos-bundle.sh "$FIX"; echo "exit=$?"
 ```
 
@@ -440,8 +440,8 @@ In `.github/workflows/release.yml`, find this block inside the "Assemble app bun
 
 ```yaml
           # Provisioning profile (required for restricted entitlements like system-extension.install)
-          cp macos/AgentSH/AgentSH_Distribution.provisionprofile \
-            "build/AgentSH.app/Contents/embedded.provisionprofile"
+          cp macos/AgentMon/AgentMon_Distribution.provisionprofile \
+            "build/AgentMon.app/Contents/embedded.provisionprofile"
 ```
 
 and add immediately after it:
@@ -450,8 +450,8 @@ and add immediately after it:
           # SysExt provisioning profile (required for the restricted
           # endpoint-security.client entitlement; without it AMFI refuses to
           # exec the extension on user machines — issue #436)
-          cp macos/AgentSH/AgentSH_SysExt_Distribution.provisionprofile \
-            "build/AgentSH.app/Contents/Library/SystemExtensions/ai.canyonroad.agentsh.SysExt.systemextension/Contents/embedded.provisionprofile"
+          cp macos/AgentMon/AgentMon_SysExt_Distribution.provisionprofile \
+            "build/AgentMon.app/Contents/Library/SystemExtensions/dev.diffsec.agentmon.SysExt.systemextension/Contents/embedded.provisionprofile"
 ```
 
 The assemble step runs before "Sign app bundle (inside-out)", so the sysext signature (step 1 of the signing block) seals the profile. Do not touch the signing step.
@@ -482,11 +482,11 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Insert the verify step**
 
-Between the "Sign app bundle (inside-out)" step (ends with `codesign --verify --deep --strict --verbose=2 "build/AgentSH.app"`) and the "Notarize app bundle" step, insert:
+Between the "Sign app bundle (inside-out)" step (ends with `codesign --verify --deep --strict --verbose=2 "build/AgentMon.app"`) and the "Notarize app bundle" step, insert:
 
 ```yaml
       - name: Verify provisioning profiles
-        run: scripts/verify-macos-bundle.sh build/AgentSH.app
+        run: scripts/verify-macos-bundle.sh build/AgentMon.app
 ```
 
 Match the indentation of the sibling `- name:` steps (6 spaces). Failing before notarization means no Apple round-trip is wasted on a bundle AMFI would reject.
@@ -521,11 +521,11 @@ Expected: the spec and plan commits plus three implementation commits; changes o
 - [ ] **Step 2: Confirm acceptance criteria coverage**
 
 Check each against the spec's "Acceptance mapping" table:
-1. Sysext profile embedded before signing — Task 2 `cp`, placed inside the assemble step. Confirm with `git diff origin/main..HEAD .github/workflows/release.yml` that the copy targets `.../ai.canyonroad.agentsh.SysExt.systemextension/Contents/embedded.provisionprofile` and precedes the signing step in the file.
+1. Sysext profile embedded before signing — Task 2 `cp`, placed inside the assemble step. Confirm with `git diff origin/main..HEAD .github/workflows/release.yml` that the copy targets `.../dev.diffsec.agentmon.SysExt.systemextension/Contents/embedded.provisionprofile` and precedes the signing step in the file.
 2. Regression cannot ship silently — "Verify provisioning profiles" step exists between signing and notarization.
 3. Script validated against the bug's shape — Task 1 steps 4–5 output matched expectations.
 
-Criteria that can only be confirmed on the next real release (note them, don't block): the release job passes the verify step; on an affected machine `launchctl print system/WCKWMMKJ35.ai.canyonroad.agentsh.SysExt` shows the service running instead of `spawn scheduled`.
+Criteria that can only be confirmed on the next real release (note them, don't block): the release job passes the verify step; on an affected machine `launchctl print system/LWSYS6YTUZ.dev.diffsec.agentmon.SysExt` shows the service running instead of `spawn scheduled`.
 
 - [ ] **Step 3: Re-run the script guard checks once more (regression)**
 

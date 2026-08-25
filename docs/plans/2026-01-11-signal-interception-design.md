@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Add comprehensive signal interception to agentsh, allowing policies to control which signals processes can send to each other.
+**Goal:** Add comprehensive signal interception to agentmon, allowing policies to control which signals processes can send to each other.
 
 **Architecture:** Intercept signal-related syscalls via seccomp (Linux), audit via Endpoint Security (macOS), and use ETW + Job Objects + Restricted Tokens (Windows). Unified policy model with platform-specific enforcement and fallback to audit when blocking isn't possible.
 
@@ -12,9 +12,9 @@
 
 ## Goals
 
-1. **Prevent processes from killing agentsh** - Supervisor protection
+1. **Prevent processes from killing agentmon** - Supervisor protection
 2. **Prevent processes from killing each other** - Child A can't kill child B
-3. **Prevent killing external processes** - Child can't kill processes outside agentsh
+3. **Prevent killing external processes** - Child can't kill processes outside agentmon
 4. **Audit/log all signal attempts** - Complete visibility
 5. **Config reload interception** - Control SIGHUP and similar signals
 
@@ -30,7 +30,7 @@ signal_rules:
   - name: block-external-kill
     signals: ["@fatal"]                    # Group: SIGKILL, SIGTERM, SIGQUIT, SIGABRT
     target:
-      type: external                       # Any PID outside agentsh session
+      type: external                       # Any PID outside agentmon session
     decision: deny
     fallback: audit                        # If platform can't block, audit instead
 
@@ -92,8 +92,8 @@ Signals can be specified as:
 | `children` | Direct children of sender |
 | `descendants` | Children, grandchildren, etc. |
 | `siblings` | Other processes at same level in session |
-| `session` | Any process in the agentsh session |
-| `parent` | The agentsh supervisor |
+| `session` | Any process in the agentmon session |
+| `parent` | The agentmon supervisor |
 | `external` | Any PID outside the session |
 | `system` | PID 1, kernel threads (PID < 100) |
 | `user` | Other processes owned by same user but outside session |
@@ -166,7 +166,7 @@ target:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                 agentsh supervisor                  │
+│                 agentmon supervisor                  │
 │  ┌─────────────────────────────────────────────┐   │
 │  │         Signal Policy Engine                │   │
 │  │  - Evaluate signal_rules                    │   │
@@ -213,7 +213,7 @@ target:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                 agentsh supervisor                  │
+│                 agentmon supervisor                  │
 │  ┌─────────────────────────────────────────────┐   │
 │  │      Endpoint Security Client               │   │
 │  │  - Subscribe to signal events               │   │
@@ -257,7 +257,7 @@ target:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                   agentsh supervisor                    │
+│                   agentmon supervisor                    │
 │  ┌───────────────────────────────────────────────────┐ │
 │  │              ETW Consumer                         │ │
 │  │  - Microsoft-Windows-Kernel-Process provider      │ │
@@ -441,7 +441,7 @@ type SignalEvent struct {
 var (
     signalTotal = prometheus.NewCounterVec(
         prometheus.CounterOpts{
-            Name: "agentsh_signals_total",
+            Name: "agentmon_signals_total",
             Help: "Total signal operations",
         },
         []string{"signal", "target_type", "decision", "platform"},
@@ -449,7 +449,7 @@ var (
 
     signalLatency = prometheus.NewHistogramVec(
         prometheus.HistogramOpts{
-            Name:    "agentsh_signal_evaluation_seconds",
+            Name:    "agentmon_signal_evaluation_seconds",
             Help:    "Signal policy evaluation latency",
             Buckets: []float64{.0001, .0005, .001, .005, .01},
         },
@@ -484,7 +484,7 @@ var (
 
 ```bash
 # Block external kill
-agentsh exec test-session -- python3 -c "
+agentmon exec test-session -- python3 -c "
 import os, signal
 try:
     os.kill(1, signal.SIGTERM)
@@ -494,7 +494,7 @@ except PermissionError:
 "
 
 # Verify redirect
-agentsh exec test-session -- bash -c '
+agentmon exec test-session -- bash -c '
     python3 -c "import signal,time; signal.signal(signal.SIGTERM, lambda s,f: print(\"GOT SIGTERM\")); time.sleep(10)" &
     PID=$!
     sleep 1

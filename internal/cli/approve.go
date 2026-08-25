@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/client"
+	"github.com/diffsec/agentmon/internal/client"
 	"github.com/spf13/cobra"
 )
 

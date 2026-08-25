@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 )
 
 func mutationStmt(group effects.Group, hasWhere bool) effects.ClassifiedStatement {

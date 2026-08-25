@@ -7,14 +7,14 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // ConfigSource indicates where the configuration was loaded from.
 type ConfigSource int
 
 const (
-	// ConfigSourceEnv means config path was specified via AGENTSH_CONFIG env var.
+	// ConfigSourceEnv means config path was specified via AGENTMON_CONFIG env var.
 	ConfigSourceEnv ConfigSource = iota
 	// ConfigSourceUser means config was loaded from user-local directory.
 	ConfigSourceUser
@@ -90,9 +90,9 @@ func GetMountPoint(cfg *Config) string {
 // GetDataDir returns the platform-appropriate data directory.
 func GetDataDir() string {
 	if runtime.GOOS == "darwin" {
-		return "/usr/local/var/agentsh"
+		return "/usr/local/var/agentmon"
 	}
-	return "/var/lib/agentsh"
+	return "/var/lib/agentmon"
 }
 
 // GetConfigDir returns the platform-appropriate config directory.
@@ -100,13 +100,13 @@ func GetConfigDir() string {
 	switch runtime.GOOS {
 	case "windows":
 		if dir := os.Getenv("PROGRAMDATA"); dir != "" {
-			return dir + `\agentsh`
+			return dir + `\agentmon`
 		}
-		return `C:\ProgramData\agentsh`
+		return `C:\ProgramData\agentmon`
 	case "darwin":
-		return "/usr/local/etc/agentsh"
+		return "/usr/local/etc/agentmon"
 	default:
-		return "/etc/agentsh"
+		return "/etc/agentmon"
 	}
 }
 
@@ -129,7 +129,7 @@ func GetBundleResourcesDir() string {
 	if err != nil {
 		return ""
 	}
-	// Check if running from inside a .app bundle (e.g. /Applications/AgentSH.app/Contents/MacOS/agentsh)
+	// Check if running from inside a .app bundle (e.g. /Applications/AgentMon.app/Contents/MacOS/agentmon)
 	if idx := strings.Index(execPath, ".app/"); idx >= 0 {
 		return filepath.Join(execPath[:idx+4], "Contents", "Resources")
 	}
@@ -142,16 +142,16 @@ func GetUserConfigDir() string {
 	switch runtime.GOOS {
 	case "windows":
 		if appdata := os.Getenv("APPDATA"); appdata != "" {
-			return appdata + `\agentsh`
+			return appdata + `\agentmon`
 		}
-		return home + `\AppData\Roaming\agentsh`
+		return home + `\AppData\Roaming\agentmon`
 	case "darwin":
-		return home + "/Library/Application Support/agentsh"
+		return home + "/Library/Application Support/agentmon"
 	default:
 		if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-			return xdg + "/agentsh"
+			return xdg + "/agentmon"
 		}
-		return home + "/.config/agentsh"
+		return home + "/.config/agentmon"
 	}
 }
 
@@ -161,16 +161,16 @@ func GetUserDataDir() string {
 	switch runtime.GOOS {
 	case "windows":
 		if appdata := os.Getenv("APPDATA"); appdata != "" {
-			return appdata + `\agentsh`
+			return appdata + `\agentmon`
 		}
-		return home + `\AppData\Roaming\agentsh`
+		return home + `\AppData\Roaming\agentmon`
 	case "darwin":
-		return home + "/Library/Application Support/agentsh"
+		return home + "/Library/Application Support/agentmon"
 	default:
 		if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
-			return xdg + "/agentsh"
+			return xdg + "/agentmon"
 		}
-		return home + "/.local/share/agentsh"
+		return home + "/.local/share/agentmon"
 	}
 }
 
@@ -181,7 +181,7 @@ func GetUserDataDir() string {
 // XDG Base Directory Specification.
 //
 // macOS: there is no canonical state directory; we reuse the same path as
-// GetUserDataDir (~/Library/Application Support/agentsh).
+// GetUserDataDir (~/Library/Application Support/agentmon).
 //
 // Windows: state lives under LOCALAPPDATA (non-roaming), NOT APPDATA. This
 // is a deliberate divergence from GetUserDataDir, which uses APPDATA
@@ -195,15 +195,15 @@ func GetUserStateDir() string {
 	switch runtime.GOOS {
 	case "windows":
 		if appdata := os.Getenv("LOCALAPPDATA"); appdata != "" {
-			return appdata + `\agentsh`
+			return appdata + `\agentmon`
 		}
-		return home + `\AppData\Local\agentsh`
+		return home + `\AppData\Local\agentmon`
 	case "darwin":
-		return home + "/Library/Application Support/agentsh"
+		return home + "/Library/Application Support/agentmon"
 	default:
 		if xdg := os.Getenv("XDG_STATE_HOME"); xdg != "" {
-			return xdg + "/agentsh"
+			return xdg + "/agentmon"
 		}
-		return home + "/.local/state/agentsh"
+		return home + "/.local/state/agentmon"
 	}
 }

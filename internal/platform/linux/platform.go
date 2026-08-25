@@ -1,6 +1,6 @@
 //go:build linux
 
-// Package linux provides the Linux platform implementation for agentsh.
+// Package linux provides the Linux platform implementation for agentmon.
 // It uses FUSE for filesystem interception, iptables for network interception,
 // namespaces for process isolation, seccomp for syscall filtering, and
 // cgroups v2 for resource limiting.
@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 func init() {

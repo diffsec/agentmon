@@ -1,11 +1,11 @@
 # Issue #365 — Phase 1 Watchtower wiring fixes (design)
 
 Date: 2026-05-20
-Issue: [#365](https://github.com/agentsh/agentsh/issues/365)
+Issue: [#365](https://github.com/diffsec/agentmon/issues/365)
 
 ## Background
 
-A smoke test of the Watchtower demo against agentsh `main` surfaced an
+A smoke test of the Watchtower demo against agentmon `main` surfaced an
 empty live feed despite a healthy gRPC stream and successful auth. The
 issue ascribed this to "Phase 1 incomplete" — specifically, an
 incomplete OCSF projector backlog (Tasks 16–22) plus a hardcoded
@@ -104,7 +104,7 @@ sibling `cgroup_*` events. The `agent_internal=true` flag matches the
 `cgroup_apply_failed`, and `cgroup_cleanup_failed`.
 
 **`internal/ocsf/activity.go`** — add one constant in the
-agentsh-internal range (`100–155`). Slot `151` is currently unused.
+agentmon-internal range (`100–155`). Slot `151` is currently unused.
 
 ```go
 AppActivityCgroupMode uint32 = 151
@@ -202,7 +202,7 @@ the two identifier fields are grouped.
 //
 // Mirrors SessionID: optional in YAML, resolved at store-construction
 // time, NOT in applyDefaults — non-daemon CLI subcommands like
-// `agentsh config show` must not trigger hostname lookup.
+// `agentmon config show` must not trigger hostname lookup.
 AgentID string `yaml:"agent_id"`
 ```
 
@@ -299,7 +299,7 @@ classification paths:
 
 ### Manual smoke
 
-Rebuild `bin/agentsh`. Run the demo with the issue's config plus
+Rebuild `bin/agentmon`. Run the demo with the issue's config plus
 `audit.watchtower.agent_id: agent-edge-001`. Daemon startup logs must
 contain zero `mapper_failure` lines for `cgroup_mode`, and the
 Watchtower side must see Hello with `agent_id=agent-edge-001`.

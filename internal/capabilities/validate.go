@@ -161,7 +161,7 @@ func ModeDescription(mode string) string {
 // Medium platform regression.
 //
 // Callers with access to the detected SecurityCapabilities (server
-// startup logging, agentsh detect) should use this form; pure mode
+// startup logging, agentmon detect) should use this form; pure mode
 // string consumers fall back to ModeDescription.
 func ModeDescriptionWithCaps(mode string, caps *SecurityCapabilities) string {
 	return modeDescriptionWithCapsGOOS(mode, caps, runtime.GOOS)

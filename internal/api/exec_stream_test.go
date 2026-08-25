@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
 )
 
 func TestExecStream_EmitsStdoutAndDone(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 func TestDenyRoute_OutOfTx_NotDirty(t *testing.T) {

@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // TestIntegration_FullFlowAnthropic verifies the complete proxy flow for Anthropic:
@@ -659,8 +659,8 @@ func TestIntegration_EnvVars(t *testing.T) {
 	if envVars["OPENAI_BASE_URL"] == "" {
 		t.Error("OPENAI_BASE_URL should be set")
 	}
-	if envVars["AGENTSH_SESSION_ID"] != "integration-test-envvars" {
-		t.Errorf("expected session ID %q, got %q", "integration-test-envvars", envVars["AGENTSH_SESSION_ID"])
+	if envVars["AGENTMON_SESSION_ID"] != "integration-test-envvars" {
+		t.Errorf("expected session ID %q, got %q", "integration-test-envvars", envVars["AGENTMON_SESSION_ID"])
 	}
 
 	// Verify URLs point to proxy address

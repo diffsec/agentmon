@@ -5,7 +5,7 @@ package postgres
 import (
 	"context"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 // evaluateConnection runs Plan 02's connection-rule evaluator with the

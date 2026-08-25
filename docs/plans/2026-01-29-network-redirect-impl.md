@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Add DNS and connect-level redirect capability for agentsh-wrapped processes on Linux.
+**Goal:** Add DNS and connect-level redirect capability for agentmon-wrapped processes on Linux.
 
 **Architecture:** Extend existing policy engine with `dns_redirects` and `connect_redirects` rule types. DNS interception via uprobe on getaddrinfo, connect interception via existing eBPF infrastructure. Events emitted through existing broker.
 
@@ -951,7 +951,7 @@ package redirect
 import (
 	"testing"
 
-	"github.com/your-org/agentsh/internal/policy"
+	"github.com/your-org/agentmon/internal/policy"
 )
 
 func TestDNSRedirectIntegration(t *testing.T) {

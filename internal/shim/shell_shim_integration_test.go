@@ -18,12 +18,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func TestShellShim_UsesAgentshBinAndForwardsArgs(t *testing.T) {
+func TestShellShim_UsesAgentmonBinAndForwardsArgs(t *testing.T) {
 	repoRoot := repoRootOrSkip(t)
 	tmp := t.TempDir()
 
-	shimBin := filepath.Join(tmp, "agentsh-shell-shim")
-	buildOrSkip(t, repoRoot, "./cmd/agentsh-shell-shim", shimBin)
+	shimBin := filepath.Join(tmp, "agentmon-shell-shim")
+	buildOrSkip(t, repoRoot, "./cmd/agentmon-shell-shim", shimBin)
 
 	binDir := filepath.Join(tmp, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
@@ -37,11 +37,11 @@ func TestShellShim_UsesAgentshBinAndForwardsArgs(t *testing.T) {
 		t.Fatalf("write sh.real: %v", err)
 	}
 
-	fakeAgentsh := filepath.Join(tmp, "fake-agentsh")
-	logPath := filepath.Join(tmp, "agentsh.log")
-	writeFakeAgentsh(t, fakeAgentsh, logPath)
+	fakeAgentmon := filepath.Join(tmp, "fake-agentmon")
+	logPath := filepath.Join(tmp, "agentmon.log")
+	writeFakeAgentmon(t, fakeAgentmon, logPath)
 
-	// Use a PTY so the shim takes the agentsh path (non-TTY stdin triggers bypass).
+	// Use a PTY so the shim takes the agentmon path (non-TTY stdin triggers bypass).
 	pty, tty, err := openPTY()
 	if err != nil {
 		t.Skipf("pty not available: %v", err)
@@ -57,10 +57,10 @@ func TestShellShim_UsesAgentshBinAndForwardsArgs(t *testing.T) {
 	cmd.Stdout = tty
 	cmd.Stderr = tty
 	cmd.Env = append(os.Environ(),
-		"AGENTSH_BIN="+fakeAgentsh,
-		"AGENTSH_SESSION_ID=session-test",
-		"AGENTSH_SERVER="+srvURL,
-		"FAKE_AGENTSH_LOG="+logPath,
+		"AGENTMON_BIN="+fakeAgentmon,
+		"AGENTMON_SESSION_ID=session-test",
+		"AGENTMON_SERVER="+srvURL,
+		"FAKE_AGENTMON_LOG="+logPath,
 	)
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start: %v", err)
@@ -83,12 +83,12 @@ func TestShellShim_UsesAgentshBinAndForwardsArgs(t *testing.T) {
 	}
 }
 
-func TestShellShim_UsesPATHWhenAgentshBinUnset(t *testing.T) {
+func TestShellShim_UsesPATHWhenAgentmonBinUnset(t *testing.T) {
 	repoRoot := repoRootOrSkip(t)
 	tmp := t.TempDir()
 
-	shimBin := filepath.Join(tmp, "agentsh-shell-shim")
-	buildOrSkip(t, repoRoot, "./cmd/agentsh-shell-shim", shimBin)
+	shimBin := filepath.Join(tmp, "agentmon-shell-shim")
+	buildOrSkip(t, repoRoot, "./cmd/agentmon-shell-shim", shimBin)
 
 	binDir := filepath.Join(tmp, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
@@ -104,10 +104,10 @@ func TestShellShim_UsesPATHWhenAgentshBinUnset(t *testing.T) {
 	if err := os.MkdirAll(fakeDir, 0o755); err != nil {
 		t.Fatalf("mkdir fakebin: %v", err)
 	}
-	logPath := filepath.Join(tmp, "agentsh.log")
-	writeFakeAgentsh(t, filepath.Join(fakeDir, "agentsh"), logPath)
+	logPath := filepath.Join(tmp, "agentmon.log")
+	writeFakeAgentmon(t, filepath.Join(fakeDir, "agentmon"), logPath)
 
-	// Use a PTY so the shim takes the agentsh path (non-TTY stdin triggers bypass).
+	// Use a PTY so the shim takes the agentmon path (non-TTY stdin triggers bypass).
 	pty, tty, err := openPTY()
 	if err != nil {
 		t.Skipf("pty not available: %v", err)
@@ -124,9 +124,9 @@ func TestShellShim_UsesPATHWhenAgentshBinUnset(t *testing.T) {
 	cmd.Stderr = tty
 	cmd.Env = append(os.Environ(),
 		"PATH="+fakeDir+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"AGENTSH_SESSION_ID=session-test",
-		"AGENTSH_SERVER="+srvURL,
-		"FAKE_AGENTSH_LOG="+logPath,
+		"AGENTMON_SESSION_ID=session-test",
+		"AGENTMON_SERVER="+srvURL,
+		"FAKE_AGENTMON_LOG="+logPath,
 	)
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start: %v", err)
@@ -135,7 +135,7 @@ func TestShellShim_UsesPATHWhenAgentshBinUnset(t *testing.T) {
 
 	lines := mustReadLines(t, logPath)
 	if len(lines) == 0 || !strings.HasPrefix(lines[0], "ARG0=exec") {
-		t.Fatalf("expected fake agentsh to run; got %v", lines)
+		t.Fatalf("expected fake agentmon to run; got %v", lines)
 	}
 }
 
@@ -143,8 +143,8 @@ func TestShellShim_RecursionGuardExecsRealShell(t *testing.T) {
 	repoRoot := repoRootOrSkip(t)
 	tmp := t.TempDir()
 
-	shimBin := filepath.Join(tmp, "agentsh-shell-shim")
-	buildOrSkip(t, repoRoot, "./cmd/agentsh-shell-shim", shimBin)
+	shimBin := filepath.Join(tmp, "agentmon-shell-shim")
+	buildOrSkip(t, repoRoot, "./cmd/agentmon-shell-shim", shimBin)
 
 	binDir := filepath.Join(tmp, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
@@ -160,8 +160,8 @@ func TestShellShim_RecursionGuardExecsRealShell(t *testing.T) {
 
 	cmd := exec.Command(shimPath, "-lc", "echo hi")
 	cmd.Env = append(os.Environ(),
-		"AGENTSH_IN_SESSION=1",
-		"AGENTSH_BIN=/nonexistent/agentsh",
+		"AGENTMON_IN_SESSION=1",
+		"AGENTMON_BIN=/nonexistent/agentmon",
 	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -173,13 +173,13 @@ func TestShellShim_RecursionGuardExecsRealShell(t *testing.T) {
 }
 
 func TestShellShim_RecursionGuardFallsBackToPathWhenNoReal(t *testing.T) {
-	// Test that when AGENTSH_IN_SESSION=1 and .real doesn't exist,
+	// Test that when AGENTMON_IN_SESSION=1 and .real doesn't exist,
 	// the shim falls back to looking up the shell in PATH.
 	repoRoot := repoRootOrSkip(t)
 	tmp := t.TempDir()
 
-	shimBin := filepath.Join(tmp, "agentsh-shell-shim")
-	buildOrSkip(t, repoRoot, "./cmd/agentsh-shell-shim", shimBin)
+	shimBin := filepath.Join(tmp, "agentmon-shell-shim")
+	buildOrSkip(t, repoRoot, "./cmd/agentmon-shell-shim", shimBin)
 
 	binDir := filepath.Join(tmp, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
@@ -192,8 +192,8 @@ func TestShellShim_RecursionGuardFallsBackToPathWhenNoReal(t *testing.T) {
 
 	cmd := exec.Command(shimPath, "-c", "echo PATH_FALLBACK_OK")
 	cmd.Env = append(os.Environ(),
-		"AGENTSH_IN_SESSION=1",
-		"AGENTSH_BIN=/nonexistent/agentsh",
+		"AGENTMON_IN_SESSION=1",
+		"AGENTMON_BIN=/nonexistent/agentmon",
 		// PATH includes /bin and /usr/bin where real sh exists
 	)
 	out, err := cmd.CombinedOutput()
@@ -209,8 +209,8 @@ func TestShellShim_RespectsCustomArgv0(t *testing.T) {
 	repoRoot := repoRootOrSkip(t)
 	tmp := t.TempDir()
 
-	shimBin := filepath.Join(tmp, "agentsh-shell-shim")
-	buildOrSkip(t, repoRoot, "./cmd/agentsh-shell-shim", shimBin)
+	shimBin := filepath.Join(tmp, "agentmon-shell-shim")
+	buildOrSkip(t, repoRoot, "./cmd/agentmon-shell-shim", shimBin)
 
 	binDir := filepath.Join(tmp, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
@@ -223,11 +223,11 @@ func TestShellShim_RespectsCustomArgv0(t *testing.T) {
 		t.Fatalf("write sh.real: %v", err)
 	}
 
-	fakeAgentsh := filepath.Join(tmp, "fake-agentsh")
-	logPath := filepath.Join(tmp, "agentsh.log")
-	writeFakeAgentsh(t, fakeAgentsh, logPath)
+	fakeAgentmon := filepath.Join(tmp, "fake-agentmon")
+	logPath := filepath.Join(tmp, "agentmon.log")
+	writeFakeAgentmon(t, fakeAgentmon, logPath)
 
-	// Use a PTY so the shim takes the agentsh path (non-TTY stdin triggers bypass).
+	// Use a PTY so the shim takes the agentmon path (non-TTY stdin triggers bypass).
 	pty, tty, err := openPTY()
 	if err != nil {
 		t.Skipf("pty not available: %v", err)
@@ -245,10 +245,10 @@ func TestShellShim_RespectsCustomArgv0(t *testing.T) {
 	cmd.Stdout = tty
 	cmd.Stderr = tty
 	cmd.Env = append(os.Environ(),
-		"AGENTSH_BIN="+fakeAgentsh,
-		"AGENTSH_SESSION_ID=session-test",
-		"AGENTSH_SERVER="+srvURL,
-		"FAKE_AGENTSH_LOG="+logPath,
+		"AGENTMON_BIN="+fakeAgentmon,
+		"AGENTMON_SESSION_ID=session-test",
+		"AGENTMON_SERVER="+srvURL,
+		"FAKE_AGENTMON_LOG="+logPath,
 	)
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start: %v", err)
@@ -267,8 +267,8 @@ func TestShellShim_LoginArgv0SelectsBash(t *testing.T) {
 	repoRoot := repoRootOrSkip(t)
 	tmp := t.TempDir()
 
-	shimBin := filepath.Join(tmp, "agentsh-shell-shim")
-	buildOrSkip(t, repoRoot, "./cmd/agentsh-shell-shim", shimBin)
+	shimBin := filepath.Join(tmp, "agentmon-shell-shim")
+	buildOrSkip(t, repoRoot, "./cmd/agentmon-shell-shim", shimBin)
 
 	binDir := filepath.Join(tmp, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
@@ -283,11 +283,11 @@ func TestShellShim_LoginArgv0SelectsBash(t *testing.T) {
 		t.Fatalf("write bash.real: %v", err)
 	}
 
-	fakeAgentsh := filepath.Join(tmp, "fake-agentsh")
-	logPath := filepath.Join(tmp, "agentsh.log")
-	writeFakeAgentsh(t, fakeAgentsh, logPath)
+	fakeAgentmon := filepath.Join(tmp, "fake-agentmon")
+	logPath := filepath.Join(tmp, "agentmon.log")
+	writeFakeAgentmon(t, fakeAgentmon, logPath)
 
-	// Use a PTY so the shim takes the agentsh path (non-TTY stdin triggers bypass).
+	// Use a PTY so the shim takes the agentmon path (non-TTY stdin triggers bypass).
 	pty, tty, err := openPTY()
 	if err != nil {
 		t.Skipf("pty not available: %v", err)
@@ -305,10 +305,10 @@ func TestShellShim_LoginArgv0SelectsBash(t *testing.T) {
 	cmd.Stdout = tty
 	cmd.Stderr = tty
 	cmd.Env = append(os.Environ(),
-		"AGENTSH_BIN="+fakeAgentsh,
-		"AGENTSH_SESSION_ID=session-test",
-		"AGENTSH_SERVER="+srvURL,
-		"FAKE_AGENTSH_LOG="+logPath,
+		"AGENTMON_BIN="+fakeAgentmon,
+		"AGENTMON_SESSION_ID=session-test",
+		"AGENTMON_SERVER="+srvURL,
+		"FAKE_AGENTMON_LOG="+logPath,
 	)
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start: %v", err)
@@ -330,8 +330,8 @@ func TestShellShim_AddsPTYWhenTTY(t *testing.T) {
 	repoRoot := repoRootOrSkip(t)
 	tmp := t.TempDir()
 
-	shimBin := filepath.Join(tmp, "agentsh-shell-shim")
-	buildOrSkip(t, repoRoot, "./cmd/agentsh-shell-shim", shimBin)
+	shimBin := filepath.Join(tmp, "agentmon-shell-shim")
+	buildOrSkip(t, repoRoot, "./cmd/agentmon-shell-shim", shimBin)
 
 	binDir := filepath.Join(tmp, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
@@ -343,9 +343,9 @@ func TestShellShim_AddsPTYWhenTTY(t *testing.T) {
 		t.Fatalf("write sh.real: %v", err)
 	}
 
-	fakeAgentsh := filepath.Join(tmp, "fake-agentsh")
-	logPath := filepath.Join(tmp, "agentsh.log")
-	writeFakeAgentsh(t, fakeAgentsh, logPath)
+	fakeAgentmon := filepath.Join(tmp, "fake-agentmon")
+	logPath := filepath.Join(tmp, "agentmon.log")
+	writeFakeAgentmon(t, fakeAgentmon, logPath)
 
 	pty, tty, err := openPTY()
 	if err != nil {
@@ -359,10 +359,10 @@ func TestShellShim_AddsPTYWhenTTY(t *testing.T) {
 
 	cmd := exec.Command(shimPath, "-lc", "echo hi")
 	cmd.Env = append(os.Environ(),
-		"AGENTSH_BIN="+fakeAgentsh,
-		"AGENTSH_SESSION_ID=session-test",
-		"AGENTSH_SERVER="+srvURL,
-		"FAKE_AGENTSH_LOG="+logPath,
+		"AGENTMON_BIN="+fakeAgentmon,
+		"AGENTMON_SESSION_ID=session-test",
+		"AGENTMON_SERVER="+srvURL,
+		"FAKE_AGENTMON_LOG="+logPath,
 	)
 	cmd.Stdin = tty
 	cmd.Stdout = tty
@@ -384,8 +384,8 @@ func TestShellShim_NonInteractiveBypass_BinaryStdinPassthrough(t *testing.T) {
 	repoRoot := repoRootOrSkip(t)
 	tmp := t.TempDir()
 
-	shimBin := filepath.Join(tmp, "agentsh-shell-shim")
-	buildOrSkip(t, repoRoot, "./cmd/agentsh-shell-shim", shimBin)
+	shimBin := filepath.Join(tmp, "agentmon-shell-shim")
+	buildOrSkip(t, repoRoot, "./cmd/agentmon-shell-shim", shimBin)
 
 	binDir := filepath.Join(tmp, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
@@ -410,8 +410,8 @@ func TestShellShim_NonInteractiveBypass_BinaryStdinPassthrough(t *testing.T) {
 	cmd.Stdin = bytes.NewReader(binaryData)
 	cmd.Env = []string{
 		"PATH=/usr/bin:/bin",
-		"AGENTSH_SESSION_ID=test-session",
-		// No AGENTSH_BIN — the bypass should exec sh.real directly.
+		"AGENTMON_SESSION_ID=test-session",
+		// No AGENTMON_BIN — the bypass should exec sh.real directly.
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -433,12 +433,12 @@ func TestShellShim_NonInteractiveBypass_BinaryStdinPassthrough(t *testing.T) {
 	}
 }
 
-func TestShellShim_NonInteractiveBypass_ExecRealShellNotAgentsh(t *testing.T) {
+func TestShellShim_NonInteractiveBypass_ExecRealShellNotAgentmon(t *testing.T) {
 	repoRoot := repoRootOrSkip(t)
 	tmp := t.TempDir()
 
-	shimBin := filepath.Join(tmp, "agentsh-shell-shim")
-	buildOrSkip(t, repoRoot, "./cmd/agentsh-shell-shim", shimBin)
+	shimBin := filepath.Join(tmp, "agentmon-shell-shim")
+	buildOrSkip(t, repoRoot, "./cmd/agentmon-shell-shim", shimBin)
 
 	binDir := filepath.Join(tmp, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
@@ -453,18 +453,18 @@ func TestShellShim_NonInteractiveBypass_ExecRealShellNotAgentsh(t *testing.T) {
 		t.Fatalf("write sh.real: %v", err)
 	}
 
-	fakeAgentsh := filepath.Join(tmp, "fake-agentsh")
-	logPath := filepath.Join(tmp, "agentsh.log")
-	writeFakeAgentsh(t, fakeAgentsh, logPath)
+	fakeAgentmon := filepath.Join(tmp, "fake-agentmon")
+	logPath := filepath.Join(tmp, "agentmon.log")
+	writeFakeAgentmon(t, fakeAgentmon, logPath)
 
-	// Non-TTY stdin: the shim should bypass agentsh and exec sh.real directly.
+	// Non-TTY stdin: the shim should bypass agentmon and exec sh.real directly.
 	cmd := exec.Command(shimPath, "-c", "echo BYPASS_OK")
 	cmd.Stdin = strings.NewReader("")
 	cmd.Env = []string{
 		"PATH=/usr/bin:/bin",
-		"AGENTSH_BIN=" + fakeAgentsh,
-		"AGENTSH_SESSION_ID=test-session",
-		"FAKE_AGENTSH_LOG=" + logPath,
+		"AGENTMON_BIN=" + fakeAgentmon,
+		"AGENTMON_SESSION_ID=test-session",
+		"FAKE_AGENTMON_LOG=" + logPath,
 	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -475,15 +475,15 @@ func TestShellShim_NonInteractiveBypass_ExecRealShellNotAgentsh(t *testing.T) {
 		t.Fatalf("expected real shell to run, got %q", string(out))
 	}
 
-	// Verify agentsh was NOT invoked (log file should not exist).
+	// Verify agentmon was NOT invoked (log file should not exist).
 	if _, err := os.Stat(logPath); err == nil {
 		content, _ := os.ReadFile(logPath)
-		t.Fatalf("agentsh should NOT have been invoked for non-interactive use; log: %s", content)
+		t.Fatalf("agentmon should NOT have been invoked for non-interactive use; log: %s", content)
 	}
 }
 
 // startFakeListener starts a TCP listener on a random port and returns the
-// AGENTSH_SERVER URL. Satisfies the shim's server readiness gate.
+// AGENTMON_SERVER URL. Satisfies the shim's server readiness gate.
 func startFakeListener(t *testing.T) string {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -545,11 +545,11 @@ func copyFile(t *testing.T, src, dst string, mode os.FileMode) {
 	}
 }
 
-func writeFakeAgentsh(t *testing.T, path, logPath string) {
+func writeFakeAgentmon(t *testing.T, path, logPath string) {
 	t.Helper()
 	s := `#!/bin/sh
 set -eu
-log="${FAKE_AGENTSH_LOG:-` + logPath + `}"
+log="${FAKE_AGENTMON_LOG:-` + logPath + `}"
 rm -f "$log"
 i=0
 for a in "$@"; do
@@ -559,7 +559,7 @@ done
 exit 0
 `
 	if err := os.WriteFile(path, []byte(s), 0o755); err != nil {
-		t.Fatalf("write fake agentsh: %v", err)
+		t.Fatalf("write fake agentmon: %v", err)
 	}
 }
 

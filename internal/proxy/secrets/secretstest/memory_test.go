@@ -6,20 +6,20 @@ import (
 	"sync"
 	"testing"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 func TestNewMemoryProvider_CopiesSeed(t *testing.T) {
 	seed := map[string][]byte{
-		"keyring://agentsh/token": []byte("original"),
+		"keyring://agentmon/token": []byte("original"),
 	}
 	mp := NewMemoryProvider("test", seed)
 
 	// Mutate the caller's seed map after construction.
-	seed["keyring://agentsh/token"] = []byte("mutated")
+	seed["keyring://agentmon/token"] = []byte("mutated")
 
 	sv, err := mp.Fetch(context.Background(), secrets.SecretRef{
-		Scheme: "keyring", Host: "agentsh", Path: "token",
+		Scheme: "keyring", Host: "agentmon", Path: "token",
 	})
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
@@ -31,9 +31,9 @@ func TestNewMemoryProvider_CopiesSeed(t *testing.T) {
 
 func TestFetch_HappyPath(t *testing.T) {
 	mp := NewMemoryProvider("test", map[string][]byte{
-		"keyring://agentsh/token": []byte("foo"),
+		"keyring://agentmon/token": []byte("foo"),
 	})
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "token"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "token"}
 	sv, err := mp.Fetch(context.Background(), ref)
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
@@ -48,7 +48,7 @@ func TestFetch_HappyPath(t *testing.T) {
 
 func TestFetch_NotFound(t *testing.T) {
 	mp := NewMemoryProvider("test", nil)
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "missing"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "missing"}
 	_, err := mp.Fetch(context.Background(), ref)
 	if !errors.Is(err, secrets.ErrNotFound) {
 		t.Errorf("Fetch of missing = %v, want wrapping ErrNotFound", err)
@@ -57,9 +57,9 @@ func TestFetch_NotFound(t *testing.T) {
 
 func TestFetch_ReturnsCopy(t *testing.T) {
 	mp := NewMemoryProvider("test", map[string][]byte{
-		"keyring://agentsh/token": []byte("immutable"),
+		"keyring://agentmon/token": []byte("immutable"),
 	})
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "token"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "token"}
 
 	sv1, err := mp.Fetch(context.Background(), ref)
 	if err != nil {
@@ -109,7 +109,7 @@ func TestFetch_MalformedRef_MissingHost(t *testing.T) {
 func TestFetch_MalformedRef_UnsupportedScheme(t *testing.T) {
 	mp := NewMemoryProvider("test", nil)
 	_, err := mp.Fetch(context.Background(), secrets.SecretRef{
-		Scheme: "bogus", Host: "agentsh", Path: "token",
+		Scheme: "bogus", Host: "agentmon", Path: "token",
 	})
 	if !errors.Is(err, secrets.ErrUnsupportedScheme) {
 		t.Errorf("Fetch bogus scheme = %v, want wrapping ErrUnsupportedScheme", err)
@@ -140,11 +140,11 @@ func TestFetch_MalformedAfterClose(t *testing.T) {
 
 func TestAdd_ThenFetch(t *testing.T) {
 	mp := NewMemoryProvider("test", nil)
-	if err := mp.Add("keyring://agentsh/added", []byte("value")); err != nil {
+	if err := mp.Add("keyring://agentmon/added", []byte("value")); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	sv, err := mp.Fetch(context.Background(), secrets.SecretRef{
-		Scheme: "keyring", Host: "agentsh", Path: "added",
+		Scheme: "keyring", Host: "agentmon", Path: "added",
 	})
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
@@ -164,7 +164,7 @@ func TestAdd_InvalidURI(t *testing.T) {
 
 func TestAdd_Replace(t *testing.T) {
 	mp := NewMemoryProvider("test", nil)
-	const uri = "keyring://agentsh/replaceable"
+	const uri = "keyring://agentmon/replaceable"
 	if err := mp.Add(uri, []byte("first")); err != nil {
 		t.Fatalf("first Add: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestAdd_Replace(t *testing.T) {
 		t.Fatalf("second Add: %v", err)
 	}
 	sv, err := mp.Fetch(context.Background(), secrets.SecretRef{
-		Scheme: "keyring", Host: "agentsh", Path: "replaceable",
+		Scheme: "keyring", Host: "agentmon", Path: "replaceable",
 	})
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
@@ -184,11 +184,11 @@ func TestAdd_Replace(t *testing.T) {
 
 func TestRemove(t *testing.T) {
 	mp := NewMemoryProvider("test", map[string][]byte{
-		"keyring://agentsh/removeme": []byte("present"),
+		"keyring://agentmon/removeme": []byte("present"),
 	})
-	mp.Remove("keyring://agentsh/removeme")
+	mp.Remove("keyring://agentmon/removeme")
 	_, err := mp.Fetch(context.Background(), secrets.SecretRef{
-		Scheme: "keyring", Host: "agentsh", Path: "removeme",
+		Scheme: "keyring", Host: "agentmon", Path: "removeme",
 	})
 	if !errors.Is(err, secrets.ErrNotFound) {
 		t.Errorf("Fetch after Remove = %v, want wrapping ErrNotFound", err)
@@ -214,7 +214,7 @@ func TestClose_Idempotent(t *testing.T) {
 
 func TestConcurrentAccess_NoRaces(t *testing.T) {
 	mp := NewMemoryProvider("test", map[string][]byte{
-		"keyring://agentsh/seed": []byte("initial"),
+		"keyring://agentmon/seed": []byte("initial"),
 	})
 
 	var wg sync.WaitGroup
@@ -226,13 +226,13 @@ func TestConcurrentAccess_NoRaces(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < iterations; i++ {
-			_ = mp.Add("keyring://agentsh/writer", []byte("w"))
-			mp.Remove("keyring://agentsh/writer")
+			_ = mp.Add("keyring://agentmon/writer", []byte("w"))
+			mp.Remove("keyring://agentmon/writer")
 		}
 	}()
 
 	// Readers: fetch the seeded URI.
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "seed"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "seed"}
 	for i := 0; i < readers; i++ {
 		wg.Add(1)
 		go func() {

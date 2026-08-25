@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 // YarnResolverConfig configures the yarn resolver.

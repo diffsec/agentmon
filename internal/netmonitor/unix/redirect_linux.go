@@ -11,19 +11,19 @@ import (
 	"os"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/stub"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/stub"
+	"github.com/diffsec/agentmon/pkg/types"
 	sysunix "golang.org/x/sys/unix"
 )
 
-// stubBinaryPath is the path to the agentsh-stub binary.
+// stubBinaryPath is the path to the agentmon-stub binary.
 var stubBinaryPath string
 
 // ErrRedirectPathTooLong is returned when the stub symlink path exceeds the
 // original filename length, making in-place memory overwrite impossible.
 var ErrRedirectPathTooLong = errors.New("stub symlink path longer than original filename")
 
-// SetStubBinaryPath sets the path to the agentsh-stub binary.
+// SetStubBinaryPath sets the path to the agentmon-stub binary.
 func SetStubBinaryPath(path string) {
 	stubBinaryPath = path
 }
@@ -61,7 +61,7 @@ func createStubSocketPair() (stubRawFD int, srvConn net.Conn, err error) {
 //
 // Parameters:
 //   - filenamePtr: the tracee memory address of the filename string (from execve arg0)
-//   - stubSymlinkPath: short path to a symlink that points to agentsh-stub
+//   - stubSymlinkPath: short path to a symlink that points to agentmon-stub
 func handleRedirect(notifFD int, reqID uint64, ctx ExecveContext, filenamePtr uint64, stubSymlinkPath string, originalFilenameLen int, redirect *types.RedirectInfo) error {
 	// Validate the stub path fits within the original filename's memory.
 	// The original string at filenamePtr has originalFilenameLen+1 bytes (including null).

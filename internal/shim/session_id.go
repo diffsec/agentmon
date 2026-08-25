@@ -21,16 +21,16 @@ type ResolveSessionIDOptions struct {
 	WorkDir string
 
 	// BaseDirs controls where file-backed session ids are stored.
-	// If empty, defaults to: /run/agentsh, /tmp/agentsh, <workspaceRoot>/.agentsh
+	// If empty, defaults to: /run/agentmon, /tmp/agentmon, <workspaceRoot>/.agentmon
 	BaseDirs []string
 }
 
-// ResolveSessionID resolves the current agentsh session ID using environment and file-based fallbacks.
+// ResolveSessionID resolves the current agentmon session ID using environment and file-based fallbacks.
 //
 // Priority:
-//  1. AGENTSH_SESSION_ID (return directly; no file path)
-//  2. AGENTSH_SESSION_FILE (read/create; returns that file path)
-//  3. File-backed fallback (scope controlled by AGENTSH_SESSION_SCOPE=global|workspace)
+//  1. AGENTMON_SESSION_ID (return directly; no file path)
+//  2. AGENTMON_SESSION_FILE (read/create; returns that file path)
+//  3. File-backed fallback (scope controlled by AGENTMON_SESSION_SCOPE=global|workspace)
 //
 // It returns (sessionID, backingFilePathOrEmpty, error).
 func ResolveSessionID(opts ResolveSessionIDOptions) (string, string, error) {
@@ -39,11 +39,11 @@ func ResolveSessionID(opts ResolveSessionIDOptions) (string, string, error) {
 		getenv = os.Getenv
 	}
 
-	if v := strings.TrimSpace(getenv("AGENTSH_SESSION_ID")); v != "" {
+	if v := strings.TrimSpace(getenv("AGENTMON_SESSION_ID")); v != "" {
 		return v, "", nil
 	}
 
-	if f := strings.TrimSpace(getenv("AGENTSH_SESSION_FILE")); f != "" {
+	if f := strings.TrimSpace(getenv("AGENTMON_SESSION_FILE")); f != "" {
 		id, err := readOrCreateSessionIDFile(f)
 		if err != nil {
 			return "", "", err
@@ -51,7 +51,7 @@ func ResolveSessionID(opts ResolveSessionIDOptions) (string, string, error) {
 		return id, f, nil
 	}
 
-	scope := strings.ToLower(strings.TrimSpace(getenv("AGENTSH_SESSION_SCOPE")))
+	scope := strings.ToLower(strings.TrimSpace(getenv("AGENTMON_SESSION_SCOPE")))
 	if scope == "" {
 		scope = "workspace"
 	}
@@ -96,7 +96,7 @@ func ResolveSessionID(opts ResolveSessionIDOptions) (string, string, error) {
 }
 
 func resolveWorkspaceRoot(getenv func(string) string, workDir string) (string, error) {
-	if v := strings.TrimSpace(getenv("AGENTSH_WORKSPACE")); v != "" {
+	if v := strings.TrimSpace(getenv("AGENTMON_WORKSPACE")); v != "" {
 		abs, err := filepath.Abs(v)
 		if err == nil {
 			return abs, nil

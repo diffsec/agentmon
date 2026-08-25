@@ -88,7 +88,7 @@ func (m *mockPrometheusCollector) IncPtraceExitStopSkipped() { m.exitStopSkipped
 
 - [ ] **Step 4: Build to verify compilation**
 
-Run: `cd /home/eran/work/agentsh && go build ./...`
+Run: `cd /home/eran/work/agentmon && go build ./...`
 Expected: Success — all implementors of `PtraceMetricsCollector` now have the new method.
 
 - [ ] **Step 5: Commit**
@@ -187,7 +187,7 @@ func (m *testMetrics) IncExitStopSkipped()     { m.exitStopSkipped.Add(1) }
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -run TestIntegration_ReadExitSkipForNonStatusFd -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -run TestIntegration_ReadExitSkipForNonStatusFd -v -count=1 ./internal/ptrace/`
 Expected: FAIL — `handleReadEntry` doesn't exist yet, or no skips counted.
 
 - [ ] **Step 3: Implement `handleReadEntry` in `handle_read.go`**
@@ -246,22 +246,22 @@ case isReadSyscall(nr):
 
 - [ ] **Step 5: Build to verify compilation**
 
-Run: `cd /home/eran/work/agentsh && go build ./internal/ptrace/...`
+Run: `cd /home/eran/work/agentmon && go build ./internal/ptrace/...`
 Expected: Success.
 
 - [ ] **Step 6: Run the new test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -run TestIntegration_ReadExitSkipForNonStatusFd -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -run TestIntegration_ReadExitSkipForNonStatusFd -v -count=1 ./internal/ptrace/`
 Expected: PASS with `exit stops skipped: >0`
 
 - [ ] **Step 7: Run the existing TracerPid masking regression test**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -run TestIntegration_TracerPidMasked -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -run TestIntegration_TracerPidMasked -v -count=1 ./internal/ptrace/`
 Expected: PASS — TracerPid still masked (reads on status fds still get exit stops).
 
 - [ ] **Step 8: Run the full integration test suite**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -v -count=1 ./internal/ptrace/`
 Expected: All tests PASS.
 
 - [ ] **Step 9: Commit**
@@ -367,7 +367,7 @@ func TestIntegration_ConnectExitSkipNonTLS(t *testing.T) {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -run TestIntegration_ConnectExitSkipNonTLS -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -run TestIntegration_ConnectExitSkipNonTLS -v -count=1 ./internal/ptrace/`
 Expected: FAIL — connect exit stops not yet skipped.
 
 - [ ] **Step 3: Implement connect exit skip — policy allow path**
@@ -416,17 +416,17 @@ In `internal/ptrace/handle_network.go`, change the DNS redirect early-return (li
 
 - [ ] **Step 5: Build to verify compilation**
 
-Run: `cd /home/eran/work/agentsh && go build ./internal/ptrace/...`
+Run: `cd /home/eran/work/agentmon && go build ./internal/ptrace/...`
 Expected: Success.
 
 - [ ] **Step 6: Run non-TLS connect test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -run TestIntegration_ConnectExitSkipNonTLS -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -run TestIntegration_ConnectExitSkipNonTLS -v -count=1 ./internal/ptrace/`
 Expected: PASS.
 
 - [ ] **Step 7: Run the full integration test suite**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -v -count=1 ./internal/ptrace/`
 Expected: All tests PASS — including `TestIntegration_ConnectRedirect` (redirect path unchanged).
 
 - [ ] **Step 8: Commit**
@@ -527,7 +527,7 @@ func TestIntegration_ConnectExitRetainedTLS(t *testing.T) {
 
 - [ ] **Step 2: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -run TestIntegration_ConnectExitRetainedTLS -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -run TestIntegration_ConnectExitRetainedTLS -v -count=1 ./internal/ptrace/`
 Expected: PASS — connect to port 443 reaches the network handler without skipping the exit stop.
 
 - [ ] **Step 3: Write `TestIntegration_ConnectExitSkipDNSRedirect`**
@@ -600,12 +600,12 @@ func TestIntegration_ConnectExitSkipDNSRedirect(t *testing.T) {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -run TestIntegration_ConnectExitSkipDNSRedirect -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -run TestIntegration_ConnectExitSkipDNSRedirect -v -count=1 ./internal/ptrace/`
 Expected: PASS.
 
 - [ ] **Step 5: Run the full integration test suite**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -v -count=1 ./internal/ptrace/`
 Expected: All tests PASS.
 
 - [ ] **Step 6: Commit**
@@ -628,25 +628,25 @@ watching, and that connects to non-TLS/DNS ports skip exit stops."
 
 - [ ] **Step 1: Verify cross-compilation for Windows**
 
-Run: `cd /home/eran/work/agentsh && GOOS=windows go build ./...`
+Run: `cd /home/eran/work/agentmon && GOOS=windows go build ./...`
 Expected: Success. (Ptrace code is `//go:build linux` guarded.)
 
 - [ ] **Step 2: Run `go build ./...` for all packages**
 
-Run: `cd /home/eran/work/agentsh && go build ./...`
+Run: `cd /home/eran/work/agentmon && go build ./...`
 Expected: Success.
 
 - [ ] **Step 3: Run `go vet`**
 
-Run: `cd /home/eran/work/agentsh && go vet ./internal/ptrace/...`
+Run: `cd /home/eran/work/agentmon && go vet ./internal/ptrace/...`
 Expected: No issues.
 
 - [ ] **Step 4: Run the full integration test suite one final time**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -v -count=1 ./internal/ptrace/`
 Expected: All tests PASS.
 
 - [ ] **Step 5: Run the full project test suite**
 
-Run: `cd /home/eran/work/agentsh && go test ./...`
+Run: `cd /home/eran/work/agentmon && go test ./...`
 Expected: All tests PASS.

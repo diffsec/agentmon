@@ -77,7 +77,7 @@ package awssm
 package awssm
 
 import (
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // Config configures the AWS Secrets Manager provider.
@@ -138,7 +138,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // smClient is the subset of the AWS Secrets Manager API that the
@@ -174,7 +174,7 @@ type Provider struct {
 // GetSecretValue that returns ResourceNotFoundException proves auth
 // and connectivity work. Any other error means credentials are
 // invalid or the endpoint is unreachable.
-const probeSecretID = "agentsh-probe-nonexistent"
+const probeSecretID = "agentmon-probe-nonexistent"
 
 // testFetchPreLockHook is a test-only seam invoked (when non-nil)
 // between Fetch's fast-path closed check and its RLock acquisition.
@@ -444,8 +444,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/secretstest"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/secretstest"
 )
 
 // mockSMClient implements smClient for testing.
@@ -1036,7 +1036,7 @@ func TestResolveProviderConfigs_AWSSM(t *testing.T) {
 }
 ```
 
-Also add the import `"github.com/agentsh/agentsh/internal/proxy/secrets/awssm"` to the test file's imports.
+Also add the import `"github.com/diffsec/agentmon/internal/proxy/secrets/awssm"` to the test file's imports.
 
 - [ ] **Step 6: Run test to verify it fails**
 
@@ -1051,7 +1051,7 @@ Expected: FAIL — `unknown provider type "aws-sm"`.
 Add import at `internal/session/secretsconfig.go:10`:
 
 ```go
-"github.com/agentsh/agentsh/internal/proxy/secrets/awssm"
+"github.com/diffsec/agentmon/internal/proxy/secrets/awssm"
 ```
 
 Add to `DefaultConstructors` (after the `"vault"` entry, around line 118):

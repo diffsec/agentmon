@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/limits"
-	"github.com/agentsh/agentsh/internal/netmonitor/ebpf"
+	"github.com/diffsec/agentmon/internal/limits"
+	"github.com/diffsec/agentmon/internal/netmonitor/ebpf"
 )
 
 // Integration test: attach BPF to a temp cgroup, populate allowlist, attempt a denied connect via nc.
@@ -24,7 +24,7 @@ func TestIntegration_AttachAndEnforce(t *testing.T) {
 	}
 
 	// Create a temp cgroup and move self into it.
-	tmp := filepath.Join(os.TempDir(), "agentsh-ebpf-test")
+	tmp := filepath.Join(os.TempDir(), "agentmon-ebpf-test")
 	cgDir := filepath.Join("/sys/fs/cgroup", filepath.Base(tmp))
 	_ = os.Remove(cgDir) // clean up from interrupted prior runs
 	if err := os.Mkdir(cgDir, 0o755); err != nil {
@@ -81,7 +81,7 @@ func TestIntegration_DenyWithoutDefaultDeny(t *testing.T) {
 		t.Skip("cgroup v2 required")
 	}
 
-	tmp := filepath.Join(os.TempDir(), "agentsh-ebpf-deny-test")
+	tmp := filepath.Join(os.TempDir(), "agentmon-ebpf-deny-test")
 	cgDir := filepath.Join("/sys/fs/cgroup", filepath.Base(tmp))
 	_ = os.Remove(cgDir) // clean up from interrupted prior runs
 	if err := os.Mkdir(cgDir, 0o755); err != nil {

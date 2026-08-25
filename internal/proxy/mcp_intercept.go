@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/mcpinspect"
-	"github.com/agentsh/agentsh/internal/mcpregistry"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
 )
 
 // ToolCall represents a tool invocation extracted from an LLM response.
@@ -303,7 +303,7 @@ func rewriteAnthropicResponse(body []byte, blockedNames map[string]bool) []byte 
 			// Replace with a text block.
 			replacement := map[string]string{
 				"type": "text",
-				"text": fmt.Sprintf("[agentsh] Tool '%s' blocked by policy", info.Name),
+				"text": fmt.Sprintf("[agentmon] Tool '%s' blocked by policy", info.Name),
 			}
 			raw, err := json.Marshal(replacement)
 			if err != nil {
@@ -393,7 +393,7 @@ func rewriteOpenAIResponse(body []byte, blockedNames map[string]bool) []byte {
 				continue
 			}
 			if blockedNames[tc.Function.Name] {
-				blockedMessages = append(blockedMessages, fmt.Sprintf("[agentsh] Tool '%s' blocked by policy", tc.Function.Name))
+				blockedMessages = append(blockedMessages, fmt.Sprintf("[agentmon] Tool '%s' blocked by policy", tc.Function.Name))
 			} else {
 				kept = append(kept, tcRaw)
 			}

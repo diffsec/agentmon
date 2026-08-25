@@ -9,5 +9,5 @@
 // and an action layer that quarantines on block via internal/trash.
 //
 // Triggers: an fsnotify-based watcher over ~/.claude/skills and
-// ~/.claude/plugins/*/skills, plus an `agentsh skillcheck` CLI.
+// ~/.claude/plugins/*/skills, plus an `agentmon skillcheck` CLI.
 package skillcheck

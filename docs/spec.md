@@ -1,4 +1,4 @@
-# agentsh: Secure Agent Shell Specification
+# agentmon: Secure Agent Shell Specification
 
 **Version:** 0.1.0-draft  
 **Date:** December 2024  
@@ -30,11 +30,11 @@
 
 ## 1. Executive Summary
 
-**agentsh** is a purpose-built shell environment for AI agents that provides comprehensive monitoring, policy enforcement, and structured I/O for command execution. Unlike traditional shells (bash, zsh) designed for human interaction, agentsh treats the shell as an intelligent intermediary that understands context, risk, and intent.
+**agentmon** is a purpose-built shell environment for AI agents that provides comprehensive monitoring, policy enforcement, and structured I/O for command execution. Unlike traditional shells (bash, zsh) designed for human interaction, agentmon treats the shell as an intelligent intermediary that understands context, risk, and intent.
 
 ### Key Differentiators
 
-| Capability | Traditional Shell | agentsh |
+| Capability | Traditional Shell | agentmon |
 |------------|------------------|---------|
 | Output format | Human-readable text | Structured JSON |
 | Error handling | Text error messages | Structured errors with suggestions |
@@ -147,7 +147,7 @@ An agent execution environment must provide:
                                     │ HTTP/gRPC/Unix Socket
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           agentsh Server                                 │
+│                           agentmon Server                                 │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐    │
 │  │   Session   │  │   Policy    │  │   Audit     │  │   API       │    │
 │  │   Manager   │  │   Engine    │  │   Logger    │  │   Server    │    │
@@ -475,7 +475,7 @@ type SessionCleanupPolicy struct {
                               │ /dev/fuse
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    agentsh FUSE Daemon                       │
+│                    agentmon FUSE Daemon                       │
 │                                                             │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
 │  │   Policy    │  │   Event     │  │   Passthrough       │ │
@@ -635,9 +635,9 @@ filesystem:
 The proxy intercepts all outbound TCP connections:
 ### 8.3 Unix Domain Socket Monitoring (audit-only)
 
-- Instrumentation: `agentsh-unixwrap` sets a seccomp user-notify filter around Unix domain socket syscalls and passes a notify fd back to the server.
+- Instrumentation: `agentmon-unixwrap` sets a seccomp user-notify filter around Unix domain socket syscalls and passes a notify fd back to the server.
 - Current behavior: audit-only. Events are emitted for socket creation/connect attempts, but decisions are *not yet enforced*; policy includes unix socket rules but runtime enforcement is pending ServeNotify wiring.
-- Configuration: `sandbox.unixSockets.enabled` (bool) and `sandbox.unixSockets.wrapper_bin` (optional override of `agentsh-unixwrap`).
+- Configuration: `sandbox.unixSockets.enabled` (bool) and `sandbox.unixSockets.wrapper_bin` (optional override of `agentmon-unixwrap`).
 - Limitations: does not yet block or redirect traffic; parent notify fd is closed until enforcement lands. Works on Linux only.
 
 
@@ -787,7 +787,7 @@ func (d *DNSInterceptor) handleQuery(query []byte, clientAddr *net.UDPAddr) {
 
 ### 8.6 Signal Interception
 
-agentsh intercepts signal delivery between processes to enforce policy-based control over which signals can reach which targets. This prevents agents from terminating critical processes, enables graceful shutdown patterns, and provides audit trails for signal activity.
+agentmon intercepts signal delivery between processes to enforce policy-based control over which signals can reach which targets. This prevents agents from terminating critical processes, enables graceful shutdown patterns, and provides audit trails for signal activity.
 
 #### Architecture
 
@@ -804,7 +804,7 @@ agentsh intercepts signal delivery between processes to enforce policy-based con
                                                  │ notify fd
                                                  ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  agentsh Signal Handler                       │
+│                  agentmon Signal Handler                       │
 │                                                             │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
 │  │   Target    │  │   Policy    │  │   Decision          │ │
@@ -829,7 +829,7 @@ Signal interception uses Linux seccomp with `SECCOMP_RET_USER_NOTIF` to trap sig
 
 When a process attempts to send a signal:
 
-1. **seccomp traps** the syscall and notifies agentsh via the user-notify fd
+1. **seccomp traps** the syscall and notifies agentmon via the user-notify fd
 2. **Target classification** determines the relationship (self, child, external, etc.)
 3. **Policy evaluation** checks signal rules for a matching decision
 4. **Decision execution**:
@@ -848,8 +848,8 @@ The PID registry tracks all processes in the session to classify signal targets:
 | `children` | Direct child processes | Parent killing forked child |
 | `descendants` | All descendant processes | Grandparent signaling grandchild |
 | `siblings` | Same parent process | Two forked children |
-| `session` | Any process in agentsh session | Within sandbox |
-| `parent` | The agentsh supervisor | Child signaling parent |
+| `session` | Any process in agentmon session | Within sandbox |
+| `parent` | The agentmon supervisor | Child signaling parent |
 | `external` | PIDs outside session | Agent trying to kill host process |
 | `system` | PID 1, 2 (init, kthreadd) | Critical system processes |
 
@@ -918,18 +918,18 @@ Policies define what operations are allowed, denied, or require approval.
 ### 9.2 Policy Configuration
 
 - `policies.allowed`: list of policy names (without `.yml`/`.yaml`) the server may load. If empty, only `policies.default` is permitted.
-- `AGENTSH_POLICY_NAME`: optional env var to select an allowed policy at startup; invalid or disallowed values fall back to `policies.default`.
+- `AGENTMON_POLICY_NAME`: optional env var to select an allowed policy at startup; invalid or disallowed values fall back to `policies.default`.
 - `policies.manifest_path`: optional SHA256 manifest file used to integrity-check policy files on load.
 - `policies.env_policy`: global environment policy for commands (allow/deny, max_bytes, max_keys, block_iteration); per-command `env_*` fields override. Default behavior with empty allow list is minimal PATH/LANG/TERM/HOME plus built-in secret deny list.
-- `policies.env_shim_path`: optional path to libenvshim.so; when set and block_iteration=true, the server sets LD_PRELOAD and AGENTSH_ENV_BLOCK_ITERATION=1 for matching commands.
+- `policies.env_shim_path`: optional path to libenvshim.so; when set and block_iteration=true, the server sets LD_PRELOAD and AGENTMON_ENV_BLOCK_ITERATION=1 for matching commands.
 
 Selection order:
-1. If `AGENTSH_POLICY_NAME` is set, matches `^[A-Za-z0-9_-]+$`, and is in `policies.allowed`, use it.
+1. If `AGENTMON_POLICY_NAME` is set, matches `^[A-Za-z0-9_-]+$`, and is in `policies.allowed`, use it.
 2. Else use `policies.default`.
 3. The selected policy is loaded once on first use; failures do not trigger loading another policy.
 
 ```yaml
-# /etc/agentsh/policies/default.yaml
+# /etc/agentmon/policies/default.yaml
 version: 1
 name: default
 description: Standard policy for AI agent execution
@@ -1133,7 +1133,7 @@ For operations requiring human approval:
 
 ```
 ┌─────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────┐
-│  Agent  │────▶│   agentsh   │────▶│  Approval   │────▶│  Human  │
+│  Agent  │────▶│   agentmon   │────▶│  Approval   │────▶│  Human  │
 │         │     │             │     │   Gateway   │     │         │
 └─────────┘     └─────────────┘     └─────────────┘     └─────────┘
                       │                    │                  │
@@ -1157,7 +1157,7 @@ For operations requiring human approval:
 
 #### Human Verification
 
-To ensure approvals come from actual humans (not agents or bots), agentsh requires verification:
+To ensure approvals come from actual humans (not agents or bots), agentmon requires verification:
 
 | Method | Security | Description |
 |--------|----------|-------------|
@@ -1227,7 +1227,7 @@ To ensure approvals come from actual humans (not agents or bots), agentsh requir
 
 Traditional shells output human-readable text.
 
-agentsh always produces a structured **ExecResponse** at the API layer (JSON). The CLI can present that response in two ways:
+agentmon always produces a structured **ExecResponse** at the API layer (JSON). The CLI can present that response in two ways:
 
 - **Shell mode (default):** print `stdout`/`stderr` like a normal shell and exit with the command’s exit code.
 - **JSON mode:** print the full ExecResponse (including `events` and `guidance`) for tools/agents.
@@ -1240,18 +1240,18 @@ Traditional shell:
   drwxr-xr-x   5 user staff   160 Dec 14 09:00 ..
   -rw-r--r--   1 user staff  1420 Dec 15 09:55 README.md
 
-agentsh (shell mode):
-  $ agentsh exec session-abc123 -- ls -la
+agentmon (shell mode):
+  $ agentmon exec session-abc123 -- ls -la
   total 48
   drwxr-xr-x  12 user staff   384 Dec 15 10:00 .
   ...
 
-agentsh (JSON mode):
-  $ agentsh exec --output json --events summary session-abc123 -- ls -la
+agentmon (JSON mode):
+  $ agentmon exec --output json --events summary session-abc123 -- ls -la
   { "command_id": "cmd-...", "result": { "exit_code": 0, "stdout": "..." }, "events": { ... } }
 
-agentsh (structured builtin example):
-  $ agentsh exec session-abc123 -- als
+agentmon (structured builtin example):
+  $ agentmon exec session-abc123 -- als
   { "entries": [ ... ] }
 ```
 
@@ -1382,7 +1382,7 @@ Large outputs are automatically truncated with pagination:
       "current_offset": 0,
       "current_limit": 10000,
       "has_more": true,
-      "next_command": "agentsh output session-abc123 cmd-xyz789 --offset=10000 --limit=10000"
+      "next_command": "agentmon output session-abc123 cmd-xyz789 --offset=10000 --limit=10000"
     }
   }
 }
@@ -1390,7 +1390,7 @@ Large outputs are automatically truncated with pagination:
 
 ### 10.5 Builtin Structured Commands
 
-agentsh provides a few structured “a*” builtins that return JSON on stdout:
+agentmon provides a few structured “a*” builtins that return JSON on stdout:
 
 | Command | Structured Version | Output |
 |---------|-------------------|--------|
@@ -1407,7 +1407,7 @@ Additional structured builtins may be added over time (the full ExecResponse JSO
 
 ### 11.1 API Overview
 
-agentsh exposes both HTTP REST and gRPC APIs for programmatic access.
+agentmon exposes both HTTP REST and gRPC APIs for programmatic access.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -1603,7 +1603,7 @@ data: {"type":"file_write","path":"/workspace/node_modules/.package-lock.json","
 
 gRPC is optional. The current implementation uses `google.protobuf.Struct` so gRPC payloads match the HTTP JSON shapes.
 
-Proto: `proto/agentsh/v1/agentsh.proto`
+Proto: `proto/agentmon/v1/agentmon.proto`
 
 Example requests:
 - CreateSession: `{"workspace":"/home/user/project","policy":"default"}`
@@ -1616,7 +1616,7 @@ Example requests:
 Client libraries are future work. Today you can:
 
 - Use the HTTP API directly (curl/any HTTP client).
-- Use the gRPC API with `grpcurl` or generate a client from `proto/agentsh/v1/agentsh.proto`.
+- Use the gRPC API with `grpcurl` or generate a client from `proto/agentmon/v1/agentmon.proto`.
 - When API key auth is enabled, pass the key via gRPC metadata `x-api-key` (or the configured header name, lowercased).
 
 ---
@@ -1625,11 +1625,11 @@ Client libraries are future work. Today you can:
 
 ### 12.1 CLI Overview
 
-agentsh provides both a server daemon and a client CLI.
+agentmon provides both a server daemon and a client CLI.
 
 ```
-agentsh
-├── server      Start the agentsh server
+agentmon
+├── server      Start the agentmon server
 ├── session     Manage sessions
 │   ├── create  Create new session
 │   ├── list    List sessions
@@ -1660,33 +1660,33 @@ agentsh
 
 ```bash
 # Start with default config
-$ agentsh server
+$ agentmon server
 
 # Start with custom config
-$ agentsh server --config /etc/agentsh/config.yaml
+$ agentmon server --config /etc/agentmon/config.yaml
 
 # Start with debug logging
-$ AGENTSH_LOG_LEVEL=debug agentsh server
+$ AGENTMON_LOG_LEVEL=debug agentmon server
 ```
 
 #### Session Management
 
 ```bash
 # Create session
-$ agentsh session create \
+$ agentmon session create \
     --workspace /home/user/project \
     --policy default \
     --idle-timeout 30m
 Session created: session-abc123
 
 # List sessions
-$ agentsh session list
+$ agentmon session list
 ID              STATE   CREATED              COMMANDS  WORKSPACE
 session-abc123  ready   2024-12-15T10:30:00  42       /home/user/project
 session-def456  busy    2024-12-15T10:25:00  108      /home/user/other
 
 # Get session info
-$ agentsh session info session-abc123
+$ agentmon session info session-abc123
 ID:            session-abc123
 State:         ready
 Created:       2024-12-15T10:30:00Z
@@ -1697,36 +1697,36 @@ Net Ops:       89
 Working Dir:   /workspace/src
 
 # Destroy session
-$ agentsh session destroy session-abc123
+$ agentmon session destroy session-abc123
 Session destroyed: session-abc123
 
 # Soft-delete lifecycle (when FUSE audit mode = soft_delete)
-$ agentsh trash list --session session-abc123
+$ agentmon trash list --session session-abc123
 TOKEN       PATH                  SIZE  MODE         WHEN
 tok-abc123  /workspace/a.txt      4 B   soft_delete  2025-12-19T10:02:00Z
 
 # Restore to original path (default) or a custom destination
-$ agentsh trash restore tok-abc123 --dest /workspace/a-restored.txt
+$ agentmon trash restore tok-abc123 --dest /workspace/a-restored.txt
 
 # Purge after a session ends or to reclaim space/quotas
-$ agentsh trash purge --session session-abc123 --ttl 7d --quota 5GB
+$ agentmon trash purge --session session-abc123 --ttl 7d --quota 5GB
 ```
 
 #### Command Execution
 
 ```bash
 # Execute single command
-$ agentsh exec session-abc123 -- npm install
+$ agentmon exec session-abc123 -- npm install
 added 847 packages in 12.3s
 
 # Execute with timeout
-$ agentsh exec session-abc123 --timeout 1m -- npm run build
+$ agentmon exec session-abc123 --timeout 1m -- npm run build
 
 # Execute with JSON input
-$ agentsh exec session-abc123 --json '{"command":"ls","args":["-la"]}'
+$ agentmon exec session-abc123 --json '{"command":"ls","args":["-la"]}'
 
 # Execute with JSON output (structured response)
-$ agentsh exec --output json session-abc123 -- npm install
+$ agentmon exec --output json session-abc123 -- npm install
 {
   "command_id": "cmd-...",
   "session_id": "session-abc123",
@@ -1735,58 +1735,58 @@ $ agentsh exec --output json session-abc123 -- npm install
 }
 
 # Control response size by limiting included events
-$ agentsh exec --output json --events summary session-abc123 -- npm install
-$ agentsh exec --output json --events none session-abc123 -- npm install
+$ agentmon exec --output json --events summary session-abc123 -- npm install
+$ agentmon exec --output json --events none session-abc123 -- npm install
 
 # Responses may also include `guidance` for agents (blocked vs failed, retryability, substitutions).
 
 # Stream output
-$ agentsh exec session-abc123 --stream -- npm install
+$ agentmon exec session-abc123 --stream -- npm install
 added 100 packages...
 added 200 packages...
 
 # Interactive mode (attach to session)
-$ agentsh session attach session-abc123
-agentsh:session-abc123:/workspace$ als
+$ agentmon session attach session-abc123
+agentmon:session-abc123:/workspace$ als
 {
   "entries": [...]
 }
-agentsh:session-abc123:/workspace$ cd src
-agentsh:session-abc123:/workspace/src$ 
+agentmon:session-abc123:/workspace$ cd src
+agentmon:session-abc123:/workspace/src$ 
 ```
 
 #### Event Streaming
 
 ```bash
 # Stream live events (SSE)
-$ agentsh events tail session-abc123
+$ agentmon events tail session-abc123
 {"type":"file_open","path":"/workspace/src/main.py",...}
 {"type":"net_connect","remote":"api.github.com:443",...}
 
 # Query events
-$ agentsh events query --session session-abc123 --type file_write,file_delete
+$ agentmon events query --session session-abc123 --type file_write,file_delete
 
 # Stream to file
-$ agentsh events tail session-abc123 > events.jsonl
+$ agentmon events tail session-abc123 > events.jsonl
 ```
 
 #### Approval Handling
 
 ```bash
 # List pending approvals
-$ agentsh approve list
+$ agentmon approve list
 ID           SESSION        TYPE         PATH/TARGET            WAITING
 approval-1   session-abc    file_delete  /workspace/data.db     2m
 approval-2   session-def    net_connect  internal.corp.com:443  5m
 
 # Approve request
-$ agentsh approve approval-1 --allow --reason "backup exists"
+$ agentmon approve approval-1 --allow --reason "backup exists"
 
 # Deny request  
-$ agentsh approve approval-2 --deny --reason "internal network blocked"
+$ agentmon approve approval-2 --deny --reason "internal network blocked"
 
 # Interactive approval mode
-$ agentsh approve watch
+$ agentmon approve watch
 [approval-3] session-abc wants to delete /workspace/config.json
   Context: rm config.json
   Recent commands: ls, cat config.json
@@ -1795,14 +1795,14 @@ $ agentsh approve watch
 
 #### Session Reporting
 
-## agentsh report
+## agentmon report
 
 Generate a markdown report summarizing session activity.
 
 ### Synopsis
 
 ```
-agentsh report <session-id|latest> --level=<summary|detailed> [--output=<path>]
+agentmon report <session-id|latest> --level=<summary|detailed> [--output=<path>]
 ```
 
 ### Arguments
@@ -1819,22 +1819,22 @@ agentsh report <session-id|latest> --level=<summary|detailed> [--output=<path>]
 | `--level` | Report detail level: `summary` (1 page) or `detailed` (full investigation) |
 | `--output` | Write report to file instead of stdout |
 | `--direct-db` | Query local database directly (offline mode) |
-| `--db-path` | Path to events database (default: /var/lib/agentsh/events.db) |
+| `--db-path` | Path to events database (default: /var/lib/agentmon/events.db) |
 
 ### Examples
 
 ```bash
 # Quick summary of latest session
-agentsh report latest --level=summary
+agentmon report latest --level=summary
 
 # Detailed investigation, save to file
-agentsh report abc123-def4-5678 --level=detailed --output=report.md
+agentmon report abc123-def4-5678 --level=detailed --output=report.md
 
 # Pipe to pager
-agentsh report latest --level=summary | less
+agentmon report latest --level=summary | less
 
 # Offline mode (no server required)
-agentsh report latest --level=summary --direct-db
+agentmon report latest --level=summary --direct-db
 ```
 
 ### Report Levels
@@ -1871,14 +1871,14 @@ Reports automatically detect and highlight:
 | Granted approvals | Info | Operations approved by operator |
 | Failed commands | Info | Non-zero exit codes |
 
-## agentsh policy generate
+## agentmon policy generate
 
 Generate restrictive policies from observed session behavior ("profile-then-lock" workflow).
 
 ### Synopsis
 
 ```
-agentsh policy generate <session-id|latest> [flags]
+agentmon policy generate <session-id|latest> [flags]
 ```
 
 ### Arguments
@@ -1904,13 +1904,13 @@ agentsh policy generate <session-id|latest> [flags]
 
 ```bash
 # Generate policy from latest session
-agentsh policy generate latest --output=ci-policy.yaml
+agentmon policy generate latest --output=ci-policy.yaml
 
 # Generate with custom name and threshold
-agentsh policy generate abc123 --name=production-build --threshold=10
+agentmon policy generate abc123 --name=production-build --threshold=10
 
 # Quick preview to stdout
-agentsh policy generate latest
+agentmon policy generate latest
 ```
 
 ### Generated Policy Features
@@ -1947,7 +1947,7 @@ agentsh policy generate latest
 
 ### 13.1 Defense in Depth
 
-agentsh implements multiple security layers:
+agentmon implements multiple security layers:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -2005,7 +2005,7 @@ Each session runs in isolated Linux namespaces:
 
 **Status:** Implemented. See [docs/seccomp.md](seccomp.md) for detailed configuration.
 
-agentsh uses seccomp-bpf to block dangerous syscalls that could allow an agent to escape isolation or compromise the host system. The filter is installed by `agentsh-unixwrap` before exec'ing the target command.
+agentmon uses seccomp-bpf to block dangerous syscalls that could allow an agent to escape isolation or compromise the host system. The filter is installed by `agentmon-unixwrap` before exec'ing the target command.
 
 **Configuration:**
 
@@ -2034,7 +2034,7 @@ sandbox:
 
 **Default blocked socket families** (when `blocked_socket_families` is unset):
 
-agentsh ships a default list of 12 families blocked at `errno` (returns `EAFNOSUPPORT`): `AF_ALG`, `AF_VSOCK`, `AF_RDS`, `AF_TIPC`, `AF_KCM`, plus the dead protocols `AF_X25`, `AF_AX25`, `AF_NETROM`, `AF_ROSE`, `AF_DECnet`, `AF_APPLETALK`, `AF_IPX`. Set the field to `[]` to opt out.
+agentmon ships a default list of 12 families blocked at `errno` (returns `EAFNOSUPPORT`): `AF_ALG`, `AF_VSOCK`, `AF_RDS`, `AF_TIPC`, `AF_KCM`, plus the dead protocols `AF_X25`, `AF_AX25`, `AF_NETROM`, `AF_ROSE`, `AF_DECnet`, `AF_APPLETALK`, `AF_IPX`. Set the field to `[]` to opt out.
 
 **Default blocked syscalls** (when seccomp is enabled):
 
@@ -2075,7 +2075,7 @@ The `pid` field is the TID of the trapping thread (seccomp_notif.pid is a TID, n
 
 ### 13.4 Resource Limits (cgroups v2)
 
-agentsh enforces per-command limits via **cgroups v2** when enabled in server config:
+agentmon enforces per-command limits via **cgroups v2** when enabled in server config:
 
 ```yaml
 sandbox:
@@ -2083,7 +2083,7 @@ sandbox:
     enabled: true
     # Base path under the cgroup v2 filesystem where per-command cgroups are created.
     # Rootless/dev: prefer a relative path under the current process cgroup.
-    base_path: "agentsh"
+    base_path: "agentmon"
 ```
 
 Limits are sourced from the active policy `resource_limits`.
@@ -2299,7 +2299,7 @@ Key fields:
   - `sandbox.fuse.audit.*` (delete safety):
     - `enabled` (bool, default true)
     - `mode`: `monitor` | `soft_block` | `soft_delete` | `strict` (strict wraps chosen mode; fails ops if sink unhealthy)
-    - `trash_path` (default `.agentsh_trash`, relative to workspace when not absolute)
+    - `trash_path` (default `.agentmon_trash`, relative to workspace when not absolute)
     - `ttl` / `quota` (optional retention and size caps enforced by purge)
     - `strict_on_audit_failure` (bool, fail operation when audit sink errors)
     - `max_event_queue` (bounded async logger depth; drop-oldest unless strict)
@@ -2307,7 +2307,7 @@ Key fields:
   - `sandbox.fuse.max_background` (int, default 0): kernel-side per-mount FUSE async request queue depth (`FUSE_INIT max_background`). When 0, go-fuse's default of 12 is used (matching the kernel default). Raise on multi-mount daemons under heavy ptrace+seccomp syscall traffic to reduce request_wait_answer parking. Common tuned values: 32–128. Values below 12 typically degrade throughput.
   - `sandbox.unixSockets.*` (audit-only unix domain socket monitoring):
     - `enabled` (bool, default false)
-    - `wrapper_bin` (path override, default `agentsh-unixwrap` in `$PATH`)
+    - `wrapper_bin` (path override, default `agentmon-unixwrap` in `$PATH`)
 - `policies.*`
   - `policies.symlink_escape`: `"evaluate"` (default) | `"deny"`. Controls FUSE-layer handling of workspace symlinks whose targets lie outside the workspace root, for operations whose policy subject is the target (open/read/write/exec). `evaluate` resolves the symlink and evaluates the resolved outside path against the normal `file_rules`, letting Python venvs (`venv/bin/python -> /usr/bin/python3`) work out of the box; operators express deny via a regular rule on `/usr/bin/**` etc. `deny` restores the historical blanket `workspace-escape` deny — any symlink target outside the workspace is refused regardless of `file_rules`. Leaf-only operations (`stat`, `readlink`, `delete`, `rmdir`) are always checked against the symlink path itself and are unaffected by this setting.
 - `approvals.*`
@@ -2320,13 +2320,13 @@ See [Section 9.2](#92-policy-configuration) for policy file format.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `AGENTSH_CONFIG` | CLI auto-start config path | `config.yml` |
-| `AGENTSH_LOG_LEVEL` | Override config `logging.level` | `info` |
-| `AGENTSH_HTTP_ADDR` | Override config `server.http.addr` | `127.0.0.1:18080` |
-| `AGENTSH_GRPC_ADDR` | gRPC listen address | `127.0.0.1:9090` |
-| `AGENTSH_DATA_DIR` | Override data dir (sessions + SQLite DB) | unset |
-| `AGENTSH_NO_AUTO` | Disable CLI auto-start/auto-create behaviors | unset |
-| `AGENTSH_TRANSPORT` | CLI transport preference (`http` or `grpc`) | `http` |
+| `AGENTMON_CONFIG` | CLI auto-start config path | `config.yml` |
+| `AGENTMON_LOG_LEVEL` | Override config `logging.level` | `info` |
+| `AGENTMON_HTTP_ADDR` | Override config `server.http.addr` | `127.0.0.1:18080` |
+| `AGENTMON_GRPC_ADDR` | gRPC listen address | `127.0.0.1:9090` |
+| `AGENTMON_DATA_DIR` | Override data dir (sessions + SQLite DB) | unset |
+| `AGENTMON_NO_AUTO` | Disable CLI auto-start/auto-create behaviors | unset |
+| `AGENTMON_TRANSPORT` | CLI transport preference (`http` or `grpc`) | `http` |
 
 ---
 
@@ -2334,14 +2334,14 @@ See [Section 9.2](#92-policy-configuration) for policy file format.
 
 ### 16.0 Cross-Platform Support
 
-agentsh provides full security features on Linux. For Windows and macOS, we support deployment strategies that run agentsh inside a Linux environment.
+agentmon provides full security features on Linux. For Windows and macOS, we support deployment strategies that run agentmon inside a Linux environment.
 
 | Platform | Strategy | Security Level |
 |----------|----------|----------------|
 | **Linux** | Native | ✅ Full |
 | **Windows** | WSL2 or Docker | ✅ Full |
 | **macOS** | Tiered (FUSE → sandbox → Lima/Docker) | ⚠️ Varies by tier |
-| **Container Dev** | Linux container with agentsh | ✅ Full |
+| **Container Dev** | Linux container with agentmon | ✅ Full |
 
 **See `docs/cross-platform.md` for platform-specific notes.**
 
@@ -2359,30 +2359,30 @@ agentsh provides full security features on Linux. For Windows and macOS, we supp
 
 ```bash
 # Download binary
-curl -LO https://github.com/agentsh/agentsh/releases/latest/download/agentsh-linux-amd64
-chmod +x agentsh-linux-amd64
-sudo mv agentsh-linux-amd64 /usr/local/bin/agentsh
+curl -LO https://github.com/diffsec/agentmon/releases/latest/download/agentmon-linux-amd64
+chmod +x agentmon-linux-amd64
+sudo mv agentmon-linux-amd64 /usr/local/bin/agentmon
 
 # Create directories
-sudo mkdir -p /etc/agentsh/policies
-sudo mkdir -p /var/lib/agentsh
-sudo mkdir -p /var/log/agentsh
-sudo mkdir -p /var/run/agentsh
+sudo mkdir -p /etc/agentmon/policies
+sudo mkdir -p /var/lib/agentmon
+sudo mkdir -p /var/log/agentmon
+sudo mkdir -p /var/run/agentmon
 
 # Copy default config and policies
-sudo cp config.yaml /etc/agentsh/
-sudo cp policies/*.yaml /etc/agentsh/policies/
+sudo cp config.yaml /etc/agentmon/
+sudo cp policies/*.yaml /etc/agentmon/policies/
 
 # Create systemd service
-sudo cp agentsh.service /etc/systemd/system/
+sudo cp agentmon.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable agentsh
-sudo systemctl start agentsh
+sudo systemctl enable agentmon
+sudo systemctl start agentmon
 ```
 
 ### 16.3 Docker Deployment
 
-agentsh is available as a Docker image that works on Linux, Windows (Docker Desktop), and macOS (Docker Desktop, Colima, OrbStack).
+agentmon is available as a Docker image that works on Linux, Windows (Docker Desktop), and macOS (Docker Desktop, Colima, OrbStack).
 
 ```dockerfile
 FROM ubuntu:24.04
@@ -2395,27 +2395,27 @@ RUN apt-get update && apt-get install -y \
     iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy agentsh binary
-COPY agentsh /usr/local/bin/
+# Copy agentmon binary
+COPY agentmon /usr/local/bin/
 
 # Copy configuration
-COPY config.yaml /etc/agentsh/
-COPY policies/ /etc/agentsh/policies/
+COPY config.yaml /etc/agentmon/
+COPY policies/ /etc/agentmon/policies/
 
 # Create directories
-RUN mkdir -p /var/lib/agentsh /var/log/agentsh /var/run/agentsh
+RUN mkdir -p /var/lib/agentmon /var/log/agentmon /var/run/agentmon
 
 # Need privileged mode for namespaces
 # Or specific capabilities: CAP_SYS_ADMIN, CAP_NET_ADMIN
 EXPOSE 18080 9090
 
-CMD ["agentsh", "server"]
+CMD ["agentmon", "server"]
 ```
 
 ```bash
 # Run with required capabilities (works on all platforms with Docker)
 docker run -d \
-  --name agentsh \
+  --name agentmon \
   --cap-add SYS_ADMIN \
   --cap-add NET_ADMIN \
   --device /dev/fuse \
@@ -2423,7 +2423,7 @@ docker run -d \
   -p 18080:18080 \
   -p 9090:9090 \
   -v /path/to/workspaces:/workspaces \
-  ghcr.io/agentsh/agentsh:latest
+  ghcr.io/diffsec/agentmon:latest
 ```
 
 **See [docker-compose.yml](docker-compose.yml) for a complete Docker Compose configuration.**
@@ -2434,20 +2434,20 @@ docker run -d \
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: agentsh
+  name: agentmon
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: agentsh
+      app: agentmon
   template:
     metadata:
       labels:
-        app: agentsh
+        app: agentmon
     spec:
       containers:
-      - name: agentsh
-        image: agentsh:latest
+      - name: agentmon
+        image: agentmon:latest
         ports:
         - containerPort: 18080
         - containerPort: 9090
@@ -2455,11 +2455,11 @@ spec:
           privileged: true  # Required for namespaces
         volumeMounts:
         - name: config
-          mountPath: /etc/agentsh
+          mountPath: /etc/agentmon
         - name: workspaces
           mountPath: /workspaces
         - name: data
-          mountPath: /var/lib/agentsh
+          mountPath: /var/lib/agentmon
         resources:
           requests:
             memory: "512Mi"
@@ -2470,10 +2470,10 @@ spec:
       volumes:
       - name: config
         configMap:
-          name: agentsh-config
+          name: agentmon-config
       - name: workspaces
         persistentVolumeClaim:
-          claimName: agentsh-workspaces
+          claimName: agentmon-workspaces
       - name: data
         emptyDir: {}
 ```
@@ -2520,12 +2520,12 @@ Model Context Protocol server mode for direct Claude integration:
 ```json
 {
   "mcpServers": {
-    "agentsh": {
-      "command": "agentsh",
+    "agentmon": {
+      "command": "agentmon",
       "args": ["mcp-server"],
       "env": {
-        "AGENTSH_WORKSPACE": "/home/user/project",
-        "AGENTSH_POLICY": "default"
+        "AGENTMON_WORKSPACE": "/home/user/project",
+        "AGENTMON_POLICY": "default"
       }
     }
   }
@@ -2538,13 +2538,13 @@ Future feature to associate operations with declared goals:
 
 ```bash
 # Declare intent
-$ agentsh intent "Refactor authentication module"
+$ agentmon intent "Refactor authentication module"
 
 # Operations are tagged with intent
-$ agentsh exec session-abc -- vim src/auth.py
+$ agentmon exec session-abc -- vim src/auth.py
 
 # Query what happened for an intent
-$ agentsh intent show intent-123
+$ agentmon intent show intent-123
 Intent: Refactor authentication module
 Duration: 45 minutes
 Files modified: 12
@@ -2588,4 +2588,4 @@ Commits: 2
 
 ---
 
-*This specification is a living document and will be updated as agentsh evolves.*
+*This specification is a living document and will be updated as agentmon evolves.*

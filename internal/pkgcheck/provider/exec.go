@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 const defaultExecTimeout = 30 * time.Second

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/trash"
+	"github.com/diffsec/agentmon/internal/trash"
 )
 
 func TestCLI_ScanReportsVerdict(t *testing.T) {

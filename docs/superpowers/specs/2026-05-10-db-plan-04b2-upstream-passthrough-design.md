@@ -5,7 +5,7 @@ Status: design approved 2026-05-10. Implementation plan to follow via writing-pl
 Cross-references:
 - Macro design: `docs/superpowers/specs/2026-05-10-db-plan-04-pg-proxy-skeleton-design.md`
 - Roadmap: `docs/superpowers/specs/2026-05-08-db-access-phase-1-roadmap-design.md` §3 Plan 04
-- Spec: `docs/agentsh-db-access-spec.md` v0.8 §9.1, §11.1, §11.3, §13, §15, §16
+- Spec: `docs/agentmon-db-access-spec.md` v0.8 §9.1, §11.1, §11.3, §13, §15, §16
 - Predecessor plan: `docs/superpowers/plans/2026-05-10-db-plan-04b-handshake-tls.md`
 - Predecessor spec snapshot: `docs/superpowers/specs/2026-05-10-db-plan-04b-handshake-tls.md` (the 04b implementation plan, which lists the deferred items 04b₂ ships).
 
@@ -50,7 +50,7 @@ The `terminate_plaintext_upstream` locality check (loopback / RFC1918 / `trusted
 
 | Mode | Inbound handshake | StartupMessage allow path | 04b₂ end-of-life |
 |---|---|---|---|
-| `terminate_reissue` | inbound TLS, leaf signed by AgentSH CA (04b) | dial upstream → `tls.Client` (system roots, verify-full) → forward StartupMessage → pump auth (peek for SCRAM-PLUS) → forward upstream RFQ → **close** | client received successful login + RFQ; proxy closes cleanly |
+| `terminate_reissue` | inbound TLS, leaf signed by AgentMon CA (04b) | dial upstream → `tls.Client` (system roots, verify-full) → forward StartupMessage → pump auth (peek for SCRAM-PLUS) → forward upstream RFQ → **close** | client received successful login + RFQ; proxy closes cleanly |
 | `terminate_plaintext_upstream` | inbound TLS (04b) | dial upstream plaintext (loopback/RFC1918/trusted_network gated at `New` for IP literals, at dial for hostnames) → forward StartupMessage → pump auth → forward RFQ → **close** | same |
 | `passthrough` | respond `'S'`, no inbound TLS terminate (NEW) | n/a — proxy never sees StartupMessage | dial upstream plaintext + **bidir byte-pump** until close. No DVW (service-level opt-out per spec §11.1). |
 | terminate_* + replication=true (allowed rule) | terminate inbound TLS as usual | dial upstream → terminate or plaintext per service mode → forward StartupMessage with `replication` param → **bidir byte-pump** until close + DVW(`replication_passthrough`) | byte-pump |
@@ -174,7 +174,7 @@ proxy evaluates match_kind=cancel
 |---|---|---|
 | Upstream dial timeout / refused | `ErrorResponse(SQLSTATE 08006, code=UPSTREAM_DIAL_FAIL, message)` + close | `db_handshake_fail{error_code: UPSTREAM_DIAL_FAIL}` |
 | Upstream TLS handshake failure (terminate_reissue) | `ErrorResponse(08006, UPSTREAM_TLS_FAIL, message)` + close | `db_handshake_fail{error_code: UPSTREAM_TLS_FAIL}` |
-| SCRAM-SHA-256-PLUS detected | `ErrorResponse(28000, SCRAM_PLUS_FAIL_CLOSED, "AgentSH DB proxy cannot terminate channel-bound SCRAM (SCRAM-SHA-256-PLUS). Disable channel binding upstream or use TLS passthrough; see docs/agentsh-db-access-spec.md §13.")` + close | `db_handshake_fail{error_code: SCRAM_PLUS_FAIL_CLOSED}` |
+| SCRAM-SHA-256-PLUS detected | `ErrorResponse(28000, SCRAM_PLUS_FAIL_CLOSED, "AgentMon DB proxy cannot terminate channel-bound SCRAM (SCRAM-SHA-256-PLUS). Disable channel binding upstream or use TLS passthrough; see docs/agentmon-db-access-spec.md §13.")` + close | `db_handshake_fail{error_code: SCRAM_PLUS_FAIL_CLOSED}` |
 | Plaintext-upstream service declared with unsafe upstream | (already rejected at policy-load by `internal/db/policy/validate.go` — service never reaches proxy startup) | none |
 | Replication opt-in denied (no rule, default) | unchanged from 04b: `ErrorResponse(28000, replication denied)` + close | none new |
 | CancelRequest denied | silent TCP close | none |

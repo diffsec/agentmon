@@ -185,7 +185,7 @@ func (t *Tracer) injectSeccompFilter(tid int) error {
 
 	// Inject prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0).
 	// Note: PR_SET_NO_NEW_PRIVS is irreversible — it persists even if the
-	// subsequent seccomp() call fails. This is acceptable for agentsh
+	// subsequent seccomp() call fails. This is acceptable for agentmon
 	// workloads (sandboxed agent commands should not escalate privileges;
 	// the non-ptrace seccomp wrapper path also sets this flag).
 	ret, err := t.injectSyscall(tid, savedRegs, unix.SYS_PRCTL,
@@ -200,7 +200,7 @@ func (t *Tracer) injectSeccompFilter(tid int) error {
 	// Inject seccomp(SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC, &prog).
 	// TSYNC ensures all threads in the thread group get the filter. Without it,
 	// only the current thread gets the filter, and multi-threaded Go binaries
-	// (like agentsh-unixwrap) fail when libseccomp later calls seccomp with TSYNC
+	// (like agentmon-unixwrap) fail when libseccomp later calls seccomp with TSYNC
 	// and finds asymmetric filter chains between threads.
 	ret, err = t.injectSyscall(tid, savedRegs, unix.SYS_SECCOMP,
 		seccompSetModeFilter, seccompFilterFlagTsync, scratchAddr, 0, 0, 0)

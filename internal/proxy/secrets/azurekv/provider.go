@@ -14,7 +14,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // kvClient is the subset of the Azure Key Vault API that the
@@ -82,7 +82,7 @@ func New(ctx context.Context, cfg Config, _ secrets.RefResolver) (*Provider, err
 	// Probe connectivity: GetSecret on a nonexistent secret.
 	// Auth errors are fatal. Context errors are fatal. NotFound is
 	// success (proves auth works). Other errors are non-fatal.
-	_, probeErr := client.GetSecret(ctx, "agentsh-probe-nonexistent", "", nil)
+	_, probeErr := client.GetSecret(ctx, "agentmon-probe-nonexistent", "", nil)
 	if probeErr != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()

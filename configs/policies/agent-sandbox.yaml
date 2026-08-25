@@ -1,4 +1,4 @@
-# Agent Sandbox Policy for agentsh
+# Agent Sandbox Policy for agentmon
 # Maximum containment for running unknown/untrusted agent code
 
 version: 1
@@ -339,9 +339,9 @@ command_rules:
     commands:
       - curl
     decision: redirect
-    message: "curl redirected through agentsh-fetch for auditing"
+    message: "curl redirected through agentmon-fetch for auditing"
     redirect_to:
-      command: agentsh-fetch
+      command: agentmon-fetch
       args: ["--source", "curl"]
 
   - name: redirect-wget
@@ -349,9 +349,9 @@ command_rules:
     commands:
       - wget
     decision: redirect
-    message: "wget redirected through agentsh-fetch for auditing"
+    message: "wget redirected through agentmon-fetch for auditing"
     redirect_to:
-      command: agentsh-fetch
+      command: agentmon-fetch
       args: ["--source", "wget"]
 
   # ---------------------------------------------------------------------------
@@ -494,7 +494,7 @@ audit:
 # =============================================================================
 # TRANSPARENT COMMANDS (optional)
 # =============================================================================
-# Transparent commands are wrappers (env, sudo, nice, etc.) that agentsh
+# Transparent commands are wrappers (env, sudo, nice, etc.) that agentmon
 # automatically "unwraps" to evaluate the real payload command against policy.
 # Built-in defaults cover common wrappers. Use this section to customize:
 #

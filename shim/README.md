@@ -21,11 +21,11 @@ The shims intercept standard library functions for environment variable access:
 - **Windows**: `GetEnvironmentVariableA/W`, `SetEnvironmentVariableA/W`, `GetEnvironmentStringsA/W`
 
 When a blocked variable is accessed, the shim returns NULL (or empty) as if the
-variable doesn't exist, and emits an event to the agentsh daemon.
+variable doesn't exist, and emits an event to the agentmon daemon.
 
 ## Configuration
 
-Policy is loaded from `/etc/agentsh/env-policy.conf` (or path in `AGENTSH_ENV_POLICY_FILE`):
+Policy is loaded from `/etc/agentmon/env-policy.conf` (or path in `AGENTMON_ENV_POLICY_FILE`):
 
 ```conf
 # Mode: allowlist (default, more secure) or blocklist
@@ -98,11 +98,11 @@ envshim-inject.exe your_command.exe [args]
 
 ## Event Logging
 
-Events are sent to the agentsh daemon via Unix socket (Linux/macOS) or named pipe (Windows):
+Events are sent to the agentmon daemon via Unix socket (Linux/macOS) or named pipe (Windows):
 
-- Linux: `/run/agentsh/env.sock` (or `AGENTSH_ENV_SOCKET`)
-- macOS: `/var/run/agentsh/env.sock` (or `AGENTSH_ENV_SOCKET`)
-- Windows: `\\.\pipe\agentsh-env`
+- Linux: `/run/agentmon/env.sock` (or `AGENTMON_ENV_SOCKET`)
+- macOS: `/var/run/agentmon/env.sock` (or `AGENTMON_ENV_SOCKET`)
+- Windows: `\\.\pipe\agentmon-env`
 
 Event format (JSON):
 

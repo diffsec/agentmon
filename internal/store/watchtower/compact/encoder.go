@@ -4,7 +4,7 @@ import (
 	"errors"
 	"reflect"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	wtpv1 "github.com/canyonroad/wtp-protos/gen/go/canyonroad/wtp/v1"
 )
 
@@ -66,7 +66,7 @@ func (e *mapperFailureErr) Unwrap() error { return e.inner }
 
 func (e *mapperFailureErr) Is(target error) bool { return target == ErrMapperFailure }
 
-// Encode projects an agentsh event into a wtpv1.CompactEvent, populating
+// Encode projects an agentmon event into a wtpv1.CompactEvent, populating
 // everything EXCEPT the IntegrityRecord. The IntegrityRecord is filled in by
 // the WTP Store in the AppendEvent transactional pattern, AFTER chain.Compute
 // returns the entry hash.

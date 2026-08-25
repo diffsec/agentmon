@@ -20,8 +20,8 @@ Current workflow:
 
 Desired outputs:
 - Archives (at minimum): `.tar.gz` for Linux/macOS with:
-  - `agentsh`
-  - `agentsh-shell-shim`
+  - `agentmon`
+  - `agentmon-shell-shim`
 - OS packages:
   - Debian/Ubuntu: `.deb`
   - RHEL/Fedora: `.rpm`
@@ -29,7 +29,7 @@ Desired outputs:
 
 Suggested approach: GoReleaser + nfpm
 - Use GoReleaser to:
-  - Build `agentsh` and `agentsh-shell-shim` per target
+  - Build `agentmon` and `agentmon-shell-shim` per target
   - Produce `.tar.gz` archives
   - Produce `.deb/.rpm/.apk` via nfpm (no postinst actions at first; packages should not automatically replace `/bin/sh`)
 
@@ -44,11 +44,11 @@ Current files:
 
 Open decisions before implementing packages:
 - Install locations:
-  - likely `/usr/bin/agentsh` and `/usr/bin/agentsh-shell-shim`
+  - likely `/usr/bin/agentmon` and `/usr/bin/agentmon-shell-shim`
 - Configuration:
-  - ship a sample config under `/etc/agentsh/` (or only in the repo)
+  - ship a sample config under `/etc/agentmon/` (or only in the repo)
 - Services:
   - whether to ship a systemd unit (probably later)
 - Shim activation:
-  - do *not* auto-replace `/bin/sh` in packages; provide `agentsh shim install-shell --root /` with explicit `--i-understand-this-modifies-the-host`
-  - for non-interactive enforcement (e.g., sandbox platforms), add `--force` which writes `/etc/agentsh/shim.conf` with `force=true`
+  - do *not* auto-replace `/bin/sh` in packages; provide `agentmon shim install-shell --root /` with explicit `--i-understand-this-modifies-the-host`
+  - for non-interactive enforcement (e.g., sandbox platforms), add `--force` which writes `/etc/agentmon/shim.conf` with `force=true`

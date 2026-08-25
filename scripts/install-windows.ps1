@@ -1,13 +1,13 @@
-# install-windows.ps1 - Windows installation script for agentsh
+# install-windows.ps1 - Windows installation script for agentmon
 #
 # Usage:
-#   iex ((New-Object System.Net.WebClient).DownloadString('https://get.agentsh.dev/windows'))
+#   iex ((New-Object System.Net.WebClient).DownloadString('https://get.agentmon.dev/windows'))
 #   .\install-windows.ps1 [-Mode <native|wsl2|auto>] [-Version <version>]
 #
 # Parameters:
 #   -Mode      Installation mode: native, wsl2, or auto (default: auto)
 #   -Version   Version to install (default: latest)
-#   -InstallDir Installation directory (default: $env:LOCALAPPDATA\agentsh)
+#   -InstallDir Installation directory (default: $env:LOCALAPPDATA\agentmon)
 
 param(
     [ValidateSet('native', 'wsl2', 'auto')]
@@ -15,13 +15,13 @@ param(
 
     [string]$Version = 'latest',
 
-    [string]$InstallDir = "$env:LOCALAPPDATA\agentsh"
+    [string]$InstallDir = "$env:LOCALAPPDATA\agentmon"
 )
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'  # Faster downloads
 
-$GitHubRepo = "agentsh/agentsh"
+$GitHubRepo = "diffsec/agentmon"
 
 # Helper functions for colored output
 function Write-Info {
@@ -178,11 +178,11 @@ function Install-WSL2 {
         Write-Info "Waiting for Ubuntu to initialize..."
         Start-Sleep -Seconds 5
 
-        # Install agentsh inside WSL2
-        Write-Info "Installing agentsh in WSL2..."
-        wsl -d Ubuntu-24.04 -- bash -c 'curl -fsSL https://get.agentsh.dev/linux | bash'
+        # Install agentmon inside WSL2
+        Write-Info "Installing agentmon in WSL2..."
+        wsl -d Ubuntu-24.04 -- bash -c 'curl -fsSL https://get.agentmon.dev/linux | bash'
 
-        Write-Info "WSL2 with agentsh installed successfully"
+        Write-Info "WSL2 with agentmon installed successfully"
         return $true
     }
     catch {
@@ -191,8 +191,8 @@ function Install-WSL2 {
     }
 }
 
-# Download and install agentsh native binary
-function Install-AgentshNative {
+# Download and install agentmon native binary
+function Install-AgentmonNative {
     param([string]$Ver)
 
     $arch = Get-SystemArch
@@ -201,10 +201,10 @@ function Install-AgentshNative {
         $Ver = Get-LatestVersion
     }
 
-    Write-Info "Installing agentsh $Ver for windows/$arch..."
+    Write-Info "Installing agentmon $Ver for windows/$arch..."
 
-    $downloadUrl = "https://github.com/$GitHubRepo/releases/download/$Ver/agentsh-windows-$arch.exe"
-    $tmpFile = "$env:TEMP\agentsh-$$.exe"
+    $downloadUrl = "https://github.com/$GitHubRepo/releases/download/$Ver/agentmon-windows-$arch.exe"
+    $tmpFile = "$env:TEMP\agentmon-$$.exe"
 
     try {
         Invoke-WebRequest -Uri $downloadUrl -OutFile $tmpFile
@@ -215,20 +215,20 @@ function Install-AgentshNative {
         }
 
         # Move to install directory
-        Move-Item -Path $tmpFile -Destination "$InstallDir\agentsh.exe" -Force
+        Move-Item -Path $tmpFile -Destination "$InstallDir\agentmon.exe" -Force
 
         # Add to user PATH
         $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
-        if ($currentPath -notlike "*agentsh*") {
+        if ($currentPath -notlike "*agentmon*") {
             [Environment]::SetEnvironmentVariable("Path", "$currentPath;$InstallDir", "User")
             Write-Info "Added $InstallDir to user PATH"
         }
 
-        Write-Info "agentsh installed to $InstallDir\agentsh.exe"
+        Write-Info "agentmon installed to $InstallDir\agentmon.exe"
         return $true
     }
     catch {
-        Write-Err "Failed to download agentsh: $_"
+        Write-Err "Failed to download agentmon: $_"
         return $false
     }
 }
@@ -265,10 +265,10 @@ function Test-Installation {
     # Refresh PATH
     $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
 
-    if (Get-Command agentsh -ErrorAction SilentlyContinue) {
+    if (Get-Command agentmon -ErrorAction SilentlyContinue) {
         Write-Info "Verification successful!"
         try {
-            & agentsh version
+            & agentmon version
         }
         catch {
             # Version command might not exist yet
@@ -276,7 +276,7 @@ function Test-Installation {
         return $true
     }
     else {
-        Write-Warn "agentsh not found in PATH. You may need to restart your terminal."
+        Write-Warn "agentmon not found in PATH. You may need to restart your terminal."
         return $false
     }
 }
@@ -287,35 +287,35 @@ function Write-Instructions {
 
     Write-Host ""
     Write-Host "============================================" -ForegroundColor Cyan
-    Write-Host "  agentsh installed successfully!" -ForegroundColor Cyan
+    Write-Host "  agentmon installed successfully!" -ForegroundColor Cyan
     Write-Host "============================================" -ForegroundColor Cyan
     Write-Host ""
 
     switch ($InstalledMode) {
         'native' {
             Write-Host "Run with (as Administrator):"
-            Write-Host "  agentsh server"
+            Write-Host "  agentmon server"
             Write-Host ""
             Write-Host "Note: Native mode provides partial isolation (55%)."
             Write-Host "      Use WSL2 mode for full security features."
         }
         'wsl2' {
             Write-Host "Run with:"
-            Write-Host "  wsl -d Ubuntu-24.04 -- agentsh server"
+            Write-Host "  wsl -d Ubuntu-24.04 -- agentmon server"
             Write-Host ""
             Write-Host "Or use the native wrapper:"
-            Write-Host "  agentsh server --mode=wsl2"
+            Write-Host "  agentmon server --mode=wsl2"
             Write-Host ""
             Write-Host "Security level: 100% (full Linux isolation)"
         }
     }
 
     Write-Host ""
-    Write-Host "Check status with: agentsh status"
+    Write-Host "Check status with: agentmon status"
     Write-Host ""
     Write-Host "Configuration:"
-    Write-Host "  Default config: $env:APPDATA\agentsh\config.yml"
-    Write-Host "  Default policy: $env:APPDATA\agentsh\policy.yml"
+    Write-Host "  Default config: $env:APPDATA\agentmon\config.yml"
+    Write-Host "  Default policy: $env:APPDATA\agentmon\policy.yml"
     Write-Host ""
     Write-Host "Documentation:"
     Write-Host "  https://github.com/$GitHubRepo"
@@ -324,7 +324,7 @@ function Write-Instructions {
 
 # Main installation flow
 function Main {
-    Write-Host "agentsh Windows Installer" -ForegroundColor Cyan
+    Write-Host "agentmon Windows Installer" -ForegroundColor Cyan
     Write-Host "=========================" -ForegroundColor Cyan
     Write-Host ""
 
@@ -355,7 +355,7 @@ function Main {
             Write-Host ""
 
             # Just install the binary
-            if (-not (Install-AgentshNative -Ver $Version)) {
+            if (-not (Install-AgentmonNative -Ver $Version)) {
                 exit 1
             }
             Install-Envshim -Ver $Version
@@ -373,7 +373,7 @@ function Main {
             Write-Warn "WinDivert installation failed. Network interception may not work."
         }
 
-        if (-not (Install-AgentshNative -Ver $Version)) {
+        if (-not (Install-AgentmonNative -Ver $Version)) {
             exit 1
         }
 
@@ -387,7 +387,7 @@ function Main {
         }
 
         # Also install native wrapper
-        if (-not (Install-AgentshNative -Ver $Version)) {
+        if (-not (Install-AgentmonNative -Ver $Version)) {
             Write-Warn "Native wrapper installation failed. Use 'wsl' command directly."
         }
         else {

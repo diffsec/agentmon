@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/internal/store/sqlite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/internal/store/sqlite"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -49,7 +49,7 @@ func newMCPToolsCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if directDB {
 				if dbPath == "" {
-					dbPath = getenvDefault("AGENTSH_DB_PATH", "./data/events.db")
+					dbPath = getenvDefault("AGENTMON_DB_PATH", "./data/events.db")
 				}
 				st, err := sqlite.Open(dbPath)
 				if err != nil {
@@ -158,7 +158,7 @@ func newMCPServersCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if directDB {
 				if dbPath == "" {
-					dbPath = getenvDefault("AGENTSH_DB_PATH", "./data/events.db")
+					dbPath = getenvDefault("AGENTMON_DB_PATH", "./data/events.db")
 				}
 				st, err := sqlite.Open(dbPath)
 				if err != nil {
@@ -253,7 +253,7 @@ func newMCPEventsCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if directDB {
 				if dbPath == "" {
-					dbPath = getenvDefault("AGENTSH_DB_PATH", "./data/events.db")
+					dbPath = getenvDefault("AGENTMON_DB_PATH", "./data/events.db")
 				}
 				st, err := sqlite.Open(dbPath)
 				if err != nil {
@@ -402,7 +402,7 @@ func newMCPCallsCmd() *cobra.Command {
 				}
 
 				if dbPath == "" {
-					dbPath = getenvDefault("AGENTSH_DB_PATH", "./data/events.db")
+					dbPath = getenvDefault("AGENTMON_DB_PATH", "./data/events.db")
 				}
 				st, err := sqlite.Open(dbPath)
 				if err != nil {
@@ -578,7 +578,7 @@ func newMCPDetectionsCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if directDB {
 				if dbPath == "" {
-					dbPath = getenvDefault("AGENTSH_DB_PATH", "./data/events.db")
+					dbPath = getenvDefault("AGENTMON_DB_PATH", "./data/events.db")
 				}
 				st, err := sqlite.Open(dbPath)
 				if err != nil {

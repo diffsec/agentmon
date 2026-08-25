@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 )
 
-// CreateStubSymlink creates a short-path symlink pointing to the agentsh-stub binary.
+// CreateStubSymlink creates a short-path symlink pointing to the agentmon-stub binary.
 // The symlink is placed in a private temp directory with 0700 permissions.
 // Returns (symlink path, cleanup function, error).
 // The symlink path is kept short to fit within most execve filename buffers.

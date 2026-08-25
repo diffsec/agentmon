@@ -5,7 +5,7 @@
 
 ## Overview
 
-Add a threat intelligence feed system to agentsh that blocks connections to known-malicious domains. External feeds (URLhaus, phishing lists, custom blocklists) are synced periodically into an in-memory store and checked on every network connection via the existing policy engine.
+Add a threat intelligence feed system to agentmon that blocks connections to known-malicious domains. External feeds (URLhaus, phishing lists, custom blocklists) are synced periodically into an in-memory store and checked on every network connection via the existing policy engine.
 
 **Use cases:**
 - Block agent connections to known malware distribution, phishing, and C2 domains
@@ -56,7 +56,7 @@ threat_feeds:
       url: https://raw.githubusercontent.com/mitchellkrogza/Phishing.Database/master/active-domains.txt
       format: domain-list
   local_lists:
-    - /etc/agentsh/custom-blocklist.txt
+    - /etc/agentmon/custom-blocklist.txt
   allowlist:
     - legit-domain.example.com
   sync_interval: 6h

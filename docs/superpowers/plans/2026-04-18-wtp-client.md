@@ -262,7 +262,7 @@ Replace the entire body of `internal/store/otel/filter.go` with:
 ```go
 package otel
 
-import "github.com/agentsh/agentsh/internal/store/eventfilter"
+import "github.com/diffsec/agentmon/internal/store/eventfilter"
 
 // Filter is an alias for the shared eventfilter.Filter so existing callers
 // continue to use otel.Filter without churn.
@@ -315,9 +315,9 @@ audit:
     enabled: true
     endpoint: "wtp.example.com:9443"
     auth:
-      token_file: "/etc/agentsh/wtp.token"
+      token_file: "/etc/agentmon/wtp.token"
     chain:
-      key_file: "/etc/agentsh/wtp.key"
+      key_file: "/etc/agentmon/wtp.key"
 `
 	cfg, err := loadFromString(t, yaml)
 	if err != nil {
@@ -349,9 +349,9 @@ audit:
     ephemeral_mode: true
     endpoint: "wtp.example.com:9443"
     auth:
-      token_file: "/etc/agentsh/wtp.token"
+      token_file: "/etc/agentmon/wtp.token"
     chain:
-      key_file: "/etc/agentsh/wtp.key"
+      key_file: "/etc/agentmon/wtp.key"
 `
 	cfg, err := loadFromString(t, yaml)
 	if err != nil {
@@ -455,7 +455,7 @@ type AuditWatchtowerConfig struct {
 	Enabled       bool   `yaml:"enabled"`
 	Endpoint      string `yaml:"endpoint"`        // host:port
 	SessionID     string `yaml:"session_id"`      // optional; auto-generated ULID if empty
-	StateDir      string `yaml:"state_dir"`       // default per-OS state dir + "/wtp" (Linux: $XDG_STATE_HOME/agentsh/wtp; macOS: ~/Library/Application Support/agentsh/wtp; Windows: %LOCALAPPDATA%\agentsh\wtp — non-roaming)
+	StateDir      string `yaml:"state_dir"`       // default per-OS state dir + "/wtp" (Linux: $XDG_STATE_HOME/agentmon/wtp; macOS: ~/Library/Application Support/agentmon/wtp; Windows: %LOCALAPPDATA%\agentmon\wtp — non-roaming)
 	EphemeralMode bool   `yaml:"ephemeral_mode"`
 
 	TLS       WatchtowerTLSConfig       `yaml:"tls"`
@@ -1246,7 +1246,7 @@ syntax = "proto3";
 
 package canyonroad.wtp.v1;
 
-option go_package = "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1;wtpv1";
+option go_package = "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1;wtpv1";
 
 // Bidi stream: client opens, sends ClientMessage frames, receives ServerMessage frames.
 service Watchtower {
@@ -1445,8 +1445,8 @@ Generate:
 ```bash
 protoc \
   --proto_path=proto \
-  --go_out=. --go_opt=module=github.com/agentsh/agentsh \
-  --go-grpc_out=. --go-grpc_opt=module=github.com/agentsh/agentsh \
+  --go_out=. --go_opt=module=github.com/diffsec/agentmon \
+  --go-grpc_out=. --go-grpc_opt=module=github.com/diffsec/agentmon \
   proto/canyonroad/wtp/v1/wtp.proto
 ```
 
@@ -1841,7 +1841,7 @@ import (
 	"os"
 	"path/filepath"
 
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -1893,7 +1893,7 @@ func main() {
 		ContextDigest:       "0123456789abcdef",
 		WalHighWatermarkSeq: 0,
 		Generation:          0,
-		AgentId:             "agentsh",
+		AgentId:             "agentmon",
 		AgentVersion:        "0.0.0-test",
 		TotalChained:        0,
 	}
@@ -2830,7 +2830,7 @@ Create `internal/store/watchtower/chain/testdata/vectors.json`:
   {
     "name": "context_digest_typical",
     "kind": "context_digest",
-    "input": {"session_id":"01HXAVD2N5VX3CZQK7Q7QWNYKE","agent_id":"agentsh","agent_version":"1.0.0","ocsf_version":"1.8.0","format_version":2,"algorithm":"hmac-sha256","key_fingerprint":"sha256:aabbccdd"},
+    "input": {"session_id":"01HXAVD2N5VX3CZQK7Q7QWNYKE","agent_id":"agentmon","agent_version":"1.0.0","ocsf_version":"1.8.0","format_version":2,"algorithm":"hmac-sha256","key_fingerprint":"sha256:aabbccdd"},
     "expected": "PLACEHOLDER_REPLACE_ME"
   },
   {
@@ -2844,7 +2844,7 @@ Create `internal/store/watchtower/chain/testdata/vectors.json`:
   {
     "name": "negative_invalid_utf8_in_session_id",
     "kind": "context_digest",
-    "input": {"format_version":2,"agent_id":"agentsh","agent_version":"1.0.0","ocsf_version":"1.8.0","algorithm":"hmac-sha256","key_fingerprint":"sha256:test"},
+    "input": {"format_version":2,"agent_id":"agentmon","agent_version":"1.0.0","ocsf_version":"1.8.0","algorithm":"hmac-sha256","key_fingerprint":"sha256:test"},
     "input_b64": "c4BiYWQ=",
     "input_field": "session_id",
     "expected_error": "ErrInvalidUTF8"
@@ -3106,7 +3106,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestStubMapper_MapsToZeroClass(t *testing.T) {
@@ -3155,7 +3155,7 @@ Expected: FAIL — package does not exist.
 Create `internal/store/watchtower/compact/mapper.go`:
 
 ```go
-// Package compact projects agentsh events into the WTP CompactEvent wire shape.
+// Package compact projects agentmon events into the WTP CompactEvent wire shape.
 //
 // The OCSF class/activity mapping is Phase 1 work and is injected via the
 // Mapper interface. This package provides:
@@ -3170,7 +3170,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // MappedEvent is the Mapper's output: a class/activity pair plus the
@@ -3182,7 +3182,7 @@ type MappedEvent struct {
 	Payload        []byte // protobuf-encoded class-specific payload
 }
 
-// Mapper projects an agentsh event into the OCSF class identifier and the
+// Mapper projects an agentmon event into the OCSF class identifier and the
 // pre-encoded class-specific payload bytes.
 //
 // Production: injected via watchtower.WithMapper(...) from Phase 1.
@@ -3255,7 +3255,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestEncode_PopulatesCoreFields(t *testing.T) {
@@ -3419,8 +3419,8 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/agentsh/agentsh/pkg/types"
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/pkg/types"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 // ErrInvalidMapper is returned when m is untyped nil or a typed-nil pointer
@@ -3439,7 +3439,7 @@ var ErrMissingChain = errors.New("compact.Encode: ev.Chain is nil; composite did
 // when cast to uint64 nanoseconds, masking caller bugs in the hot path.
 var ErrInvalidTimestamp = errors.New("compact.Encode: ev.Timestamp must be non-zero and ≥ Unix epoch")
 
-// Encode projects an agentsh event into a wtpv1.CompactEvent, populating
+// Encode projects an agentmon event into a wtpv1.CompactEvent, populating
 // everything EXCEPT the IntegrityRecord. The IntegrityRecord is filled in by
 // the WTP Store in the AppendEvent transactional pattern, AFTER chain.Compute
 // returns the entry hash.
@@ -6538,8 +6538,8 @@ import (
 	"testing"
 	"time"
 
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
 )
 
 // fakeConn implements transport.Conn for tests. CloseSend (half-close)
@@ -6778,7 +6778,7 @@ Create `internal/store/watchtower/transport/conn.go`:
 package transport
 
 import (
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 // Conn is the abstraction over a bidirectional WTP gRPC stream so that
@@ -6844,7 +6844,7 @@ package transport
 import (
 	"errors"
 
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 // Options configures a Transport.
@@ -7016,7 +7016,7 @@ import (
 	"context"
 	"fmt"
 
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 // runConnecting establishes a stream and exchanges SessionInit/SessionAck.
@@ -8110,8 +8110,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
 )
 
 // TestReplayer_StopsAtTailWatermark asserts the HARD STOP on RecordData
@@ -8410,7 +8410,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
 )
 
 // ReplayerOptions controls replay batching. Both bounds are advisory and
@@ -8733,8 +8733,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 // runReplaying drains the WAL via the supplied Replayer and ships records
@@ -9080,8 +9080,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
 )
 
 func mkRec(seq uint64, gen uint32, sz int) wal.Record {
@@ -9202,7 +9202,7 @@ package transport
 import (
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
 )
 
 // BatcherOptions configures Batcher flush thresholds.
@@ -9318,8 +9318,8 @@ import (
 	"fmt"
 	"time"
 
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
 )
 
 // LiveOptions configures the Live state's batcher and inflight window.
@@ -10040,7 +10040,7 @@ import (
 	"fmt"
 	"testing"
 
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 // Each enum constant maps to the correct ValidateEventBatch input.
@@ -10486,7 +10486,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
 )
 
 // TestBackoff_ExponentialWithJitter verifies the per-attempt sleep grows
@@ -10539,8 +10539,8 @@ import (
 	"testing"
 	"time"
 
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
 )
 
 // TestHeartbeat_FiresAfterIdleInterval verifies the heartbeat ticker
@@ -10634,7 +10634,7 @@ import (
 	"context"
 	"time"
 
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 // HeartbeatSender is the subset of Conn that RunHeartbeat needs.
@@ -11059,8 +11059,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 ```
 
@@ -11658,8 +11658,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
 )
 
 // TestShutdown_DrainsPendingThenCloses verifies that calling Stop with a
@@ -11798,7 +11798,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
 )
 
 // runShutdown performs an orderly drain: pull up to drainDeadline of new
@@ -11908,8 +11908,8 @@ import (
 	"testing"
 	"time"
 
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
-	"github.com/agentsh/agentsh/internal/store/watchtower/testserver"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/internal/store/watchtower/testserver"
 )
 
 // TestServer_AcksSessionInit verifies the default scenario: server replies
@@ -11987,7 +11987,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
 )
@@ -12174,7 +12174,7 @@ package testserver
 import (
 	"context"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
 )
 
 // DialerFor returns a transport.Dialer that uses the in-process server.
@@ -12233,8 +12233,8 @@ import (
 	"testing"
 	"time"
 
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
-	"github.com/agentsh/agentsh/internal/store/watchtower/testserver"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/internal/store/watchtower/testserver"
 )
 
 // TestWaitForBatch_ReturnsBatchOrTimesOut verifies that WaitForBatch blocks
@@ -12340,7 +12340,7 @@ import (
 	"fmt"
 	"time"
 
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 // WaitForBatch blocks until at least one batch is received or deadline.
@@ -12454,10 +12454,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/store/watchtower"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/store/watchtower"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // testHMACKey is a fixed 32-byte HMAC key used across watchtower tests.
@@ -12649,12 +12649,12 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/metrics"
-	"github.com/agentsh/agentsh/internal/store/eventfilter"
-	"github.com/agentsh/agentsh/internal/store/watchtower/chain"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/metrics"
+	"github.com/diffsec/agentmon/internal/store/eventfilter"
+	"github.com/diffsec/agentmon/internal/store/watchtower/chain"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
 )
 
 // Options configures a watchtower Store.
@@ -12849,12 +12849,12 @@ import (
 	"sync"
 	"time" // round-10 Missing A: nanosecond resolution for quarantine name
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/metrics"
-	"github.com/agentsh/agentsh/internal/store/watchtower/chain"
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/metrics"
+	"github.com/diffsec/agentmon/internal/store/watchtower/chain"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Store implements store.EventStore.
@@ -12931,7 +12931,7 @@ func New(ctx context.Context, opts Options) (*Store, error) {
 			// the same wall-clock second) cannot collide on the
 			// rename target. Format:
 			//   <wal-dir>.quarantine.<unix-nanos>-<4-hex-random>
-			// Example: /var/lib/agentsh/wtp.wal.quarantine.1737324001000000000-9c3f
+			// Example: /var/lib/agentmon/wtp.wal.quarantine.1737324001000000000-9c3f
 			//
 			// The 4-hex random suffix uses crypto/rand for collision
 			// resistance under a misbehaving wall clock. Even with
@@ -13254,7 +13254,7 @@ Note: the failing-sink test double itself lives **inline in `internal/store/watc
 ```go
 package chain
 
-import "github.com/agentsh/agentsh/internal/audit"
+import "github.com/diffsec/agentmon/internal/audit"
 
 // SinkChainAPI is the test-substitutable surface that watchtower.Store
 // consumes. Production callers wire *WatchtowerSink (which wraps
@@ -13289,7 +13289,7 @@ type SinkChainAPI interface {
 ```go
 package chain
 
-import "github.com/agentsh/agentsh/internal/audit"
+import "github.com/diffsec/agentmon/internal/audit"
 
 // WatchtowerSink adapts *audit.SinkChain to the watchtower-local
 // SinkChainAPI. The adapter is a pure pass-through for Compute and
@@ -13349,8 +13349,8 @@ package chain_test
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/store/watchtower/chain"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/store/watchtower/chain"
 )
 
 func TestWatchtowerSink_PeekPrevHashEmptyAtGenesis(t *testing.T) {
@@ -15237,8 +15237,8 @@ package metrics_test
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/metrics"
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/internal/metrics"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 // (parity test body below — uses fully-qualified metrics.* and wtpv1.*
@@ -15552,14 +15552,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/metrics"
-	"github.com/agentsh/agentsh/internal/store/watchtower"
-	"github.com/agentsh/agentsh/internal/store/watchtower/chain"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
-	"github.com/agentsh/agentsh/internal/store/watchtower/testserver"
-	"github.com/agentsh/agentsh/pkg/types"
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/metrics"
+	"github.com/diffsec/agentmon/internal/store/watchtower"
+	"github.com/diffsec/agentmon/internal/store/watchtower/chain"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/store/watchtower/testserver"
+	"github.com/diffsec/agentmon/pkg/types"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 func mkStore(t *testing.T) *watchtower.Store {
@@ -15954,11 +15954,11 @@ import (
 	"log/slog"
 	"math"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/store/watchtower/chain"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/store/watchtower/chain"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
+	"github.com/diffsec/agentmon/pkg/types"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -16298,13 +16298,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/store/watchtower"
-	"github.com/agentsh/agentsh/internal/store/watchtower/chain"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
-	"github.com/agentsh/agentsh/internal/store/watchtower/testserver"
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/store/watchtower"
+	"github.com/diffsec/agentmon/internal/store/watchtower/chain"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/store/watchtower/testserver"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // TestStore_WALCleanFailure_NoChainAdvance verifies that a clean WAL
@@ -16410,7 +16410,7 @@ package wal_test
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
 )
 
 // TestWAL_GenerationBoundaryOrdering verifies that a generation roll
@@ -16599,11 +16599,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/store/watchtower"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
-	"github.com/agentsh/agentsh/internal/store/watchtower/testserver"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/store/watchtower"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/store/watchtower/testserver"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // TestStore_DropsMidBatchTriggersReplay sends 50 events, configures the
@@ -16694,11 +16694,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/store/watchtower"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
-	"github.com/agentsh/agentsh/internal/store/watchtower/testserver"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/store/watchtower"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/store/watchtower/testserver"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // TestStore_ServerRestart_AcksCatchUp verifies that when the server is
@@ -16772,7 +16772,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
 )
 
 // RoutingDialer is a transport.Dialer whose backend can be swapped to
@@ -16853,8 +16853,8 @@ import (
 	"net"
 	"sync/atomic"
 
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -16950,12 +16950,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/store"
-	"github.com/agentsh/agentsh/internal/store/eventfilter"
-	"github.com/agentsh/agentsh/internal/store/watchtower"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/store"
+	"github.com/diffsec/agentmon/internal/store/eventfilter"
+	"github.com/diffsec/agentmon/internal/store/watchtower"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
 )
 
 // buildWatchtowerStore constructs a watchtower.Store from the daemon
@@ -17020,10 +17020,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/server"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/server"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
 )
 
 // TestBuildWatchtowerStore_DisabledReturnsNil verifies the disabled
@@ -17092,7 +17092,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 	"google.golang.org/grpc"
 )
 
@@ -18112,7 +18112,7 @@ task starts):**
      The log emission lives in the audit-watchtower store-
      construction site (NOT in `internal/config/config.go`'s
      `Validate*`/`applyDefaults*` functions, which are shared by
-     `agentsh config show`, `agentsh config validate`, and server
+     `agentmon config show`, `agentmon config validate`, and server
      startup — emitting operational startup logs from those shared
      code paths would pollute non-daemon CLI subcommands).
    - `*bool == false` (explicit `false`) — same runtime behavior as

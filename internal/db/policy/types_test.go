@@ -3,7 +3,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestDecisionVerbString(t *testing.T) {

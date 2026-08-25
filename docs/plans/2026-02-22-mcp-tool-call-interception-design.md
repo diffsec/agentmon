@@ -7,7 +7,7 @@
 
 ## Overview
 
-This design adds **MCP tool call detection and policy enforcement** to agentsh across three interception layers: the LLM proxy, the shell shim, and the network monitor. The existing MCP inspection system (Phase 1-4) covers tool *definitions* — it detects poisoning, rug pulls, and suspicious patterns in `tools/list` responses. This design extends coverage to tool *executions* — detecting when an MCP tool is about to be called, enforcing policy before it runs, and creating an audit trail of every invocation.
+This design adds **MCP tool call detection and policy enforcement** to agentmon across three interception layers: the LLM proxy, the shell shim, and the network monitor. The existing MCP inspection system (Phase 1-4) covers tool *definitions* — it detects poisoning, rug pulls, and suspicious patterns in `tools/list` responses. This design extends coverage to tool *executions* — detecting when an MCP tool is about to be called, enforcing policy before it runs, and creating an audit trail of every invocation.
 
 ## Problem Statement
 
@@ -17,7 +17,7 @@ The current MCP inspection system watches `tools/list` responses to track what t
 2. **The LLM proxy** sees the LLM's `tool_use` / `tool_calls` responses (the signal that triggers MCP calls) but has zero MCP awareness — no imports, no parsing, no correlation.
 3. **Network MCP servers** (HTTP/SSE) are completely invisible — the shim only wraps stdio processes, and the LLM proxy doesn't know which tools are MCP tools.
 
-This means agentsh cannot:
+This means agentmon cannot:
 - Block an MCP tool call based on policy before it executes
 - Log which MCP tools were actually invoked during a session
 - Distinguish MCP tool calls from native tool calls in the LLM conversation
@@ -147,7 +147,7 @@ Policy evaluation runs in the `PolicyEvaluator` with a new server-level check th
 
 ### Undeclared Server Detection
 
-When `fail_closed: true` and a tool call arrives for a server ID not found in the `servers` declarations at all, it is blocked with reason `"undeclared server (fail closed)"`. This catches MCP servers that were injected dynamically or configured outside agentsh.
+When `fail_closed: true` and a tool call arrives for a server ID not found in the `servers` declarations at all, it is blocked with reason `"undeclared server (fail closed)"`. This catches MCP servers that were injected dynamically or configured outside agentmon.
 
 ## MCP Tool Registry
 
@@ -647,7 +647,7 @@ When `fail_closed: false` (default):
   "stop_reason": "end_turn",
   "content": [
     {"type": "text", "text": "I'll check the weather..."},
-    {"type": "text", "text": "[agentsh] Tool 'get_weather' blocked by policy: reason"}
+    {"type": "text", "text": "[agentmon] Tool 'get_weather' blocked by policy: reason"}
   ]
 }
 ```
@@ -751,10 +751,10 @@ Session Start
 
 ## CLI Extensions
 
-Extend the existing `agentsh mcp` commands:
+Extend the existing `agentmon mcp` commands:
 
 ```
-agentsh mcp calls [--direct-db]              # List MCP tool calls
+agentmon mcp calls [--direct-db]              # List MCP tool calls
     --session <id>                            # Filter by session
     --server <id>                             # Filter by server
     --tool <name>                             # Filter by tool name
@@ -762,7 +762,7 @@ agentsh mcp calls [--direct-db]              # List MCP tool calls
     --since <time>                            # Start time
     --json                                    # JSON output
 
-agentsh mcp events [--direct-db]             # Existing, now includes new event types
+agentmon mcp events [--direct-db]             # Existing, now includes new event types
     --type mcp_tool_call_intercepted          # New filter value
     --type mcp_tool_called                    # New filter value
     --type mcp_network_connection             # New filter value

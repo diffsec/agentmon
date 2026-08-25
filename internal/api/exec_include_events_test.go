@@ -9,13 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/metrics"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/metrics"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestExec_IncludeEventsNone_ReturnsCountsOnly(t *testing.T) {
@@ -104,7 +104,7 @@ func TestExec_IncludeEventsSummary_CapsBlockedOps(t *testing.T) {
 	h := app.Router()
 
 	// Trigger a command policy deny (rm -rf) which returns blocked_operations in response.
-	body := `{"command":"rm","args":["-rf","/tmp/agentsh-test"],"include_events":"summary"}`
+	body := `{"command":"rm","args":["-rf","/tmp/agentmon-test"],"include_events":"summary"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/sessions/"+sess.ID+"/exec", strings.NewReader(body))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)

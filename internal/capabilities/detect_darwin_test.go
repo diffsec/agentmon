@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	darwin "github.com/agentsh/agentsh/internal/platform/darwin"
+	darwin "github.com/diffsec/agentmon/internal/platform/darwin"
 )
 
 func TestSelectDarwinMode(t *testing.T) {
@@ -27,7 +27,7 @@ func TestSelectDarwinMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.needsMacwrap && !hasMacwrap {
-				t.Skip("agentsh-macwrap not in PATH")
+				t.Skip("agentmon-macwrap not in PATH")
 			}
 			if !tt.needsMacwrap && hasMacwrap {
 				if tt.wantMode == "sandbox-exec" {

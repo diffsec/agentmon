@@ -1,10 +1,10 @@
-# Agent Default Policy for agentsh
+# Agent Default Policy for agentmon
 # Comprehensive policy for AI coding agents (Claude Code, Codex CLI, etc.)
 
 version: 1
 name: agent-default
 description: |
-  Default policy for AI coding agents running under agentsh wrap. Provides
+  Default policy for AI coding agents running under agentmon wrap. Provides
   a comprehensive dev toolchain allowlist, LLM API access, credential
   protection, git guardrails, env variable filtering, and default-deny
   on files and network. Agents can work productively while credentials
@@ -346,9 +346,9 @@ command_rules:
       - aider
       - copilot
       - gh
-      - agentsh
-      - agentsh-unixwrap
-      - agentsh-stub
+      - agentmon
+      - agentmon-unixwrap
+      - agentmon-stub
     decision: allow
 
 # =============================================================================

@@ -1,8 +1,8 @@
 package server
 
 import (
-	"github.com/agentsh/agentsh/internal/mcpregistry"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // bridgeEventToRegistry updates the enforcement registry when the shim reports

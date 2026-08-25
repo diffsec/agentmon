@@ -8,14 +8,14 @@
   "metadata": {
     "version": "1.8.0",
     "product": {
-      "name": "agentsh",
-      "vendor_name": "agentsh"
+      "name": "agentmon",
+      "vendor_name": "agentmon"
     },
     "logged_time": "1777118400000000000",
     "event_code": "fsevents_error",
     "uid": "ev-fsev-err-1"
   },
-  "app_name": "agentsh",
+  "app_name": "agentmon",
   "agent_internal": true,
   "enrichments": {
     "reason": "queue overflow"

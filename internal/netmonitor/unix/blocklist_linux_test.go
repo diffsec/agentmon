@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"testing"
 
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
-	"github.com/agentsh/agentsh/pkg/types"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
+	"github.com/diffsec/agentmon/pkg/types"
 	libseccomp "github.com/seccomp/libseccomp-golang"
 	"github.com/stretchr/testify/require"
 	gounix "golang.org/x/sys/unix"

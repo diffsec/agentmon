@@ -1,5 +1,5 @@
-# agentsh Server Configuration
-# Copy this to /etc/agentsh/config.yaml and customize
+# agentmon Server Configuration
+# Copy this to /etc/agentmon/config.yaml and customize
 
 # =============================================================================
 # SERVER SETTINGS
@@ -16,22 +16,22 @@ server:
   # gRPC server (optional, for high-performance clients)
   grpc:
     # Provides: CreateSession, Exec, ExecStream, EventsTail.
-    # When enabled, the CLI can use gRPC for exec/events via `AGENTSH_TRANSPORT=grpc`.
+    # When enabled, the CLI can use gRPC for exec/events via `AGENTMON_TRANSPORT=grpc`.
     enabled: false
     addr: "127.0.0.1:9090"
     
   # Unix socket (for local clients, lower latency)
   unix_socket:
     enabled: true
-    path: "./data/agentsh.sock"
+    path: "./data/agentmon.sock"
     permissions: "0660"
     
   # TLS configuration
   tls:
     enabled: false
-    cert_file: "/etc/agentsh/tls/server.crt"
-    key_file: "/etc/agentsh/tls/server.key"
-    ca_file: "/etc/agentsh/tls/ca.crt"        # For mTLS
+    cert_file: "/etc/agentmon/tls/server.crt"
+    key_file: "/etc/agentmon/tls/server.key"
+    ca_file: "/etc/agentmon/tls/ca.crt"        # For mTLS
     client_auth: false                         # Require client certs
 
 # =============================================================================
@@ -59,13 +59,13 @@ auth:
   # OIDC authentication (for enterprise SSO)
   # oidc:
   #   issuer: "https://corp.okta.com"
-  #   client_id: "agentsh-server"
-  #   audience: "agentsh"
+  #   client_id: "agentmon-server"
+  #   audience: "agentmon"
   #   claim_mappings:
   #     operator_id: "sub"
   #     groups: "groups"
   #   allowed_groups:
-  #     - "agentsh-users"
+  #     - "agentmon-users"
   #   group_policy_map:
   #     admins: "admin-policy"
   #     developers: "default"
@@ -105,7 +105,7 @@ audit:
   # Separate audit log
   output: "./data/audit.jsonl"
 
-  # Local queryable event storage (agentsh extension)
+  # Local queryable event storage (agentmon extension)
   storage:
     sqlite_path: "./data/events.db"
   
@@ -128,7 +128,7 @@ audit:
     
   # Optional: send to external system
   # webhook:
-  #   url: "https://siem.example.com/agentsh"
+  #   url: "https://siem.example.com/agentmon"
   #   batch_size: 100
   #   flush_interval: 10s
 
@@ -165,7 +165,7 @@ sandbox:
     audit:
       enabled: true
       mode: "monitor"             # monitor|soft_block|soft_delete|strict
-      trash_path: ".agentsh_trash"
+      trash_path: ".agentmon_trash"
       ttl: "7d"
       quota: "5GB"
       strict_on_audit_failure: false
@@ -196,7 +196,7 @@ sandbox:
       subnet_base: "10.250.0.0/16"
     ebpf:
       enabled: false          # Linux only; set true to capture connects without proxy
-      required: false         # If true and unsupported, agentsh fails to start; setting required=true implies enabled
+      required: false         # If true and unsupported, agentmon fails to start; setting required=true implies enabled
       resolve_rdns: false     # Best-effort reverse DNS for ebpf net_connect events (adds latency if true)
       enforce: false          # If true, deny connects in BPF unless allowed (only precise allow rules activate default-deny)
       enforce_without_dns: false # If true, default-deny even when DNS resolution fails
@@ -229,26 +229,26 @@ sandbox:
 
   # Unix sockets wrapper settings (seccomp enforcement for shell shim)
   unix_sockets:
-    enabled: true                  # Wraps commands with agentsh-unixwrap for seccomp-bpf enforcement
-    # wrapper_bin: "agentsh-unixwrap"  # Optional: override wrapper binary path
+    enabled: true                  # Wraps commands with agentmon-unixwrap for seccomp-bpf enforcement
+    # wrapper_bin: "agentmon-unixwrap"  # Optional: override wrapper binary path
 
   # env_inject: Environment variables injected into all commands
   # These bypass env policy filtering (operator-trusted)
   # Primary use: BASH_ENV to disable bash builtins that bypass seccomp
   env_inject:
-    BASH_ENV: "/usr/lib/agentsh/bash_startup.sh"
+    BASH_ENV: "/usr/lib/agentmon/bash_startup.sh"
     # MY_CUSTOM_VAR: "value"  # Add custom vars as needed
 
   # seccomp settings
   seccomp:
     # Linux seccomp-bpf enforcement for syscall, file, and socket filters.
     enabled: false
-    # Advisory mitigation sets. Built-ins are embedded in agentsh; external
+    # Advisory mitigation sets. Built-ins are embedded in agentmon; external
     # directories are optional and only requested IDs are loaded.
     # mitigation_sets:
     #   - dirtyfrag-conservative
     # mitigation_dirs:
-    #   - /etc/agentsh/mitigations
+    #   - /etc/agentmon/mitigations
     # File I/O interception via seccomp-notify.
     # When enabled, seccomp intercepts file syscalls (openat, unlinkat, etc.)
     # and evaluates them against the active policy's file_rules.
@@ -263,9 +263,9 @@ sandbox:
     enabled: false
     # Base path under cgroup v2 filesystem where per-command cgroups are created.
     # - Rootless/dev recommended: a relative path (created under the current process cgroup)
-    # base_path: "agentsh"
+    # base_path: "agentmon"
     # - Systemd/service recommended (root): a dedicated absolute cgroupfs path
-    # base_path: "/sys/fs/cgroup/agentsh"
+    # base_path: "/sys/fs/cgroup/agentmon"
 
 # =============================================================================
 # RESOURCE LIMITS (defaults, can override per-session)
@@ -434,13 +434,13 @@ approvals:
   notification:
     type: "webhook"
     webhook:
-      url: "https://example.com/agentsh/approvals"
+      url: "https://example.com/agentmon/approvals"
       secret: ""                   # For webhook signature
       
     # Slack notification
     # slack:
     #   webhook_url: "https://hooks.slack.com/..."
-    #   channel: "#agentsh-approvals"
+    #   channel: "#agentmon-approvals"
     
   # Store pending approvals for UI
   storage:

@@ -1743,7 +1743,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // recordingEmitter records calls in order to verify emit-after-respond.
@@ -1835,8 +1835,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 ```
 

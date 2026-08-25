@@ -17,11 +17,11 @@ Create two ECR repositories for the test images:
 
 ```bash
 aws ecr create-repository \
-  --repository-name agentsh-test \
+  --repository-name agentmon-test \
   --image-scanning-configuration scanOnPush=false
 
 aws ecr create-repository \
-  --repository-name agentsh-fargate-workload \
+  --repository-name agentmon-fargate-workload \
   --image-scanning-configuration scanOnPush=false
 ```
 
@@ -47,11 +47,11 @@ LIFECYCLE_POLICY='{
 }'
 
 aws ecr put-lifecycle-policy \
-  --repository-name agentsh-test \
+  --repository-name agentmon-test \
   --lifecycle-policy-text "$LIFECYCLE_POLICY"
 
 aws ecr put-lifecycle-policy \
-  --repository-name agentsh-fargate-workload \
+  --repository-name agentmon-fargate-workload \
   --lifecycle-policy-text "$LIFECYCLE_POLICY"
 ```
 
@@ -61,7 +61,7 @@ Create a Fargate-only ECS cluster (no EC2 capacity providers):
 
 ```bash
 aws ecs create-cluster \
-  --cluster-name agentsh-e2e \
+  --cluster-name agentmon-e2e \
   --capacity-providers FARGATE \
   --default-capacity-provider-strategy capacityProvider=FARGATE,weight=1
 ```
@@ -77,7 +77,7 @@ VPC_ID=$(aws ec2 create-vpc \
   --query 'Vpc.VpcId' --output text)
 
 aws ec2 create-tags --resources "$VPC_ID" \
-  --tags Key=Name,Value=agentsh-e2e
+  --tags Key=Name,Value=agentmon-e2e
 
 # Enable DNS support
 aws ec2 modify-vpc-attribute --vpc-id "$VPC_ID" --enable-dns-support
@@ -90,7 +90,7 @@ SUBNET_ID=$(aws ec2 create-subnet \
   --query 'Subnet.SubnetId' --output text)
 
 aws ec2 create-tags --resources "$SUBNET_ID" \
-  --tags Key=Name,Value=agentsh-e2e-public
+  --tags Key=Name,Value=agentmon-e2e-public
 
 # Enable auto-assign public IP (needed for Fargate tasks with awsvpc)
 aws ec2 modify-subnet-attribute \
@@ -125,8 +125,8 @@ Allow all egress (needed for outbound tests), no ingress:
 
 ```bash
 SG_ID=$(aws ec2 create-security-group \
-  --group-name agentsh-e2e \
-  --description "agentsh Fargate E2E tests - egress only" \
+  --group-name agentmon-e2e \
+  --description "agentmon Fargate E2E tests - egress only" \
   --vpc-id "$VPC_ID" \
   --query 'GroupId' --output text)
 
@@ -148,7 +148,7 @@ write logs to CloudWatch:
 ```bash
 # Create the role with ECS trust policy
 aws iam create-role \
-  --role-name agentsh-e2e-execution \
+  --role-name agentmon-e2e-execution \
   --assume-role-policy-document '{
     "Version": "2012-10-17",
     "Statement": [
@@ -162,12 +162,12 @@ aws iam create-role \
 
 # Attach the managed ECS task execution policy (covers ECR pull + CW logs)
 aws iam attach-role-policy \
-  --role-name agentsh-e2e-execution \
+  --role-name agentmon-e2e-execution \
   --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
 # Get the role ARN
 EXECUTION_ROLE_ARN=$(aws iam get-role \
-  --role-name agentsh-e2e-execution \
+  --role-name agentmon-e2e-execution \
   --query 'Role.Arn' --output text)
 
 echo "EXECUTION_ROLE_ARN=$EXECUTION_ROLE_ARN"
@@ -177,10 +177,10 @@ echo "EXECUTION_ROLE_ARN=$EXECUTION_ROLE_ARN"
 
 ```bash
 aws logs create-log-group \
-  --log-group-name /agentsh/fargate-e2e
+  --log-group-name /agentmon/fargate-e2e
 
 aws logs put-retention-policy \
-  --log-group-name /agentsh/fargate-e2e \
+  --log-group-name /agentmon/fargate-e2e \
   --retention-in-days 7
 ```
 
@@ -194,10 +194,10 @@ Actions > Variables tab):
 | Variable | Value | Example |
 |----------|-------|---------|
 | `AWS_REGION` | AWS region where resources were created | `us-east-1` |
-| `AWS_ECS_CLUSTER` | ECS cluster name | `agentsh-e2e` |
+| `AWS_ECS_CLUSTER` | ECS cluster name | `agentmon-e2e` |
 | `AWS_ECS_SUBNET` | Public subnet ID | `subnet-0abc123...` |
 | `AWS_ECS_SECURITY_GROUP` | Security group ID | `sg-0abc123...` |
-| `AWS_ECS_EXECUTION_ROLE_ARN` | Task execution role ARN | `arn:aws:iam::123456789012:role/agentsh-e2e-execution` |
+| `AWS_ECS_EXECUTION_ROLE_ARN` | Task execution role ARN | `arn:aws:iam::123456789012:role/agentmon-e2e-execution` |
 
 ### Repository Secrets
 
@@ -234,20 +234,20 @@ To remove all AWS resources:
 
 ```bash
 # Delete ECS cluster (must have no running tasks)
-aws ecs delete-cluster --cluster agentsh-e2e
+aws ecs delete-cluster --cluster agentmon-e2e
 
 # Delete ECR repositories (force deletes images)
-aws ecr delete-repository --repository-name agentsh-test --force
-aws ecr delete-repository --repository-name agentsh-fargate-workload --force
+aws ecr delete-repository --repository-name agentmon-test --force
+aws ecr delete-repository --repository-name agentmon-fargate-workload --force
 
 # Delete CloudWatch log group
-aws logs delete-log-group --log-group-name /agentsh/fargate-e2e
+aws logs delete-log-group --log-group-name /agentmon/fargate-e2e
 
 # Delete IAM role (detach policy first)
 aws iam detach-role-policy \
-  --role-name agentsh-e2e-execution \
+  --role-name agentmon-e2e-execution \
   --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-aws iam delete-role --role-name agentsh-e2e-execution
+aws iam delete-role --role-name agentmon-e2e-execution
 
 # Delete security group
 aws ec2 delete-security-group --group-id "$SG_ID"

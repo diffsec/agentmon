@@ -4,18 +4,18 @@ Issue: #369 ("Gap C"), Path 1. Follow-up to the diagnosis in #396/#397/#398.
 
 ## Summary
 
-On exe.dev kernel `6.12.90`, agentsh's ptrace syscall injection is fundamentally
+On exe.dev kernel `6.12.90`, agentmon's ptrace syscall injection is fundamentally
 unreliable: an injected `mmap` returns a plausible address but creates no VMA
 (rc5/#398 proved `new_mappings=[]`), so the seccomp-prefilter scratch-page write
 `EIO`s and the command is lost (`exit -1`, ~60%). No inject-side fix worked
 across rc1–rc5, and `seccomp_prefilter: false` (pure `TRACESYSGOOD`) hangs every
 exec — so **ptrace mode as a whole is unusable on this kernel**.
 
-This design stops the kills by making agentsh **honest**: a one-time startup
+This design stops the kills by making agentmon **honest**: a one-time startup
 behavioral probe injects a test `mmap` (via the **production** inject path) into a
 controlled child and verifies a real VMA appears. If injection is unreliable,
-agentsh **degrades** — it does not start the ptrace tracer, warns loudly, and
-reports ptrace as not-enforcing in `agentsh detect`; commands run under the
+agentmon **degrades** — it does not start the ptrace tracer, warns loudly, and
+reports ptrace as not-enforcing in `agentmon detect`; commands run under the
 remaining backends instead of dying. Under `Security.Strict` (or a required
 minimum mode) that needs ptrace, it **fails fast at startup** instead. This
 mirrors the #388/#390 `SeccompInstallable` precedent, extended with the one piece
@@ -24,10 +24,10 @@ fails.
 
 ## Goals
 
-- On a kernel where injected `mmap` doesn't reliably map, agentsh does **not**
+- On a kernel where injected `mmap` doesn't reliably map, agentmon does **not**
   start the ptrace tracer (default), logs a clear degraded-mode `WARN`, and
   commands succeed under the remaining backends — no `exit -1` kills.
-- `agentsh detect` reports the ptrace Command Control backend as not-enforcing
+- `agentmon detect` reports the ptrace Command Control backend as not-enforcing
   with an actionable detail ("syscall injection unreliable on this kernel").
 - `Security.Strict` / required-minimum-mode that depends on ptrace **fails fast**
   at startup (reusing #390's validation path), not per-command later.
@@ -183,7 +183,7 @@ be enforced"). This reuses the existing strict-validation seam so an operator wh
 
 - exe.dev 6.12.90, `ptrace.enabled:true`, non-strict: probe fails → tracer not
   started → `WARN` degraded → `/bin/echo` and the shim suite **run** (no kills);
-  `agentsh detect` shows `ptrace - syscall injection unreliable on this kernel`.
+  `agentmon detect` shows `ptrace - syscall injection unreliable on this kernel`.
 - Same host, `Security.Strict` requiring full/ptrace: **fail-fast** at startup.
 - Healthy kernel: probe passes (all 8 iterations map) → tracer starts as today.
 
@@ -234,7 +234,7 @@ verified by erans on v0.20.3-rc6.
 
 - `internal/ptrace/inject_probe_linux.go` (new) — `ProbePtraceInject`, child
   sentinel, iteration loop reusing the gadget inject.
-- `internal/ptrace/` — child-sentinel init hook (or in `cmd/agentsh`/`main`).
+- `internal/ptrace/` — child-sentinel init hook (or in `cmd/agentmon`/`main`).
 - `internal/capabilities/security_caps.go` — `PtraceInjectable`/`PtraceInjectDetail`
   + set in `DetectSecurityCapabilities` (gated on `caps.Ptrace`).
 - `internal/capabilities/check_ptrace_linux.go` (new) — `checkPtraceInject`.

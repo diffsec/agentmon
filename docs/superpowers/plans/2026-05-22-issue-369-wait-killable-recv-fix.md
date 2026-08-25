@@ -4,7 +4,7 @@
 
 **Goal:** Replace `ProbeWaitKillable` (uname version check) with a server-side behavioral probe and an operator override (`sandbox.seccomp.wait_killable`), so wrapped commands stop being killed on exe.dev-class kernels where the kernel-version probe lies.
 
-**Architecture:** Server decides once at boot via a four-branch switch (config override → kernel<6 → safe composition → behavioral probe), memoizes the result, and passes it to every wrapper through the existing `AGENTSH_SECCOMP_CONFIG` env var. Wrapper consumes the bool and feeds it into `InstallFilterWithConfig`. Spec at `docs/superpowers/specs/2026-05-22-issue-369-wait-killable-recv-fix-design.md`.
+**Architecture:** Server decides once at boot via a four-branch switch (config override → kernel<6 → safe composition → behavioral probe), memoizes the result, and passes it to every wrapper through the existing `AGENTMON_SECCOMP_CONFIG` env var. Wrapper consumes the bool and feeds it into `InstallFilterWithConfig`. Spec at `docs/superpowers/specs/2026-05-22-issue-369-wait-killable-recv-fix-design.md`.
 
 **Tech Stack:** Go 1.x, `golang.org/x/sys/unix`, `github.com/seccomp/libseccomp-golang`, `slog`.
 
@@ -26,9 +26,9 @@
 | `internal/config/seccomp_wait_killable_test.go` | **New** | Heuristic table test |
 | `internal/api/seccomp_wrapper_config.go` | Modify (line 15-43) | Add `seccompWrapperConfig.WaitKillable *bool` + serializer wires `&a.waitKillableDecision` |
 | `internal/api/seccomp_wrapper_test.go` | Modify | Assert JSON round-trip preserves `nil`/`&true`/`&false` |
-| `cmd/agentsh-unixwrap/config.go` | Modify (line 14-41) | Add `WrapperConfig.WaitKillable *bool` |
-| `cmd/agentsh-unixwrap/config_test.go` | Modify | Assert wrapper-side JSON parse for all three values |
-| `cmd/agentsh-unixwrap/main.go` | Modify (line 99-110) | Wire `cfg.WaitKillable` → `filterCfg.WaitKillable` |
+| `cmd/agentmon-unixwrap/config.go` | Modify (line 14-41) | Add `WrapperConfig.WaitKillable *bool` |
+| `cmd/agentmon-unixwrap/config_test.go` | Modify | Assert wrapper-side JSON parse for all three values |
+| `cmd/agentmon-unixwrap/main.go` | Modify (line 99-110) | Wire `cfg.WaitKillable` → `filterCfg.WaitKillable` |
 | `internal/netmonitor/unix/seccomp_linux.go` | Modify (lines 243-254, 303) | Add `FilterConfig.WaitKillable *bool`; consult it before falling back to `ProbeWaitKillable()` |
 | `internal/netmonitor/unix/seccomp_linux_test.go` | Modify | Assert override behavior via `loadFilterSyscall` injection seam |
 | `internal/netmonitor/unix/wait_killable_probe_linux.go` | **New** | `ProbeWaitKillableBehavior(ctx, iterations)` + per-iteration runner |
@@ -263,12 +263,12 @@ Issue #369."
 ### Task 3: Wrapper-side JSON field
 
 **Files:**
-- Modify: `cmd/agentsh-unixwrap/config.go:14-41`
-- Modify: `cmd/agentsh-unixwrap/config_test.go`
+- Modify: `cmd/agentmon-unixwrap/config.go:14-41`
+- Modify: `cmd/agentmon-unixwrap/config_test.go`
 
 - [ ] **Step 1: Add the field to `WrapperConfig`**
 
-Open `cmd/agentsh-unixwrap/config.go`. Inside `WrapperConfig`, after `BlockIOUring`:
+Open `cmd/agentmon-unixwrap/config.go`. Inside `WrapperConfig`, after `BlockIOUring`:
 
 ```go
 	BlockIOUring      bool `json:"block_io_uring,omitempty"`
@@ -283,7 +283,7 @@ Open `cmd/agentsh-unixwrap/config.go`. Inside `WrapperConfig`, after `BlockIOUri
 
 - [ ] **Step 2: Write the failing test**
 
-Append to `cmd/agentsh-unixwrap/config_test.go`:
+Append to `cmd/agentmon-unixwrap/config_test.go`:
 
 ```go
 func TestWrapperConfig_WaitKillable_JSON(t *testing.T) {
@@ -298,7 +298,7 @@ func TestWrapperConfig_WaitKillable_JSON(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("AGENTSH_SECCOMP_CONFIG", tc.json)
+			t.Setenv("AGENTMON_SECCOMP_CONFIG", tc.json)
 			cfg, err := loadConfig()
 			if err != nil {
 				t.Fatalf("loadConfig: %v", err)
@@ -322,7 +322,7 @@ If `boolPtr` already exists in the test file, drop the helper at the end.
 
 - [ ] **Step 3: Run the test**
 
-Run: `go test ./cmd/agentsh-unixwrap/ -run TestWrapperConfig_WaitKillable_JSON -count=1 -v`
+Run: `go test ./cmd/agentmon-unixwrap/ -run TestWrapperConfig_WaitKillable_JSON -count=1 -v`
 Expected: PASS — the JSON tag was already added in Step 1, so all three sub-cases pass.
 
 - [ ] **Step 4: Cross-compile**
@@ -333,8 +333,8 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add cmd/agentsh-unixwrap/config.go cmd/agentsh-unixwrap/config_test.go
-git commit -m "feat(unixwrap): accept wait_killable in AGENTSH_SECCOMP_CONFIG
+git add cmd/agentmon-unixwrap/config.go cmd/agentmon-unixwrap/config_test.go
+git commit -m "feat(unixwrap): accept wait_killable in AGENTMON_SECCOMP_CONFIG
 
 Tri-state passthrough from server's wait_killable decision. Nil means
 'wrapper falls back to legacy probe' for direct/test invocations.
@@ -422,7 +422,7 @@ Expected: PASS.
 
 ```bash
 git add internal/api/seccomp_wrapper_config.go internal/api/seccomp_wrapper_test.go
-git commit -m "feat(api): serialize wait_killable into AGENTSH_SECCOMP_CONFIG
+git commit -m "feat(api): serialize wait_killable into AGENTMON_SECCOMP_CONFIG
 
 Field added now; wired to the App-level decision in a later task.
 
@@ -438,7 +438,7 @@ Issue #369."
 **Files:**
 - Modify: `internal/netmonitor/unix/seccomp_linux.go:243-254, 303`
 - Modify: `internal/netmonitor/unix/seccomp_linux_test.go`
-- Modify: `cmd/agentsh-unixwrap/main.go:99-110`
+- Modify: `cmd/agentmon-unixwrap/main.go:99-110`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -559,7 +559,7 @@ Expected: PASS.
 
 - [ ] **Step 7: Wire `WaitKillable` through the wrapper main**
 
-In `cmd/agentsh-unixwrap/main.go`, locate the `unixmon.FilterConfig{...}` construction (around line 99). Add the new field:
+In `cmd/agentmon-unixwrap/main.go`, locate the `unixmon.FilterConfig{...}` construction (around line 99). Add the new field:
 
 ```go
 	filterCfg := unixmon.FilterConfig{
@@ -579,13 +579,13 @@ In `cmd/agentsh-unixwrap/main.go`, locate the `unixmon.FilterConfig{...}` constr
 
 - [ ] **Step 8: Cross-compile + full build**
 
-Run: `go build ./... && GOOS=windows go build ./... && go test ./internal/netmonitor/unix/... ./cmd/agentsh-unixwrap/... -count=1`
+Run: `go build ./... && GOOS=windows go build ./... && go test ./internal/netmonitor/unix/... ./cmd/agentmon-unixwrap/... -count=1`
 Expected: PASS on all.
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add internal/netmonitor/unix/seccomp_linux.go internal/netmonitor/unix/seccomp_linux_test.go cmd/agentsh-unixwrap/main.go
+git add internal/netmonitor/unix/seccomp_linux.go internal/netmonitor/unix/seccomp_linux_test.go cmd/agentmon-unixwrap/main.go
 git commit -m "feat(seccomp): honor FilterConfig.WaitKillable in install path
 
 When the server passes a definitive bool, use it directly instead of
@@ -861,13 +861,13 @@ Issue #369."
 The runner must:
 
 1. Build a minimal seccomp filter program (BPF bytes) with notify rules for both syscall families. Use the existing `exportFilterBPF` + `loadRawFilter` pattern from `seccomp_load_linux.go`.
-2. `fork()` via `unix.ForkExec` is too high-level; we need a raw fork to do prctl + seccomp before exec. Use `syscall.RawSyscall(SYS_FORK, ...)` or `syscall.ForkLock` + manual `fork`. Production reference: the existing wrapper code in `cmd/agentsh-unixwrap/main.go` uses `runtime.LockOSThread` + `prctl` + `seccomp` + `syscall.Exec` in the same goroutine — but that's *after* fork. For a probe we need to do this in a child. The cleanest approach is to re-exec our own binary in a "probe child" mode using `os/exec`, where the child entrypoint installs the filter and then execs `/bin/true`.
+2. `fork()` via `unix.ForkExec` is too high-level; we need a raw fork to do prctl + seccomp before exec. Use `syscall.RawSyscall(SYS_FORK, ...)` or `syscall.ForkLock` + manual `fork`. Production reference: the existing wrapper code in `cmd/agentmon-unixwrap/main.go` uses `runtime.LockOSThread` + `prctl` + `seccomp` + `syscall.Exec` in the same goroutine — but that's *after* fork. For a probe we need to do this in a child. The cleanest approach is to re-exec our own binary in a "probe child" mode using `os/exec`, where the child entrypoint installs the filter and then execs `/bin/true`.
 
    **Chosen approach: probe child re-execs the current binary with a sentinel arg.** The current binary (server or wrapper) recognizes the sentinel, installs the filter, and execs `/bin/true`. This avoids fragile manual-fork code in Go and reuses the existing `loadRawFilter` path.
 
 2. Plumb the sentinel:
-   - Add an `init()` to the probe-runner file that checks for `AGENTSH_WAIT_KILLABLE_PROBE_CHILD=1` and, if set, runs the child sequence and never returns.
-   - The child sequence: build the same BPF program (in-process); call `loadRawFilter(prog, withWaitKill=true)` to install with WAIT_KILLABLE_RECV; send the returned notify fd to the parent over an inherited socketpair fd (passed in env `AGENTSH_WAIT_KILLABLE_PROBE_SOCK`); then `syscall.Exec("/bin/true", ...)`.
+   - Add an `init()` to the probe-runner file that checks for `AGENTMON_WAIT_KILLABLE_PROBE_CHILD=1` and, if set, runs the child sequence and never returns.
+   - The child sequence: build the same BPF program (in-process); call `loadRawFilter(prog, withWaitKill=true)` to install with WAIT_KILLABLE_RECV; send the returned notify fd to the parent over an inherited socketpair fd (passed in env `AGENTMON_WAIT_KILLABLE_PROBE_SOCK`); then `syscall.Exec("/bin/true", ...)`.
 3. Parent sequence:
    - `socketpair(AF_UNIX, SOCK_STREAM, …)` for fd handoff.
    - `os/exec.Command(os.Args[0])` with `Env` containing the sentinel and the socket fd; `ExtraFiles: [parent end]`; `Stderr: io.Discard`.
@@ -901,8 +901,8 @@ import (
 )
 
 const (
-	probeChildEnv    = "AGENTSH_WAIT_KILLABLE_PROBE_CHILD"
-	probeChildSockFD = "AGENTSH_WAIT_KILLABLE_PROBE_SOCK"
+	probeChildEnv    = "AGENTMON_WAIT_KILLABLE_PROBE_CHILD"
+	probeChildSockFD = "AGENTMON_WAIT_KILLABLE_PROBE_SOCK"
 	probeBinaryPath  = "/bin/true"
 )
 
@@ -1225,7 +1225,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestDecideWaitKillable(t *testing.T) {
@@ -1301,7 +1301,7 @@ package api
 import (
 	"context"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // waitKillableDeps wraps the inputs to decideWaitKillable so tests can
@@ -1414,7 +1414,7 @@ package api
 import (
 	"context"
 
-	unixmon "github.com/agentsh/agentsh/internal/netmonitor/unix"
+	unixmon "github.com/diffsec/agentmon/internal/netmonitor/unix"
 )
 
 const waitKillableProbeIterations = 5
@@ -1633,14 +1633,14 @@ Plumb `WaitKillableSource` through:
 
 - `seccompWrapperConfig.WaitKillableSource string` json:"wait_killable_source,omitempty"
 - `buildSeccompWrapperConfig` sets `seccompCfg.WaitKillableSource = a.waitKillableSource`
-- `cmd/agentsh-unixwrap/config.go` `WrapperConfig.WaitKillableSource string` json:"wait_killable_source,omitempty"
-- `cmd/agentsh-unixwrap/main.go` passes `cfg.WaitKillableSource` into `filterCfg.WaitKillableSource`
+- `cmd/agentmon-unixwrap/config.go` `WrapperConfig.WaitKillableSource string` json:"wait_killable_source,omitempty"
+- `cmd/agentmon-unixwrap/main.go` passes `cfg.WaitKillableSource` into `filterCfg.WaitKillableSource`
 
 Update the JSON round-trip tests in Tasks 3 and 4 to also assert the new field round-trips (add as sub-tests; don't break existing assertions).
 
 - [ ] **Step 4: Build + run all touched packages**
 
-Run: `go build ./... && GOOS=windows go build ./... && go test ./internal/config/... ./internal/api/... ./internal/netmonitor/unix/... ./cmd/agentsh-unixwrap/... -count=1`
+Run: `go build ./... && GOOS=windows go build ./... && go test ./internal/config/... ./internal/api/... ./internal/netmonitor/unix/... ./cmd/agentmon-unixwrap/... -count=1`
 Expected: PASS.
 
 - [ ] **Step 5: Manual log inspection (Linux only, optional)**
@@ -1656,7 +1656,7 @@ Confirms the per-exec line now carries the source. Document the observation in t
 - [ ] **Step 6: Commit**
 
 ```bash
-git add internal/api/app.go internal/api/seccomp_wrapper_config.go internal/api/seccomp_wrapper_test.go internal/netmonitor/unix/wait_killable_probe_linux.go internal/netmonitor/unix/seccomp_linux.go cmd/agentsh-unixwrap/config.go cmd/agentsh-unixwrap/main.go internal/api/wait_killable_decision.go
+git add internal/api/app.go internal/api/seccomp_wrapper_config.go internal/api/seccomp_wrapper_test.go internal/netmonitor/unix/wait_killable_probe_linux.go internal/netmonitor/unix/seccomp_linux.go cmd/agentmon-unixwrap/config.go cmd/agentmon-unixwrap/main.go internal/api/wait_killable_decision.go
 git commit -m "feat(seccomp): diagnostic logging for wait_killable decisions
 
 Boot-time emits one line per iteration plus a final decision line.
@@ -1679,7 +1679,7 @@ Issue #369."
 
 - [ ] **Step 1: Inspect the existing test**
 
-Open `internal/netmonitor/unix/sigurg_probe_test.go`. It already re-execs the test binary and asserts the loaded-filter log contains `wait_killable=true` on supported kernels (line 27+). The pattern we need is the same, but with `AGENTSH_SECCOMP_CONFIG` set to `{"wait_killable": false}` and the assertion inverted.
+Open `internal/netmonitor/unix/sigurg_probe_test.go`. It already re-execs the test binary and asserts the loaded-filter log contains `wait_killable=true` on supported kernels (line 27+). The pattern we need is the same, but with `AGENTMON_SECCOMP_CONFIG` set to `{"wait_killable": false}` and the assertion inverted.
 
 - [ ] **Step 2: Add a new sub-test**
 
@@ -1687,7 +1687,7 @@ Add at the end of `sigurg_probe_test.go`:
 
 ```go
 // TestInstallFilter_HonorsOperatorOverride re-execs the test binary
-// with AGENTSH_SECCOMP_CONFIG carrying an explicit wait_killable=false
+// with AGENTMON_SECCOMP_CONFIG carrying an explicit wait_killable=false
 // and asserts that:
 //  1. The 'seccomp: filter loaded' line announces wait_killable=false.
 //  2. The wait_killable_source field is "config".
@@ -1705,8 +1705,8 @@ func TestInstallFilter_HonorsOperatorOverride(t *testing.T) {
 	}
 	cmd := exec.Command(exe, "-test.run=^TestInstallFilter_HonorsOperatorOverride_Child$")
 	cmd.Env = append(os.Environ(),
-		"AGENTSH_TEST_CHILD=1",
-		`AGENTSH_SECCOMP_CONFIG={"unix_socket_enabled":true,"wait_killable":false}`,
+		"AGENTMON_TEST_CHILD=1",
+		`AGENTMON_SECCOMP_CONFIG={"unix_socket_enabled":true,"wait_killable":false}`,
 	)
 	out, _ := cmd.CombinedOutput()
 	s := string(out)
@@ -1722,7 +1722,7 @@ func TestInstallFilter_HonorsOperatorOverride(t *testing.T) {
 // re-exec'd child. It loads the wrapper config from env, runs
 // InstallFilterWithConfig, and exits.
 func TestInstallFilter_HonorsOperatorOverride_Child(t *testing.T) {
-	if os.Getenv("AGENTSH_TEST_CHILD") != "1" {
+	if os.Getenv("AGENTMON_TEST_CHILD") != "1" {
 		t.Skip()
 	}
 	cfg := FilterConfig{
@@ -1742,7 +1742,7 @@ func boolPtrLocal(v bool) *bool { return &v }
 
 Imports as needed: `os`, `os/exec`, `strings`.
 
-> The child test loads the FilterConfig directly rather than parsing `AGENTSH_SECCOMP_CONFIG` (that's the wrapper binary's job, not this test's). The parent's env-var setting is illustrative only — what we actually assert is that `FilterConfig.WaitKillable = &false` + `WaitKillableSource = "config"` produces the expected log line.
+> The child test loads the FilterConfig directly rather than parsing `AGENTMON_SECCOMP_CONFIG` (that's the wrapper binary's job, not this test's). The parent's env-var setting is illustrative only — what we actually assert is that `FilterConfig.WaitKillable = &false` + `WaitKillableSource = "config"` produces the expected log line.
 
 - [ ] **Step 3: Run the test**
 

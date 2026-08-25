@@ -6,7 +6,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/agentsh/agentsh/internal/signal"
+	"github.com/diffsec/agentmon/internal/signal"
 )
 
 // startSignalHandler is a no-op on non-Linux platforms.

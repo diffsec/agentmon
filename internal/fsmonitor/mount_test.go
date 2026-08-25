@@ -30,11 +30,11 @@ func TestBuildMountOptions_DefaultPermissionsAndCaching(t *testing.T) {
 	}
 
 	// Existing identity options must be preserved by the refactor.
-	if opts.MountOptions.FsName != "agentsh-workspace" {
-		t.Errorf("FsName = %q, want agentsh-workspace", opts.MountOptions.FsName)
+	if opts.MountOptions.FsName != "agentmon-workspace" {
+		t.Errorf("FsName = %q, want agentmon-workspace", opts.MountOptions.FsName)
 	}
-	if opts.MountOptions.Name != "agentsh" {
-		t.Errorf("Name = %q, want agentsh", opts.MountOptions.Name)
+	if opts.MountOptions.Name != "agentmon" {
+		t.Errorf("Name = %q, want agentmon", opts.MountOptions.Name)
 	}
 	if !opts.MountOptions.AllowOther {
 		t.Error("AllowOther must stay true")

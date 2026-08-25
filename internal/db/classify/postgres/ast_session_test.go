@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func TestApplyStatement_SetSearchPath(t *testing.T) {

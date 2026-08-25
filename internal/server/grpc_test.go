@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -97,7 +97,7 @@ file_rules:
 	createResp := &structpb.Struct{}
 	cctx, ccancel := context.WithTimeout(ctx, 3*time.Second)
 	defer ccancel()
-	if err := conn.Invoke(cctx, "/agentsh.v1.Agentsh/CreateSession", createReq, createResp); err != nil {
+	if err := conn.Invoke(cctx, "/agentmon.v1.Agentmon/CreateSession", createReq, createResp); err != nil {
 		t.Fatal(err)
 	}
 	b, _ := protojson.Marshal(createResp)
@@ -123,7 +123,7 @@ file_rules:
 	execResp := &structpb.Struct{}
 	ectx, ecancel := context.WithTimeout(ctx, 5*time.Second)
 	defer ecancel()
-	if err := conn.Invoke(ectx, "/agentsh.v1.Agentsh/Exec", execReq, execResp); err != nil {
+	if err := conn.Invoke(ectx, "/agentmon.v1.Agentmon/Exec", execReq, execResp); err != nil {
 		t.Fatal(err)
 	}
 	eb, _ := protojson.Marshal(execResp)

@@ -6,7 +6,7 @@
 
 ## Problem
 
-On hosts where agentsh's cgroup is nested under another service's slice and
+On hosts where agentmon's cgroup is nested under another service's slice and
 `cgroup.subtree_control` is not writable (e.g. Freestyle Firecracker VMs),
 **every command through the shell shim aborts with `exit 126`** /
 `server rejected wrap setup`.
@@ -32,13 +32,13 @@ Root cause chain:
    126` on *every* command.
 
 The limits were never enforceable on such a host anyway — this is a documented
-nested-cgroup gap that `agentsh detect` already warns about. The current
+nested-cgroup gap that `agentmon detect` already warns about. The current
 failure is therefore neither a useful security refusal nor a graceful skip; it
 is an unhandled error that happens to abort the command with a cryptic code.
 
 ### Design tension
 
-agentsh has a **deliberate fail-closed stance**: if a command requests a
+agentmon has a **deliberate fail-closed stance**: if a command requests a
 resource limit that cannot be enforced, refuse rather than run pretending to be
 sandboxed (the typed `CgroupUnavailableError` /
 `CgroupResourceLimitsUnavailableError`). The issue asks for the opposite —
@@ -74,7 +74,7 @@ kernel always accepts), then remove the child.
   not writable in child cgroup".
 - If the write succeeds → `ModeTopLevel` as today (remove the probe child).
 
-Effect: `agentsh detect` now reports the truth on Freestyle-style hosts, and
+Effect: `agentmon detect` now reports the truth on Freestyle-style hosts, and
 the per-command path naturally routes through the *typed*
 `CgroupResourceLimitsUnavailableError` (the `ModeAttachOnly` arm in `Apply`)
 instead of the over-optimistic `ModeTopLevel` write-and-fail path.
@@ -142,7 +142,7 @@ without a risky re-architecture of the critical path.
 
 The per-exec `slog.Info("seccomp: filter loaded", …)` is emitted by the
 wrapper process, whose slog output lands on the **wrapped command's stderr**,
-corrupting machine-readable stderr streams (notably `agentsh detect --output
+corrupting machine-readable stderr streams (notably `agentmon detect --output
 json`). Fix: route the wrapper's diagnostic logging off the user-visible
 stderr — preferred is to send it through the server-log channel; if no such
 channel is reachable from the wrapper, downgrade this line to `slog.Debug`.

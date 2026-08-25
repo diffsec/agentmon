@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 func TestEmitEvent_WithChannel(t *testing.T) {

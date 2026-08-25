@@ -11,7 +11,7 @@
 **Cross-references:**
 - Shared design: `docs/superpowers/specs/2026-05-11-db-plan-05-pg-extended-tx-design.md`
 - Predecessor plan: `docs/superpowers/plans/2026-05-11-db-plan-05a-pg-extended-tx-statemachine.md`
-- Spec: `docs/agentsh-db-access-spec.md` v0.8 §7.4, §7.5, §7.6, §9.2 R1, §10.3
+- Spec: `docs/agentmon-db-access-spec.md` v0.8 §7.4, §7.5, §7.6, §9.2 R1, §10.3
 
 **Settled in brainstorming (2026-05-11):**
 
@@ -601,7 +601,7 @@ func defaultAllowlistKeys() []string {
 }
 ```
 
-Add the imports `classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"` and `"sort"` if not already present.
+Add the imports `classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"` and `"sort"` if not already present.
 
 Watch for an import cycle: `internal/db/policy` may already import `classify/postgres` transitively via `effects`. If a cycle appears, the easiest fix is to move `DefaultSafeFunctionAllowlist` from `classify/postgres` to a new tag-free package `internal/db/classify/postgres/builtins` and have both `classify/postgres` and `policy` import that. The plan's preference is the direct import; only refactor if Go errors.
 
@@ -803,10 +803,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/preparedcache"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/preparedcache"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 func TestSQLPrepared_Prepare_Allow_PopulatesCacheAndReturnsNotHandled(t *testing.T) {
@@ -984,7 +984,7 @@ func TestSQLPrepared_ExpectedActionShape_DenyRouteMatch(t *testing.T) {
 	decisions := []policy.Decision{{Verb: policy.VerbDeny, RuleName: "rule1"}}
 	_, acts := Intercept(stmts, decisions, cache, statemachine.ConnState{LastUpstreamRFQ: 'I'})
 	want := []statemachine.Action{
-		&statemachine.ActionSynthError{SQLState: "42501", Message: "denied by AgentSH policy: rule1"},
+		&statemachine.ActionSynthError{SQLState: "42501", Message: "denied by AgentMon policy: rule1"},
 		&statemachine.ActionSynthReadyForQuery{Status: 'I'},
 	}
 	if diff := cmp.Diff(want, acts); diff != "" {
@@ -1010,10 +1010,10 @@ package postgres
 import (
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/preparedcache"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/preparedcache"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 // Intercept implements the spec §7.4 SQL-level prepared statement plus
@@ -1058,7 +1058,7 @@ func Intercept(
 		// against the inner classification (Effects already reflect inner).
 		if len(decisions) > 0 && decisions[0].Verb == policy.VerbDeny {
 			rule := lookupStatementRuleByName(nil, decisions[0].RuleName) // caller will pass rules; see handleQuery wiring
-			msg := "denied by AgentSH policy: " + decisions[0].RuleName
+			msg := "denied by AgentMon policy: " + decisions[0].RuleName
 			return true, statemachine.DenyRoute(s, rule, msg, "42501")
 		}
 		// Allow path: populate cache with the inner classification.
@@ -1076,7 +1076,7 @@ func Intercept(
 			return true, []statemachine.Action{
 				&statemachine.ActionSynthError{
 					SQLState: "26000",
-					Message:  "SQL_PREPARED_CACHE_MISS: prepared statement \"" + first.PreparedName + "\" does not exist in AgentSH proxy cache",
+					Message:  "SQL_PREPARED_CACHE_MISS: prepared statement \"" + first.PreparedName + "\" does not exist in AgentMon proxy cache",
 				},
 				&statemachine.ActionSynthReadyForQuery{Status: 'I'},
 			}
@@ -1228,7 +1228,7 @@ func (pc *proxyConn) handleQuery(ctx context.Context, q *pgproto3.Query) error {
 	if len(q.String) > pc.srv.cfg.MaxQueryBytes {
 		pc.emitFrameTooLarge(ctx, len(q.String))
 		_ = pc.synthErrorAndRFQ(sqlstateProgramLimitExceeded,
-			fmt.Sprintf("statement too large for AgentSH proxy: %d bytes > %d cap",
+			fmt.Sprintf("statement too large for AgentMon proxy: %d bytes > %d cap",
 				len(q.String), pc.srv.cfg.MaxQueryBytes))
 		return errFrameTooLargeClose
 	}
@@ -1559,10 +1559,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 // handleFunctionCall handles a `'F'` FunctionCall frame. Default behavior
@@ -1575,7 +1575,7 @@ func (pc *proxyConn) handleFunctionCall(ctx context.Context, msg *pgproto3.Funct
 		// 04c default: stub deny + close.
 		pc.emitUnsupportedFrame(ctx, "FUNCTION_CALL_PROTOCOL_DENIED", "FunctionCall")
 		_ = pc.synthErrorAndRFQ(sqlstateInsufficientPrivilege,
-			"FunctionCall sub-protocol denied by AgentSH policy")
+			"FunctionCall sub-protocol denied by AgentMon policy")
 		return errUnsupportedFrame
 	}
 
@@ -1646,12 +1646,12 @@ func (pc *proxyConn) emitFunctionCallEvent(
 
 // renderDenyMsgFromRule mirrors the existing rendered deny pattern but for
 // the FunctionCall path (no rule template lookup yet — RuleName-prefixed
-// "denied by AgentSH policy" is sufficient for the spine).
+// "denied by AgentMon policy" is sufficient for the spine).
 func renderDenyMsgFromRule(d policy.Decision) string {
 	if d.RuleName != "" {
-		return "denied by AgentSH policy: " + d.RuleName
+		return "denied by AgentMon policy: " + d.RuleName
 	}
-	return "denied by AgentSH policy"
+	return "denied by AgentMon policy"
 }
 
 func sha256HexBatchFunctionCall(oid int32) string {
@@ -1698,7 +1698,7 @@ func (pc *proxyConn) handleUnsupportedFrame(ctx context.Context, msg pgproto3.Fr
 		return pc.handleFunctionCall(ctx, fc)
 	}
 	pc.emitUnsupportedFrame(ctx, "EXTENDED_QUERY_NOT_SUPPORTED", frameType)
-	_ = pc.synthesizeError(sqlstateFeatureNotSupported, "Extended Query / COPY / FunctionCall not supported in AgentSH proxy phase 1")
+	_ = pc.synthesizeError(sqlstateFeatureNotSupported, "Extended Query / COPY / FunctionCall not supported in AgentMon proxy phase 1")
 	return errUnsupportedFrame
 }
 ```
@@ -1824,7 +1824,7 @@ Append to `internal/db/proxy/postgres/spine_test.go`:
 func TestSpine_SQLPrepare_DenyOverPGX(t *testing.T) {
 	yaml := `
 db_services:
-  appdb: {family: postgres, dialect: postgres, upstream: "127.0.0.1:5432", tls_mode: terminate_reissue, listener: {unix: "/tmp/agentsh-appdb.sock"}}
+  appdb: {family: postgres, dialect: postgres, upstream: "127.0.0.1:5432", tls_mode: terminate_reissue, listener: {unix: "/tmp/agentmon-appdb.sock"}}
 database_rules:
   - name: block-delete
     db_service: appdb
@@ -1865,7 +1865,7 @@ db_services:
     dialect: postgres
     upstream: "127.0.0.1:5432"
     tls_mode: terminate_reissue
-    listener: {unix: "/tmp/agentsh-appdb.sock"}
+    listener: {unix: "/tmp/agentmon-appdb.sock"}
     allow_function_call_protocol: true
 database_rules:
   - name: allow-procedural

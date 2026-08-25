@@ -5,16 +5,16 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestFindConfigPath_EnvVar(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), "custom.yaml")
 	os.WriteFile(tmpFile, []byte("platform:\n  mode: auto\n"), 0644)
 
-	orig := os.Getenv("AGENTSH_CONFIG")
-	os.Setenv("AGENTSH_CONFIG", tmpFile)
-	defer os.Setenv("AGENTSH_CONFIG", orig)
+	orig := os.Getenv("AGENTMON_CONFIG")
+	os.Setenv("AGENTMON_CONFIG", tmpFile)
+	defer os.Setenv("AGENTMON_CONFIG", orig)
 
 	path, source := findConfigPath()
 	if path != tmpFile {
@@ -27,9 +27,9 @@ func TestFindConfigPath_EnvVar(t *testing.T) {
 
 func TestFindConfigPath_UserConfig(t *testing.T) {
 	// Clear env var
-	orig := os.Getenv("AGENTSH_CONFIG")
-	os.Unsetenv("AGENTSH_CONFIG")
-	defer os.Setenv("AGENTSH_CONFIG", orig)
+	orig := os.Getenv("AGENTMON_CONFIG")
+	os.Unsetenv("AGENTMON_CONFIG")
+	defer os.Setenv("AGENTMON_CONFIG", orig)
 
 	// The test verifies the search order logic works correctly
 	path, source := findConfigPath()
@@ -46,9 +46,9 @@ func TestFindConfigPath_UserConfig(t *testing.T) {
 
 func TestFindConfigPath_FallbackToSystem(t *testing.T) {
 	// Clear env var
-	orig := os.Getenv("AGENTSH_CONFIG")
-	os.Unsetenv("AGENTSH_CONFIG")
-	defer os.Setenv("AGENTSH_CONFIG", orig)
+	orig := os.Getenv("AGENTMON_CONFIG")
+	os.Unsetenv("AGENTMON_CONFIG")
+	defer os.Setenv("AGENTMON_CONFIG", orig)
 
 	// When no user config exists, should fall back to system
 	path, source := findConfigPath()
@@ -72,9 +72,9 @@ func TestFindConfigPath_EnvVarTakesPriority(t *testing.T) {
 	}
 
 	// Set env var
-	orig := os.Getenv("AGENTSH_CONFIG")
-	os.Setenv("AGENTSH_CONFIG", tmpFile)
-	defer os.Setenv("AGENTSH_CONFIG", orig)
+	orig := os.Getenv("AGENTMON_CONFIG")
+	os.Setenv("AGENTMON_CONFIG", tmpFile)
+	defer os.Setenv("AGENTMON_CONFIG", orig)
 
 	path, source := findConfigPath()
 
@@ -89,9 +89,9 @@ func TestFindConfigPath_EnvVarTakesPriority(t *testing.T) {
 
 func TestFindConfigPath_EnvVarNonexistent(t *testing.T) {
 	// Set env var to nonexistent path - should still return it (validation happens later)
-	orig := os.Getenv("AGENTSH_CONFIG")
-	os.Setenv("AGENTSH_CONFIG", "/nonexistent/config.yaml")
-	defer os.Setenv("AGENTSH_CONFIG", orig)
+	orig := os.Getenv("AGENTMON_CONFIG")
+	os.Setenv("AGENTMON_CONFIG", "/nonexistent/config.yaml")
+	defer os.Setenv("AGENTMON_CONFIG", orig)
 
 	path, source := findConfigPath()
 

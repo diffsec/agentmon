@@ -89,12 +89,12 @@ func MountWorkspace(ctx context.Context, backingDir string, mountPoint string, h
 //   - default_permissions makes the kernel perform the standard unix-mode
 //     permission check LOCALLY rather than round-tripping FUSE_ACCESS to this
 //     in-process daemon. That is exactly what go-fuse's default Access op did
-//     (Getattr + HasAccess, a pure unix-mode test); agentsh enforces policy on
+//     (Getattr + HasAccess, a pure unix-mode test); agentmon enforces policy on
 //     open/read/write/create/delete/rename/etc. in the node ops, never on
 //     access(), so policy enforcement is unchanged.
 //
 //   - The local check still needs the directory's cached attributes and
-//     dentries. agentsh otherwise runs with attr/entry timeout 0 (go-fuse only
+//     dentries. agentmon otherwise runs with attr/entry timeout 0 (go-fuse only
 //     defaults these to 1s when opts==nil, and we pass non-nil opts), so the
 //     kernel would treat them as always-stale and re-issue GETATTR/LOOKUP in
 //     the same forkExec window -- the same deadlock, differently named. A 1s
@@ -110,8 +110,8 @@ func buildMountOptions(hooks *Hooks) *fs.Options {
 		EntryTimeout: &entryTimeout,
 		AttrTimeout:  &attrTimeout,
 		MountOptions: fuse.MountOptions{
-			FsName:        "agentsh-workspace",
-			Name:          "agentsh",
+			FsName:        "agentmon-workspace",
+			Name:          "agentmon",
 			DisableXAttrs: false,
 			AllowOther:    true,
 			Options:       []string{"default_permissions"},

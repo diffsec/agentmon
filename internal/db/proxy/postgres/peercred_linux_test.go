@@ -16,9 +16,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/service"
 )
 
 func TestReadPeerCredUID_FromSocketpair(t *testing.T) {

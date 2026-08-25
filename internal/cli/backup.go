@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -37,18 +37,18 @@ func newBackupCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "backup",
-		Short: "Create a backup of agentsh data",
+		Short: "Create a backup of agentmon data",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if output == "" {
-				output = fmt.Sprintf("agentsh-backup-%s.tar.gz", time.Now().Format("20060102-150405"))
+				output = fmt.Sprintf("agentmon-backup-%s.tar.gz", time.Now().Format("20060102-150405"))
 			}
 			return createBackup(cmd, output, configPath, verify)
 		},
 	}
 
-	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (default: agentsh-backup-<timestamp>.tar.gz)")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (default: agentmon-backup-<timestamp>.tar.gz)")
 	cmd.Flags().BoolVar(&verify, "verify", false, "Verify backup after creation")
-	cmd.Flags().StringVar(&configPath, "config", "/etc/agentsh/config.yaml", "Path to config file")
+	cmd.Flags().StringVar(&configPath, "config", "/etc/agentmon/config.yaml", "Path to config file")
 
 	return cmd
 }
@@ -60,7 +60,7 @@ func newRestoreCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "restore",
-		Short: "Restore agentsh data from backup",
+		Short: "Restore agentmon data from backup",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if input == "" {
 				return fmt.Errorf("--input is required")
@@ -84,8 +84,8 @@ func createBackup(cmd *cobra.Command, output, configPath string, verify bool) er
 		fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not load config from %s: %v (using defaults)\n", configPath, err)
 		cfg = &config.Config{}
 		// Apply defaults manually if config load fails
-		cfg.Audit.Storage.SQLitePath = "/var/lib/agentsh/events.db"
-		cfg.Policies.Dir = "/etc/agentsh/policies"
+		cfg.Audit.Storage.SQLitePath = "/var/lib/agentmon/events.db"
+		cfg.Policies.Dir = "/etc/agentmon/policies"
 	}
 
 	auditDB := cfg.Audit.Storage.SQLitePath
@@ -228,9 +228,9 @@ func restoreBackup(cmd *cobra.Command, input string, verify, dryRun bool) error 
 	tr := tar.NewReader(gr)
 
 	// Default restore paths (can be overridden via flags in future)
-	configDest := "/etc/agentsh/config.yaml"
-	auditDBDest := "/var/lib/agentsh/events.db"
-	policiesDest := "/etc/agentsh/policies"
+	configDest := "/etc/agentmon/config.yaml"
+	auditDBDest := "/var/lib/agentmon/events.db"
+	policiesDest := "/etc/agentmon/policies"
 
 	restoredCount := 0
 	for {

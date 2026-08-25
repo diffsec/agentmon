@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 func TestSkillsSh_NoOriginNoSignal(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/proxy/credsub"
+	"github.com/diffsec/agentmon/internal/proxy/credsub"
 )
 
 func newTestTable(t *testing.T) *credsub.Table {

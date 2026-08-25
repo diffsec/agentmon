@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `agentsh detect` report `seccomp-execve`/`seccomp_user_notify` (and the Command Control score) from a real `NEW_LISTENER` install attempt — not a read-only probe — so environments where the install fails (e.g. Daytona EBUSY) are reported honestly.
+**Goal:** Make `agentmon detect` report `seccomp-execve`/`seccomp_user_notify` (and the Command Control score) from a real `NEW_LISTENER` install attempt — not a read-only probe — so environments where the install fails (e.g. Daytona EBUSY) are reported honestly.
 
-**Architecture:** A throwaway re-exec child (reusing the #369 two-factor-gate pattern) runs the exact `loadRawFilter` install the runtime uses and reports success or the failing errno. The parent (`capabilities`, non-cgo) reads the child's exit code/stderr; the child (cgo, linked into the agentsh binary) does the install. `detect`'s display + score derive from this new "installable here" signal; the read-only probe stays as the "kernel-supported" signal. Runtime/startup gating is untouched.
+**Architecture:** A throwaway re-exec child (reusing the #369 two-factor-gate pattern) runs the exact `loadRawFilter` install the runtime uses and reports success or the failing errno. The parent (`capabilities`, non-cgo) reads the child's exit code/stderr; the child (cgo, linked into the agentmon binary) does the install. `detect`'s display + score derive from this new "installable here" signal; the read-only probe stays as the "kernel-supported" signal. Runtime/startup gating is untouched.
 
 **Tech Stack:** Go; `internal/netmonitor/unix` (cgo seccomp), `internal/capabilities`.
 
@@ -13,7 +13,7 @@
 **Verified facts (don't re-derive):**
 - Real install: `loadRawFilter(prog []byte, withWaitKill bool) (int, error)` (`internal/netmonitor/unix/seccomp_load_linux.go`, `//go:build linux && cgo`): does `runtime.LockOSThread()` → `prctl(PR_SET_NO_NEW_PRIVS)` → `seccomp(SET_MODE_FILTER, NEW_LISTENER[|WAIT_KILLABLE_RECV])`. Returns the listener fd or an error wrapping the errno.
 - `buildProbeFilterBytes() ([]byte, error)` and `exportFilterBPF` exist in the same package (`wait_killable_probe_runner_linux.go`, cgo): `ActAllow` default + `ActNotify` on socket/openat/etc. The default-allow means `close`/`write`/`exit_group` are NOT trapped.
-- Re-exec child precedent (`wait_killable_probe_runner_linux.go`): `init()` calls `isProbeChildInvocation()` (argv[1] == a sentinel AND env token len ≥ 16) and, if matched, runs the child then `os.Exit`. Parent builds argv via `os.Executable()` + sentinel and an env token. `internal/api` imports `netmonitor/unix`; `cmd/agentsh` imports `internal/api` → the child `init()` is linked into the `agentsh` binary (and into the package's own `go test` binary). The package has non-cgo stubs and does NOT import `internal/capabilities` (no cycle).
+- Re-exec child precedent (`wait_killable_probe_runner_linux.go`): `init()` calls `isProbeChildInvocation()` (argv[1] == a sentinel AND env token len ≥ 16) and, if matched, runs the child then `os.Exit`. Parent builds argv via `os.Executable()` + sentinel and an env token. `internal/api` imports `netmonitor/unix`; `cmd/agentmon` imports `internal/api` → the child `init()` is linked into the `agentmon` binary (and into the package's own `go test` binary). The package has non-cgo stubs and does NOT import `internal/capabilities` (no cycle).
 - `boundedBuffer` (write-capped buffer) already exists in `wait_killable_probe_runner_linux.go` — reuse it for child stderr capture.
 - `internal/capabilities`: `SecurityCapabilities` struct is defined in BOTH `security_caps.go` (`//go:build linux`) and `security_caps_other.go` (non-linux), with fields `Seccomp bool` / `SeccompBasic bool`. Populated in `security_caps.go` (~L67): `caps.Seccomp = checkSeccompUserNotify().Available`. Check seams are package vars in `check.go` (`checkSeccompUserNotify = realCheckSeccompUserNotify`, etc.); `CheckResult{Feature string; ConfigKey string; Available bool; Error error; Suggestion string}`.
 - `detect_linux.go`: `buildLinuxDomains` sets `seccomp-notify` (L86) and `seccomp-execve` (L93) backends with `Available: caps.Seccomp`. `backwardCompatCaps` (L218) has `"seccomp": caps.Seccomp`, `"seccomp_user_notify": caps.Seccomp`, `"seccomp_basic": caps.SeccompBasic`. `ComputeScore` (`detect_result.go:74`) gives a domain its full Weight iff ANY backend is `Available`. **Do NOT touch** `detectFileEnforcementBackend` (L15), `SelectMode` (`security_caps.go:100`), or the `Active` labels — those feed runtime mode selection (non-goal).
@@ -140,15 +140,15 @@ import (
 // success or the failing errno.
 
 const (
-	installProbeArgvSentinel = "--agentsh-internal-seccomp-install-probe-child-v1"
-	installProbeEnv          = "AGENTSH_SECCOMP_INSTALL_PROBE_CHILD"
+	installProbeArgvSentinel = "--agentmon-internal-seccomp-install-probe-child-v1"
+	installProbeEnv          = "AGENTMON_SECCOMP_INSTALL_PROBE_CHILD"
 	installProbeStderrCap    = 4096
 	// installErrnoPrefix is printed by the child on failure so the parent can
 	// recover the precise errno without encoding it in the exit status.
 	installErrnoPrefix = "INSTALL_ERRNO="
 )
 
-// InstallProbeResult reports whether agentsh can install its NEW_LISTENER
+// InstallProbeResult reports whether agentmon can install its NEW_LISTENER
 // seccomp filter in this environment. Errno is 0 when Installable.
 type InstallProbeResult struct {
 	Installable bool
@@ -406,7 +406,7 @@ In `internal/capabilities/check.go`, add to the `var (...)` seam block:
 	checkSeccompInstall = realCheckSeccompInstall
 ```
 
-In `internal/capabilities/check_seccomp_linux.go`, add (import `github.com/agentsh/agentsh/internal/netmonitor/unix` as `unixmon`):
+In `internal/capabilities/check_seccomp_linux.go`, add (import `github.com/diffsec/agentmon/internal/netmonitor/unix` as `unixmon`):
 
 ```go
 func realCheckSeccompInstall() CheckResult {
@@ -651,7 +651,7 @@ Expected: ok for both.
 
 - [ ] **Step 4: Manual smoke (optional, informational)**
 
-Run: `go run ./cmd/agentsh detect 2>&1 | grep -iA1 seccomp || true`
+Run: `go run ./cmd/agentmon detect 2>&1 | grep -iA1 seccomp || true`
 Expected: on this dev host (install works) `seccomp-execve` shows available; the point is no crash and the verdict reflects a real install.
 
 - [ ] **Step 5: Commit any formatting fixes (only if Step 2 changed files)**

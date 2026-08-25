@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 func TestNewNetwork(t *testing.T) {
@@ -16,12 +16,12 @@ func TestNewNetwork(t *testing.T) {
 		t.Fatal("NewNetwork() returned nil")
 	}
 
-	if n.anchorName != "com.agentsh" {
-		t.Errorf("anchorName = %q, want %q", n.anchorName, "com.agentsh")
+	if n.anchorName != "com.agentmon" {
+		t.Errorf("anchorName = %q, want %q", n.anchorName, "com.agentmon")
 	}
 
-	if n.rulesFile != "/tmp/agentsh-pf.rules" {
-		t.Errorf("rulesFile = %q, want %q", n.rulesFile, "/tmp/agentsh-pf.rules")
+	if n.rulesFile != "/tmp/agentmon-pf.rules" {
+		t.Errorf("rulesFile = %q, want %q", n.rulesFile, "/tmp/agentmon-pf.rules")
 	}
 
 	if n.implementation != "pf" {
@@ -64,12 +64,12 @@ func TestNetwork_generatePFRules(t *testing.T) {
 			rules := n.generatePFRules()
 
 			// Check header
-			if !strings.Contains(rules, "agentsh network interception rules") {
+			if !strings.Contains(rules, "agentmon network interception rules") {
 				t.Error("Rules missing header comment")
 			}
 
 			// Check anchor name
-			if !strings.Contains(rules, "com.agentsh") {
+			if !strings.Contains(rules, "com.agentmon") {
 				t.Error("Rules missing anchor name")
 			}
 

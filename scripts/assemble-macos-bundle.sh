@@ -13,9 +13,9 @@ set -euo pipefail
 
 APP="${1:?usage: GO_BIN_DIR=<dir> assemble-macos-bundle.sh <app-bundle-path>}"
 PRODUCTS_DIR="${PRODUCTS_DIR:-build/DerivedData/Build/Products/Release}"
-SYSEXT="ai.canyonroad.agentsh.SysExt.systemextension"
-APP_PROFILE="macos/AgentSH/AgentSH_Distribution.provisionprofile"
-SYSEXT_PROFILE="macos/AgentSH/AgentSH_SysExt_Distribution.provisionprofile"
+SYSEXT="dev.diffsec.agentmon.SysExt.systemextension"
+APP_PROFILE="macos/AgentMon/AgentMon_Distribution.provisionprofile"
+SYSEXT_PROFILE="macos/AgentMon/AgentMon_SysExt_Distribution.provisionprofile"
 
 if [ -z "${GO_BIN_DIR:-}" ]; then
   echo "error: GO_BIN_DIR must be set to the directory of Go binaries to bundle" >&2
@@ -32,7 +32,7 @@ for profile in "$APP_PROFILE" "$SYSEXT_PROFILE"; do
   fi
 done
 
-# Start from a clean bundle — a stale local build/AgentSH.app could carry
+# Start from a clean bundle — a stale local build/AgentMon.app could carry
 # leftover files (no-op on fresh CI runners).
 rm -rf "${APP}"
 
@@ -41,7 +41,7 @@ mkdir -p "${APP}/Contents/MacOS"
 cp "${GO_BIN_DIR}"/* "${APP}/Contents/MacOS/"
 
 # Info.plist for host app
-cp macos/AgentSH-files/Info.plist "${APP}/Contents/"
+cp macos/AgentMon-files/Info.plist "${APP}/Contents/"
 
 # System Extension (Xcode names the product with the full bundle ID)
 mkdir -p "${APP}/Contents/Library/SystemExtensions"

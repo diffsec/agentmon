@@ -26,7 +26,7 @@ func TestLoad_ParsesServerTransportFields(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yml")
 	// Use forward slashes in YAML to avoid Windows backslash escape issues
-	sockPath := filepath.ToSlash(filepath.Join(dir, "agentsh.sock"))
+	sockPath := filepath.ToSlash(filepath.Join(dir, "agentmon.sock"))
 	cgroupsPath := filepath.ToSlash(filepath.Join(dir, "cgroups"))
 	if err := os.WriteFile(cfgPath, []byte(`
 server:
@@ -178,10 +178,10 @@ audit:
 		t.Fatal(err)
 	}
 
-	t.Setenv("AGENTSH_HTTP_ADDR", "0.0.0.0:18080")
-	t.Setenv("AGENTSH_GRPC_ADDR", "0.0.0.0:19090")
+	t.Setenv("AGENTMON_HTTP_ADDR", "0.0.0.0:18080")
+	t.Setenv("AGENTMON_GRPC_ADDR", "0.0.0.0:19090")
 	dataDir := filepath.Join(dir, "data-root")
-	t.Setenv("AGENTSH_DATA_DIR", dataDir)
+	t.Setenv("AGENTMON_DATA_DIR", dataDir)
 
 	cfg, err := Load(cfgPath)
 	if err != nil {
@@ -220,7 +220,7 @@ sandbox:
 	if cfg.Sandbox.FUSE.Audit.Mode != "monitor" {
 		t.Fatalf("audit.mode default: got %q", cfg.Sandbox.FUSE.Audit.Mode)
 	}
-	if cfg.Sandbox.FUSE.Audit.TrashPath != ".agentsh_trash" {
+	if cfg.Sandbox.FUSE.Audit.TrashPath != ".agentmon_trash" {
 		t.Fatalf("audit.trash_path default: got %q", cfg.Sandbox.FUSE.Audit.TrashPath)
 	}
 	if cfg.Sandbox.FUSE.Audit.TTL != "7d" {
@@ -577,15 +577,15 @@ func TestApplyDefaultsWithSource_EnvSource_AllPaths(t *testing.T) {
 
 func TestLoad_ExpandsEnvVars(t *testing.T) {
 	// Set a test env var
-	t.Setenv("TEST_AGENTSH_DIR", "/custom/test/path")
+	t.Setenv("TEST_AGENTMON_DIR", "/custom/test/path")
 
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")
 	content := []byte(`
 sessions:
-  base_dir: "${TEST_AGENTSH_DIR}/sessions"
+  base_dir: "${TEST_AGENTMON_DIR}/sessions"
 policies:
-  dir: "$TEST_AGENTSH_DIR/policies"
+  dir: "$TEST_AGENTMON_DIR/policies"
 `)
 	if err := os.WriteFile(configPath, content, 0644); err != nil {
 		t.Fatal(err)
@@ -617,7 +617,7 @@ func TestLoadWithSource_ExpandsEnvVars(t *testing.T) {
 	content := []byte(`
 audit:
   storage:
-    sqlite_path: "${TEST_HOME}/.local/share/agentsh/events.db"
+    sqlite_path: "${TEST_HOME}/.local/share/agentmon/events.db"
 `)
 	if err := os.WriteFile(configPath, content, 0644); err != nil {
 		t.Fatal(err)
@@ -628,7 +628,7 @@ audit:
 		t.Fatalf("LoadWithSource() error = %v", err)
 	}
 
-	wantPath := "/home/testuser/.local/share/agentsh/events.db"
+	wantPath := "/home/testuser/.local/share/agentmon/events.db"
 	if cfg.Audit.Storage.SQLitePath != wantPath {
 		t.Errorf("Audit.Storage.SQLitePath = %q, want %q", cfg.Audit.Storage.SQLitePath, wantPath)
 	}
@@ -650,9 +650,9 @@ dlp:
 	}
 
 	// Set environment overrides
-	t.Setenv("AGENTSH_PROXY_MODE", "disabled")
-	t.Setenv("AGENTSH_DLP_MODE", "disabled")
-	t.Setenv("AGENTSH_PROXY_PORT", "12345")
+	t.Setenv("AGENTMON_PROXY_MODE", "disabled")
+	t.Setenv("AGENTMON_DLP_MODE", "disabled")
+	t.Setenv("AGENTMON_PROXY_PORT", "12345")
 
 	cfg, err := Load(cfgPath)
 	if err != nil {
@@ -683,7 +683,7 @@ proxy:
 	}
 
 	// Set invalid port value - should be silently ignored
-	t.Setenv("AGENTSH_PROXY_PORT", "not-a-number")
+	t.Setenv("AGENTMON_PROXY_PORT", "not-a-number")
 
 	cfg, err := Load(cfgPath)
 	if err != nil {
@@ -910,7 +910,7 @@ func TestLoad_EnvInjectConfig(t *testing.T) {
 	if err := os.WriteFile(cfgPath, []byte(`
 sandbox:
   env_inject:
-    BASH_ENV: "/usr/lib/agentsh/bash_startup.sh"
+    BASH_ENV: "/usr/lib/agentmon/bash_startup.sh"
     MY_CUSTOM_VAR: "custom_value"
 `), 0o600); err != nil {
 		t.Fatal(err)
@@ -928,8 +928,8 @@ sandbox:
 	if len(cfg.Sandbox.EnvInject) != 2 {
 		t.Fatalf("sandbox.env_inject: expected 2 entries, got %d", len(cfg.Sandbox.EnvInject))
 	}
-	if cfg.Sandbox.EnvInject["BASH_ENV"] != "/usr/lib/agentsh/bash_startup.sh" {
-		t.Fatalf("sandbox.env_inject[BASH_ENV]: expected '/usr/lib/agentsh/bash_startup.sh', got %q", cfg.Sandbox.EnvInject["BASH_ENV"])
+	if cfg.Sandbox.EnvInject["BASH_ENV"] != "/usr/lib/agentmon/bash_startup.sh" {
+		t.Fatalf("sandbox.env_inject[BASH_ENV]: expected '/usr/lib/agentmon/bash_startup.sh', got %q", cfg.Sandbox.EnvInject["BASH_ENV"])
 	}
 	if cfg.Sandbox.EnvInject["MY_CUSTOM_VAR"] != "custom_value" {
 		t.Fatalf("sandbox.env_inject[MY_CUSTOM_VAR]: expected 'custom_value', got %q", cfg.Sandbox.EnvInject["MY_CUSTOM_VAR"])
@@ -984,7 +984,7 @@ audit:
       include_categories: ["file", "network"]
       min_risk_level: "medium"
     resource:
-      service_name: "my-agentsh"
+      service_name: "my-agentmon"
       extra_attributes:
         environment: "production"
 `
@@ -1027,7 +1027,7 @@ audit:
 	if otel.Filter.MinRiskLevel != "medium" {
 		t.Errorf("filter.min_risk_level = %q", otel.Filter.MinRiskLevel)
 	}
-	if otel.Resource.ServiceName != "my-agentsh" {
+	if otel.Resource.ServiceName != "my-agentmon" {
 		t.Errorf("resource.service_name = %q", otel.Resource.ServiceName)
 	}
 }
@@ -1062,8 +1062,8 @@ audit:
 	if otel.Batch.MaxSize != 512 {
 		t.Errorf("default batch.max_size = %d, want 512", otel.Batch.MaxSize)
 	}
-	if otel.Resource.ServiceName != "agentsh" {
-		t.Errorf("default resource.service_name = %q, want agentsh", otel.Resource.ServiceName)
+	if otel.Resource.ServiceName != "agentmon" {
+		t.Errorf("default resource.service_name = %q, want agentmon", otel.Resource.ServiceName)
 	}
 }
 
@@ -1076,8 +1076,8 @@ audit:
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	os.WriteFile(path, []byte(yaml), 0644)
 
-	t.Setenv("AGENTSH_OTEL_ENDPOINT", "otel.prod:4317")
-	t.Setenv("AGENTSH_OTEL_PROTOCOL", "http")
+	t.Setenv("AGENTMON_OTEL_ENDPOINT", "otel.prod:4317")
+	t.Setenv("AGENTMON_OTEL_PROTOCOL", "http")
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -1626,9 +1626,9 @@ audit:
     enabled: false
     endpoint: "wtp.example.com:9443"
     auth:
-      token_file: "/etc/agentsh/wtp.token"
+      token_file: "/etc/agentmon/wtp.token"
     chain:
-      key_file: "/etc/agentsh/wtp.key"
+      key_file: "/etc/agentmon/wtp.key"
 `
 	cfg, err := loadFromString(t, yaml)
 	if err != nil {
@@ -1668,11 +1668,11 @@ audit:
     tls:
       insecure: true
     auth:
-      token_env: "AGENTSH_TEST_TOKEN"
+      token_env: "AGENTMON_TEST_TOKEN"
     chain:
       algorithm: hmac-sha256
       key_source: env
-      key_env: AGENTSH_TEST_CHAIN_KEY
+      key_env: AGENTMON_TEST_CHAIN_KEY
 `
 	cfg, err := loadFromString(t, yaml)
 	if err != nil {
@@ -1695,11 +1695,11 @@ audit:
     tls:
       insecure: true
     auth:
-      token_env: "AGENTSH_TEST_TOKEN"
+      token_env: "AGENTMON_TEST_TOKEN"
     chain:
       algorithm: hmac-sha256
       key_source: env
-      key_env: AGENTSH_TEST_CHAIN_KEY
+      key_env: AGENTMON_TEST_CHAIN_KEY
 `
 	cfg, err := loadFromString(t, yaml)
 	if err != nil {
@@ -1717,9 +1717,9 @@ audit:
     enabled: false
     endpoint: "wtp.example.com:9443"
     auth:
-      token_file: "/etc/agentsh/wtp.token"
+      token_file: "/etc/agentmon/wtp.token"
     chain:
-      key_file: "/etc/agentsh/wtp.key"
+      key_file: "/etc/agentmon/wtp.key"
 `
 	cfg, err := loadFromString(t, yamlIn)
 	if err != nil {
@@ -1737,9 +1737,9 @@ audit:
     enabled: false
     endpoint: "wtp.example.com:9443"
     auth:
-      token_file: "/etc/agentsh/wtp.token"
+      token_file: "/etc/agentmon/wtp.token"
     chain:
-      key_file: "/etc/agentsh/wtp.key"
+      key_file: "/etc/agentmon/wtp.key"
     emit_extended_loss_reasons: true
 `
 	cfg, err := loadFromString(t, yamlIn)
@@ -1761,9 +1761,9 @@ audit:
     ephemeral_mode: true
     endpoint: "wtp.example.com:9443"
     auth:
-      token_file: "/etc/agentsh/wtp.token"
+      token_file: "/etc/agentmon/wtp.token"
     chain:
-      key_file: "/etc/agentsh/wtp.key"
+      key_file: "/etc/agentmon/wtp.key"
 `
 	cfg, err := loadFromString(t, yaml)
 	if err != nil {
@@ -2064,7 +2064,7 @@ func TestAuditWatchtowerConfig_KMSSourcesMutualExclusion(t *testing.T) {
 		{"env", "      key_env: \"WTP_KEY\"\n"},
 		{"aws_kms", "      aws_kms:\n        key_id: \"alias/aws-key\"\n"},
 		{"azure_keyvault", "      azure_keyvault:\n        vault_url: \"https://v.vault.azure.net\"\n        key_name: \"k\"\n"},
-		{"hashicorp_vault", "      hashicorp_vault:\n        address: \"https://vault.example.com\"\n        secret_path: \"secret/data/agentsh/wtp\"\n"},
+		{"hashicorp_vault", "      hashicorp_vault:\n        address: \"https://vault.example.com\"\n        secret_path: \"secret/data/agentmon/wtp\"\n"},
 		{"gcp_kms", "      gcp_kms:\n        key_name: \"projects/p/locations/l/keyRings/r/cryptoKeys/k\"\n"},
 	} {
 		c := c
@@ -2373,7 +2373,7 @@ sandbox:
     enabled: true
     session:
       mode: soft_delete
-      trash_path: /var/lib/agentsh/trash
+      trash_path: /var/lib/agentmon/trash
 `)
 	got := unknownFUSEKeys(bad)
 	if len(got) != 1 || got[0] != "session" {
@@ -2395,7 +2395,7 @@ sandbox:
     enabled: true
     session:
       mode: soft_delete
-      trash_path: /var/lib/agentsh/trash
+      trash_path: /var/lib/agentmon/trash
 `)
 	if err := os.WriteFile(configPath, content, 0644); err != nil {
 		t.Fatal(err)

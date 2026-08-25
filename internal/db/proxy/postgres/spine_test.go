@@ -24,11 +24,11 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/catalog"
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/service"
-	"github.com/agentsh/agentsh/internal/db/tlsleaf"
+	"github.com/diffsec/agentmon/internal/db/catalog"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/tlsleaf"
 )
 
 // wantSecret is the upstream BackendKeyData.SecretKey value our authOKScript
@@ -803,7 +803,7 @@ func TestSpine_Cancel_DeniedSilentClose(t *testing.T) {
 // ----------------------------------------------------------------------------
 // Plan 04c Task 15 — spine integration tests with real jackc/pgx/v5 client.
 //
-// These tests connect a real pgx client through the AgentSH proxy to a fake
+// These tests connect a real pgx client through the AgentMon proxy to a fake
 // upstream and exercise the three Plan 04c outcomes: allow, deny pre-tx, and
 // deny in-tx (which terminates the connection).
 //

@@ -1,13 +1,13 @@
 // Package wrapenv applies env_policy filtering to the inherited environment on
-// the client-spawned wrap path (shell shim / kernel-install / agentsh wrap),
+// the client-spawned wrap path (shell shim / kernel-install / agentmon wrap),
 // the counterpart to server-side buildPolicyEnv. Issue #379.
 package wrapenv
 
 import (
 	"log/slog"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Filter applies the wrapped command's env policy subtractively over the

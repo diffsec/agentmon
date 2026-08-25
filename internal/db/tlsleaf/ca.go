@@ -1,5 +1,5 @@
 // Package tlsleaf provides a lazily-generated self-signed CA and per-hostname
-// leaf issuer for the AgentSH DB proxy's TLS termination path. The CA is
+// leaf issuer for the AgentMon DB proxy's TLS termination path. The CA is
 // persisted under a caller-provided StateDir; leaves are issued on demand and
 // cached in-process. Operators copy the CA cert into client trust stores
 // (sslrootcert) so downstream PostgreSQL clients accept proxied connections.
@@ -25,12 +25,12 @@ import (
 const (
 	caKeyFile  = "db-ca.key"
 	caCertFile = "db-ca.crt"
-	caCN       = "AgentSH DB Proxy CA"
+	caCN       = "AgentMon DB Proxy CA"
 	caKeyBits  = 4096
 	caValidFor = 10 * 365 * 24 * time.Hour
 )
 
-// CA is the AgentSH-DB self-signed certificate authority. Construct via
+// CA is the AgentMon-DB self-signed certificate authority. Construct via
 // LoadOrCreate. Methods are safe for concurrent use.
 type CA struct {
 	mu    sync.Mutex

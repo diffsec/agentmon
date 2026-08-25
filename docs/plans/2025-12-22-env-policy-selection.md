@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Allow the server to pick the active policy by env var `AGENTSH_POLICY_NAME`, enforce an allowlist with safe fallback to the configured default, load the chosen policy on-demand once, and harden against downgrade attempts.
+**Goal:** Allow the server to pick the active policy by env var `AGENTMON_POLICY_NAME`, enforce an allowlist with safe fallback to the configured default, load the chosen policy on-demand once, and harden against downgrade attempts.
 
 **Architecture:** Add a `policy.Manager` that binds the selected name at startup (env + allowlist), loads the corresponding YAML exactly once with strict parsing/validation, and returns a cached policy. The server constructs this manager from config and injects it wherever policy is needed.
 
@@ -56,7 +56,7 @@ Expected: current failure (permission denied) disappears; note any real test fai
 - Modify: `internal/server/server.go` (replace `resolvePolicyPath` usage with manager).  
 - Modify: `internal/server/server_test.go` (update helpers to pass allowed list / env where needed).  
 - Modify: any integration tests that construct config with policies (e.g., `internal/server/grpc*_test.go`, `internal/server/pty*_test.go`).  
-**Step 1:** Build `policy.Manager` in server setup using cfg.Policies (dir, default, allowed, manifest) and env `AGENTSH_POLICY_NAME`.  
+**Step 1:** Build `policy.Manager` in server setup using cfg.Policies (dir, default, allowed, manifest) and env `AGENTMON_POLICY_NAME`.  
 **Step 2:** Replace direct `ResolvePolicyPath` call with manager `Get` and `policy.NewEngine`. Keep fallback behavior identical for missing dir/default.  
 **Step 3:** Adjust tests that expect default behavior to set `Policies.Allowed` to include `default` or leave empty to allow default fallback; add a new test proving env var selection + fallback.  
 **Step 4:** Run server tests touched.  
@@ -80,12 +80,12 @@ Expected: current failure (permission denied) disappears; note any real test fai
 ### Task 5: Documentation & examples
 
 **Files:**  
-- Modify: `README.md` (short note about `AGENTSH_POLICY_NAME` and allowed list).  
+- Modify: `README.md` (short note about `AGENTMON_POLICY_NAME` and allowed list).  
 - Modify: `docs/spec.md` (policy section: env var, allowlist, manifest).  
 - Add: brief changelog entry if repo has one (skip if none).  
 **Step 1:** Document the selection order: env var (allowed) → default; unknown env values fall back with warning.  
 **Step 2:** Mention optional manifest hash check and recommendation to mount policy dir read-only.  
-**Step 3:** Ensure Dockerfile/example or compose references mention setting `AGENTSH_POLICY_NAME` as needed.  
+**Step 3:** Ensure Dockerfile/example or compose references mention setting `AGENTMON_POLICY_NAME` as needed.  
 **Step 4:** Proofread for clarity. No code changes.  
 
 ---

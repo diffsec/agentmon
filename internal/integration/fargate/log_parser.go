@@ -60,14 +60,14 @@ func ParseWorkloadLogs(lines []string) WorkloadResult {
 	return result
 }
 
-// AuditEvent represents a parsed audit event from agentsh logs.
+// AuditEvent represents a parsed audit event from agentmon logs.
 type AuditEvent struct {
 	Action  string
 	Syscall string
 	Fields  map[string]string
 }
 
-// ParseAuditEvents scans agentsh log lines for audit events.
+// ParseAuditEvents scans agentmon log lines for audit events.
 // Uses quote-aware field parsing to avoid false positives from
 // key=value pairs appearing inside quoted logfmt values.
 func ParseAuditEvents(lines []string) []AuditEvent {

@@ -6,10 +6,10 @@ ptrace cross-process tracee-memory access.
 
 ## Summary
 
-On exe.dev kernel `6.12.90`, agentsh's cross-process tracee-memory access
+On exe.dev kernel `6.12.90`, agentmon's cross-process tracee-memory access
 intermittently fails with `EIO` — both writes (`write BPF to tracee`,
 `inject_seccomp.go:182`, ×15 in one rc3 run) and reads (`handleExecve: cannot
-read filename`, `tracer.go:1780`). agentsh's access ladder is `process_vm_*` →
+read filename`, `tracer.go:1780`). agentmon's access ladder is `process_vm_*` →
 `/proc/<pid>/mem` (`memory.go`); **both rungs `EIO`**, and there is no
 `PTRACE_PEEK/POKE` fallback.
 

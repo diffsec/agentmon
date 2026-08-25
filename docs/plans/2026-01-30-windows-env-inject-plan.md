@@ -362,12 +362,12 @@ func TestRunInAppContainerWithEnv(t *testing.T) {
 	defer ac.Delete()
 
 	env := map[string]string{
-		"AGENTSH_TEST_VAR": "injected_value_12345",
+		"AGENTMON_TEST_VAR": "injected_value_12345",
 	}
 
-	// cmd.exe /c echo %AGENTSH_TEST_VAR%
+	// cmd.exe /c echo %AGENTMON_TEST_VAR%
 	proc, err := ac.RunInAppContainer(
-		`cmd.exe /c echo %AGENTSH_TEST_VAR%`,
+		`cmd.exe /c echo %AGENTMON_TEST_VAR%`,
 		"",
 		true,
 		env,
@@ -400,8 +400,8 @@ func TestRunInAppContainerEnvOverridesParent(t *testing.T) {
 	}
 
 	// Set a parent env var
-	os.Setenv("AGENTSH_PARENT_VAR", "parent_value")
-	defer os.Unsetenv("AGENTSH_PARENT_VAR")
+	os.Setenv("AGENTMON_PARENT_VAR", "parent_value")
+	defer os.Unsetenv("AGENTMON_PARENT_VAR")
 
 	ac, err := NewAppContainer("test-env-override")
 	if err != nil {
@@ -410,11 +410,11 @@ func TestRunInAppContainerEnvOverridesParent(t *testing.T) {
 	defer ac.Delete()
 
 	env := map[string]string{
-		"AGENTSH_PARENT_VAR": "overridden_value",
+		"AGENTMON_PARENT_VAR": "overridden_value",
 	}
 
 	proc, err := ac.RunInAppContainer(
-		`cmd.exe /c echo %AGENTSH_PARENT_VAR%`,
+		`cmd.exe /c echo %AGENTMON_PARENT_VAR%`,
 		"",
 		true,
 		env,

@@ -1,12 +1,12 @@
 # detect: require sysext liveness before reporting esf (issue #441)
 
 **Date:** 2026-08-05
-**Issue:** [#441](https://github.com/canyonroad/agentsh/issues/441)
+**Issue:** [#441](https://github.com/diffsec/agentmon/issues/441)
 **Prior art:** #388/#390/#392 (Linux seccomp detect honesty), #436/#440 (AMFI-blocked sysext)
 
 ## Problem
 
-`agentsh detect` on macOS reports `esf ✓` (and selects the `esf` security mode,
+`agentmon detect` on macOS reports `esf ✓` (and selects the `esf` security mode,
 protection score 90) based solely on `systemextensionsctl list` containing the
 bundle ID and `activated enabled`. It never verifies that the extension
 *process is running*, so any activated-but-not-running condition (AMFI
@@ -37,7 +37,7 @@ and no SysExt process — `detect` reports `esf ✓` there today.
    explaining that liveness could not be verified. Consistent with the #390
    precedent: never claim protection you cannot prove.
 3. **Depth: launchd liveness only.** The extension is a *client* that dials
-   into the agentsh server's policy socket, so only a running server can know
+   into the agentmon server's policy socket, so only a running server can know
    whether the extension is functionally connected. Server-side connection
    reporting is out of scope; a follow-up issue will be filed.
 4. **Probe mechanism: parse `launchctl print system/<TeamID>.<bundleID>`**
@@ -70,11 +70,11 @@ Internally: two pure parsing functions plus a thin, injectable exec layer
 
 1. `parseSysExtList(output string) (activated bool, teamID string)` — scans
    `systemextensionsctl list` **per line**. Only lines containing the exact
-   bundle-ID token `ai.canyonroad.agentsh.SysExt` count; the team ID is the
+   bundle-ID token `dev.diffsec.agentmon.SysExt` count; the team ID is the
    whitespace-separated token immediately preceding the **first** occurrence
    of the bundle-ID token (the real row repeats the bundle ID as the display
-   name — `… WCKWMMKJ35 ai.canyonroad.agentsh.SysExt (1.0/14)
-   ai.canyonroad.agentsh.SysExt [activated enabled]` — so matching the last
+   name — `… LWSYS6YTUZ dev.diffsec.agentmon.SysExt (1.0/14)
+   dev.diffsec.agentmon.SysExt [activated enabled]` — so matching the last
    occurrence would yield `(1.0/14)` as the team ID). Any
    matching row containing `activated enabled` ⇒ activated (upgrade
    transients can produce multiple rows). Per-line matching also prevents a
@@ -82,7 +82,7 @@ Internally: two pure parsing functions plus a thin, injectable exec layer
    `ai.canyonroad.beacon.sysext`) from satisfying a whole-output substring
    grep, which is what all three copies do today.
 2. `parseLaunchdState(output string) (state, lastExit string)` — over
-   `launchctl print system/<teamID>.ai.canyonroad.agentsh.SysExt` output,
+   `launchctl print system/<teamID>.dev.diffsec.agentmon.SysExt` output,
    takes the **first** `state = …` line (nested sub-sections contain their
    own `state = active` lines) and, when present, `last exit code = …` /
    `last exit reason = …` (reason preferred when both exist).
@@ -121,11 +121,11 @@ reason-sensitive (first match wins, ordered):
    AMFI/code-signing; verify `embedded.provisionprofile` in the sysext bundle
    (#436), then reinstall.
 2. `Contains: "not running"` → activated but not running; inspect
-   `launchctl print system/<TeamID>.ai.canyonroad.agentsh.SysExt` for state
+   `launchctl print system/<TeamID>.dev.diffsec.agentmon.SysExt` for state
    and last exit reason.
 3. `Contains: "could not be verified"` → liveness unverifiable; check the
    sysext service manually with launchctl.
-4. Fallback (unchanged): install the agentsh macOS app bundle.
+4. Fallback (unchanged): install the agentmon macOS app bundle.
 
 Note: the legacy `darwinTips` esf entry consumed by `GenerateTips` keeps the
 old "install the app bundle" wording. `GenerateTips` has no non-test callers
@@ -167,7 +167,7 @@ old "install the app bundle" wording. `GenerateTips` has no non-test callers
 - **detect_darwin_test.go**: domains carry the liveness Detail;
   `esf_activated` present in caps.
 - **Cross-compile gate:** `GOOS=windows go build ./...` (CLAUDE.md).
-- **Live acceptance** (manual, on the design machine): `agentsh detect` flips
+- **Live acceptance** (manual, on the design machine): `agentmon detect` flips
   from `esf ✓ / 90` to `esf ✗` with the launchctl tip and mode falls back to
   `lima`; after the sysext is repaired (`state = running`), `esf ✓` returns.
 

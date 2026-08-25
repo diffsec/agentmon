@@ -5,7 +5,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // PolicyDecision represents the result of a policy evaluation.

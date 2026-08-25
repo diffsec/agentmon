@@ -1,8 +1,8 @@
 package policyexplain
 
 import (
-	"github.com/agentsh/agentsh/internal/db/effects"
-	dbpolicy "github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	dbpolicy "github.com/diffsec/agentmon/internal/db/policy"
 )
 
 type Options struct {

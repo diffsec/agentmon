@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/wraphandoff"
-	"github.com/agentsh/agentsh/internal/wrapperlog"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/wraphandoff"
+	"github.com/diffsec/agentmon/internal/wrapperlog"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // makeWrapInitHandler returns an http.HandlerFunc that serves the given
@@ -70,7 +70,7 @@ func serveNotifySetupStatus(ln net.Listener, okStatus bool) {
 
 func TestInstall_ModeOff_ReturnsSkip(t *testing.T) {
 	handler, calls := makeWrapInitHandler(200, types.WrapInitResponse{
-		WrapperBinary: "/usr/bin/agentsh-unixwrap",
+		WrapperBinary: "/usr/bin/agentmon-unixwrap",
 		NotifySocket:  "/tmp/notify.sock",
 	})
 	srv := httptest.NewServer(handler)
@@ -95,7 +95,7 @@ func TestInstall_ModeOff_ReturnsSkip(t *testing.T) {
 
 // TestInstall_AlreadyFiltered_ReturnsSkip covers the #282 root cause
 // confirmed by the rc1 (commit a4de5e1) diagnostic on Runloop:
-// agentsh CLI spawns unixwrap_1 (installs F1, success); unixwrap_1 execs
+// agentmon CLI spawns unixwrap_1 (installs F1, success); unixwrap_1 execs
 // the user's command which goes through the shell-shim again, and the
 // shim's kernelinstall.Install is called *inside* a process tree that
 // already has F1 inherited via execve. Trying to install F2 on top
@@ -116,7 +116,7 @@ func TestInstall_ModeOff_ReturnsSkip(t *testing.T) {
 // event emission) on every nested shim invocation.
 func TestInstall_AlreadyFiltered_ReturnsSkip(t *testing.T) {
 	handler, calls := makeWrapInitHandler(200, types.WrapInitResponse{
-		WrapperBinary: "/usr/bin/agentsh-unixwrap",
+		WrapperBinary: "/usr/bin/agentmon-unixwrap",
 		NotifySocket:  "/tmp/notify.sock",
 	})
 	srv := httptest.NewServer(handler)
@@ -152,7 +152,7 @@ func TestInstall_AlreadyFiltered_ReturnsSkip(t *testing.T) {
 // nested-shim case for users who set shim_install=on, so we still skip.
 func TestInstall_AlreadyFiltered_ModeOnAlsoSkips(t *testing.T) {
 	handler, calls := makeWrapInitHandler(200, types.WrapInitResponse{
-		WrapperBinary: "/usr/bin/agentsh-unixwrap",
+		WrapperBinary: "/usr/bin/agentmon-unixwrap",
 		NotifySocket:  "/tmp/notify.sock",
 	})
 	srv := httptest.NewServer(handler)
@@ -181,7 +181,7 @@ func TestInstall_AlreadyFiltered_ModeOnAlsoSkips(t *testing.T) {
 // where the new gate accidentally fires on a clean process: when
 // seccompFilterCount returns 0 (no inherited filter), the existing
 // wrap-init/relay path must run — exactly the rc1 first-Load case
-// (parent_comm=agentsh, caller_seccomp_state="mode=0 filter_count=0")
+// (parent_comm=agentmon, caller_seccomp_state="mode=0 filter_count=0")
 // that the rc1 diagnostic showed succeeding.
 func TestInstall_NotFiltered_ProceedsAsBefore(t *testing.T) {
 	handler, calls := makeWrapInitHandler(200, types.WrapInitResponse{}) // empty resp → ResultSkip via existing path
@@ -286,12 +286,12 @@ func TestInstall_ModeOn_EmptyResponse_FailsClosed(t *testing.T) {
 	}
 }
 
-// ─── Test 6: AGENTSH_SIGNAL_SOCK_FD is stripped from WrapperEnv ─────────────
+// ─── Test 6: AGENTMON_SIGNAL_SOCK_FD is stripped from WrapperEnv ─────────────
 
 func TestInstall_StripsSignalSockFd(t *testing.T) {
 	// Build env with signal sock fd and another var.
 	env := []string{
-		"AGENTSH_SIGNAL_SOCK_FD=4",
+		"AGENTMON_SIGNAL_SOCK_FD=4",
 		"OTHER=x",
 		"HOME=/tmp",
 	}
@@ -299,8 +299,8 @@ func TestInstall_StripsSignalSockFd(t *testing.T) {
 	filtered := filterSignalSockFD(env)
 
 	for _, e := range filtered {
-		if strings.HasPrefix(e, "AGENTSH_SIGNAL_SOCK_FD=") {
-			t.Errorf("AGENTSH_SIGNAL_SOCK_FD was not stripped: %q", e)
+		if strings.HasPrefix(e, "AGENTMON_SIGNAL_SOCK_FD=") {
+			t.Errorf("AGENTMON_SIGNAL_SOCK_FD was not stripped: %q", e)
 		}
 	}
 	found := false
@@ -314,14 +314,14 @@ func TestInstall_StripsSignalSockFd(t *testing.T) {
 	}
 }
 
-// ─── Test 6b: AGENTSH_SIGNAL_SOCK_FD is stripped from p.Env (not just WrapperEnv) ─
+// ─── Test 6b: AGENTMON_SIGNAL_SOCK_FD is stripped from p.Env (not just WrapperEnv) ─
 
 // TestInstall_StripsSignalSockFdFromPEnv verifies that a stale
-// AGENTSH_SIGNAL_SOCK_FD in p.Env (inherited from a parent context) is removed
+// AGENTMON_SIGNAL_SOCK_FD in p.Env (inherited from a parent context) is removed
 // before being passed to the wrapper, even when WrapperEnv has no such entry.
 // We verify this by running the full relay with a p.Env containing a stale fd
 // value and asserting the wrapper's environment (via the fake wrapper printing
-// its own env) contains no AGENTSH_SIGNAL_SOCK_FD entry.
+// its own env) contains no AGENTMON_SIGNAL_SOCK_FD entry.
 func TestInstall_StripsSignalSockFdFromPEnv(t *testing.T) {
 	// Build a fake wrapper that prints its env and then does the socketpair handshake.
 	wrapperBin := buildFakeWrapperPrintEnv(t)
@@ -339,7 +339,7 @@ func TestInstall_StripsSignalSockFdFromPEnv(t *testing.T) {
 	wrapResp := types.WrapInitResponse{
 		WrapperBinary: wrapperBin,
 		NotifySocket:  notifySockPath,
-		// WrapperEnv deliberately does NOT contain AGENTSH_SIGNAL_SOCK_FD.
+		// WrapperEnv deliberately does NOT contain AGENTMON_SIGNAL_SOCK_FD.
 		WrapperEnv: map[string]string{"FAKE_WRAPPER": "1"},
 	}
 	handler, _ := makeWrapInitHandler(200, wrapResp)
@@ -348,9 +348,9 @@ func TestInstall_StripsSignalSockFdFromPEnv(t *testing.T) {
 
 	p := baseParams(srv)
 	p.Mode = ModeOn
-	// Inject a stale AGENTSH_SIGNAL_SOCK_FD into p.Env (simulates parent context).
+	// Inject a stale AGENTMON_SIGNAL_SOCK_FD into p.Env (simulates parent context).
 	p.Env = []string{
-		"AGENTSH_SIGNAL_SOCK_FD=4",
+		"AGENTMON_SIGNAL_SOCK_FD=4",
 		"OTHER=x",
 		"HOME=/tmp",
 	}
@@ -380,8 +380,8 @@ func TestInstall_StripsSignalSockFdFromPEnv(t *testing.T) {
 	}
 
 	for _, line := range strings.Split(string(envOutput), "\n") {
-		if strings.HasPrefix(line, "AGENTSH_SIGNAL_SOCK_FD=") {
-			t.Errorf("AGENTSH_SIGNAL_SOCK_FD leaked into wrapper env: %q", line)
+		if strings.HasPrefix(line, "AGENTMON_SIGNAL_SOCK_FD=") {
+			t.Errorf("AGENTMON_SIGNAL_SOCK_FD leaked into wrapper env: %q", line)
 		}
 	}
 	t.Logf("wrapper env output (excerpt):\n%s", string(envOutput))
@@ -394,9 +394,9 @@ func TestInstall_StripsSignalSockFdFromPEnv(t *testing.T) {
 // ("/bin/sh") to the wrapper, the wrapper's syscall.Exec sets argv[0] to
 // "/bin/sh.real", busybox looks up applet "sh.real", fails, and exits 127.
 // This test verifies the fix: when InstallParams.Argv0 is set, the
-// AGENTSH_UNIXWRAP_ARGV0 env var is propagated to the wrapper. The
+// AGENTMON_UNIXWRAP_ARGV0 env var is propagated to the wrapper. The
 // wrapper itself then substitutes argv[0]; that substitution is covered
-// by tests in cmd/agentsh-unixwrap.
+// by tests in cmd/agentmon-unixwrap.
 func TestInstall_PassesArgv0ToWrapper(t *testing.T) {
 	wrapperBin := buildFakeWrapperPrintEnv(t)
 
@@ -441,14 +441,14 @@ func TestInstall_PassesArgv0ToWrapper(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read wrapper env output: %v", err)
 	}
-	if !strings.Contains(string(envOutput), "AGENTSH_UNIXWRAP_ARGV0=/bin/sh\n") {
-		t.Errorf("AGENTSH_UNIXWRAP_ARGV0 was not propagated to wrapper env. Got:\n%s", string(envOutput))
+	if !strings.Contains(string(envOutput), "AGENTMON_UNIXWRAP_ARGV0=/bin/sh\n") {
+		t.Errorf("AGENTMON_UNIXWRAP_ARGV0 was not propagated to wrapper env. Got:\n%s", string(envOutput))
 	}
 }
 
 // TestInstall_OmitsArgv0WhenEmpty covers the symmetric case: when
 // InstallParams.Argv0 is empty (older shim, agent-mode caller), the
-// AGENTSH_UNIXWRAP_ARGV0 env var must NOT be set. unixwrap's empty-string
+// AGENTMON_UNIXWRAP_ARGV0 env var must NOT be set. unixwrap's empty-string
 // path falls back to argv[0]=resolved-cmd-path, preserving prior behavior.
 func TestInstall_OmitsArgv0WhenEmpty(t *testing.T) {
 	wrapperBin := buildFakeWrapperPrintEnv(t)
@@ -493,13 +493,13 @@ func TestInstall_OmitsArgv0WhenEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read wrapper env output: %v", err)
 	}
-	if strings.Contains(string(envOutput), "AGENTSH_UNIXWRAP_ARGV0=") {
-		t.Errorf("AGENTSH_UNIXWRAP_ARGV0 must NOT be set when Argv0 is empty. Got:\n%s", string(envOutput))
+	if strings.Contains(string(envOutput), "AGENTMON_UNIXWRAP_ARGV0=") {
+		t.Errorf("AGENTMON_UNIXWRAP_ARGV0 must NOT be set when Argv0 is empty. Got:\n%s", string(envOutput))
 	}
 }
 
 // TestInstall_StripsStaleArgv0FromInheritedEnv guards roborev #7950
-// finding (Low #2): a stale AGENTSH_UNIXWRAP_ARGV0 in p.Env (e.g.
+// finding (Low #2): a stale AGENTMON_UNIXWRAP_ARGV0 in p.Env (e.g.
 // re-entrant shim invocation, or operator-set value) must NOT silently
 // reach the wrapper. With InstallParams.Argv0 == "", the contract is
 // "no override, fall back to resolved real path"; a leaked stale value
@@ -535,7 +535,7 @@ func TestInstall_StripsStaleArgv0FromInheritedEnv(t *testing.T) {
 	p.Mode = ModeOn
 	p.Argv0 = "" // explicitly empty — must not be overridden by inherited stale
 	p.Env = []string{
-		"AGENTSH_UNIXWRAP_ARGV0=/bin/stale-shell", // stale inherited value
+		"AGENTMON_UNIXWRAP_ARGV0=/bin/stale-shell", // stale inherited value
 		"FAKE_ENV_OUT=" + outPath,
 	}
 
@@ -552,8 +552,8 @@ func TestInstall_StripsStaleArgv0FromInheritedEnv(t *testing.T) {
 		t.Fatalf("read wrapper env output: %v", err)
 	}
 	for _, line := range strings.Split(string(envOutput), "\n") {
-		if strings.HasPrefix(line, "AGENTSH_UNIXWRAP_ARGV0=") {
-			t.Errorf("stale AGENTSH_UNIXWRAP_ARGV0 leaked into wrapper env: %q", line)
+		if strings.HasPrefix(line, "AGENTMON_UNIXWRAP_ARGV0=") {
+			t.Errorf("stale AGENTMON_UNIXWRAP_ARGV0 leaked into wrapper env: %q", line)
 		}
 	}
 }
@@ -562,25 +562,25 @@ func TestInstall_StripsStaleArgv0FromInheritedEnv(t *testing.T) {
 // both internal env vars and preserve everything else.
 func TestFilterShimInternalEnv(t *testing.T) {
 	in := []string{
-		"AGENTSH_SIGNAL_SOCK_FD=4",
-		"AGENTSH_UNIXWRAP_ARGV0=/bin/stale",
+		"AGENTMON_SIGNAL_SOCK_FD=4",
+		"AGENTMON_UNIXWRAP_ARGV0=/bin/stale",
 		"OTHER=x",
 		"HOME=/tmp",
-		"AGENTSH_UNIXWRAP_ARGV0_NOT_OURS=keep", // prefix-not-equal must be preserved
+		"AGENTMON_UNIXWRAP_ARGV0_NOT_OURS=keep", // prefix-not-equal must be preserved
 	}
 	out := filterShimInternalEnv(in)
 	for _, e := range out {
-		if strings.HasPrefix(e, "AGENTSH_SIGNAL_SOCK_FD=") {
-			t.Errorf("AGENTSH_SIGNAL_SOCK_FD not stripped: %q", e)
+		if strings.HasPrefix(e, "AGENTMON_SIGNAL_SOCK_FD=") {
+			t.Errorf("AGENTMON_SIGNAL_SOCK_FD not stripped: %q", e)
 		}
-		if strings.HasPrefix(e, "AGENTSH_UNIXWRAP_ARGV0=") {
-			t.Errorf("AGENTSH_UNIXWRAP_ARGV0 not stripped: %q", e)
+		if strings.HasPrefix(e, "AGENTMON_UNIXWRAP_ARGV0=") {
+			t.Errorf("AGENTMON_UNIXWRAP_ARGV0 not stripped: %q", e)
 		}
 	}
 	want := map[string]bool{
 		"OTHER=x":                              true,
 		"HOME=/tmp":                            true,
-		"AGENTSH_UNIXWRAP_ARGV0_NOT_OURS=keep": true,
+		"AGENTMON_UNIXWRAP_ARGV0_NOT_OURS=keep": true,
 	}
 	got := map[string]bool{}
 	for _, e := range out {
@@ -1039,7 +1039,7 @@ func buildFakeWrapper(t *testing.T) string {
 	return binPath
 }
 
-// ─── Test: filterShimInternalEnv strips AGENTSH_WRAPPER_LOG_FD ──────────────
+// ─── Test: filterShimInternalEnv strips AGENTMON_WRAPPER_LOG_FD ──────────────
 
 func TestFilterShimInternalEnv_StripsWrapperLogFD(t *testing.T) {
 	in := []string{"PATH=/bin", wrapperlog.EnvKey + "=7", "HOME=/root"}
@@ -1060,7 +1060,7 @@ func TestAssembleWrapperEnv_DropsWrapperLogFDFromWrapperEnv(t *testing.T) {
 		"",
 		map[string]string{
 			wrapperlog.EnvKey:        "9", // must NOT pass through — the relay sets its own
-			"AGENTSH_SECCOMP_CONFIG": "{}",
+			"AGENTMON_SECCOMP_CONFIG": "{}",
 		},
 		nil,
 	)
@@ -1073,7 +1073,7 @@ func TestAssembleWrapperEnv_DropsWrapperLogFDFromWrapperEnv(t *testing.T) {
 
 // TestInstall_PassesWrapperLogFDAndCreatesStateLogFile verifies the
 // issue #415 relay wiring end-to-end: runRelay opens the state-dir log
-// file, passes it as ExtraFiles[1], and exports AGENTSH_WRAPPER_LOG_FD=4
+// file, passes it as ExtraFiles[1], and exports AGENTMON_WRAPPER_LOG_FD=4
 // to the wrapper. XDG_STATE_HOME is redirected to a temp dir so the test
 // owns the state-dir location.
 func TestInstall_PassesWrapperLogFDAndCreatesStateLogFile(t *testing.T) {
@@ -1128,7 +1128,7 @@ func TestInstall_PassesWrapperLogFDAndCreatesStateLogFile(t *testing.T) {
 		t.Errorf("wrapper env missing %s=4:\n%s", wrapperlog.EnvKey, envOutput)
 	}
 
-	logPath := filepath.Join(stateHome, "agentsh", "logs", "unixwrap.log")
+	logPath := filepath.Join(stateHome, "agentmon", "logs", "unixwrap.log")
 	if _, err := os.Stat(logPath); err != nil {
 		t.Errorf("state-dir log file not created at %s: %v", logPath, err)
 	}

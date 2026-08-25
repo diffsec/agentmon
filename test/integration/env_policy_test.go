@@ -5,7 +5,7 @@ package integration
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // TestEnvPolicyCheckEnv tests the CheckEnv method with glob patterns.

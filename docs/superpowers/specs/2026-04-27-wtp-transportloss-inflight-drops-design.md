@@ -91,8 +91,8 @@ A new file `internal/store/watchtower/transport/loss_reason.go`:
 package transport
 
 import (
-    "github.com/agentsh/agentsh/internal/store/watchtower/wal"
-    wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+    "github.com/diffsec/agentmon/internal/store/watchtower/wal"
+    wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 // ToWireReason maps an in-WAL LossRecord.Reason string to its wire enum.

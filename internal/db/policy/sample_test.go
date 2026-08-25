@@ -3,7 +3,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // Each row mirrors one example from spec §10.2. Effects are constructed

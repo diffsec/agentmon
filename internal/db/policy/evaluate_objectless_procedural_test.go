@@ -3,7 +3,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // TestEvaluate_ObjectlessFunctionCallProtocol_Reachable verifies that an

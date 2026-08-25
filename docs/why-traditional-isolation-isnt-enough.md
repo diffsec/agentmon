@@ -43,7 +43,7 @@ This document examines:
 - **LLM proxy limitations**: Proxies monitor conversations but have no visibility into what agents actually do
 - **The gap between them**: Neither controls the critical moment when an LLM response becomes an executed action
 
-We analyze 15+ attack vectors that these traditional approaches cannot address and explain how agentsh's multi-layer architecture provides **semantic security**—understanding and controlling agent operations at the meaning level, not just the process or API level. This includes an embedded LLM proxy with Data Loss Prevention (DLP) that can redact or tokenize sensitive data before it reaches LLM providers, deployable locally per-session or as a centralized enterprise service.
+We analyze 15+ attack vectors that these traditional approaches cannot address and explain how agentmon's multi-layer architecture provides **semantic security**—understanding and controlling agent operations at the meaning level, not just the process or API level. This includes an embedded LLM proxy with Data Loss Prevention (DLP) that can redact or tokenize sensitive data before it reaches LLM providers, deployable locally per-session or as a centralized enterprise service.
 
 ---
 
@@ -85,7 +85,7 @@ Docker, gVisor, Firecracker, and Kubernetes sandboxes provide execution boundari
 - Cannot allow `write to *.log` while denying `write to *.py`
 - No soft-delete or recovery—deleted files are gone immediately
 
-**How agentsh Protects**:
+**How agentmon Protects**:
 - **Per-file, per-operation policies**: Allow read on `*.py`, deny write; allow write on `./output/*`
 - **Glob pattern matching**: Rules like `*.env` or `**/secrets/*` apply regardless of path depth
 - **Soft-delete with trash**: Destructive operations move files to recoverable trash
@@ -103,7 +103,7 @@ Docker, gVisor, Firecracker, and Kubernetes sandboxes provide execution boundari
 - Cannot block `rm -rf /` while allowing `rm ./temp.txt`
 - Shell metacharacters and command chaining (`&&`, `|`, `;`) bypass simple allowlists
 
-**How agentsh Protects**:
+**How agentmon Protects**:
 - **Command rules with argument pattern matching**: Block `rm` with `-rf` flag, allow without
 - **Basename and full-path matching**: Policies apply regardless of how command is invoked
 - **Shell shim interception**: All shell invocations route through policy engine
@@ -121,7 +121,7 @@ Docker, gVisor, Firecracker, and Kubernetes sandboxes provide execution boundari
 - AI agents are high-value targets that actively explore their environment
 - gVisor mitigates this but only implements ~70-80% of Linux syscalls
 
-**How agentsh Protects**:
+**How agentmon Protects**:
 - **Defense in depth**: Even if container escapes, FUSE, network proxy, and eBPF layers remain
 - **Kernel-enforced network rules**: eBPF programs validate connections at kernel level
 - **Multiple independent enforcement points**: Defeating one layer doesn't defeat the system
@@ -139,7 +139,7 @@ Docker, gVisor, Firecracker, and Kubernetes sandboxes provide execution boundari
 - No way to require confirmation for high-risk operations
 - Cannot implement "allow read, but require approval for delete"
 
-**How agentsh Protects**:
+**How agentmon Protects**:
 - **Operation-level approval requirements**: Critical operations trigger human review
 - **Multiple verification methods**: WebAuthn/FIDO2, TOTP, interactive challenges
 - **Credential separation**: Agent keys cannot approve their own requests
@@ -157,7 +157,7 @@ Docker, gVisor, Firecracker, and Kubernetes sandboxes provide execution boundari
 - `printenv`, `env`, or `os.environ` expose everything
 - Secrets mounted as files are readable if the agent has filesystem access
 
-**How agentsh Protects**:
+**How agentmon Protects**:
 - **Environment variable policies**: Allowlist/denylist patterns for variable access
 - **Block enumeration**: Prevent `environ()` iteration while allowing specific variable reads
 - **Built-in deny patterns**: Known secret patterns (AWS keys, API tokens) blocked by default
@@ -175,7 +175,7 @@ Docker, gVisor, Firecracker, and Kubernetes sandboxes provide execution boundari
 - Cannot detect PII, secrets, or sensitive patterns in requests
 - Allowed outbound connections can exfiltrate anything
 
-**How agentsh Protects**:
+**How agentmon Protects**:
 - **Embedded LLM proxy with DLP**: All LLM API requests intercepted and inspected before reaching providers (Anthropic, OpenAI, ChatGPT). Can be deployed locally per-session or as a centralized remote proxy for enterprise deployments.
 - **Two DLP modes**:
   - **Redaction**: Sensitive data replaced with `[REDACTED:pattern_type]` before forwarding—data never reaches the LLM provider
@@ -197,7 +197,7 @@ Docker, gVisor, Firecracker, and Kubernetes sandboxes provide execution boundari
 - Audit logs show syscalls but not semantic meaning
 - Forensic analysis requires reconstructing intent from low-level traces
 
-**How agentsh Protects**:
+**How agentmon Protects**:
 - **Structured JSON output**: Every command returns detailed operation logs
 - **Per-operation event streaming**: File reads, writes, network connections all captured
 - **Semantic operation tracking**: Operations tagged with paths, byte counts, policy decisions
@@ -254,7 +254,7 @@ Many organizations deploy both: containers for execution isolation and LLM proxi
 - Multi-step attacks span the gap between layers
 - Each system validates its layer in isolation
 
-**How agentsh Bridges This**:
+**How agentmon Bridges This**:
 - **Unified policy engine** evaluates all operations against declared intent
 - **Session-level correlation** tracks operations across LLM calls and executions
 - **Structured output** provides forensic trail linking responses to actions
@@ -274,7 +274,7 @@ Many organizations deploy both: containers for execution isolation and LLM proxi
 - Blocking an LLM call doesn't stop already-received instructions
 - Agent-side caching, embeddings, and local reasoning bypass proxy entirely
 
-**How agentsh Bridges This**:
+**How agentmon Bridges This**:
 - **Operation-level enforcement** applies regardless of instruction source
 - **Policy doesn't depend on LLM visibility**—dangerous operations blocked whether from LLM or cache
 - **Session isolation** limits what cached instructions can access
@@ -294,7 +294,7 @@ Many organizations deploy both: containers for execution isolation and LLM proxi
 - Container can't distinguish legitimate vs. malicious tool invocations
 - Protocol-level attacks don't look like prompt injections
 
-**How agentsh Bridges This**:
+**How agentmon Bridges This**:
 - **Network-level interception** applies to all connections including MCP
 - **Per-endpoint allowlisting** restricts which MCP servers are reachable
 - **Command-level enforcement** gates all actions regardless of trigger source
@@ -314,7 +314,7 @@ Many organizations deploy both: containers for execution isolation and LLM proxi
 - No shared abstraction for "agent intent" or "operation semantics"
 - Policies must be duplicated and kept in sync manually
 
-**How agentsh Bridges This**:
+**How agentmon Bridges This**:
 - **Unified YAML policy** covers files, network, commands, and environment
 - **Semantic rules**: express intent like "allow package manager downloads" not "allow TCP 443"
 - **Single policy source** evaluated across all operation types
@@ -334,7 +334,7 @@ Many organizations deploy both: containers for execution isolation and LLM proxi
 - No system tracks operation *sequences* for anomaly detection
 - Legitimate refactoring looks identical to data exfiltration
 
-**How agentsh Bridges This**:
+**How agentmon Bridges This**:
 - **Per-operation policy** catches dangerous individual operations even in legitimate-looking chains
 - **Session-level metrics** track cumulative file reads, network bytes, operation counts
 - **Structured event streaming** enables external pattern detection
@@ -354,7 +354,7 @@ Many organizations deploy both: containers for execution isolation and LLM proxi
 - No checkpoint or transaction system for agent operations
 - Recovery requires external backup systems that may not exist
 
-**How agentsh Bridges This**:
+**How agentmon Bridges This**:
 - **Soft-delete with trash system**: Deleted files moved to recoverable location
 - **File hashing**: Original content SHA-256 preserved for integrity verification
 - **Restore capability**: Files can be restored by token with full metadata
@@ -387,13 +387,13 @@ LLM proxies sit between agents and AI models, filtering prompts and responses. T
 
 ### Proxy Attack Vectors Summary
 
-| # | Attack Vector | Why Proxy Fails | agentsh Protection |
+| # | Attack Vector | Why Proxy Fails | agentmon Protection |
 |---|--------------|-----------------|-------------------|
 | **1** | **Indirect Prompt Injection** | Proxy may detect patterns but can't prevent agent from retrying or using cached responses. [Research shows 5 documents can manipulate AI 90% of the time](https://www.lakera.ai/blog/indirect-prompt-injection). | FUSE filesystem intercepts file reads; network rules control content sources; command interception gates all actions |
 | **2** | **Tool/Function Chaining** | Proxy only sees LLM calls—tool executions happen locally. [OWASP Agentic Top 10](https://www.practical-devsecops.com/owasp-top-10-agentic-applications/) identifies this as critical. | Command rules with argument matching; per-operation policy; session auditing; cgroup resource limits |
-| **3** | **Shell Escape & Direct Binary Execution** | Shell commands execute locally—proxy never sees them. Direct paths (`/bin/bash -c`) bypass tool restrictions. | Shell shim replacement; `agentsh exec` intercepts all invocations; ptrace process control; recursion guards |
+| **3** | **Shell Escape & Direct Binary Execution** | Shell commands execute locally—proxy never sees them. Direct paths (`/bin/bash -c`) bypass tool restrictions. | Shell shim replacement; `agentmon exec` intercepts all invocations; ptrace process control; recursion guards |
 | **4** | **Environment Variable Exfiltration** | Environment enumeration happens locally. Exfiltration can use any outbound channel. | Environment allowlist/denylist; enumeration blocking; per-command filtering; network rules block exfil endpoints |
-| **5** | **Proxy Hijacking & Credential Theft** | If agent can modify proxy settings, security proxy becomes optional. [GitHub Copilot suffered this exact vulnerability](https://genai.owasp.org/2025/03/06/owasp-gen-ai-incident-exploit-round-up-jan-feb-2025/). | Network namespace isolation; eBPF kernel enforcement; transparent proxy via iptables DNAT; agentsh-controlled environment |
+| **5** | **Proxy Hijacking & Credential Theft** | If agent can modify proxy settings, security proxy becomes optional. [GitHub Copilot suffered this exact vulnerability](https://genai.owasp.org/2025/03/06/owasp-gen-ai-incident-exploit-round-up-jan-feb-2025/). | Network namespace isolation; eBPF kernel enforcement; transparent proxy via iptables DNAT; agentmon-controlled environment |
 | **6** | **Resource Exhaustion (DoS)** | Fork bombs, infinite loops, memory exhaustion happen locally—proxy has zero visibility. | Cgroup v2 memory limits; CPU quota; `pids_max` for fork bombs; disk I/O limits; command timeouts |
 | **7** | **Filesystem Attacks (Symlink, TOCTOU, Traversal)** | Filesystem operations are entirely local. Race conditions occur at microsecond scale. | FUSE intercepts all ops; symlink targets validated; cross-mount detection; atomic policy decisions eliminate TOCTOU |
 | **8** | **MCP Protocol Exploits** | MCP operates outside standard LLM API. Sampling requests flow server-to-client, bypassing client proxies. [Cursor CVE-2025-54135/54136](https://nsfocusglobal.com/prompt-word-injection-an-analysis-of-recent-llm-security-incidents/). | Network-level interception for all connections; per-endpoint allowlisting; command enforcement regardless of trigger |
@@ -414,13 +414,13 @@ Attackers embed instructions in external content (websites, documents, emails). 
 
 Once the LLM returns a response, the agent interprets it locally. Direct binary paths (`/usr/bin/curl`, `/bin/bash -c "..."`) execute without any LLM API call. PATH manipulation can redirect commands to malicious binaries. The proxy is completely blind.
 
-**agentsh's shell shim** replaces `/bin/sh` and `/bin/bash` with policy-enforcing versions. Every shell invocation routes through `agentsh exec`, regardless of how it's called.
+**agentmon's shell shim** replaces `/bin/sh` and `/bin/bash` with policy-enforcing versions. Every shell invocation routes through `agentmon exec`, regardless of how it's called.
 
 #### Proxy Hijacking
 
 Application-level proxy configuration is trivially changed via environment variables (`HTTP_PROXY`, `HTTPS_PROXY`). If the agent can modify these, the "secure" proxy becomes optional. There's no enforcement that traffic actually flows through the intended proxy.
 
-**agentsh's network namespace** provides kernel-enforced routing. Traffic is redirected via iptables DNAT regardless of application configuration. eBPF programs validate connections at the kernel level—impossible to bypass from userspace.
+**agentmon's network namespace** provides kernel-enforced routing. Traffic is redirected via iptables DNAT regardless of application configuration. eBPF programs validate connections at the kernel level—impossible to bypass from userspace.
 
 ---
 
@@ -466,9 +466,9 @@ Organizations face an impossible choice:
 - **Permissive monitoring**: Attacks succeed, proxy becomes security theater
 - **Complex rules**: High maintenance burden, false positives, constant tuning
 
-#### How agentsh Differs
+#### How agentmon Differs
 
-agentsh enforces policy **at the action layer**, not the conversation layer:
+agentmon enforces policy **at the action layer**, not the conversation layer:
 
 - **LLM conversation continues normally**: The agent gets its response and proceeds
 - **Actions are gated independently**: When the agent *acts* on malicious instructions, that action is blocked
@@ -476,7 +476,7 @@ agentsh enforces policy **at the action layer**, not the conversation layer:
 - **No state corruption**: The agent knows exactly what succeeded and what didn't
 - **Human approval integration**: Dangerous operations pause for review rather than failing opaquely
 
-Additionally, agentsh's **embedded LLM proxy** provides DLP without breaking agent workflows:
+Additionally, agentmon's **embedded LLM proxy** provides DLP without breaking agent workflows:
 
 - **Redaction mode**: Sensitive data stripped before reaching LLM providers—the agent never sees what was removed
 - **Tokenization mode**: Sensitive data replaced with reversible tokens—enables auditing and correlation without exposing raw values
@@ -500,7 +500,7 @@ Agent attempts: curl with credential
                     │
                     ▼
             ┌───────────────┐
-            │   agentsh     │ Blocks exfiltration attempt
+            │   agentmon     │ Blocks exfiltration attempt
             │   Network     │ Returns: "E_POLICY_DENIED: network to api.evil.com blocked"
             └───────────────┘
                     │
@@ -517,7 +517,7 @@ Agent behavior: ✅ Receives clear error
 
 ### Security Controls by Approach
 
-| Security Control | Container Only | Proxy Only | Container + Proxy | agentsh |
+| Security Control | Container Only | Proxy Only | Container + Proxy | agentmon |
 |-----------------|:--------------:|:----------:|:-----------------:|:-------:|
 | **Conversation Layer** |
 | LLM prompt filtering | ❌ | ✅ | ✅ | ✅ |
@@ -571,7 +571,7 @@ Agent behavior: ✅ Receives clear error
 
 ### Attack Vector Coverage
 
-| Attack Vector | Container | Proxy | Container + Proxy | agentsh |
+| Attack Vector | Container | Proxy | Container + Proxy | agentmon |
 |--------------|:---------:|:-----:|:-----------------:|:-------:|
 | Indirect prompt injection | ❌ | ⚠️ | ⚠️ | ✅ |
 | Tool/function abuse | ❌ | ❌ | ❌ | ✅ |
@@ -617,7 +617,7 @@ Agent behavior: ✅ Receives clear error
 └──────────────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                         AGENTSH MULTI-LAYER ARCHITECTURE                      │
+│                         AGENTMON MULTI-LAYER ARCHITECTURE                      │
 │                                                                              │
 │  ┌────────────────────────────────────────────────────────────────────────┐  │
 │  │  Layer 5: LLM Proxy (conversation visibility + data protection)        │  │
@@ -649,13 +649,13 @@ Agent behavior: ✅ Receives clear error
 
 | Scenario | Recommended Approach | Why |
 |----------|---------------------|-----|
-| **Untrusted agent code** | agentsh | Need semantic control over what agent does |
-| **Trusted agent, untrusted inputs** | agentsh or Container + Proxy | Need protection against prompt injection |
+| **Untrusted agent code** | agentmon | Need semantic control over what agent does |
+| **Trusted agent, untrusted inputs** | agentmon or Container + Proxy | Need protection against prompt injection |
 | **Read-only analysis tasks** | Container + Proxy | Lower risk, simpler setup |
 | **Internal tools, trusted users** | Proxy only | Monitoring sufficient |
 | **Batch processing, no LLM** | Container only | No conversation to monitor |
-| **Production with sensitive data** | agentsh | Need DLP + action control + approval |
-| **Compliance requirements** | agentsh | Need structured audit trail |
+| **Production with sensitive data** | agentmon | Need DLP + action control + approval |
+| **Compliance requirements** | agentmon | Need structured audit trail |
 | **Rapid prototyping** | None / Proxy only | Speed over security |
 
 ---
@@ -693,9 +693,9 @@ The fundamental problem is that **neither containers nor proxies understand what
 |-------|------|-------------|
 | Container | Process with UID made syscall | Whether this is legitimate work or an attack |
 | Proxy | LLM said "delete temp files" | What the agent actually deletes |
-| agentsh | Agent attempting `rm ./database.bak` | — Full context available |
+| agentmon | Agent attempting `rm ./database.bak` | — Full context available |
 
-agentsh's multi-layer architecture intercepts operations **at the meaning level**:
+agentmon's multi-layer architecture intercepts operations **at the meaning level**:
 
 1. **Shell shim**: Every shell invocation is policy-checked
 2. **Command API**: Arguments and flags are evaluated against rules

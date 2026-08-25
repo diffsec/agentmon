@@ -1,20 +1,20 @@
 # Issue #415: Route wrapper diagnostics off the wrapped command's stderr
 
 **Date:** 2026-06-06
-**Issue:** [#415](https://github.com/canyonroad/agentsh/issues/415) — Per-exec
+**Issue:** [#415](https://github.com/diffsec/agentmon/issues/415) — Per-exec
 "seccomp: filter loaded" line pollutes wrapped command's stderr (corrupts
-`agentsh detect --output json`)
+`agentmon detect --output json`)
 **Approach:** Option 3 from the issue — route, don't downgrade — implemented
 as a log-fd handoff via env var.
 
 ## Problem
 
-`agentsh-unixwrap` execs the real command in place, so the wrapper's stderr
+`agentmon-unixwrap` execs the real command in place, so the wrapper's stderr
 *is* the wrapped command's stderr. Every successful filter install emits
 `slog.Info("seccomp: filter loaded", ...)`
 (`internal/netmonitor/unix/seccomp_linux.go:515`) via the wrapper's
 process-default slog handler → stderr → user-visible stream. Commands with
-machine-readable stderr (notably `agentsh detect --output json`) get a noise
+machine-readable stderr (notably `agentmon detect --output json`) get a noise
 prefix consumers must strip.
 
 Downgrading to Debug was rejected in #411/#414: the line is a deliberate #369
@@ -31,16 +31,16 @@ PR_SET_PTRACER warnings, etc.) on the same fd.
 
 | Question | Decision |
 |---|---|
-| Which spawn paths | All three: server exec, shim relay, `agentsh wrap` CLI |
+| Which spawn paths | All three: server exec, shim relay, `agentmon wrap` CLI |
 | What gets routed | All wrapper diagnostics (slog + stdlib `log`); fatals dual-write to routed dest + stderr |
 | Fallback when no destination given | stderr (status quo) |
 | Destination in shim/CLI paths | Local state-dir log file |
 
 ## Design
 
-### Wrapper side (`cmd/agentsh-unixwrap`)
+### Wrapper side (`cmd/agentmon-unixwrap`)
 
-New env contract: `AGENTSH_WRAPPER_LOG_FD=<n>` — the number of an inherited
+New env contract: `AGENTMON_WRAPPER_LOG_FD=<n>` — the number of an inherited
 fd to receive all wrapper diagnostics.
 
 A `setupLogging()` runs first thing in `main()`, before anything can log:
@@ -69,11 +69,11 @@ shell → shim → wrapper) would inherit a stale fd number that may have been
 reused by the intermediate process — the nested wrapper would write log
 lines onto an arbitrary fd. Defenses:
 
-- Wrapper strips `AGENTSH_WRAPPER_LOG_FD` from the environment before
+- Wrapper strips `AGENTMON_WRAPPER_LOG_FD` from the environment before
   `syscall.Exec`.
 - The shim's `filterShimInternalEnv`
   (`internal/shim/kernelinstall/install_linux.go`) adds the key to its strip
-  list, as it already does for `AGENTSH_SIGNAL_SOCK_FD` and the argv0
+  list, as it already does for `AGENTMON_SIGNAL_SOCK_FD` and the argv0
   override. Each parent always sets its own authoritative value.
 
 ### Parent side — three spawn paths
@@ -82,7 +82,7 @@ lines onto an arbitrary fd. Defenses:
 
 - Create `os.Pipe()`; append the write end to `extraCfg.extraFiles`; compute
   the child fd dynamically (`3 + index` — 4 normally, 5 when the signal
-  socket is present); set `AGENTSH_WRAPPER_LOG_FD` in both `wrappedReq.Env`
+  socket is present); set `AGENTMON_WRAPPER_LOG_FD` in both `wrappedReq.Env`
   and `extraCfg.env` (same dual-set pattern as the notify fd).
 - New `extraProcConfig` field (`wrapperLogParent *os.File`) carries the read
   end. At spawn (alongside existing `notifyParentSock` handling): close the
@@ -101,11 +101,11 @@ lines onto an arbitrary fd. Defenses:
   `O_CREATE|O_WRONLY|O_APPEND`, mode 0600 (`MkdirAll` the parent dir). Pass
   the file fd as `ExtraFiles[1]` (fd 4 — free in shim mode; the signal
   socket is deliberately not replicated there) and append
-  `AGENTSH_WRAPPER_LOG_FD=4` in `assembleWrapperEnv`. `O_APPEND` writes are
+  `AGENTMON_WRAPPER_LOG_FD=4` in `assembleWrapperEnv`. `O_APPEND` writes are
   atomic, so concurrent shim execs interleave at line granularity. Parent
   closes its copy after `cmd.Start()`.
 
-**`agentsh wrap` CLI path** (`internal/cli/wrap_linux.go`,
+**`agentmon wrap` CLI path** (`internal/cli/wrap_linux.go`,
 `platformSetupWrap`):
 
 - Same state-dir log file as the shim path. Appended after the conditional
@@ -141,9 +141,9 @@ and the stripped env var means nothing points there.
 1. **Existing regression tests untouched:**
    `TestInstallFilter_EmitsWaitKillEngagedOnSupportedKernel` and
    `TestInstallFilter_HonorsOperatorOverride` re-exec the test binary
-   without `AGENTSH_WRAPPER_LOG_FD`; the slog line still lands on their
+   without `AGENTMON_WRAPPER_LOG_FD`; the slog line still lands on their
    combined output. This was the central constraint from the issue.
-2. **Wrapper unit tests** (`cmd/agentsh-unixwrap`): `setupLogging` with a
+2. **Wrapper unit tests** (`cmd/agentmon-unixwrap`): `setupLogging` with a
    valid fd routes both `log` and `slog` output there and sets CLOEXEC;
    invalid fd falls back to stderr; the env var is stripped from the exec
    environment.
@@ -161,6 +161,6 @@ and the stripped env var means nothing points there.
 
 | Acceptance criterion (issue #415) | How satisfied |
 |---|---|
-| `agentsh detect --output json` produces clean stderr | Routing in all three spawn paths; CLOEXEC + env strip keep the fd away from the command |
+| `agentmon detect --output json` produces clean stderr | Routing in all three spawn paths; CLOEXEC + env strip keep the fd away from the command |
 | `wait_killable` diagnostic visible in server log at default level | Server drains the pipe and re-emits lines at Info |
 | `TestInstallFilter_*` regression tests still pass | They never run wrapper `main()`; `InstallFilterWithConfig` and its slog call are untouched |

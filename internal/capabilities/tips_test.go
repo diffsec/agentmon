@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/netmonitor/ebpf"
+	"github.com/diffsec/agentmon/internal/netmonitor/ebpf"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -313,7 +313,7 @@ func TestLookupTip_ESFReasonSensitive(t *testing.T) {
 	sysextctlDown := lookupTip("esf", "not activated (liveness could not be verified: systemextensionsctl failed: exit status 1)")
 	assert.NotNil(t, sysextctlDown)
 	assert.Contains(t, sysextctlDown.Action, "launchctl print")
-	assert.NotContains(t, sysextctlDown.Action, "Install the agentsh macOS app bundle")
+	assert.NotContains(t, sysextctlDown.Action, "Install the agentmon macOS app bundle")
 
 	// Probe failure whose folded stderr happens to contain "not running" must
 	// still route to the unverifiable tip, not the not-running tip.
@@ -324,5 +324,5 @@ func TestLookupTip_ESFReasonSensitive(t *testing.T) {
 	// Not installed at all: fallback install tip unchanged.
 	fallback := lookupTip("esf", "not activated")
 	assert.NotNil(t, fallback)
-	assert.Contains(t, fallback.Action, "Install the agentsh macOS app bundle")
+	assert.Contains(t, fallback.Action, "Install the agentmon macOS app bundle")
 }

@@ -13,12 +13,12 @@ ESF+NE provides enterprise-tier (90% security score) enforcement on macOS by lev
 │                         macOS Host                                   │
 │                                                                      │
 │  ┌────────────────────────────────────────────────────────────────┐ │
-│  │                    AgentSH.app Bundle                           │ │
+│  │                    AgentMon.app Bundle                           │ │
 │  │                                                                  │ │
 │  │  ┌──────────────┐    XPC     ┌──────────────────────────────┐  │ │
 │  │  │              │◄──────────►│                              │  │ │
 │  │  │  Go Binary   │            │      XPC Service             │  │ │
-│  │  │  (agentsh)   │            │  (PolicyBridge.swift)        │  │ │
+│  │  │  (agentmon)   │            │  (PolicyBridge.swift)        │  │ │
 │  │  │              │            │                              │  │ │
 │  │  │  - Policy    │  Unix      │  - JSON protocol over        │  │ │
 │  │  │    Engine    │  Socket    │    Unix socket               │  │ │
@@ -30,7 +30,7 @@ ESF+NE provides enterprise-tier (90% security score) enforcement on macOS by lev
 │  │                                           ▼                     │ │
 │  │  ┌──────────────────────────────────────────────────────────┐  │ │
 │  │  │              System Extension                              │  │ │
-│  │  │              (ai.canyonroad.agentsh.sysext)                          │  │ │
+│  │  │              (dev.diffsec.agentmon.SysExt)                          │  │ │
 │  │  │                                                            │  │ │
 │  │  │  ┌────────────────┐  ┌────────────────┐  ┌──────────────┐ │  │ │
 │  │  │  │   ESFClient    │  │ FilterData     │  │ DNSProxy     │ │  │ │
@@ -66,7 +66,7 @@ ESF+NE provides enterprise-tier (90% security score) enforcement on macOS by lev
 
 ### Go Policy Server
 
-The Go binary (`agentsh`) runs the policy engine and API server:
+The Go binary (`agentmon`) runs the policy engine and API server:
 
 - **Policy Engine** (`internal/policy/`) - Evaluates file, network, and command rules
 - **Session Manager** (`internal/session/`) - Tracks agent sessions and workspaces
@@ -74,7 +74,7 @@ The Go binary (`agentsh`) runs the policy engine and API server:
 
 ### XPC Service
 
-The XPC Service (`ai.canyonroad.agentsh.xpc`) bridges between Swift and Go:
+The XPC Service (`dev.diffsec.agentmon.xpc`) bridges between Swift and Go:
 
 - **PolicyBridge.swift** - Connects to Go server via Unix socket
 - **XPCServiceDelegate.swift** - Handles XPC connection lifecycle
@@ -82,7 +82,7 @@ The XPC Service (`ai.canyonroad.agentsh.xpc`) bridges between Swift and Go:
 
 ### System Extension
 
-The System Extension (`ai.canyonroad.agentsh.sysext`) provides kernel-level interception:
+The System Extension (`dev.diffsec.agentmon.SysExt`) provides kernel-level interception:
 
 #### ESFClient.swift
 
@@ -156,10 +156,10 @@ Network Extension for DNS filtering:
 
 ### Session Tracking
 
-The session tracker maps PIDs to agentsh sessions:
+The session tracker maps PIDs to agentmon sessions:
 
 ```
-1. agentsh exec creates session
+1. agentmon exec creates session
    │
    ├─► Registers shell PID with session ID
    │
@@ -251,10 +251,10 @@ type SessionTracker struct {
 XPC connections use serial dispatch queues for thread safety:
 
 ```swift
-private let queue = DispatchQueue(label: "ai.canyonroad.agentsh.xpc")
+private let queue = DispatchQueue(label: "dev.diffsec.agentmon.xpc")
 
 queue.sync {
-    self.xpcProxy = connection.remoteObjectProxy as? AgentSHXPCProtocol
+    self.xpcProxy = connection.remoteObjectProxy as? AgentMonXPCProtocol
 }
 ```
 
@@ -348,7 +348,7 @@ In addition to the request-response connection used for policy queries, the syst
 └───────────────┼────────────────────────────────┼─────────────────────┘
                 │                                │
     ────────────┼────────────────────────────────┼─── Unix Socket ───
-                │  /tmp/agentsh-policy.sock      │
+                │  /tmp/agentmon-policy.sock      │
                 ▼                                ▼
 ┌───────────────┼────────────────────────────────┼─────────────────────┐
 │               │                                │                     │
@@ -383,7 +383,7 @@ In addition to the request-response connection used for policy queries, the syst
 
 ### Event Stream Lifecycle
 
-1. The Swift `PolicySocketClient` connects to `/tmp/agentsh-policy.sock`
+1. The Swift `PolicySocketClient` connects to `/tmp/agentmon-policy.sock`
 2. Client sends `{"type":"event_stream_init"}` to identify this as an event stream connection
 3. Server acknowledges with `{"status":"ok"}`
 4. Client writes events as newline-delimited JSON, one event per line:
@@ -407,7 +407,7 @@ When the event stream connection is unavailable, events are buffered in a ring b
 
 The system extension subscribes to the following ESF events for file I/O monitoring:
 
-| ESF Event | agentsh Event Type | Mode | Description |
+| ESF Event | agentmon Event Type | Mode | Description |
 |-----------|-------------------|------|-------------|
 | `AUTH_OPEN` | `file_open` | AUTH | File open with read/write determined from fflag |
 | `AUTH_CREATE` | `file_create` | AUTH | New file creation |
@@ -432,7 +432,7 @@ Events flow through the following pipeline on the Go server side:
 
 The Go server maintains a `CommandResolver` that tracks the relationship between PIDs and command IDs:
 
-- **Registration:** When a command execution starts (via `agentsh exec`), the PID is registered with its `command_id`
+- **Registration:** When a command execution starts (via `agentmon exec`), the PID is registered with its `command_id`
 - **Fork propagation:** When `NOTIFY_FORK` is received, the parent's `command_id` is copied to the child PID. This ensures subprocesses inherit attribution.
 - **Exit cleanup:** When `NOTIFY_EXIT` is received, the PID entry is removed from the resolver to prevent stale mappings
 - **Lookup:** For every file event, the resolver is queried with the event's PID to attach the correct `command_id`

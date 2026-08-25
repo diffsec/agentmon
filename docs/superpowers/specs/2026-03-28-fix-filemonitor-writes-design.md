@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make `seccomp.file_monitor.enabled: true` correctly allow writes to workspace, `/tmp`, and other policy-allowed paths in the `agentsh wrap` execution path. Current score: 63/73. Target: 73/73.
+Make `seccomp.file_monitor.enabled: true` correctly allow writes to workspace, `/tmp`, and other policy-allowed paths in the `agentmon wrap` execution path. Current score: 63/73. Target: 73/73.
 
 ## Root Causes
 
@@ -26,7 +26,7 @@ The exec path correctly uses a session-specific engine created via `NewEngineWit
 
 ### Fix 1: PR_SET_PTRACER_ANY in the wrapper
 
-Add `prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY)` in `cmd/agentsh-unixwrap/main.go` before exec.
+Add `prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY)` in `cmd/agentmon-unixwrap/main.go` before exec.
 
 This authorizes any process (including the server) to call `ProcessVMReadv` on the sandboxed child, bypassing the Yama ancestor check. The call goes after all handshakes complete and before `syscall.Exec`, alongside the existing pre-exec setup (landlock, ptrace sync).
 
@@ -37,7 +37,7 @@ This authorizes any process (including the server) to call `ProcessVMReadv` on t
 **Exec survival:** `PR_SET_PTRACER` is stored per-task in the Yama LSM, separate from credentials. It is NOT cleared by `yama_task_free` on exec — only on task exit. It should survive exec for non-setuid binaries. If it doesn't (needs verification), add a `/proc/PID/mem` pread fallback to ALL ProcessVMReadv callsites in the seccomp handler path (`execve_reader.go` and `file_syscalls.go`), matching the pattern in `internal/ptrace/memory.go:35-46`.
 
 **Files:**
-- Modify: `cmd/agentsh-unixwrap/main.go` — add prctl call before exec
+- Modify: `cmd/agentmon-unixwrap/main.go` — add prctl call before exec
 - Contingent: `internal/netmonitor/unix/execve_reader.go` and `file_syscalls.go` — add `/proc/PID/mem` fallback (only if prctl doesn't survive exec)
 
 ### Fix 2: Use session-specific policy engine in wrap path

@@ -4,7 +4,7 @@ package shim
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
 )
 
 func TestMCPBridge_ProcessToolsListResponse(t *testing.T) {

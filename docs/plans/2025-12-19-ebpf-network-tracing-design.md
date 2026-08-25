@@ -4,11 +4,11 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Add optional cgroup-based eBPF network tracing for agentsh sessions to observe outbound connects (and optionally UDP) without requiring a proxy, with clear fallback when unsupported.
+**Goal:** Add optional cgroup-based eBPF network tracing for agentmon sessions to observe outbound connects (and optionally UDP) without requiring a proxy, with clear fallback when unsupported.
 
 **Architecture:** On session start, reuse/extend the per-session cgroup and attach CO-RE eBPF programs to cgroup connect hooks. A userspace collector reads ring-buffer events, enriches them with session/command IDs, and emits them into the existing event pipeline. A config flag enables/forces the feature; startup auto-disables on unsupported kernels and logs an event. Proxy remains the fallback path.
 
-**Tech Stack:** Go 1.25+, Linux cgroup v2, libbpf CO-RE object (embedded), cilium/ebpf or libbpfgo, ring buffer, existing agentsh store/broker.
+**Tech Stack:** Go 1.25+, Linux cgroup v2, libbpf CO-RE object (embedded), cilium/ebpf or libbpfgo, ring buffer, existing agentmon store/broker.
 
 ### Task 1: Wire config + capability detection
 

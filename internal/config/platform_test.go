@@ -10,40 +10,40 @@ import (
 func TestGetMountPoint(t *testing.T) {
 	cfg := &Config{}
 	cfg.Platform.Mode = "auto"
-	cfg.Platform.MountPoints.Linux = "/tmp/agentsh/linux"
-	cfg.Platform.MountPoints.Darwin = "/tmp/agentsh/darwin"
+	cfg.Platform.MountPoints.Linux = "/tmp/agentmon/linux"
+	cfg.Platform.MountPoints.Darwin = "/tmp/agentmon/darwin"
 
 	// Test with auto mode - should return based on current OS
 	mp := GetMountPoint(cfg)
 	switch runtime.GOOS {
 	case "linux":
-		if mp != "/tmp/agentsh/linux" {
-			t.Errorf("GetMountPoint() = %q, want %q", mp, "/tmp/agentsh/linux")
+		if mp != "/tmp/agentmon/linux" {
+			t.Errorf("GetMountPoint() = %q, want %q", mp, "/tmp/agentmon/linux")
 		}
 	case "darwin":
-		if mp != "/tmp/agentsh/darwin" {
-			t.Errorf("GetMountPoint() = %q, want %q", mp, "/tmp/agentsh/darwin")
+		if mp != "/tmp/agentmon/darwin" {
+			t.Errorf("GetMountPoint() = %q, want %q", mp, "/tmp/agentmon/darwin")
 		}
 	}
 
 	// Test with explicit mode
 	cfg.Platform.Mode = "linux"
 	mp = GetMountPoint(cfg)
-	if mp != "/tmp/agentsh/linux" {
-		t.Errorf("GetMountPoint(linux) = %q, want %q", mp, "/tmp/agentsh/linux")
+	if mp != "/tmp/agentmon/linux" {
+		t.Errorf("GetMountPoint(linux) = %q, want %q", mp, "/tmp/agentmon/linux")
 	}
 
 	cfg.Platform.Mode = "darwin"
 	mp = GetMountPoint(cfg)
-	if mp != "/tmp/agentsh/darwin" {
-		t.Errorf("GetMountPoint(darwin) = %q, want %q", mp, "/tmp/agentsh/darwin")
+	if mp != "/tmp/agentmon/darwin" {
+		t.Errorf("GetMountPoint(darwin) = %q, want %q", mp, "/tmp/agentmon/darwin")
 	}
 
 	// An unrecognised mode falls back to the runtime OS, never to a
 	// Windows mount point -- Windows support was removed.
 	cfg.Platform.Mode = "windows"
 	mp = GetMountPoint(cfg)
-	if mp != "/tmp/agentsh/darwin" && mp != "/tmp/agentsh/linux" {
+	if mp != "/tmp/agentmon/darwin" && mp != "/tmp/agentmon/linux" {
 		t.Errorf("GetMountPoint(unknown mode) = %q, want the host OS mount point", mp)
 	}
 }
@@ -93,7 +93,7 @@ func TestGetUserConfigDir(t *testing.T) {
 	if dir == "" {
 		t.Error("GetUserConfigDir() returned empty string")
 	}
-	// Should contain "agentsh"
+	// Should contain "agentmon"
 	if !filepath.IsAbs(dir) {
 		t.Errorf("GetUserConfigDir() = %q, expected absolute path", dir)
 	}
@@ -133,8 +133,8 @@ func TestGetUserDataDir(t *testing.T) {
 		defer os.Setenv("XDG_DATA_HOME", orig)
 
 		got := GetUserDataDir()
-		if got != "/custom/data/agentsh" {
-			t.Errorf("GetUserDataDir() with XDG_DATA_HOME = %q, want %q", got, "/custom/data/agentsh")
+		if got != "/custom/data/agentmon" {
+			t.Errorf("GetUserDataDir() with XDG_DATA_HOME = %q, want %q", got, "/custom/data/agentmon")
 		}
 		os.Setenv("XDG_DATA_HOME", orig)
 	}
@@ -148,7 +148,7 @@ func TestGetUserDataDir(t *testing.T) {
 			t.Error("GetUserDataDir() returned empty on Windows")
 		}
 	case "darwin":
-		want := home + "/Library/Application Support/agentsh"
+		want := home + "/Library/Application Support/agentmon"
 		if got != want {
 			t.Errorf("GetUserDataDir() = %q, want %q", got, want)
 		}
@@ -156,7 +156,7 @@ func TestGetUserDataDir(t *testing.T) {
 		// Linux default without XDG_DATA_HOME
 		os.Unsetenv("XDG_DATA_HOME")
 		got = GetUserDataDir()
-		want := home + "/.local/share/agentsh"
+		want := home + "/.local/share/agentmon"
 		if got != want {
 			t.Errorf("GetUserDataDir() = %q, want %q", got, want)
 		}

@@ -1,4 +1,4 @@
-module github.com/agentsh/agentsh
+module github.com/diffsec/agentmon
 
 go 1.25.0
 

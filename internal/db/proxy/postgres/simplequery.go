@@ -12,10 +12,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 var (
@@ -91,7 +91,7 @@ func (pc *proxyConn) handleUnsupportedFrame(ctx context.Context, msg pgproto3.Fr
 	}
 	frameType := fmt.Sprintf("%T", msg)
 	pc.emitUnsupportedFrame(ctx, "EXTENDED_QUERY_NOT_SUPPORTED", frameType)
-	_ = pc.synthesizeError(sqlstateFeatureNotSupported, "Extended Query / COPY / FunctionCall not supported in AgentSH proxy phase 1")
+	_ = pc.synthesizeError(sqlstateFeatureNotSupported, "Extended Query / COPY / FunctionCall not supported in AgentMon proxy phase 1")
 	return errUnsupportedFrame
 }
 
@@ -101,7 +101,7 @@ func (pc *proxyConn) handleQuery(ctx context.Context, q *pgproto3.Query) error {
 	if len(q.String) > pc.srv.cfg.MaxQueryBytes {
 		pc.emitFrameTooLarge(ctx, len(q.String))
 		_ = pc.synthErrorAndRFQ(sqlstateProgramLimitExceeded,
-			fmt.Sprintf("statement too large for AgentSH proxy: %d bytes > %d cap",
+			fmt.Sprintf("statement too large for AgentMon proxy: %d bytes > %d cap",
 				len(q.String), pc.srv.cfg.MaxQueryBytes))
 		return errFrameTooLargeClose
 	}
@@ -243,13 +243,13 @@ func (pc *proxyConn) runSimpleQueryRedirect(
 			plan.TargetRelation = decisions[redirectIndex].Redirect.TargetRelation
 		}
 		pc.emitRedirectRejectedEvent(ctx, stmts[redirectIndex], decisions[redirectIndex], q.String, batchSHA, plan)
-		return pc.synthErrorAndRFQ(sqlstateRedirectRejected, "redirect rejected by AgentSH policy: multi-statement redirect unsupported")
+		return pc.synthErrorAndRFQ(sqlstateRedirectRejected, "redirect rejected by AgentMon policy: multi-statement redirect unsupported")
 	}
 
 	plan, ok := pc.planRuntimeRedirect(ctx, q.String, stmts[redirectIndex], decisions[redirectIndex])
 	if !ok {
 		pc.emitRedirectRejectedEvent(ctx, stmts[redirectIndex], decisions[redirectIndex], q.String, batchSHA, plan)
-		return pc.synthErrorAndRFQ(sqlstateRedirectRejected, "redirect rejected by AgentSH policy: "+plan.RejectionReason)
+		return pc.synthErrorAndRFQ(sqlstateRedirectRejected, "redirect rejected by AgentMon policy: "+plan.RejectionReason)
 	}
 
 	sentAt := timeNow()

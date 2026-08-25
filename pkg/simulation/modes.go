@@ -1,4 +1,4 @@
-// Package simulation provides testing and simulation modes for agentsh.
+// Package simulation provides testing and simulation modes for agentmon.
 package simulation
 
 // ModeConfig defines simulation mode configuration.

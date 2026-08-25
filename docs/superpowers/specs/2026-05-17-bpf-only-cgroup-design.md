@@ -1,8 +1,8 @@
 # BPF-only cgroup attach mode
 
 **Status:** Approved, ready for implementation plan.
-**Tracking:** [#347](https://github.com/canyonroad/agentsh/issues/347).
-**Builds on:** [#346](https://github.com/canyonroad/agentsh/pull/346) (startup WARN + cgroups prerequisite docs), [#344](https://github.com/canyonroad/agentsh/pull/344) (wrap eBPF hardening).
+**Tracking:** [#347](https://github.com/diffsec/agentmon/issues/347).
+**Builds on:** [#346](https://github.com/diffsec/agentmon/pull/346) (startup WARN + cgroups prerequisite docs), [#344](https://github.com/diffsec/agentmon/pull/344) (wrap eBPF hardening).
 
 ## Problem
 
@@ -10,14 +10,14 @@ eBPF network enforcement is silently unreachable on hosts where `sandbox.cgroups
 
 Today the eBPF cgroup_connect attach is gated behind the full cgroup-v2 resource-limit machinery: the probe (`internal/limits/cgroupv2_probe.go`) tries to enable required controllers in `subtree_control`, and the call sites (`internal/api/wrap.go::wrapNeedsCgroupBeforeAck`, `internal/api/cgroups.go::applyCgroupV2`) only proceed when `cgroups.enabled=true`. PR #346 added a WARN when `ebpf.enabled=true` and `cgroups.enabled=false`, which closed the silent-skip path discovered in #343 but did not actually enable BPF enforcement on such hosts.
 
-The kernel BPF program doesn't need any cgroup controllers enabled. It only needs *a* cgroup with a known ID and the BPF attach capabilities (`CAP_BPF`, `/sys/fs/bpf`, kernel `CONFIG_CGROUP_BPF`). Decoupling the BPF attach path from `cgroups.enabled` makes eBPF enforcement reachable on the Docker hosts that are the dominant agentsh deployment shape, without requiring operators to do host-side systemd surgery.
+The kernel BPF program doesn't need any cgroup controllers enabled. It only needs *a* cgroup with a known ID and the BPF attach capabilities (`CAP_BPF`, `/sys/fs/bpf`, kernel `CONFIG_CGROUP_BPF`). Decoupling the BPF attach path from `cgroups.enabled` makes eBPF enforcement reachable on the Docker hosts that are the dominant agentmon deployment shape, without requiring operators to do host-side systemd surgery.
 
 ## Goals
 
 - BPF cgroup_connect attach works on stock Docker without `Delegate=` drop-ins, when the kernel and capabilities permit BPF attach.
 - Existing strict `cgroups.enabled=true` semantics are preserved — operators who explicitly assert that cgroups work continue to get hard-fail at startup if the assertion is false.
 - Failures in the new path are loud (`WARN` with specific cause) by default and convertible to startup-fatal via the existing `ebpf.required=true` knob.
-- `agentsh detect` reports the new partial state explicitly so operators can see what's available without parsing log Detail strings.
+- `agentmon detect` reports the new partial state explicitly so operators can see what's available without parsing log Detail strings.
 
 ## Non-goals
 
@@ -34,7 +34,7 @@ The cgroup manager is constructed whenever `cgroups.enabled=true` **or** any of 
 
 Strict `cgroups.enabled=true` semantics are preserved by a `permitAttachOnly` input to `ProbeCgroupsV2`. When `cgroups.enabled=true`, the call passes `permitAttachOnly=false` and the probe collapses an AttachOnly-feasible-but-controllers-unenableable host to `ModeUnavailable` (today's behavior). When `cgroups.enabled=false && ebpf.*` is set, the call passes `permitAttachOnly=true` and the probe is allowed to return `ModeAttachOnly`.
 
-`agentsh detect` splits the existing binary `cgroups-v2` check: it keeps its meaning ("resource limits work") and gains a sibling `ebpf_cgroup_attach` ("BPF attach to a session cgroup is reachable"). Each has its own tip ladder.
+`agentmon detect` splits the existing binary `cgroups-v2` check: it keeps its meaning ("resource limits work") and gains a sibling `ebpf_cgroup_attach` ("BPF attach to a session cgroup is reachable"). Each has its own tip ladder.
 
 ## Components
 
@@ -137,7 +137,7 @@ The "Stock Docker host-side prerequisite" subsection from #346 stays. Its framin
 3. Probe runs the decision tree. Returns a `CgroupProbeResult` with `Mode`, `Reason`, and the chosen `OwnCgroup`/`SliceDir`.
 4. `NewApp` emits one log line per the matrix in `internal/api/app.go` section. If `Mode == ModeUnavailable && ebpf.required=true`, `NewApp` returns a startup error and the server exits.
 
-### Wrap setup (per `agentsh wrap`)
+### Wrap setup (per `agentmon wrap`)
 
 1. Caller invokes `defaultWrapCgroupSetupForNotify(ctx, app, session, sessionID, wrapperPID)`.
 2. Setup calls `applyCgroupV2(ctx, ..., pid=wrapperPID, lim=policyLimits)`.
@@ -147,7 +147,7 @@ The "Stock Docker host-side prerequisite" subsection from #346 stays. Its framin
    - In `ModeUnavailable`: `CgroupUnavailableError`. Setup logs WARN (soft fail) or returns error (hard fail under `ebpf.required`).
 4. With a `CgroupV2` handle in hand, `ebpfAttachConnectToCgroup(handle.Path)` runs.
 5. On BPF attach failure: same soft/hard split as probe failure. Setup logs WARN or returns error.
-6. On success: `ebpfPopulateAllowlist` + `ebpfStartCollector` run. The wrap-init ACK proceeds; `agentsh-unixwrap` is told it's allowed to exec.
+6. On success: `ebpfPopulateAllowlist` + `ebpfStartCollector` run. The wrap-init ACK proceeds; `agentmon-unixwrap` is told it's allowed to exec.
 
 ### Per-command exec
 
@@ -209,9 +209,9 @@ Attach-time failures (post-probe — BPF verifier rejects, `CAP_BPF` detected mi
 | `cgroups.enabled=false, ebpf.required=true`, BPF prereqs not met | Hard fail at wrap-init time | Hard fail at server startup. **Failure location moves from wrap-init to startup**. Earlier failure is preferable: the server refuses to come up rather than starting and breaking the first wrap call. |
 | `cgroups.enabled=false, ebpf.enabled=false` | No cgroups, no BPF | Unchanged |
 
-No config schema changes. No new fields, no removed fields, no semantic flips. The detect output's capability key set changes (`cgroups-v2` → `cgroups_v2_resource_limits` + `ebpf_cgroup_attach`); release notes will call this out. `agentsh detect` is a diagnostic tool, not a stable API.
+No config schema changes. No new fields, no removed fields, no semantic flips. The detect output's capability key set changes (`cgroups-v2` → `cgroups_v2_resource_limits` + `ebpf_cgroup_attach`); release notes will call this out. `agentmon detect` is a diagnostic tool, not a stable API.
 
 ## Open work post-implementation
 
 - Real-kernel integration test for AttachOnly mode (out of scope for this spec; the probe-level and wrap-path mocked tests prove the wiring).
-- Operator documentation page collecting Docker prerequisites in one place — partly handled by `docs/ebpf.md` updates; a dedicated "agentsh on Docker" page would be a natural follow-up.
+- Operator documentation page collecting Docker prerequisites in one place — partly handled by `docs/ebpf.md` updates; a dedicated "agentmon on Docker" page would be a natural follow-up.

@@ -13,12 +13,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/approvals"
-	"github.com/agentsh/agentsh/internal/pathutil"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/trash"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/approvals"
+	"github.com/diffsec/agentmon/internal/pathutil"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/trash"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/google/uuid"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -736,7 +736,7 @@ func (n *node) makeDivertFunc(realPath string) func() (*trash.Entry, error) {
 	}
 	trashPath := h.Config.TrashPath
 	if trashPath == "" {
-		trashPath = ".agentsh_trash"
+		trashPath = ".agentmon_trash"
 	}
 	if !filepath.IsAbs(trashPath) && n.RootData != nil {
 		trashPath = filepath.Join(n.RootData.Path, trashPath)

@@ -59,12 +59,12 @@ sandbox:
     mitigation_sets:
       - dirtyfrag-conservative
     mitigation_dirs:
-      - /etc/agentsh/mitigations
+      - /etc/agentmon/mitigations
 `)
 	var cfg Config
 	require.NoError(t, yaml.Unmarshal(data, &cfg))
 	require.Equal(t, []string{"dirtyfrag-conservative"}, cfg.Sandbox.Seccomp.MitigationSets)
-	require.Equal(t, []string{"/etc/agentsh/mitigations"}, cfg.Sandbox.Seccomp.MitigationDirs)
+	require.Equal(t, []string{"/etc/agentmon/mitigations"}, cfg.Sandbox.Seccomp.MitigationDirs)
 }
 
 func TestSandboxSeccompHardeningProfiles_DeprecatedAliasParseYAML(t *testing.T) {
@@ -163,7 +163,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/seccomp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -993,7 +993,7 @@ func EffectiveSyscallBlock(in SandboxSeccompConfig) ([]string, string, error) {
 Add the seccomp import:
 
 ```go
-	"github.com/agentsh/agentsh/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/seccomp"
 ```
 
 - [ ] **Step 5: Validate effective config in config validation**
@@ -1268,7 +1268,7 @@ In `docs/seccomp.md`, replace the Dirty Frag section with:
 ````markdown
 ### Mitigation Sets
 
-`sandbox.seccomp.mitigation_sets` loads named mitigation YAML files and expands them into ordinary seccomp rules. agentsh ships built-in mitigations and can also load external mitigation files from opt-in `mitigation_dirs`.
+`sandbox.seccomp.mitigation_sets` loads named mitigation YAML files and expands them into ordinary seccomp rules. agentmon ships built-in mitigations and can also load external mitigation files from opt-in `mitigation_dirs`.
 
 ```yaml
 sandbox:
@@ -1276,7 +1276,7 @@ sandbox:
     mitigation_sets:
       - dirtyfrag-conservative
     mitigation_dirs:
-      - /etc/agentsh/mitigations
+      - /etc/agentmon/mitigations
 ```
 
 The built-in `dirtyfrag-conservative` set is a conservative mitigation for the Openwall Dirty Frag advisory dated May 7, 2026. It expands to two `socket_rules`: one for `AF_RXRPC`, and one for `AF_NETLINK` with protocol `NETLINK_XFRM`. It does not block all `AF_NETLINK`.
@@ -1285,12 +1285,12 @@ The built-in `dirtyfrag-conservative` set is a conservative mitigation for the O
 In `config.yml`, replace the commented `hardening_profiles` example:
 
 ```yaml
-    # Advisory mitigation sets. Built-ins are embedded in agentsh; external
+    # Advisory mitigation sets. Built-ins are embedded in agentmon; external
     # directories are optional and only requested IDs are loaded.
     # mitigation_sets:
     #   - dirtyfrag-conservative
     # mitigation_dirs:
-    #   - /etc/agentsh/mitigations
+    #   - /etc/agentmon/mitigations
 ```
 
 - [ ] **Step 2: Search for stale public wording**
@@ -1375,7 +1375,7 @@ git diff --check
 git status --short
 ```
 
-Expected: `git diff --check` exits 0. `git status --short` shows only intentional tracked changes plus any pre-existing untracked `.agentsh/` directory.
+Expected: `git diff --check` exits 0. `git status --short` shows only intentional tracked changes plus any pre-existing untracked `.agentmon/` directory.
 
 - [ ] **Step 6: Commit verification fixes if needed**
 

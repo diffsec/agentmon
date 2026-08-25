@@ -43,7 +43,7 @@ func TestGetSyscallEntryInfoAcceptsSeccompOp(t *testing.T) {
 
 - [ ] **Step 2: Run test to verify it passes (baseline)**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/ptrace/ -run TestGetSyscallEntryInfoAcceptsSeccompOp -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/ptrace/ -run TestGetSyscallEntryInfoAcceptsSeccompOp -v`
 
 - [ ] **Step 3: Fix the Op check and update struct comment**
 
@@ -66,7 +66,7 @@ In `internal/ptrace/syscall_context.go`, make two changes:
 
 - [ ] **Step 4: Run all syscall_context tests**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/ptrace/ -run TestSyscallContext -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/ptrace/ -run TestSyscallContext -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -101,7 +101,7 @@ Change the test cases:
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/ptrace/ -run TestNeedsExitStop -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/ptrace/ -run TestNeedsExitStop -v`
 Expected: FAIL — the two changed cases now expect `true` but get `false`
 
 - [ ] **Step 3: Update needsExitStop**
@@ -115,7 +115,7 @@ In `internal/ptrace/tracer.go`, change the openat/openat2 case (line 472-473):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/ptrace/ -run TestNeedsExitStop -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/ptrace/ -run TestNeedsExitStop -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -184,7 +184,7 @@ func TestResolvePath_ChainedSymlinks(t *testing.T) {
 
 - [ ] **Step 2: Run tests to verify they pass (confirming entry-time resolution works)**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/ptrace/ -run "TestResolvePath_FollowsSymlink|TestResolvePath_ChainedSymlinks" -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/ptrace/ -run "TestResolvePath_FollowsSymlink|TestResolvePath_ChainedSymlinks" -v`
 Expected: PASS — confirms existing entry-time resolution works in unit tests
 
 - [ ] **Step 3: Refactor handleOpenatExit to always read fd path**
@@ -283,12 +283,12 @@ func (t *Tracer) handleOpenatExit(ctx context.Context, tid int, regs Regs) {
 
 - [ ] **Step 4: Run all tests to verify nothing is broken**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/ptrace/ -v -count=1 2>&1 | tail -20`
+Run: `cd /home/eran/work/agentmon && go test ./internal/ptrace/ -v -count=1 2>&1 | tail -20`
 Expected: All existing tests PASS
 
 - [ ] **Step 5: Run full build including cross-compilation**
 
-Run: `cd /home/eran/work/agentsh && go build ./... && GOOS=windows go build ./...`
+Run: `cd /home/eran/work/agentmon && go build ./... && GOOS=windows go build ./...`
 Expected: Both succeed
 
 - [ ] **Step 6: Commit**
@@ -351,7 +351,7 @@ func TestIsVforkFastPathSkipsNonExec(t *testing.T) {
 
 - [ ] **Step 2: Run test to verify it passes (logic test)**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/ptrace/ -run TestIsVforkFastPathSkipsNonExec -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/ptrace/ -run TestIsVforkFastPathSkipsNonExec -v`
 Expected: PASS
 
 - [ ] **Step 3: Add vfork fast-path to handleSeccompStop**
@@ -400,7 +400,7 @@ func (t *Tracer) handleSeccompStop(ctx context.Context, tid int) {
 
 - [ ] **Step 4: Run all tests**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/ptrace/ -v -count=1 2>&1 | tail -20`
+Run: `cd /home/eran/work/agentmon && go test ./internal/ptrace/ -v -count=1 2>&1 | tail -20`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -452,12 +452,12 @@ In `internal/ptrace/tracer.go`, modify the `entering` branch (lines 890-903). In
 
 - [ ] **Step 2: Run all tests**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/ptrace/ -v -count=1 2>&1 | tail -20`
+Run: `cd /home/eran/work/agentmon && go test ./internal/ptrace/ -v -count=1 2>&1 | tail -20`
 Expected: PASS
 
 - [ ] **Step 3: Run full build including cross-compilation**
 
-Run: `cd /home/eran/work/agentsh && go build ./... && GOOS=windows go build ./...`
+Run: `cd /home/eran/work/agentmon && go build ./... && GOOS=windows go build ./...`
 Expected: Both succeed
 
 - [ ] **Step 4: Commit**
@@ -479,17 +479,17 @@ evaluation for non-execve syscalls when IsVforkChild is set."
 
 - [ ] **Step 1: Run full test suite**
 
-Run: `cd /home/eran/work/agentsh && go test ./... -count=1 2>&1 | tail -30`
+Run: `cd /home/eran/work/agentmon && go test ./... -count=1 2>&1 | tail -30`
 Expected: All tests PASS
 
 - [ ] **Step 2: Verify cross-compilation**
 
-Run: `cd /home/eran/work/agentsh && GOOS=windows go build ./...`
+Run: `cd /home/eran/work/agentmon && GOOS=windows go build ./...`
 Expected: SUCCESS
 
 - [ ] **Step 3: Review all changes on the branch**
 
-Run: `cd /home/eran/work/agentsh && git log --oneline main..HEAD`
+Run: `cd /home/eran/work/agentmon && git log --oneline main..HEAD`
 
 Expected commits (oldest to newest):
 1. `fix(ptrace): accept Op=3 (seccomp) in PTRACE_GET_SYSCALL_INFO`

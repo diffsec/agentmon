@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

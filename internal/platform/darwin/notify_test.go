@@ -12,7 +12,7 @@ func TestNotifyPolicyUpdated(t *testing.T) {
 }
 
 func TestNotifyName(t *testing.T) {
-	if PolicyUpdatedNotification != "ai.canyonroad.agentsh.policy-updated" {
+	if PolicyUpdatedNotification != "dev.diffsec.agentmon.policy-updated" {
 		t.Fatalf("unexpected notification name: %s", PolicyUpdatedNotification)
 	}
 }

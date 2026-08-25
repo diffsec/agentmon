@@ -8,7 +8,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // platformSetupWrap on macOS sets up ES-based interception.
@@ -31,7 +31,7 @@ func platformSetupWrap(ctx context.Context, wrapResp types.WrapInitResponse, ses
 		}, nil
 	}
 
-	// If the server returns a wrapper binary (e.g., agentsh-macwrap for sandboxing),
+	// If the server returns a wrapper binary (e.g., agentmon-macwrap for sandboxing),
 	// use it as the launch command.
 	env := buildWrapEnv(os.Environ(), sessID, cfg.serverAddr, wrapResp.SafeToBypassShellShim)
 	for k, v := range wrapResp.WrapperEnv {

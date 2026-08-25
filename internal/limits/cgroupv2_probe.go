@@ -35,15 +35,15 @@ type CgroupProbeResult struct {
 	Reason string
 	// OwnCgroup is the cgroup directory used as the enforcement root for nested
 	// mode — child cgroups for sessions are created under this path. When
-	// LeafMoved is true, the process itself resides in OwnCgroup/agentsh.leaf, but the
+	// LeafMoved is true, the process itself resides in OwnCgroup/agentmon.leaf, but the
 	// parent remains the correct place to create children.
 	OwnCgroup   string
-	SliceDir    string // absolute path to /sys/fs/cgroup/agentsh.slice (top-level mode only; empty otherwise)
+	SliceDir    string // absolute path to /sys/fs/cgroup/agentmon.slice (top-level mode only; empty otherwise)
 	IOAvailable bool   // true if the io controller is usable in the chosen mode
 	// OrphansReaped is populated in top-level mode when the probe removed
-	// leftover unpopulated child cgroups from a prior agentsh run.
+	// leftover unpopulated child cgroups from a prior agentmon run.
 	OrphansReaped []string
-	// LeafMoved is true if the process resides in OwnCgroup/agentsh.leaf — either
+	// LeafMoved is true if the process resides in OwnCgroup/agentmon.leaf — either
 	// because this probe performed a leaf-move or because a prior probe
 	// already moved the process there.
 	LeafMoved bool
@@ -51,7 +51,7 @@ type CgroupProbeResult struct {
 
 // DefaultSliceDir is the stable top-level parent used when nested enforcement
 // is not reachable. Exported so tests and the detect command can reference it.
-const DefaultSliceDir = "/sys/fs/cgroup/agentsh.slice"
+const DefaultSliceDir = "/sys/fs/cgroup/agentmon.slice"
 
 // ProbeCgroupsV2 runs the decision tree described in the design spec:
 //
@@ -77,10 +77,10 @@ func ProbeCgroupsV2(ctx context.Context, fs cgroupFS, ownHint string, permitAtta
 			return nil, fmt.Errorf("discover own cgroup: %w", err)
 		}
 		own = discovered
-		// Normalize auto-discovered path: if the process is in a "agentsh.leaf"
+		// Normalize auto-discovered path: if the process is in a "agentmon.leaf"
 		// sub-cgroup created by a prior probe, use the parent as the
 		// enforcement root. Not applied to caller-provided ownHint.
-		if filepath.Base(own) == "agentsh.leaf" {
+		if filepath.Base(own) == "agentmon.leaf" {
 			own = filepath.Dir(own)
 			leafResident = true
 		}
@@ -91,7 +91,7 @@ func ProbeCgroupsV2(ctx context.Context, fs cgroupFS, ownHint string, permitAtta
 		if err != nil {
 			return nil, fmt.Errorf("discover own cgroup for relative base path: %w", err)
 		}
-		if filepath.Base(cur) == "agentsh.leaf" {
+		if filepath.Base(cur) == "agentmon.leaf" {
 			cur = filepath.Dir(cur)
 			leafResident = true
 		}
@@ -101,7 +101,7 @@ func ProbeCgroupsV2(ctx context.Context, fs cgroupFS, ownHint string, permitAtta
 		// leaf sub-cgroup for accurate LeafMoved telemetry, but don't
 		// alter the provided own path.
 		if cur, err := CurrentCgroupDir(); err == nil {
-			if cur == filepath.Join(own, "agentsh.leaf") {
+			if cur == filepath.Join(own, "agentmon.leaf") {
 				leafResident = true
 			}
 		}
@@ -177,7 +177,7 @@ func ProbeCgroupsV2(ctx context.Context, fs cgroupFS, ownHint string, permitAtta
 		}, nil
 	}
 
-	// Step 4b: if EBUSY, try leaf-move — create own/agentsh.leaf, move self there,
+	// Step 4b: if EBUSY, try leaf-move — create own/agentmon.leaf, move self there,
 	// retry enabling controllers on the now-empty parent.
 	if errors.Is(enableErr, syscall.EBUSY) {
 		moved, enabled, retryErr := tryLeafMove(fs, own)
@@ -251,7 +251,7 @@ func ProbeCgroupsV2Default(ctx context.Context) (*CgroupProbeResult, error) {
 // reasons), so we fail closed in that case rather than falsely claim
 // writability.
 func probeNestedWritability(fs cgroupFS, own string) error {
-	name := fmt.Sprintf("agentsh.write-probe-%d-%d", os.Getpid(), time.Now().UnixNano())
+	name := fmt.Sprintf("agentmon.write-probe-%d-%d", os.Getpid(), time.Now().UnixNano())
 	probeDir := filepath.Join(own, name)
 	if err := fs.Mkdir(probeDir, 0o755); err != nil {
 		return err
@@ -273,7 +273,7 @@ func probeNestedWritability(fs cgroupFS, own string) error {
 // created, cleanup may have failed for unrelated reasons), so we fail closed
 // rather than falsely claim writability.
 func probeTopLevelLimitWritability(fs cgroupFS, sliceDir string) error {
-	name := fmt.Sprintf("agentsh.limit-probe-%d-%d", os.Getpid(), time.Now().UnixNano())
+	name := fmt.Sprintf("agentmon.limit-probe-%d-%d", os.Getpid(), time.Now().UnixNano())
 	probeDir := filepath.Join(sliceDir, name)
 	if err := fs.Mkdir(probeDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir probe child: %w", err)
@@ -287,8 +287,8 @@ func probeTopLevelLimitWritability(fs cgroupFS, sliceDir string) error {
 }
 
 // tryLeafMove handles the EBUSY case: the own cgroup has internal processes
-// (including agentsh itself), preventing subtree_control writes. We create a
-// "agentsh.leaf" child cgroup, move the current process into it, and retry enabling
+// (including agentmon itself), preventing subtree_control writes. We create a
+// "agentmon.leaf" child cgroup, move the current process into it, and retry enabling
 // controllers on the parent. This is the standard pattern for systemd services
 // that need to manage child cgroups.
 //
@@ -297,7 +297,7 @@ func probeTopLevelLimitWritability(fs cgroupFS, sliceDir string) error {
 // enabled on the parent after the move; retryErr is the error from the
 // enable retry (nil when enabled is true).
 func tryLeafMove(fs cgroupFS, own string) (moved, enabled bool, retryErr error) {
-	leafDir := filepath.Join(own, "agentsh.leaf")
+	leafDir := filepath.Join(own, "agentmon.leaf")
 	if err := fs.Mkdir(leafDir, 0o755); err != nil {
 		if !errors.Is(err, syscall.EEXIST) {
 			return false, false, fmt.Errorf("mkdir leaf: %w", err)
@@ -380,7 +380,7 @@ func tryTopLevel(ctx context.Context, fs cgroupFS, own, nestedFailureReason stri
 		}, nil
 	}
 
-	// Reap orphans left behind by a prior agentsh crash.
+	// Reap orphans left behind by a prior agentmon crash.
 	reaped := reapOrphansFS(fs, DefaultSliceDir)
 
 	return &CgroupProbeResult{
@@ -416,7 +416,7 @@ func reapOrphansFS(fs cgroupFS, sliceDir string) []string {
 			continue
 		}
 		if err := fs.Remove(child); err != nil {
-			fmt.Fprintf(os.Stderr, "agentsh: reap orphan %s: %v\n", child, err)
+			fmt.Fprintf(os.Stderr, "agentmon: reap orphan %s: %v\n", child, err)
 			continue
 		}
 		reaped = append(reaped, e.Name())
@@ -526,7 +526,7 @@ func maybeUpgradeToAttachOnly(fs cgroupFS, res *CgroupProbeResult, err error, ow
 // reasons), so we fail closed in that case rather than falsely claim
 // feasibility.
 func probeAttachOnlyFeasibility(fs cgroupFS, parentDir string) (bool, error) {
-	name := fmt.Sprintf("agentsh.attach-probe-%d-%d", os.Getpid(), time.Now().UnixNano())
+	name := fmt.Sprintf("agentmon.attach-probe-%d-%d", os.Getpid(), time.Now().UnixNano())
 	testDir := filepath.Join(parentDir, name)
 	if err := fs.Mkdir(testDir, 0o755); err != nil {
 		return false, fmt.Errorf("mkdir %s: %w", testDir, err)

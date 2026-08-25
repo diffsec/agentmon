@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/capabilities"
-	"github.com/agentsh/agentsh/internal/landlock"
+	"github.com/diffsec/agentmon/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/landlock"
 )
 
 func TestLandlockEnforcement_BlocksUnauthorizedAccess(t *testing.T) {

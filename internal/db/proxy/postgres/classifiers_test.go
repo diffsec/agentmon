@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
 )
 
 func TestBuildClassifierMap_PerDialect(t *testing.T) {

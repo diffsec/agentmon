@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/proxy/secrets"
+	"github.com/diffsec/agentmon/internal/proxy/secrets"
 	"github.com/gobwas/glob"
 	"gopkg.in/yaml.v3"
 )
@@ -91,7 +91,7 @@ var httpServiceNameRe = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 var reservedEnvVarNames = map[string]struct{}{
 	"ANTHROPIC_BASE_URL": {},
 	"OPENAI_BASE_URL":    {},
-	"AGENTSH_SESSION_ID": {},
+	"AGENTMON_SESSION_ID": {},
 }
 
 // httpServiceAllowInsecureUpstreamForTest, when true, lets ValidateHTTPServices

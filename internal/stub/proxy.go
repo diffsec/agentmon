@@ -7,7 +7,7 @@ import (
 	"net"
 )
 
-// RunProxy connects the stub to the agentsh server over conn,
+// RunProxy connects the stub to the agentmon server over conn,
 // forwarding stdin/stdout/stderr and returning the remote exit code.
 //
 // Flow:

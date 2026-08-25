@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// MCPEventForwarder sends MCP events to the agentsh server via Unix socket.
+// MCPEventForwarder sends MCP events to the agentmon server via Unix socket.
 type MCPEventForwarder struct {
 	conn net.Conn
 	mu   sync.Mutex
@@ -36,7 +36,7 @@ func (f *MCPEventForwarder) Close() error {
 	return nil
 }
 
-// Emit sends an event to the agentsh server.
+// Emit sends an event to the agentmon server.
 func (f *MCPEventForwarder) Emit(event interface{}) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
