@@ -85,7 +85,12 @@ check_bundle() {
   local required_ents=""
   case "$label" in
     app)    required_ents="com.apple.developer.system-extension.install" ;;
-    sysext) required_ents="com.apple.developer.endpoint-security.client com.apple.developer.networking.networkextension" ;;
+    # networking.networkextension is deliberately NOT required here: the sysext
+    # does not start a NetworkExtension yet (main.swift never calls
+    # NEProvider.startSystemExtensionMode), so it no longer claims the
+    # entitlement. Check 5 still validates it automatically if it is ever
+    # claimed again. Re-add it here when the NE is actually wired up.
+    sysext) required_ents="com.apple.developer.endpoint-security.client" ;;
   esac
   if [ "$have_ents" -eq 1 ]; then
     for ent in $required_ents; do

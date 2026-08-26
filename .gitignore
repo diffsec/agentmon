@@ -40,3 +40,7 @@ build/
 /db07cclient
 /gen-wire-goldens
 /test_helper
+
+# Xcode per-user state (editor layout, scheme ordering) -- never shared
+xcuserdata/
+*.xcuserstate
