@@ -143,29 +143,6 @@ func TestPolicyDiffDNSRules(t *testing.T) {
 	}
 }
 
-func TestPolicyDiffRegistryRules(t *testing.T) {
-	old := &PolicyFiles{
-		Registry: &RegistryPolicyConfig{
-			Rules: []RegistryPolicyRule{
-				{Name: "reg1"},
-				{Name: "reg2"},
-			},
-		},
-	}
-
-	new := &PolicyFiles{
-		Registry: &RegistryPolicyConfig{
-			Rules: []RegistryPolicyRule{{Name: "reg1"}},
-		},
-	}
-
-	diff := PolicyDiff(old, new)
-
-	if !strings.Contains(diff, "-1") {
-		t.Errorf("expected -1 rule in diff for registry, got: %s", diff)
-	}
-}
-
 func TestPolicyDiffNoChanges(t *testing.T) {
 	old := &PolicyFiles{
 		File: &FilePolicyConfig{

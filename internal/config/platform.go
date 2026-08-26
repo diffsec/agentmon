@@ -78,36 +78,21 @@ func GetMountPoint(cfg *Config) string {
 		return cfg.Platform.MountPoints.Linux
 	case platform.ModeDarwinNative, platform.ModeDarwinLima:
 		return cfg.Platform.MountPoints.Darwin
-	case platform.ModeWindowsNative:
-		return cfg.Platform.MountPoints.Windows
-	case platform.ModeWindowsWSL2:
-		return cfg.Platform.MountPoints.WindowsWSL2
 	default:
 		// Fallback based on runtime OS
-		switch runtime.GOOS {
-		case "windows":
-			return cfg.Platform.MountPoints.Windows
-		case "darwin":
+		if runtime.GOOS == "darwin" {
 			return cfg.Platform.MountPoints.Darwin
-		default:
-			return cfg.Platform.MountPoints.Linux
 		}
+		return cfg.Platform.MountPoints.Linux
 	}
 }
 
 // GetDataDir returns the platform-appropriate data directory.
 func GetDataDir() string {
-	switch runtime.GOOS {
-	case "windows":
-		if dir := os.Getenv("PROGRAMDATA"); dir != "" {
-			return dir + `\agentsh`
-		}
-		return `C:\ProgramData\agentsh`
-	case "darwin":
+	if runtime.GOOS == "darwin" {
 		return "/usr/local/var/agentsh"
-	default:
-		return "/var/lib/agentsh"
 	}
+	return "/var/lib/agentsh"
 }
 
 // GetConfigDir returns the platform-appropriate config directory.

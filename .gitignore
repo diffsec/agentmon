@@ -31,3 +31,12 @@ internal/netmonitor/ebpf/vmlinux.h
 build/
 /agentsh-unixwrap
 /agentsh-stub
+/agentsh-shell-shim
+/agentsh-macwrap
+/agentsh-rlimit-exec
+/dbclassify-pg
+/seccomp-probe
+/wtp-testserver
+/db07cclient
+/gen-wire-goldens
+/test_helper

@@ -50,17 +50,6 @@ func PolicyDiff(oldPolicy, newPolicy *PolicyFiles) string {
 			}
 		}
 
-		// Registry rules (Windows)
-		if oldPolicy.Registry != nil && newPolicy.Registry != nil {
-			oldRules := len(oldPolicy.Registry.Rules)
-			newRules := len(newPolicy.Registry.Rules)
-			if newRules > oldRules {
-				added += newRules - oldRules
-			} else if oldRules > newRules {
-				removed += oldRules - newRules
-			}
-		}
-
 		// Env policy
 		if oldPolicy.Env != nil && newPolicy.Env != nil {
 			oldItems := len(oldPolicy.Env.Allowlist) + len(oldPolicy.Env.Blocklist) + len(oldPolicy.Env.SensitivePatterns)

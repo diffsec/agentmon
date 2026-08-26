@@ -2,9 +2,7 @@
 .PHONY: smoke ptrace-test dns-test seccomp-probe bench
 .PHONY: completions package-snapshot package-release
 .PHONY: build-macos-enterprise build-macos-go build-swift assemble-bundle sign-bundle
-.PHONY: build-driver build-driver-debug install-driver uninstall-driver build-windows-full
 .PHONY: build-macwrap
-.PHONY: build-approval-dialog-windows
 
 VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null || echo dev)
 COMMIT := $(shell git rev-parse --short=7 HEAD 2>/dev/null || echo unknown)
@@ -121,54 +119,3 @@ sign-bundle:
 build-macos-enterprise: assemble-bundle sign-bundle
 	scripts/verify-macos-bundle.sh build/AgentSH.app
 	@echo "Enterprise build complete: build/AgentSH.app"
-
-# =============================================================================
-# Windows Driver Build (Minifilter)
-# NOTE: These targets require Windows with WDK installed
-# =============================================================================
-
-# Build Windows driver (Release)
-build-driver:
-	@echo "Building Windows driver (Release)..."
-	cd drivers/windows/agentsh-minifilter && scripts/build.cmd Release x64
-
-# Build Windows driver (Debug)
-build-driver-debug:
-	@echo "Building Windows driver (Debug)..."
-	cd drivers/windows/agentsh-minifilter && scripts/build.cmd Debug x64
-
-# Install Windows driver
-install-driver:
-	@echo "Installing Windows driver..."
-	cd drivers/windows/agentsh-minifilter && scripts/install.cmd
-
-# Uninstall Windows driver
-uninstall-driver:
-	@echo "Uninstalling Windows driver..."
-	cd drivers/windows/agentsh-minifilter && scripts/uninstall.cmd
-
-# Build Windows ApprovalDialog (requires Windows with Visual Studio/MSBuild)
-# MSBuild path varies by Visual Studio version. Override with:
-#   make MSBUILD="path\to\MSBuild.exe" build-approval-dialog-windows
-# Common paths:
-#   VS 2022: C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe
-#   VS 2019: C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\MSBuild\Current\Bin\MSBuild.exe
-MSBUILD ?= MSBuild.exe
-
-build-approval-dialog-windows:
-	@echo "Building Windows ApprovalDialog..."
-	mkdir -p build/windows
-	$(MSBUILD) windows/ApprovalDialog/ApprovalDialog.csproj \
-		-p:Configuration=Release \
-		-p:OutputPath=$(CURDIR)/build/windows \
-		-verbosity:minimal
-	@echo "Windows ApprovalDialog built: build/windows/agentsh-approval-dialog.exe"
-
-# Full Windows build (Go + driver + ApprovalDialog)
-build-windows-full: build-driver build-approval-dialog-windows
-	mkdir -p bin
-	GOOS=windows GOARCH=amd64 go build -o bin/agentsh.exe ./cmd/agentsh
-	@echo "Windows build complete:"
-	@echo "  - bin/agentsh.exe"
-	@echo "  - build/windows/agentsh-approval-dialog.exe"
-	@echo "  - drivers/windows/agentsh-minifilter/..."

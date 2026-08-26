@@ -2,9 +2,7 @@ package platform
 
 import (
 	"fmt"
-	"os"
 	"runtime"
-	"strings"
 )
 
 // PlatformOptions configures platform selection and fallback.
@@ -76,62 +74,27 @@ func NewWithMode(mode PlatformMode) (Platform, error) {
 		return newDarwinPlatform()
 	case ModeDarwinLima:
 		return newDarwinLimaPlatform()
-	case ModeWindowsNative:
-		return newWindowsPlatform()
-	case ModeWindowsWSL2:
-		return newWindowsWSL2Platform()
 	default:
 		return nil, fmt.Errorf("unsupported platform mode: %v", mode)
 	}
 }
 
 // detectPlatformMode determines the best platform mode for the current system.
+//
+// Detection is deliberately deterministic: it depends only on GOOS, never on
+// ambient machine state. In particular macOS always resolves to the native
+// ESF backend. ModeDarwinLima exists but must be requested explicitly, because
+// auto-selecting it whenever any Lima or Colima VM happened to be running (for
+// Docker, say) silently swapped the entire enforcement backend out from under
+// the operator.
 func detectPlatformMode() PlatformMode {
 	switch runtime.GOOS {
-	case "linux":
-		// Check if we're running in WSL2
-		if isWSL2() {
-			// WSL2 uses the Linux implementation
-			return ModeLinuxNative
-		}
-		return ModeLinuxNative
-
 	case "darwin":
-		// macOS - check for Lima first, then fall back to native
-		if isLimaAvailable() {
-			return ModeDarwinLima
-		}
 		return ModeDarwinNative
-
-	case "windows":
-		// Check if WSL2 is available and preferred
-		if isWSL2Available() {
-			return ModeWindowsWSL2
-		}
-		return ModeWindowsNative
-
 	default:
-		// Unknown OS - try Linux as fallback
+		// Linux natively, and as the fallback for any other GOOS.
 		return ModeLinuxNative
 	}
-}
-
-// isWSL2 checks if we're running inside WSL2.
-func isWSL2() bool {
-	data, err := os.ReadFile("/proc/version")
-	if err != nil {
-		return false
-	}
-	lower := strings.ToLower(string(data))
-	return strings.Contains(lower, "microsoft") || strings.Contains(lower, "wsl")
-}
-
-// isWSL2Available checks if WSL2 is available on Windows.
-// This is called from Windows to check if WSL2 can be used.
-func isWSL2Available() bool {
-	// This would be implemented in windows-specific code
-	// For now, return false as a stub
-	return false
 }
 
 // Detect returns information about the current platform without creating it.
@@ -176,11 +139,9 @@ func MustNewWithMode(mode PlatformMode) Platform {
 // These are variables so they can be set by build-tag-specific files.
 
 var (
-	newLinuxPlatform       func() (Platform, error)
-	newDarwinPlatform      func() (Platform, error)
-	newDarwinLimaPlatform  func() (Platform, error)
-	newWindowsPlatform     func() (Platform, error)
-	newWindowsWSL2Platform func() (Platform, error)
+	newLinuxPlatform      func() (Platform, error)
+	newDarwinPlatform     func() (Platform, error)
+	newDarwinLimaPlatform func() (Platform, error)
 )
 
 // Registration functions for platform-specific packages to call in their init().
@@ -198,16 +159,6 @@ func RegisterDarwin(constructor func() (Platform, error)) {
 // RegisterDarwinLima registers the macOS+Lima platform constructor.
 func RegisterDarwinLima(constructor func() (Platform, error)) {
 	newDarwinLimaPlatform = constructor
-}
-
-// RegisterWindows registers the Windows platform constructor.
-func RegisterWindows(constructor func() (Platform, error)) {
-	newWindowsPlatform = constructor
-}
-
-// RegisterWindowsWSL2 registers the Windows+WSL2 platform constructor.
-func RegisterWindowsWSL2(constructor func() (Platform, error)) {
-	newWindowsWSL2Platform = constructor
 }
 
 // platformNotImplemented returns an error for unimplemented platforms.
@@ -230,16 +181,6 @@ func init() {
 	if newDarwinLimaPlatform == nil {
 		newDarwinLimaPlatform = func() (Platform, error) {
 			return platformNotImplemented("darwin-lima")
-		}
-	}
-	if newWindowsPlatform == nil {
-		newWindowsPlatform = func() (Platform, error) {
-			return platformNotImplemented("windows")
-		}
-	}
-	if newWindowsWSL2Platform == nil {
-		newWindowsWSL2Platform = func() (Platform, error) {
-			return platformNotImplemented("windows-wsl2")
 		}
 	}
 }

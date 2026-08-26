@@ -276,7 +276,6 @@ func clonePolicy(p *policy.Policy) *policy.Policy {
 	clone.NetworkRules = append([]policy.NetworkRule(nil), p.NetworkRules...)
 	clone.CommandRules = append([]policy.CommandRule(nil), p.CommandRules...)
 	clone.UnixRules = append([]policy.UnixSocketRule(nil), p.UnixRules...)
-	clone.RegistryRules = append([]policy.RegistryRule(nil), p.RegistryRules...)
 	clone.SignalRules = append([]policy.SignalRule(nil), p.SignalRules...)
 	clone.DnsRedirectRules = append([]policy.DnsRedirectRule(nil), p.DnsRedirectRules...)
 	clone.ConnectRedirectRules = append([]policy.ConnectRedirectRule(nil), p.ConnectRedirectRules...)

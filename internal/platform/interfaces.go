@@ -419,9 +419,6 @@ type PolicyEngine interface {
 
 	// CheckCommand evaluates command execution
 	CheckCommand(cmd string, args []string) Decision
-
-	// CheckRegistry evaluates Windows registry access (Windows-only)
-	CheckRegistry(path string, op string) Decision
 }
 
 // Config holds platform initialization configuration.

@@ -107,8 +107,6 @@ func TestPlatformMode_String(t *testing.T) {
 		{platform.ModeLinuxNative, "linux-native"},
 		{platform.ModeDarwinNative, "darwin-native"},
 		{platform.ModeDarwinLima, "darwin-lima"},
-		{platform.ModeWindowsNative, "windows-native"},
-		{platform.ModeWindowsWSL2, "windows-wsl2"},
 	}
 
 	for _, tt := range tests {
@@ -143,13 +141,8 @@ func TestParsePlatformMode(t *testing.T) {
 		{"lima", platform.ModeDarwinLima},
 
 		// Windows
-		{"windows", platform.ModeWindowsNative},
-		{"windows-native", platform.ModeWindowsNative},
 
 		// Windows WSL2
-		{"windows-wsl2", platform.ModeWindowsWSL2},
-		{"wsl2", platform.ModeWindowsWSL2},
-		{"wsl", platform.ModeWindowsWSL2},
 
 		// Unknown defaults to auto
 		{"unknown", platform.ModeAuto},

@@ -12,8 +12,6 @@ func TestGetMountPoint(t *testing.T) {
 	cfg.Platform.Mode = "auto"
 	cfg.Platform.MountPoints.Linux = "/tmp/agentsh/linux"
 	cfg.Platform.MountPoints.Darwin = "/tmp/agentsh/darwin"
-	cfg.Platform.MountPoints.Windows = "X:"
-	cfg.Platform.MountPoints.WindowsWSL2 = "/tmp/agentsh/wsl2"
 
 	// Test with auto mode - should return based on current OS
 	mp := GetMountPoint(cfg)
@@ -25,10 +23,6 @@ func TestGetMountPoint(t *testing.T) {
 	case "darwin":
 		if mp != "/tmp/agentsh/darwin" {
 			t.Errorf("GetMountPoint() = %q, want %q", mp, "/tmp/agentsh/darwin")
-		}
-	case "windows":
-		if mp != "X:" {
-			t.Errorf("GetMountPoint() = %q, want %q", mp, "X:")
 		}
 	}
 
@@ -45,16 +39,12 @@ func TestGetMountPoint(t *testing.T) {
 		t.Errorf("GetMountPoint(darwin) = %q, want %q", mp, "/tmp/agentsh/darwin")
 	}
 
+	// An unrecognised mode falls back to the runtime OS, never to a
+	// Windows mount point -- Windows support was removed.
 	cfg.Platform.Mode = "windows"
 	mp = GetMountPoint(cfg)
-	if mp != "X:" {
-		t.Errorf("GetMountPoint(windows) = %q, want %q", mp, "X:")
-	}
-
-	cfg.Platform.Mode = "windows-wsl2"
-	mp = GetMountPoint(cfg)
-	if mp != "/tmp/agentsh/wsl2" {
-		t.Errorf("GetMountPoint(windows-wsl2) = %q, want %q", mp, "/tmp/agentsh/wsl2")
+	if mp != "/tmp/agentsh/darwin" && mp != "/tmp/agentsh/linux" {
+		t.Errorf("GetMountPoint(unknown mode) = %q, want the host OS mount point", mp)
 	}
 }
 
