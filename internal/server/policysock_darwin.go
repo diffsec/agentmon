@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/platform/darwin"
 	"github.com/diffsec/agentmon/internal/platform/darwin/policysock"
 	"github.com/diffsec/agentmon/internal/policy"
 )
@@ -49,6 +50,14 @@ func (s *Server) startPolicySocket(cfg *config.Config, engine *policy.Engine) {
 	psrv.SetSessionRegistrar(tracker)
 	psrv.SetEventHandler(eventHandler)
 
+	// Register the extension-presence probe so CheckSysExtLiveness can tell a
+	// working extension from a crash-looping one. Without this, liveness is
+	// decided by the launchd service state alone, which reports a process
+	// denied Full Disk Access as "running" for part of every respawn cycle --
+	// and `agentmon wrap` gates on that, so it would intermittently launch an
+	// agent believing ESF was enforcing when it was not.
+	darwin.SetExtensionPresenceProbe(psrv.ExtensionConnected)
+
 	// Store resolver and tracker so exec handler can register PIDs and sessions.
 	s.cmdResolver = cmdResolver
 	s.sessionTracker = tracker
@@ -76,4 +85,21 @@ func (s *Server) startPolicySocket(cfg *config.Config, engine *policy.Engine) {
 	}
 
 	slog.Info("policy socket server started", "path", sockPath)
+
+	// Tell the extension the socket is back.
+	//
+	// Without this, a restarted server is invisible to a running extension.
+	// The event stream is write-only -- PolicySocketClient has no read loop,
+	// and streamConnected only flips to false inside writeEvent when a write
+	// fails -- so when the server goes away while no events are flowing (no
+	// active session), the extension keeps a dead fd, never fails a write,
+	// and therefore never calls scheduleReconnect. Measured: 45 seconds with
+	// zero reconnect attempts against a 30-second maximum backoff, on a
+	// healthy extension, with `lsof` showing no client connection at all.
+	//
+	// The Swift side observes this notification and forces
+	// doConnectEventStream, which closes any stale fd first, so it recovers
+	// the case above rather than merely racing it. NotifyPolicyUpdated had no
+	// callers anywhere before this.
+	darwin.NotifyPolicyUpdated()
 }

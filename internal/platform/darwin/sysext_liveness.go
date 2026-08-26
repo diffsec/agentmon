@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -28,6 +29,58 @@ type SysExtLiveness struct {
 	State       string // raw launchd state ("running", "spawn scheduled", ...); "" if unknown
 	LastExit    string // "exit code 1", "OS_REASON_EXEC ...", ...; "" if none
 	Detail      string // human-readable one-liner; tips.go matches substrings of this
+
+	// Connected reports whether the extension currently holds a connection to
+	// the policy socket. ConnectionChecked says whether that could be
+	// determined at all -- it can only be answered inside the process running
+	// the policy socket server, so a standalone `agentmon detect` leaves it
+	// false.
+	//
+	// This exists because launchd state answers the wrong question. It reports
+	// whether the PROCESS is up, and a crash-looping extension is up for part
+	// of every cycle: an extension denied Full Disk Access fails
+	// es_new_client, retries three times, exits 1, and launchd respawns it.
+	// Sampling `agentmon detect` through that loop returned 40/100, 65/100,
+	// 40/100 in nine seconds while the ES client was dead throughout.
+	//
+	// A connection is stronger evidence. main.swift connects here only after
+	// ESFClient.create() and subscribe() have both succeeded, and the
+	// connection is persistent with reconnect-on-failure, so holding one means
+	// the ES client exists and is subscribed.
+	Connected         bool
+	ConnectionChecked bool
+	LastContact       time.Time
+}
+
+// extensionPresence is set by the policy socket server when it starts, so
+// CheckSysExtLiveness can consult it without internal/platform/darwin
+// importing policysock (which would be an import cycle).
+//
+// Left nil in any process that is not running the server -- `agentmon detect`
+// on the command line, for instance -- in which case ConnectionChecked stays
+// false and callers fall back to the launchd state, knowing it is weaker.
+var (
+	extensionPresenceMu sync.RWMutex
+	extensionPresence   func() (bool, time.Time)
+)
+
+// SetExtensionPresenceProbe registers the source of truth for whether the
+// system extension is connected. Pass nil to clear it.
+func SetExtensionPresenceProbe(fn func() (bool, time.Time)) {
+	extensionPresenceMu.Lock()
+	extensionPresence = fn
+	extensionPresenceMu.Unlock()
+}
+
+func checkExtensionPresence() (checked, connected bool, last time.Time) {
+	extensionPresenceMu.RLock()
+	fn := extensionPresence
+	extensionPresenceMu.RUnlock()
+	if fn == nil {
+		return false, false, time.Time{}
+	}
+	connected, last = fn()
+	return true, connected, last
 }
 
 // runLivenessCommand executes a probe command with a timeout. Package-level
@@ -158,10 +211,54 @@ func CheckSysExtLiveness() SysExtLiveness {
 	state, lastExit := parseLaunchdState(lout)
 	liveness.State = state
 	liveness.LastExit = lastExit
+	checked, connected, last := checkExtensionPresence()
+	liveness.ConnectionChecked = checked
+	liveness.Connected = connected
+	liveness.LastContact = last
+
 	switch state {
 	case "running":
+		// "running" alone is not proof of anything useful. An extension denied
+		// Full Disk Access fails es_new_client, retries three times, exits 1,
+		// and is respawned by launchd -- so for part of every cycle it reads
+		// as running while enforcing nothing. Sampling `agentmon detect`
+		// through that loop on a real machine returned 40/100, 65/100, 40/100
+		// in nine seconds.
+		//
+		// A respawn changes the pid, so sampling it twice separates a healthy
+		// extension from a crash-looping one. This is deliberately not keyed
+		// on a policy-socket connection: policy checks use short-lived
+		// connections (PolicySocketClient.sendSync opens and closes one per
+		// request), so there is nothing to observe at idle, and the persistent
+		// event-stream connection was measured NOT to re-establish after a
+		// server restart -- gating on it refused wrap on a demonstrably
+		// healthy extension.
+		// Only pay for the pid sample when there is a reason to suspect a
+		// loop. A crash-looping extension always leaves a non-empty last exit
+		// -- it is exiting, repeatedly -- while a healthy one that has never
+		// died leaves it empty, so this skips the wait in the common case.
+		// Without the guard every liveness call slept, and the internal/api
+		// suite went from about 7 seconds to over 300.
+		if lastExit == "" {
+			liveness.Running = true
+			liveness.Detail = "running"
+			if checked && connected {
+				liveness.Detail = "running (extension connected to the policy socket)"
+			}
+			break
+		}
+		if stable, detail := pidIsStable(label); !stable {
+			liveness.Detail = detail
+			if lastExit != "" {
+				liveness.Detail += " (last exit: " + lastExit + ")"
+			}
+			break
+		}
 		liveness.Running = true
 		liveness.Detail = "running"
+		if checked && connected {
+			liveness.Detail = "running (extension connected to the policy socket)"
+		}
 	case "":
 		liveness.ProbeFailed = true
 		liveness.Detail = "activated but liveness could not be verified (no state in launchctl output)"
@@ -176,4 +273,44 @@ func CheckSysExtLiveness() SysExtLiveness {
 		liveness.Detail = detail + ")"
 	}
 	return liveness
+}
+
+// pidStabilityWindow is how long to wait between pid samples. A crash-looping
+// extension turns over in roughly seven seconds (three es_new_client retries
+// two seconds apart, then exit), so a shorter wait can straddle one pid and
+// miss the loop.
+var pidStabilityWindow = 3 * time.Second
+
+// pidIsStable samples the launchd job's pid twice and reports whether it held.
+//
+// Returns a human-readable reason when it did not, for Detail.
+func pidIsStable(label string) (bool, string) {
+	first, ok := launchdPID(label)
+	if !ok {
+		// No pid to compare. Do not claim instability on a missing field --
+		// callers already treat an unparseable probe as fail-closed elsewhere.
+		return true, ""
+	}
+	time.Sleep(pidStabilityWindow)
+	second, ok := launchdPID(label)
+	if !ok {
+		return false, "process disappeared while being checked, so the extension is restarting rather than running"
+	}
+	if first != second {
+		return false, fmt.Sprintf("process is restarting repeatedly (pid %s then %s within %s), so its Endpoint Security client never becomes active", first, second, pidStabilityWindow)
+	}
+	return true, ""
+}
+
+func launchdPID(label string) (string, bool) {
+	out, err := runLivenessCommand("launchctl", "print", label)
+	if err != nil {
+		return "", false
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(line), "pid = "); ok {
+			return strings.TrimSpace(v), true
+		}
+	}
+	return "", false
 }

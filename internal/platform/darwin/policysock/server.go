@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"time"
 )
 
 // PolicyHandler handles policy queries from the policy socket bridge.
@@ -100,19 +101,32 @@ type PNACLEventRequest struct {
 
 // Server listens on a Unix socket for policy queries.
 type Server struct {
-	sockPath           string
-	handler            PolicyHandler
-	pnaclHandler       PNACLHandler
-	execHandler        ExecHandler
-	sessionRegistrar   SessionRegistrar
-	eventHandler       EventHandler
-	snapshotBuilder    SnapshotBuilder
-	teamID             string
-	listener           net.Listener
-	mu                 sync.Mutex
-	wg                 sync.WaitGroup
-	ready              chan struct{} // closed when server startup completes (check startErr)
-	startErr           error        // non-nil if Run failed during startup
+	sockPath         string
+	handler          PolicyHandler
+	pnaclHandler     PNACLHandler
+	execHandler      ExecHandler
+	sessionRegistrar SessionRegistrar
+	eventHandler     EventHandler
+	snapshotBuilder  SnapshotBuilder
+	teamID           string
+	listener         net.Listener
+	mu               sync.Mutex
+	wg               sync.WaitGroup
+	ready            chan struct{} // closed when server startup completes (check startErr)
+	startErr         error         // non-nil if Run failed during startup
+
+	// activeConns counts system-extension connections currently open, and
+	// lastContact records when one last spoke to us.
+	//
+	// These exist to answer "is the extension actually working", which the
+	// launchd service state cannot. main.swift connects here only AFTER
+	// ESFClient.create() and esfClient.subscribe() have both succeeded, so a
+	// live connection is positive proof the ES client exists and is
+	// subscribed. A crash-looping extension -- for example one denied Full
+	// Disk Access, which retries three times and exits -- shows up to launchd
+	// as "running" for part of its cycle while never reaching this point.
+	activeConns int
+	lastContact time.Time
 }
 
 // NewServer creates a new policy socket server.
@@ -275,6 +289,9 @@ func (s *Server) handleConn(conn net.Conn) {
 	defer s.wg.Done()
 	defer conn.Close()
 
+	s.connOpened()
+	defer s.connClosed()
+
 	decoder := json.NewDecoder(conn)
 	encoder := json.NewEncoder(conn)
 
@@ -292,6 +309,7 @@ func (s *Server) handleConn(conn net.Conn) {
 	}
 
 	// Normal request-response mode.
+	s.noteContact()
 	resp := s.handleRequest(&req)
 	if err := encoder.Encode(resp); err != nil {
 		return
@@ -302,6 +320,7 @@ func (s *Server) handleConn(conn net.Conn) {
 		if err := decoder.Decode(&next); err != nil {
 			return
 		}
+		s.noteContact()
 		resp := s.handleRequest(&next)
 		if err := encoder.Encode(resp); err != nil {
 			return
@@ -594,4 +613,41 @@ func (s *Server) handleMutePath(req *PolicyRequest) PolicyResponse {
 		"path", req.Path,
 	)
 	return PolicyResponse{Allow: true, Success: true}
+}
+
+// connOpened / connClosed / noteContact maintain the extension-presence
+// signal. Kept trivial and lock-scoped so they can be called on the hot path.
+func (s *Server) connOpened() {
+	s.mu.Lock()
+	s.activeConns++
+	s.lastContact = time.Now()
+	s.mu.Unlock()
+}
+
+func (s *Server) connClosed() {
+	s.mu.Lock()
+	if s.activeConns > 0 {
+		s.activeConns--
+	}
+	s.mu.Unlock()
+}
+
+func (s *Server) noteContact() {
+	s.mu.Lock()
+	s.lastContact = time.Now()
+	s.mu.Unlock()
+}
+
+// ExtensionConnected reports whether a system extension is currently connected
+// to the policy socket, and when it last spoke.
+//
+// This is the signal to trust when deciding whether macOS is enforcing.
+// Callers should treat "connected" as a requirement in addition to the launchd
+// state, not as a replacement: a connection that is open but silent proves the
+// extension reached subscribe() at some point, and lastContact is what
+// distinguishes that from one still doing useful work.
+func (s *Server) ExtensionConnected() (connected bool, lastContact time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.activeConns > 0, s.lastContact
 }

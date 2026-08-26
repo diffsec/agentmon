@@ -159,6 +159,13 @@ class PolicySocketClient {
         setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
 
+        // Suppress SIGPIPE on this socket. Writing to a socket whose peer has
+        // gone raises SIGPIPE by default, which would kill the extension --
+        // taking Endpoint Security enforcement down with it -- instead of
+        // returning the error writeEvent and the keepalive probe expect.
+        var nosigpipe: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &nosigpipe, socklen_t(MemoryLayout<Int32>.size))
+
         // Send init message
         let initMsg: [String: Any] = ["type": "event_stream_init"]
         guard let initData = try? JSONSerialization.data(withJSONObject: initMsg) else {

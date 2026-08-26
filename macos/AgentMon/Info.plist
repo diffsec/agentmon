@@ -10,8 +10,16 @@
 	<string>AgentMon System Extension</string>
 	<key>CFBundlePackageType</key>
 	<string>SYSX</string>
+	<!-- Build number, substituted from CURRENT_PROJECT_VERSION at build time.
+	     It must increase on every release: macOS replaces an installed system
+	     extension only when the new one carries a higher version, and this was
+	     hardcoded to 1.0.0 with nothing anywhere setting it. Verified the
+	     consequence directly -- installing a rebuilt bundle left the previous
+	     extension running, with the new one staged in /Library/SystemExtensions
+	     and never swapped in. Shipped as-is, users would keep the first
+	     extension they ever installed and receive no fixes to it. -->
 	<key>CFBundleVersion</key>
-	<string>1.0.0</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<!-- Claiming the networkextension entitlement makes sysextd run the

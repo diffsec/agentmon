@@ -99,12 +99,18 @@ build-macos-go:
 	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build $(LDFLAGS) -o build/go-local/agentmon-macwrap ./cmd/agentmon-macwrap
 
 # Build Swift components via Xcode (requires macOS with Xcode)
+# SYSEXT_BUILD_NUMBER must increase on every release: macOS replaces an
+# installed system extension only when the incoming one carries a higher
+# CFBundleVersion. The commit count is monotonic and needs no bookkeeping.
+SYSEXT_BUILD_NUMBER ?= $(shell git rev-list --count HEAD 2>/dev/null || echo 1)
+
 build-swift:
 	xcodebuild \
 		-project macos/AgentMon/agentmon.xcodeproj \
 		-scheme agentmon \
 		-configuration Release \
 		-derivedDataPath build/DerivedData \
+		CURRENT_PROJECT_VERSION=$(SYSEXT_BUILD_NUMBER) \
 		CODE_SIGN_IDENTITY="" \
 		CODE_SIGNING_REQUIRED=NO \
 		CODE_SIGNING_ALLOWED=NO
