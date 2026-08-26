@@ -26,6 +26,7 @@ func newWrapCmd() *cobra.Command {
 	var policy string
 	var root string
 	var report bool
+	var allowUnenforced bool
 
 	cmd := &cobra.Command{
 		Use:   "wrap [flags] -- COMMAND [ARGS...]",
@@ -47,12 +48,13 @@ Examples:
 
 			cfg := getClientConfig(cmd)
 			return runWrap(cmd.Context(), cfg, wrapOptions{
-				sessionID: sessionID,
-				policy:    policy,
-				root:      root,
-				report:    report,
-				agentCmd:  args[0],
-				agentArgs: args[1:],
+				sessionID:       sessionID,
+				policy:          policy,
+				root:            root,
+				report:          report,
+				allowUnenforced: allowUnenforced,
+				agentCmd:        args[0],
+				agentArgs:       args[1:],
 			})
 		},
 	}
@@ -61,17 +63,21 @@ Examples:
 	cmd.Flags().StringVar(&policy, "policy", "agent-default", "Policy name")
 	cmd.Flags().StringVar(&root, "root", "", "Workspace root (default: current directory)")
 	cmd.Flags().BoolVar(&report, "report", true, "Generate session report on exit")
+	cmd.Flags().BoolVar(&allowUnenforced, "allow-unenforced", false,
+		"Launch the agent even if exec interception cannot be established. "+
+			"The agent then runs with NO policy enforcement.")
 
 	return cmd
 }
 
 type wrapOptions struct {
-	sessionID string
-	policy    string
-	root      string
-	report    bool
-	agentCmd  string
-	agentArgs []string
+	sessionID       string
+	policy          string
+	root            string
+	report          bool
+	allowUnenforced bool
+	agentCmd        string
+	agentArgs       []string
 }
 
 func runWrap(ctx context.Context, cfg *clientConfig, opts wrapOptions) error {
@@ -126,8 +132,20 @@ func runWrap(ctx context.Context, cfg *clientConfig, opts wrapOptions) error {
 	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
 		wrapCfg, err = setupWrapInterception(ctx, c, sessID, agentPath, opts.agentArgs, cfg)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "agentmon: interception setup failed, running without interception: %v\n", err)
-			// Fall through to direct launch
+			// Fail closed. `wrap` exists to run an agent under policy; if
+			// interception cannot be established there is no enforcement at
+			// all, and continuing gave the operator a security tool that
+			// silently did nothing but print to stderr. On macOS this was not
+			// an edge case -- the server returns 400 for wrap, so this branch
+			// was always taken and every wrapped agent ran unconstrained.
+			if !opts.allowUnenforced {
+				return fmt.Errorf(
+					"exec interception could not be established, so the agent would run with NO policy enforcement: %w\n\n"+
+						"Pass --allow-unenforced to launch anyway.", err)
+			}
+			fmt.Fprintf(os.Stderr,
+				"agentmon: WARNING interception setup failed and --allow-unenforced was given; "+
+					"%s will run with NO policy enforcement: %v\n", opts.agentCmd, err)
 		}
 	}
 

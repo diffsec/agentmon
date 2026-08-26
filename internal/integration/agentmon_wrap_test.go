@@ -98,8 +98,12 @@ func TestWrapAutoStart(t *testing.T) {
 	// The wrap command should autostart the server, create a session,
 	// run "echo hello", and exit cleanly.
 	req := testcontainers.ContainerRequest{
-		Image:  "debian:bookworm-slim",
-		Cmd:    []string{"/usr/local/bin/agentmon", "wrap", "--", "echo", "hello"},
+		Image: "debian:bookworm-slim",
+		// --allow-unenforced: this binary is built CGO_ENABLED=0 so seccomp is
+		// unavailable and interception cannot be established. wrap fails closed
+		// by default now, and this test is about autostart and child execution
+		// rather than enforcement, so it opts in explicitly.
+		Cmd:    []string{"/usr/local/bin/agentmon", "wrap", "--allow-unenforced", "--", "echo", "hello"},
 		Mounts: binds,
 		Env:    map[string]string{"AGENTMON_CONFIG": "/config.yaml"},
 		HostConfigModifier: func(hc *container.HostConfig) {
@@ -162,6 +166,73 @@ func TestWrapAutoStart(t *testing.T) {
 	}
 }
 
+// TestWrapFailsClosedWithoutInterception pins the fail-closed default: when
+// exec interception cannot be established, wrap must refuse to launch rather
+// than run the agent with no policy. The binary here is built CGO_ENABLED=0, so
+// seccomp is unavailable and setup genuinely fails -- the same situation that
+// previously produced a stderr warning and an unsupervised agent.
+func TestWrapFailsClosedWithoutInterception(t *testing.T) {
+	ctx := context.Background()
+
+	bin := buildAgentmonBinary(t)
+	temp := t.TempDir()
+
+	configPath := filepath.Join(temp, "config.yaml")
+	writeFile(t, configPath, wrapTestConfigYAML)
+
+	policiesDir := filepath.Join(temp, "policies")
+	mustMkdir(t, policiesDir)
+	writeFile(t, filepath.Join(policiesDir, "agent-default.yaml"), wrapTestPolicyYAML)
+
+	workspace := filepath.Join(temp, "workspace")
+	mustMkdir(t, workspace)
+
+	req := testcontainers.ContainerRequest{
+		Image: "debian:bookworm-slim",
+		// No --allow-unenforced: wrap must refuse.
+		Cmd: []string{"/usr/local/bin/agentmon", "wrap", "--", "/bin/sh", "-c", "echo AGENT_RAN"},
+		Mounts: []testcontainers.ContainerMount{
+			testcontainers.BindMount(bin, "/usr/local/bin/agentmon"),
+			testcontainers.BindMount(configPath, "/config.yaml"),
+			testcontainers.BindMount(policiesDir, "/policies"),
+			testcontainers.BindMount(workspace, "/workspace"),
+		},
+		Env: map[string]string{"AGENTMON_CONFIG": "/config.yaml"},
+		HostConfigModifier: func(hc *container.HostConfig) {
+			hc.SecurityOpt = []string{"apparmor:unconfined", "seccomp:unconfined"}
+		},
+		WaitingFor: wait.ForExit().WithExitTimeout(30 * time.Second),
+	}
+
+	ctr, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		t.Fatalf("start container: %v", err)
+	}
+	defer func() { _ = ctr.Terminate(context.Background()) }()
+
+	logs, err := ctr.Logs(ctx)
+	if err != nil {
+		t.Fatalf("get logs: %v", err)
+	}
+	defer logs.Close()
+	logBytes, _ := io.ReadAll(logs)
+	logOutput := string(logBytes)
+
+	state, err := ctr.State(ctx)
+	if err != nil {
+		t.Fatalf("get container state: %v", err)
+	}
+	if state.ExitCode == 0 {
+		t.Fatalf("wrap exited 0 without interception; it must fail closed. logs:\n%s", logOutput)
+	}
+	if strings.Contains(logOutput, "AGENT_RAN") {
+		t.Fatalf("agent was launched despite interception being unavailable; logs:\n%s", logOutput)
+	}
+}
+
 func TestWrapFallback_OmitsInSessionMarker(t *testing.T) {
 	ctx := context.Background()
 
@@ -181,7 +252,10 @@ func TestWrapFallback_OmitsInSessionMarker(t *testing.T) {
 	req := testcontainers.ContainerRequest{
 		Image: "debian:bookworm-slim",
 		Cmd: []string{
-			"/usr/local/bin/agentmon", "wrap", "--",
+			// --allow-unenforced reaches the fallback path deliberately; the
+			// invariant under test is that the fallback still clears
+			// AGENTMON_IN_SESSION so the child cannot believe it is supervised.
+			"/usr/local/bin/agentmon", "wrap", "--allow-unenforced", "--",
 			"/bin/sh", "-c", `if [ -n "$AGENTMON_IN_SESSION" ]; then echo MARKER_SET; else echo MARKER_UNSET; fi`,
 		},
 		Mounts: []testcontainers.ContainerMount{
