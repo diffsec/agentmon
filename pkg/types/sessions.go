@@ -128,6 +128,11 @@ type WrapInitRequest struct {
 	AgentCommand string   `json:"agent_command"`
 	AgentArgs    []string `json:"agent_args,omitempty"`
 	CallerUID    int      `json:"caller_uid,omitempty"`
+	// CallerPID is the PID of the process invoking wrap. On macOS it becomes
+	// the session root the system extension attributes processes to: the agent
+	// is launched as its child and NOTIFY_FORK carries session membership down
+	// the tree. Ignored on Linux, where interception is per-process.
+	CallerPID int `json:"caller_pid,omitempty"`
 	// Mode selects wrap lifecycle. Both "agent" (default, used by
 	// `agentmon wrap`) and "shim" (used by the shell shim) currently use
 	// the server's existing accept-once-then-handler control flow — the

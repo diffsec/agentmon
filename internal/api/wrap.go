@@ -186,6 +186,12 @@ func (a *App) wrapInitCore(s *session.Session, sessionID string, req types.WrapI
 		}
 	}
 
+	// macOS intercepts through the system extension rather than a per-process
+	// wrapper, so it takes a different path entirely and returns here.
+	if runtime.GOOS == "darwin" {
+		return platformWrapInit(a, sessionID, req)
+	}
+
 	// Only supported on Linux (seccomp) otherwise
 	if runtime.GOOS != "linux" {
 		return types.WrapInitResponse{}, http.StatusBadRequest, errWrapNotSupported

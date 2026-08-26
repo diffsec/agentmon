@@ -271,12 +271,19 @@ func TestWrapInit_SessionNotFound(t *testing.T) {
 	}
 }
 
+// TestWrapInit_NotLinux checks that wrap-init refuses on a platform with no
+// interception mechanism.
+//
+// It used to require exactly 400 on every non-Linux OS, pinning the "wrap is
+// only supported on Linux" behaviour. macOS now has a real wrap path -- the
+// system extension, keyed on a session root PID -- so what matters there is
+// not the status code but that it refuses when nothing would enforce policy.
+// A test that only accepted 400 would have to be broken to implement the
+// feature, which is a sign it was asserting the limitation rather than the
+// requirement.
 func TestWrapInit_NotLinux(t *testing.T) {
 	if runtime.GOOS == "linux" {
 		t.Skip("this test only runs on non-Linux platforms")
-	}
-	if runtime.GOOS == "windows" {
-		t.Skip("wrap is supported on Windows via driver")
 	}
 
 	cfg := &config.Config{}
@@ -288,16 +295,26 @@ func TestWrapInit_NotLinux(t *testing.T) {
 		t.Fatalf("create session: %v", err)
 	}
 
+	// No session tracker is attached, so on darwin there is no policy socket
+	// server and no way to register the session with the extension.
 	_, code, err := app.wrapInitCore(s, s.ID, types.WrapInitRequest{
 		AgentCommand: "/bin/echo",
 		AgentArgs:    []string{"hello"},
+		CallerPID:    os.Getpid(),
 	})
 
 	if err == nil {
-		t.Fatal("expected error on non-Linux")
+		t.Fatal("wrap-init succeeded with nothing available to intercept the agent")
 	}
-	if code != 400 {
-		t.Errorf("expected status 400, got %d", code)
+
+	want := http.StatusBadRequest
+	if runtime.GOOS == "darwin" {
+		// Not "unsupported" -- unavailable. The distinction is what tells an
+		// operator to start the daemon rather than change platform.
+		want = http.StatusServiceUnavailable
+	}
+	if code != want {
+		t.Errorf("status = %d, want %d (err: %v)", code, want, err)
 	}
 }
 
