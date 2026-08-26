@@ -85,13 +85,68 @@ class ESFClient {
             es_subscribe(client, setAttrEvents, UInt32(setAttrEvents.count))
         }
 
-        // Mute agentmon binaries to prevent recursion
-        if #available(macOS 12.0, *) {
-            for path in ["/usr/local/bin/agentmon-stub", "/usr/local/bin/agentmon"] {
-                es_mute_path(client, path, ES_MUTE_PATH_TYPE_TARGET_LITERAL)
-            }
-        }
+        muteOwnBinaries(client: client)
         return true
+    }
+
+    /// Stop ES delivering events caused by agentmon's own binaries.
+    ///
+    /// Without this the enforcement machinery polices itself: agentmon-stub and
+    /// agentmon-macwrap run as children of the agent, so they are inside the
+    /// tracked session, and their own reads and execs are evaluated against the
+    /// session's policy. A policy that denies what the wrapper needs breaks the
+    /// wrapper rather than the agent.
+    ///
+    /// This replaces two hardcoded paths that could not have worked, for two
+    /// separate reasons:
+    ///
+    ///   - They were /usr/local/bin/agentmon and /usr/local/bin/agentmon-stub.
+    ///     The binaries install to AgentMon.app/Contents/MacOS, and muting
+    ///     happens after symlink resolution, so even the Homebrew cask's
+    ///     symlinks resolve elsewhere. Neither path exists on a real install.
+    ///
+    ///   - They used ES_MUTE_PATH_TYPE_TARGET_LITERAL, which matches the
+    ///     *arguments to syscalls*, not the process making them. It would have
+    ///     muted events about someone opening the agentmon binary -- the
+    ///     opposite of a recursion guard. ES_MUTE_PATH_TYPE_PREFIX is the
+    ///     instigating-program form.
+    private func muteOwnBinaries(client: OpaquePointer) {
+        guard let dir = Self.helperBinaryDirectory() else {
+            NSLog("ESFClient: could not locate the app bundle; agentmon's own binaries are NOT muted and will be policed by session policy")
+            return
+        }
+        let result = es_mute_path(client, dir, ES_MUTE_PATH_TYPE_PREFIX)
+        if result == ES_RETURN_SUCCESS {
+            NSLog("ESFClient: muted agentmon binaries under \(dir)")
+        } else {
+            NSLog("ESFClient: failed to mute \(dir): \(result.rawValue)")
+        }
+    }
+
+    /// The directory holding agentmon's executables, resolved from wherever
+    /// this extension is actually installed rather than assumed.
+    ///
+    /// The system extension lives at
+    ///   AgentMon.app/Contents/Library/SystemExtensions/<id>.systemextension
+    /// so the app bundle is found by walking up to the enclosing .app. The path
+    /// is resolved because ES matches after symlink resolution.
+    static func helperBinaryDirectory() -> String? {
+        var url = Bundle.main.bundleURL.resolvingSymlinksInPath()
+        for _ in 0..<8 {
+            if url.pathExtension == "app" {
+                return url.appendingPathComponent("Contents/MacOS").path
+            }
+            let parent = url.deletingLastPathComponent()
+            if parent.path == url.path { break }
+            url = parent
+        }
+        // Not inside an app bundle -- a development build run directly. Mute
+        // the extension executable's own directory, which is where a locally
+        // built agentmon sits next to it.
+        return Bundle.main.executableURL?
+            .resolvingSymlinksInPath()
+            .deletingLastPathComponent()
+            .path
     }
 
     func stop() {
@@ -104,12 +159,17 @@ class ESFClient {
     // MARK: - Process Muting (Recursion Guard)
 
     /// Mute a path so ES events are not delivered for processes at that path.
-    /// Used for dynamic recursion prevention -- the Go server sends the actual
-    /// stub binary path during wrap initialization.
+    ///
+    /// Nothing calls this today: the wrap-initialization XPC path it was
+    /// written for no longer exists, and muteOwnBinaries now covers the bundle
+    /// layout automatically. It is kept as the hook for muting a binary
+    /// outside the bundle, and corrected to the instigating-program mute type
+    /// -- ES_MUTE_PATH_TYPE_TARGET_LITERAL matches syscall arguments, so as
+    /// written it did the opposite of what its name says.
     @available(macOS 12.0, *)
     func mutePath(_ path: String) {
         guard let client = client else { return }
-        let result = es_mute_path(client, path, ES_MUTE_PATH_TYPE_TARGET_LITERAL)
+        let result = es_mute_path(client, path, ES_MUTE_PATH_TYPE_LITERAL)
         if result != ES_RETURN_SUCCESS {
             NSLog("ESFClient: failed to mute path \(path): \(result.rawValue)")
         } else {
