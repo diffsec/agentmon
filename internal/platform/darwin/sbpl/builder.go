@@ -227,15 +227,28 @@ func (p *Profile) Build() (string, error) {
 	b.WriteString("(version 1)\n")
 	b.WriteString("(deny default)\n")
 
-	// Emit deny rules before allow rules for readability.
+	// Allow rules first, then deny rules. SBPL evaluates rules in order and the
+	// LAST matching rule decides, so a deny must come after any allow it is
+	// meant to override.
+	//
+	// This used to be the other way round -- denies first, "for readability" --
+	// which silently disabled every deny in the profile. defaultExecBlocklist
+	// denies /usr/bin/tccutil, /usr/sbin/csrutil, /usr/bin/security and
+	// /usr/sbin/systemsetup, but defaultExecAllowPaths then subpath-allows
+	// /usr/bin and /usr/sbin, so each of those executables was allowed again by
+	// a later rule. The same applied to every `decision: deny` command rule.
+	//
+	// Verified against sandbox-exec: with an allow(subpath /bin) after a
+	// deny(literal /bin/echo), echo runs; with the deny last, execvp fails with
+	// "Operation not permitted".
 	for _, r := range p.rules {
-		if isDeny(r.kind) {
+		if !isDeny(r.kind) {
 			b.WriteString(r.sbpl)
 			b.WriteByte('\n')
 		}
 	}
 	for _, r := range p.rules {
-		if !isDeny(r.kind) {
+		if isDeny(r.kind) {
 			b.WriteString(r.sbpl)
 			b.WriteByte('\n')
 		}
