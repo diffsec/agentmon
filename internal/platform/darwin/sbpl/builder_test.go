@@ -203,9 +203,9 @@ func TestDenyProcessExec_Literal(t *testing.T) {
 
 func TestAllowNetworkOutbound_InvalidProto_Dropped(t *testing.T) {
 	p := New()
-	p.AllowNetworkOutbound("TCP", "*:443")  // uppercase = invalid
-	p.AllowNetworkOutbound("t1p", "*:80")   // digit = invalid
-	p.AllowNetworkOutbound("tcp)", "*:80")  // paren = invalid
+	p.AllowNetworkOutbound("TCP", "*:443") // uppercase = invalid
+	p.AllowNetworkOutbound("t1p", "*:80")  // digit = invalid
+	p.AllowNetworkOutbound("tcp)", "*:80") // paren = invalid
 	out, _ := p.Build()
 	if strings.Contains(out, "network-outbound") {
 		t.Error("invalid proto should be silently dropped, but found network-outbound rule")
@@ -228,7 +228,15 @@ func TestAllowFileRead_LiteralWithHashQuotePrefix(t *testing.T) {
 	}
 }
 
-func TestDenyBeforeAllow_ExecOrdering(t *testing.T) {
+// TestDenyAfterAllow_ExecOrdering pins the rule ordering the sandbox actually
+// requires. SBPL evaluates in order and the LAST matching rule decides, so a
+// deny must be emitted after any allow it overrides.
+//
+// This test previously asserted the opposite, which is how the bug survived:
+// with (deny literal /usr/bin/osascript) emitted before (allow subpath
+// /usr/bin), the allow won and osascript ran. Verified against sandbox-exec --
+// a deny placed before a covering allow has no effect at all.
+func TestDenyAfterAllow_ExecOrdering(t *testing.T) {
 	p := New()
 	p.AllowProcessExec(Subpath, "/usr/bin")
 	p.DenyProcessExec(Literal, "/usr/bin/osascript")
@@ -244,8 +252,27 @@ func TestDenyBeforeAllow_ExecOrdering(t *testing.T) {
 	if allowIdx < 0 {
 		t.Fatal("allow process-exec rule not found in output")
 	}
-	if denyIdx > allowIdx {
-		t.Errorf("deny exec rules should appear before allow exec rules, deny at %d, allow at %d", denyIdx, allowIdx)
+	if denyIdx < allowIdx {
+		t.Errorf("deny exec rules must appear AFTER allow exec rules or they are ignored; deny at %d, allow at %d\n%s",
+			denyIdx, allowIdx, out)
+	}
+}
+
+// TestBuild_DenyDefaultStaysFirst guards the one ordering that must not change:
+// (deny default) is the baseline every later rule overrides, so it belongs at
+// the top even though every other deny now comes last.
+func TestBuild_DenyDefaultStaysFirst(t *testing.T) {
+	p := New()
+	p.AllowFileRead(Subpath, "/usr/lib")
+	p.DenyProcessExec(Literal, "/usr/bin/osascript")
+	out, err := p.Build()
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if di := strings.Index(out, "(deny default)"); di < 0 {
+		t.Fatal("(deny default) missing")
+	} else if ai := strings.Index(out, "(allow file-read*"); di > ai {
+		t.Errorf("(deny default) must come first, got %d vs allow at %d", di, ai)
 	}
 }
 

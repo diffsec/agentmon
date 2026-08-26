@@ -127,3 +127,42 @@ func TestSessionTracker_ParentWalkDepthLimit(t *testing.T) {
 		t.Errorf("pid 12 after caching: got %q, want %q", sid, "session-1")
 	}
 }
+
+// TestLatestSession_IsDeterministicAndLive pins AUDIT M30. LatestSession used
+// to range over a map, so with several sessions registered it returned an
+// arbitrary one, and because EndSession never cleaned sessionRootPID it could
+// name a session that had already finished. Either way the system extension
+// could be handed the wrong session's policy snapshot.
+func TestLatestSession_IsDeterministicAndLive(t *testing.T) {
+	tr := NewSessionTracker()
+	tr.RegisterProcess("session-a", 100, 0)
+	tr.RegisterProcess("session-b", 200, 0)
+	tr.RegisterProcess("session-c", 300, 0)
+
+	// Deterministic: always the most recently registered, however many times
+	// it is asked. A map range would vary across calls.
+	for i := 0; i < 50; i++ {
+		sid, pid := tr.LatestSession()
+		if sid != "session-c" || pid != 300 {
+			t.Fatalf("call %d: got (%q,%d), want (session-c,300)", i, sid, pid)
+		}
+	}
+
+	// Live: ending the newest falls back to the previous one, not to a dead
+	// session and not to an arbitrary one.
+	tr.EndSession("session-c")
+	if sid, pid := tr.LatestSession(); sid != "session-b" || pid != 200 {
+		t.Fatalf("after ending session-c: got (%q,%d), want (session-b,200)", sid, pid)
+	}
+
+	// Ending a middle session must not resurrect it or disturb ordering.
+	tr.EndSession("session-a")
+	if sid, _ := tr.LatestSession(); sid != "session-b" {
+		t.Fatalf("after ending session-a: got %q, want session-b", sid)
+	}
+
+	tr.EndSession("session-b")
+	if sid, pid := tr.LatestSession(); sid != "" || pid != 0 {
+		t.Fatalf("with no live sessions: got (%q,%d), want empty", sid, pid)
+	}
+}

@@ -140,29 +140,49 @@ func (a *PolicyAdapter) CheckExec(executable string, args []string, pid int32, p
 	}
 }
 
+// denyAllSnapshot returns a snapshot that denies everything for the session.
+//
+// This is the snapshot half of AUDIT H5. The live checks fail closed when no
+// policy is available, but BuildPolicySnapshot used to answer with an empty,
+// allow-everything snapshot -- so the extension cached "permit all" for the
+// session and stopped asking.
+//
+// The deny is expressed through Defaults rather than the response's Allow
+// field. SessionPolicyCache evaluates a snapshot by scanning its rules and then
+// consulting cache.defaults ("if cache.defaults.file == \"deny\" { return .deny }"),
+// and never reads the top-level Allow at all -- so setting Allow:false alone
+// would have changed nothing. Emitting deny defaults with no rules is the
+// representation the extension already understands, and needs no Swift change.
+//
+// Scoped to the session as usual: the extension only evaluates PIDs it has been
+// told about, so this denies the sandboxed agent rather than the machine.
+func denyAllSnapshot(sessionID string) PolicyResponse {
+	deny := string(types.DecisionDeny)
+	return PolicyResponse{
+		Allow:     false,
+		Rule:      "no-policy-fail-closed",
+		SessionID: sessionID,
+		Defaults: &SnapshotDefaults{
+			File:    deny,
+			Network: deny,
+			DNS:     deny,
+			Exec:    deny,
+		},
+	}
+}
+
 // BuildPolicySnapshot projects the policy engine's rules into a flat snapshot
 // format suitable for Swift-side local caching and evaluation.
-//
-// KNOWN GAP (remainder of AUDIT H5): the three early returns below still hand
-// back an empty, allow-everything snapshot when no policy is available. The
-// live checks above now fail closed, but this path cannot be fixed from Go
-// alone. SessionPolicyCache evaluates a snapshot by scanning explicit deny
-// rules and returning .allow when none match, and it never reads the top-level
-// Allow field -- so setting Allow:false here would change nothing. Closing this
-// properly needs a paired Swift change: a distinct "no policy available" state
-// that denies for tracked sessions instead of falling through to allow.
 func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint64) PolicyResponse {
 	if a.engine == nil {
-		slog.Error("policy socket: snapshot requested with no policy engine; " +
-			"returning an empty snapshot, which the extension treats as allow-all")
-		return PolicyResponse{Allow: true, Rule: "no-policy"}
+		slog.Error("policy socket: snapshot requested with no policy engine, denying (fail closed)")
+		return denyAllSnapshot(sessionID)
 	}
 
 	p := a.engine.Policy()
 	if p == nil {
-		slog.Error("policy socket: snapshot requested with no policy loaded; " +
-			"returning an empty snapshot, which the extension treats as allow-all")
-		return PolicyResponse{Allow: true, Rule: "no-policy"}
+		slog.Error("policy socket: snapshot requested with no policy loaded, denying (fail closed)")
+		return denyAllSnapshot(sessionID)
 	}
 
 	// If no session_id provided, look up the latest registered session.
@@ -170,7 +190,8 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 	if sessionID == "" && a.sessions != nil {
 		sessionID, rootPID = a.sessions.LatestSession()
 		if sessionID == "" {
-			return PolicyResponse{Allow: true}
+			slog.Error("policy socket: snapshot requested but no session is registered, denying (fail closed)")
+			return denyAllSnapshot("")
 		}
 	} else if a.sessions != nil {
 		rootPID = a.sessions.RootPIDForSession(sessionID)

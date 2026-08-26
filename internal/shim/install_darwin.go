@@ -62,6 +62,10 @@ func InstallDarwinPATH(cfg DarwinShimConfig) error {
 	}
 
 	for _, shell := range cfg.Shells {
+		if !validShellName(shell) {
+			return fmt.Errorf("refusing to generate shim for shell name %q: "+
+				"only simple names such as bash, zsh or sh are accepted", shell)
+		}
 		shimPath := filepath.Join(shimDir, shell)
 		script := fmt.Sprintf(`#!/bin/bash
 # agentmon shell shim for %s
@@ -88,7 +92,7 @@ fi
 
 # Route through agentmon
 exec %s shim-exec "$REAL_SHELL" "$@"
-`, shell, shell, shell, shell, shell, cfg.AgentmonBinary)
+`, shell, shell, shell, shell, shell, shellQuote(cfg.AgentmonBinary))
 
 		if err := os.WriteFile(shimPath, []byte(script), 0o755); err != nil {
 			return fmt.Errorf("write shim %s: %w", shimPath, err)
@@ -263,12 +267,12 @@ func removeHookFromFile(path string) error {
 
 // DarwinShimStatus reports the status of macOS shim installation.
 type DarwinShimStatus struct {
-	PATHInstalled    bool     `json:"path_installed"`
-	PATHDir          string   `json:"path_dir"`
-	PATHShells       []string `json:"path_shells"`
-	PATHInPath       bool     `json:"path_in_path"`
-	ProfileZsh       bool     `json:"profile_zsh"`
-	ProfileBash      bool     `json:"profile_bash"`
+	PATHInstalled bool     `json:"path_installed"`
+	PATHDir       string   `json:"path_dir"`
+	PATHShells    []string `json:"path_shells"`
+	PATHInPath    bool     `json:"path_in_path"`
+	ProfileZsh    bool     `json:"profile_zsh"`
+	ProfileBash   bool     `json:"profile_bash"`
 }
 
 // GetDarwinShimStatus checks the current installation status.
@@ -308,4 +312,35 @@ func GetDarwinShimStatus() (*DarwinShimStatus, error) {
 	}
 
 	return status, nil
+}
+
+// validShellName restricts shell names to simple identifiers. The name is
+// interpolated into candidate paths inside the generated script, so anything
+// containing a quote, space or shell metacharacter must be rejected rather
+// than escaped -- a shell called "sh; rm -rf ~" is a configuration error, not
+// something to accommodate.
+func validShellName(name string) bool {
+	if name == "" || len(name) > 32 {
+		return false
+	}
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case r == '-', r == '_':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// shellQuote renders s as a single-quoted POSIX shell word.
+//
+// The binary path used to be interpolated raw into a 0755 script (AUDIT M57),
+// so a path containing a space produced a broken shim and one containing shell
+// metacharacters executed them with the user's privileges every time a wrapped
+// shell started. Single quotes disable all expansion; an embedded single quote
+// is handled by closing the string, emitting an escaped quote and reopening.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

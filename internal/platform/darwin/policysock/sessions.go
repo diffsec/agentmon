@@ -24,6 +24,11 @@ type SessionTracker struct {
 
 	// sessionID -> root PID (first PID registered for the session)
 	sessionRootPID map[string]int32
+
+	// sessionIDs in registration order, most recent last. Go map iteration is
+	// randomised, so "latest" cannot be derived from sessionRootPID -- see
+	// LatestSession.
+	sessionOrder []string
 }
 
 // NewSessionTracker creates a new session tracker.
@@ -54,6 +59,7 @@ func (t *SessionTracker) RegisterProcess(sessionID string, pid, ppid int32) {
 	// Track root PID (first PID registered for this session)
 	if _, exists := t.sessionRootPID[sessionID]; !exists {
 		t.sessionRootPID[sessionID] = pid
+		t.sessionOrder = append(t.sessionOrder, sessionID)
 	}
 }
 
@@ -89,6 +95,17 @@ func (t *SessionTracker) EndSession(sessionID string) {
 		delete(t.pidToParent, pid)
 	}
 	delete(t.sessionToPids, sessionID)
+
+	// sessionRootPID was previously left untouched here, so ended sessions
+	// accumulated forever and LatestSession could hand back a terminated
+	// session's root PID (AUDIT M30).
+	delete(t.sessionRootPID, sessionID)
+	for i, sid := range t.sessionOrder {
+		if sid == sessionID {
+			t.sessionOrder = append(t.sessionOrder[:i], t.sessionOrder[i+1:]...)
+			break
+		}
+	}
 }
 
 // SessionForPID returns the session ID for a process, walking parents if needed.
@@ -142,14 +159,23 @@ func (t *SessionTracker) SessionForPID(pid int32) string {
 
 // LatestSession returns the most recently registered session ID and its root PID.
 // Returns empty string and 0 if no sessions are registered.
+// LatestSession returns the most recently registered live session.
+//
+// This used to range over sessionRootPID and keep the last value seen. Go
+// randomises map iteration order, so with more than one active session it
+// returned an arbitrary one -- and because EndSession never removed entries, it
+// could return a session that had already terminated. BuildPolicySnapshot calls
+// this when the extension asks for a snapshot without naming a session, so the
+// result was that a session could be handed another session's policy (AUDIT
+// M30). Order is now tracked explicitly.
 func (t *SessionTracker) LatestSession() (sessionID string, rootPID int32) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	for sid, pid := range t.sessionRootPID {
-		sessionID = sid
-		rootPID = pid
+	if len(t.sessionOrder) == 0 {
+		return "", 0
 	}
-	return
+	sessionID = t.sessionOrder[len(t.sessionOrder)-1]
+	return sessionID, t.sessionRootPID[sessionID]
 }
 
 // RootPIDForSession returns the root PID for a session ID.
