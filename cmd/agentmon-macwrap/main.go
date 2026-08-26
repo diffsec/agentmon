@@ -37,6 +37,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
+	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -69,9 +71,38 @@ func main() {
 		log.Fatalf("apply sandbox: %v", err)
 	}
 
-	if err := syscall.Exec(cmd, args, os.Environ()); err != nil {
+	if err := syscall.Exec(cmd, args, sandboxedEnv(os.Environ())); err != nil {
 		log.Fatalf("exec %s failed: %v", cmd, err)
 	}
+}
+
+// sandboxConfigVars carry the wrapper's own configuration and must not reach
+// the process being sandboxed.
+var sandboxConfigVars = []string{
+	"AGENTMON_SANDBOX_CONFIG",
+	"AGENTMON_SANDBOX_CONFIG_FILE",
+}
+
+// sandboxedEnv strips the wrapper's configuration from the environment handed
+// to the child.
+//
+// os.Environ() was previously passed straight through, so the sandboxed process
+// inherited AGENTMON_SANDBOX_CONFIG -- the full policy constraining it,
+// including the compiled SBPL profile, the allowed path list and the
+// mach-service allow/block lists (AUDIT M58). An agent could read the exact
+// shape of its own sandbox and probe for the gaps. The config has already been
+// consumed by loadConfig and applied by applySandbox before exec, so nothing
+// downstream needs it.
+func sandboxedEnv(env []string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		name, _, ok := strings.Cut(kv, "=")
+		if ok && slices.Contains(sandboxConfigVars, name) {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return out
 }
 
 // applySandbox applies the SBPL profile using sandbox_init.

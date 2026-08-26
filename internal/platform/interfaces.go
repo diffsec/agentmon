@@ -19,6 +19,17 @@ type Platform interface {
 
 	// Core components - may return nil if not available on this platform
 	Filesystem() FilesystemInterceptor
+
+	// Network, Sandbox and Resources have no callers anywhere outside this
+	// package on any platform -- the server reaches enforcement through the
+	// policy engine and the per-OS interceptors directly, never through these
+	// accessors. Everything behind them on darwin (network.go's pf rules,
+	// sandbox.go's SBPL manager, resources.go and resource_handle.go) is
+	// therefore unreachable, and the linux and lima implementations look the
+	// same way. Removing the three methods and their implementations is a
+	// worthwhile cleanup, but it spans every platform including the production
+	// one, so it belongs in its own change rather than riding along with a
+	// darwin-scoped deletion.
 	Network() NetworkInterceptor
 	Sandbox() SandboxManager
 	Resources() ResourceLimiter
