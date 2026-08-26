@@ -109,6 +109,7 @@ type App struct {
 	// Nil on non-darwin platforms or when policy socket is not configured.
 	sessionTracker interface {
 		RegisterProcess(sessionID string, pid, ppid int32)
+		EndSession(sessionID string)
 	}
 
 	// acceptNotifyFDForTest, if non-nil, wraps the goroutine launch for
@@ -238,8 +239,14 @@ func (a *App) SetCmdResolver(r interface {
 
 // SetSessionTracker attaches a session tracker for ESF PID→session registration.
 // Called on darwin after the policy socket server is started. No-op on other platforms.
+//
+// EndSession is part of the interface rather than an optional type assertion:
+// wrap-init registers a session root on macOS, and a tracker that cannot
+// forget it would keep handing the extension a dead session's policy. Making
+// that a compile error is the point.
 func (a *App) SetSessionTracker(t interface {
 	RegisterProcess(sessionID string, pid, ppid int32)
+	EndSession(sessionID string)
 }) {
 	a.sessionTracker = t
 }
@@ -839,6 +846,13 @@ func (a *App) destroySession(w http.ResponseWriter, r *http.Request) {
 	_ = s.CloseProxy()
 	_ = s.UnmountWorkspace()
 	a.purgeTrashForSession(s)
+	// Drop the session from the ESF tracker before destroying it. wrap-init
+	// registers a root PID here on macOS; leaving it behind means the
+	// extension can still resolve PIDs to a session that no longer exists,
+	// and BuildPolicySnapshot's LatestSession can return it.
+	if a.sessionTracker != nil {
+		a.sessionTracker.EndSession(id)
+	}
 	_ = a.sessions.Destroy(id)
 
 	ev := types.Event{

@@ -316,6 +316,11 @@ func setupWrapInterception(ctx context.Context, c client.CLIClient, sessID strin
 		AgentCommand: agentPath,
 		AgentArgs:    agentArgs,
 		CallerUID:    os.Getuid(),
+		// macOS registers this as the session root with the system extension.
+		// It must be this process, not the agent: the agent has not been
+		// forked yet, and every descendant inherits session membership from
+		// here anyway.
+		CallerPID: os.Getpid(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("wrap-init: %w", err)
@@ -323,8 +328,9 @@ func setupWrapInterception(ctx context.Context, c client.CLIClient, sessID strin
 
 	// On Linux, the server must provide a wrapper binary for seccomp interception,
 	// unless ptrace mode is active (no wrapper needed).
-	// On macOS and Windows, an empty WrapperBinary is valid — interception is
-	// system-wide via the System Extension (macOS) or driver (Windows).
+	// On macOS an empty WrapperBinary is valid: interception is system-wide
+	// via the System Extension, keyed on the session root PID registered by
+	// wrap-init.
 	if !wrapResp.PtraceMode && wrapResp.WrapperBinary == "" && runtime.GOOS == "linux" {
 		return nil, fmt.Errorf("server returned empty wrapper binary")
 	}

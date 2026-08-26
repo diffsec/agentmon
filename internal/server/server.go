@@ -102,6 +102,7 @@ type Server struct {
 	// Nil on non-darwin platforms.
 	sessionTracker interface {
 		RegisterProcess(sessionID string, pid, ppid int32)
+		EndSession(sessionID string)
 	}
 }
 
