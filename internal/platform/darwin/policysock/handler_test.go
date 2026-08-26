@@ -476,3 +476,45 @@ func TestPolicyAdapter_NilEngine(t *testing.T) {
 		}
 	})
 }
+
+// TestBuildPolicySnapshot_FailsClosed pins the snapshot half of AUDIT H5.
+//
+// The live checks in PolicyAdapter fail closed when no policy is available, but
+// BuildPolicySnapshot used to return an empty allow-everything snapshot, so the
+// extension cached "permit all" for the session and stopped asking. The deny is
+// carried in Defaults, which is what SessionPolicyCache actually consults --
+// the top-level Allow field is never read on the Swift side.
+func TestBuildPolicySnapshot_FailsClosed(t *testing.T) {
+	cases := []struct {
+		name    string
+		adapter *PolicyAdapter
+	}{
+		{"nil engine", NewPolicyAdapter(nil, nil)},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			resp := c.adapter.BuildPolicySnapshot("session-1", 0)
+
+			if resp.Allow {
+				t.Error("snapshot reports Allow=true with no policy available")
+			}
+			if resp.Defaults == nil {
+				t.Fatal("snapshot has no Defaults; the extension would fall through to allow")
+			}
+			for name, got := range map[string]string{
+				"file":    resp.Defaults.File,
+				"network": resp.Defaults.Network,
+				"dns":     resp.Defaults.DNS,
+				"exec":    resp.Defaults.Exec,
+			} {
+				if got != "deny" {
+					t.Errorf("Defaults.%s = %q, want \"deny\" -- anything else lets the extension allow", name, got)
+				}
+			}
+			if len(resp.FileRules) != 0 || len(resp.ExecRules) != 0 || len(resp.NetworkRules) != 0 {
+				t.Error("fail-closed snapshot should carry no rules; the defaults do the work")
+			}
+		})
+	}
+}
