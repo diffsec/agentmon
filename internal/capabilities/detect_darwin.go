@@ -30,7 +30,6 @@ func buildDarwinDomains(caps map[string]any, esfDetail string) []ProtectionDomai
 			Backends: []DetectedBackend{
 				{Name: "esf", Available: esf, Detail: esfDetail, Description: "process execution control", CheckMethod: "sysext"},
 				{Name: "dynamic-seatbelt", Available: hasMacwrap, Detail: macwrapDetail, Description: "policy-driven exec restriction", CheckMethod: "binary"},
-				{Name: "sandbox-exec", Available: true, Detail: "", Description: "macOS sandbox", CheckMethod: "builtin"},
 			},
 			Active: func() string {
 				if esf {
@@ -39,33 +38,41 @@ func buildDarwinDomains(caps map[string]any, esfDetail string) []ProtectionDomai
 				if hasMacwrap {
 					return "dynamic-seatbelt"
 				}
-				return "sandbox-exec"
+				return ""
 			}(),
 		},
 		{
 			Name: "Network", Weight: WeightNetwork,
 			Backends: []DetectedBackend{
-				{Name: "network-extension", Available: networkExt, Detail: "", Description: "network filtering", CheckMethod: "entitlement"},
+				{Name: "network-extension", Available: networkExt, Detail: networkExtDetail, Description: "network filtering", CheckMethod: "entitlement"},
 			},
 		},
+		// sandbox-exec is deliberately absent from Command Control and Isolation.
+		// The binary ships with macOS, but agentmon never invokes it --
+		// platform.Sandbox() has no callers anywhere -- so counting it awarded
+		// WeightCommandControl + WeightIsolation for a mechanism that never runs.
 		{
+			// No resource-limit enforcement exists on macOS. There is no launchd
+			// limits implementation anywhere in the tree, and DarwinLimiter --
+			// which only wraps setrlimit, and so can constrain the calling
+			// process rather than a spawned session -- is never instantiated by
+			// the server. Reporting this as available scored the full
+			// WeightResourceLimits for enforcement that does not run.
 			Name: "Resource Limits", Weight: WeightResourceLimits,
 			Backends: []DetectedBackend{
-				{Name: "launchd-limits", Available: true, Detail: "", Description: "launchd resource limits", CheckMethod: "builtin"},
+				{Name: "rlimit", Available: false, Detail: "not wired: setrlimit constrains only the calling process, and no per-session limiter is installed", Description: "resource limits", CheckMethod: "builtin"},
 			},
-			Active: "launchd-limits",
 		},
 		{
 			Name: "Isolation", Weight: WeightIsolation,
 			Backends: []DetectedBackend{
 				{Name: "dynamic-seatbelt", Available: hasMacwrap, Detail: macwrapDetail, Description: "deny-default sandbox", CheckMethod: "binary"},
-				{Name: "sandbox-exec", Available: true, Detail: "", Description: "process isolation", CheckMethod: "builtin"},
 			},
 			Active: func() string {
 				if hasMacwrap {
 					return "dynamic-seatbelt"
 				}
-				return "sandbox-exec"
+				return ""
 			}(),
 		},
 	}
@@ -118,11 +125,21 @@ func Detect() (*DetectResult, error) {
 	}, nil
 }
 
+// checkNetworkExtension reports whether NetworkExtension filtering is active.
+//
+// It is not, and this is not a detection limitation: the system extension never
+// enters NetworkExtension mode. main.swift ends at dispatchMain() without ever
+// calling NEProvider.startSystemExtensionMode(), so FilterDataProvider and
+// DNSProxyProvider are never instantiated and no NEFilterManager or
+// NEDNSProxyManager configuration is installed. Until that is wired up, all
+// network and DNS policy is unenforced on macOS.
 func checkNetworkExtension() bool {
-	// Network Extension is available if app is properly entitled
-	// For CLI detection, assume false
 	return false
 }
+
+// networkExtDetail explains the unavailability above in `agentmon detect`
+// output, so the gap is visible rather than an empty cell.
+const networkExtDetail = "not started: the system extension never enters NetworkExtension mode, so network and DNS rules are unenforced"
 
 func checkLima() bool {
 	// Check if limactl is available
@@ -146,5 +163,9 @@ func selectDarwinMode(caps map[string]any) (string, int) {
 	if hasMacwrap {
 		return "dynamic-seatbelt", 65
 	}
-	return "sandbox-exec", 60
+	// No fallback. sandbox-exec used to be reported here with a score of 60,
+	// but nothing invokes it: platform.Sandbox() has no callers, so
+	// darwin/sandbox.go and its SBPL machinery never run. Naming it as the
+	// active security mode advertised isolation that does not exist.
+	return "none", 0
 }
