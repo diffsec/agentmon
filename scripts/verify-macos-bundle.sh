@@ -189,8 +189,68 @@ check_bundle() {
   fi
 }
 
+# check_helpers: the Go binaries in Contents/MacOS.
+#
+# Two failures this catches, both of which pass codesign and notarization:
+#
+#   1. agentmon-macwrap missing. Its absence disables the seatbelt sandbox for
+#      every exec on macOS; wrapWithMacSandbox logs and returns, and nothing
+#      else notices. It went unshipped entirely until this check existed.
+#   2. A helper signed with the app's entitlements. Only the host app installs
+#      the system extension, so only the host app should claim
+#      system-extension.install. Granting it to agentmon-stub, which every
+#      redirected command runs through, hands a restricted capability to the
+#      most exposed binary in the bundle.
+check_helpers() {
+  local macos_dir="$APP/Contents/MacOS"
+  local bin name ents
+
+  printf '\n== helpers: %s\n' "$macos_dir"
+
+  if [ ! -d "$macos_dir" ]; then
+    fail "helpers: $macos_dir not found"
+    return
+  fi
+
+  for name in agentmon agentmon-macwrap agentmon-stub agentmon-shell-shim; do
+    if [ -f "$macos_dir/$name" ]; then
+      pass "helpers: $name present"
+    else
+      fail "helpers: $name missing from Contents/MacOS"
+    fi
+  done
+
+  # agentmon-macwrap built without cgo compiles to a stub that exits non-zero
+  # on every invocation. It archives, lipos and signs exactly like the real
+  # thing, so this symbol is the only cheap way to tell them apart in a bundle.
+  if [ -f "$macos_dir/agentmon-macwrap" ]; then
+    if ! command -v nm >/dev/null 2>&1; then
+      warn "helpers: nm not available, skipping agentmon-macwrap cgo check"
+    elif nm -u "$macos_dir/agentmon-macwrap" 2>/dev/null | grep -q _sandbox_init_with_parameters; then
+      pass "helpers: agentmon-macwrap links sandbox_init_with_parameters (cgo build)"
+    else
+      fail "helpers: agentmon-macwrap does not link sandbox_init_with_parameters (nocgo stub — seatbelt enforcement is dead)"
+    fi
+  fi
+
+  for bin in "$macos_dir"/*; do
+    name="$(basename "$bin")"
+    [ "$name" = "agentmon" ] && continue
+    ents="$WORKDIR/helper-$name-entitlements.plist"
+    codesign -d --entitlements "$ents" --xml "$bin" 2>/dev/null
+    [ -s "$ents" ] || continue
+    for ent in "${RESTRICTED_ENTITLEMENTS[@]}"; do
+      if "$PLISTBUDDY" -c "Print :$ent" "$ents" >/dev/null 2>&1; then
+        fail "helpers: $name claims restricted entitlement $ent (only the host app should)"
+      fi
+    done
+  done
+  pass "helpers: restricted entitlements are scoped to the host app"
+}
+
 check_bundle "app" "$APP"
 check_bundle "sysext" "$APP/$SYSEXT_REL"
+check_helpers
 
 printf '\n== summary: %d ok, %d warning(s), %d failure(s)\n' \
   "$passes" "${#warnings[@]}" "${#failures[@]}"

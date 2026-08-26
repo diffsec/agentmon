@@ -18,7 +18,8 @@ mkdir -p "$TMP/products/approval-dialog.app/Contents"
 
 # Fake Go binaries
 mkdir -p "$TMP/go-bin"
-touch "$TMP/go-bin/agentmon" "$TMP/go-bin/agentmon-shell-shim" "$TMP/go-bin/agentmon-stub"
+touch "$TMP/go-bin/agentmon" "$TMP/go-bin/agentmon-shell-shim" \
+      "$TMP/go-bin/agentmon-stub" "$TMP/go-bin/agentmon-macwrap"
 
 APP="$TMP/AgentMon.app"
 GO_BIN_DIR="$TMP/go-bin" PRODUCTS_DIR="$TMP/products" \
@@ -35,6 +36,10 @@ require() {
 require "$APP/Contents/MacOS/agentmon"
 require "$APP/Contents/MacOS/agentmon-shell-shim"
 require "$APP/Contents/MacOS/agentmon-stub"
+# agentmon-macwrap applies the seatbelt profile for every exec. It went
+# unshipped for the whole life of the macOS port, and the only symptom was a
+# log line nobody read.
+require "$APP/Contents/MacOS/agentmon-macwrap"
 require "$APP/Contents/Info.plist"
 require "$APP/Contents/Library/SystemExtensions/$SYSEXT"
 require "$APP/Contents/Library/SystemExtensions/$SYSEXT/Contents/embedded.provisionprofile"

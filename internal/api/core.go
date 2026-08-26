@@ -20,6 +20,7 @@ import (
 	"github.com/diffsec/agentmon/internal/events"
 	"github.com/diffsec/agentmon/internal/pkgcheck"
 	"github.com/diffsec/agentmon/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform/helperbin"
 	"github.com/diffsec/agentmon/internal/policy"
 	"github.com/diffsec/agentmon/internal/policy/signing"
 	"github.com/diffsec/agentmon/internal/session"
@@ -1531,18 +1532,20 @@ func (a *App) wrapWithMacSandbox(
 		wrapperBin = "agentmon-macwrap"
 	}
 
-	if _, err := exec.LookPath(wrapperBin); err != nil {
+	// Resolve next to the running executable before falling back to PATH:
+	// the app bundle keeps the helpers in Contents/MacOS, which is not on PATH
+	// for a launchd-started daemon, so a plain exec.LookPath reported the
+	// wrapper missing even when it shipped correctly.
+	wrapperPath := helperbin.Resolve(wrapperBin)
+	if wrapperPath == "" {
 		// Returning silently here meant every exec on macOS ran completely
-		// unsandboxed with no log, no event and no other signal -- and since
-		// agentmon-macwrap is not currently shipped in the app bundle, that was
-		// the default rather than the exception. Mirror the seccomp wrapper's
-		// warning so a missing wrapper is visible at the point enforcement is
-		// skipped; `agentmon detect` reports the same gap as
-		// "dynamic-seatbelt: not found".
+		// unsandboxed with no log, no event and no other signal. Mirror the
+		// seccomp wrapper's warning so a missing wrapper is visible at the
+		// point enforcement is skipped; `agentmon detect` reports the same gap
+		// as "dynamic-seatbelt: not found".
 		slog.Warn("seatbelt wrapper unavailable: wrapper binary not found (running without macOS sandbox enforcement)",
 			"wrapper_bin", wrapperBin,
-			"session_id", sess.ID,
-			"err", err.Error())
+			"session_id", sess.ID)
 		return
 	}
 
@@ -1624,7 +1627,9 @@ func (a *App) wrapWithMacSandbox(
 		req.Env["AGENTMON_SANDBOX_CONFIG"] = cfgStr
 	}
 
-	req.Command = wrapperBin
+	// Absolute path, not the bare name: the child is spawned without the
+	// bundle's Contents/MacOS on PATH, so a bare name would fail to exec.
+	req.Command = wrapperPath
 	req.Args = append([]string{"--", origCommand}, origArgs...)
 }
 

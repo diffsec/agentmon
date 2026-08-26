@@ -87,13 +87,16 @@ package-release:
 
 # Build the Go binaries that ship in the app bundle. agentmon needs CGO for
 # system extension support (nofuse: no macFUSE headers required), matching
-# the release pipeline's rebuild.
+# the release pipeline's rebuild. agentmon-macwrap needs CGO too -- without it
+# the build selects main_nocgo.go, a stub that exits non-zero, so every
+# sandboxed exec would fail instead of being sandboxed.
 build-macos-go:
 	rm -rf build/go-local
 	mkdir -p build/go-local
 	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -tags nofuse $(LDFLAGS) -o build/go-local/agentmon ./cmd/agentmon
 	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o build/go-local/agentmon-shell-shim ./cmd/agentmon-shell-shim
 	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o build/go-local/agentmon-stub ./cmd/agentmon-stub
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build $(LDFLAGS) -o build/go-local/agentmon-macwrap ./cmd/agentmon-macwrap
 
 # Build Swift components via Xcode (requires macOS with Xcode)
 build-swift:

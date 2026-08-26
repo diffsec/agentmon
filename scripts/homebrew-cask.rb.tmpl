@@ -14,6 +14,7 @@ cask "agentmon" do
   binary "#{appdir}/AgentMon.app/Contents/MacOS/agentmon"
   binary "#{appdir}/AgentMon.app/Contents/MacOS/agentmon-shell-shim"
   binary "#{appdir}/AgentMon.app/Contents/MacOS/agentmon-stub"
+  binary "#{appdir}/AgentMon.app/Contents/MacOS/agentmon-macwrap"
 
   uninstall quit:      "dev.diffsec.agentmon",
             signal:    ["TERM", "agentmon"],

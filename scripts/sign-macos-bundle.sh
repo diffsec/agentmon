@@ -17,21 +17,38 @@ if [ -z "${SIGNING_IDENTITY:-}" ]; then
   exit 1
 fi
 
-# 1. Go binaries. agentmon-shell-shim uses minimal (no) entitlements; every
-# other binary gets the app entitlements — this matches the release
-# pipeline's historical per-binary selection exactly.
+# 1. Go binaries, with entitlements scoped to the binary that needs them.
+#
+# com.apple.developer.system-extension.install is a restricted entitlement, and
+# only the host app calls OSSystemExtensionRequest. It used to be granted to
+# every binary in Contents/MacOS except the shell shim, so agentmon-stub -- the
+# exec-redirect helper an agent's own commands run through -- carried the right
+# to install a system extension it never uses. agentmon-macwrap needs no
+# entitlement at all: sandbox_init_with_parameters is a private API, not a
+# gated one.
+APP_ENTITLEMENTS="macos/AgentMon/agentmon/agentmon.entitlements"
+if [ ! -f "$APP_ENTITLEMENTS" ]; then
+  echo "error: entitlements file not found: $APP_ENTITLEMENTS" >&2
+  exit 1
+fi
+
 for bin in "${APP}/Contents/MacOS"/*; do
-  echo "Signing $(basename "$bin")"
-  if [ "$(basename "$bin")" = "agentmon-shell-shim" ]; then
-    codesign --force --sign "$SIGNING_IDENTITY" \
-      --options runtime --timestamp \
-      "$bin"
-  else
-    codesign --force --sign "$SIGNING_IDENTITY" \
-      --entitlements macos/AgentMon/diffsec/agentmon.entitlements \
-      --options runtime --timestamp \
-      "$bin"
-  fi
+  name="$(basename "$bin")"
+  case "$name" in
+    agentmon)
+      echo "Signing $name (app entitlements)"
+      codesign --force --sign "$SIGNING_IDENTITY" \
+        --entitlements "$APP_ENTITLEMENTS" \
+        --options runtime --timestamp \
+        "$bin"
+      ;;
+    *)
+      echo "Signing $name (no entitlements)"
+      codesign --force --sign "$SIGNING_IDENTITY" \
+        --options runtime --timestamp \
+        "$bin"
+      ;;
+  esac
   codesign --verify --strict "$bin"
 done
 
@@ -58,7 +75,7 @@ codesign --force --sign "$SIGNING_IDENTITY" \
 # 5. Main app bundle
 echo "Signing app bundle"
 codesign --force --sign "$SIGNING_IDENTITY" \
-  --entitlements macos/AgentMon/diffsec/agentmon.entitlements \
+  --entitlements "$APP_ENTITLEMENTS" \
   --options runtime --timestamp \
   "${APP}"
 

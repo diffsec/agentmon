@@ -280,19 +280,52 @@ jobs:
             tar -xzf "$ARCHIVE" -C "unsigned-${arch}"
           done
 
-      - name: Rebuild agentmon with CGO for system extension support
+      - name: Rebuild CGO binaries on macOS
         env:
           VERSION: ${{ env.RELEASE_TAG }}
         run: |
           LDFLAGS="-s -w -X main.version=${VERSION#v} -X main.commit=$(git rev-parse --short HEAD)"
-          # Build for both architectures with CGO enabled (nofuse: macFUSE headers not available on CI)
-          CGO_ENABLED=1 GOARCH=arm64 go build -tags nofuse -ldflags "$LDFLAGS" \
-            -o build/agentmon-arm64 ./cmd/agentmon
-          CGO_ENABLED=1 GOARCH=amd64 go build -tags nofuse -ldflags "$LDFLAGS" \
-            -o build/agentmon-amd64 ./cmd/agentmon
-          # Replace goreleaser-built agentmon with CGO-enabled builds
-          cp build/agentmon-arm64 unsigned-arm64/agentmon
-          cp build/agentmon-amd64 unsigned-amd64/agentmon
+          # GoReleaser cross-compiles darwin from Linux with CGO_ENABLED=0.
+          # Two binaries need cgo and so must be rebuilt here, on a real macOS
+          # runner:
+          #   agentmon         -- system extension support
+          #   agentmon-macwrap -- sandbox_init_with_parameters; without cgo the
+          #                       build selects main_nocgo.go, a stub that exits
+          #                       non-zero, so seatbelt enforcement is dead.
+          # nofuse: macFUSE headers are not available on CI.
+          for arch in arm64 amd64; do
+            CGO_ENABLED=1 GOARCH="$arch" go build -tags nofuse -ldflags "$LDFLAGS" \
+              -o "build/agentmon-$arch" ./cmd/agentmon
+            CGO_ENABLED=1 GOARCH="$arch" go build -ldflags "$LDFLAGS" \
+              -o "build/agentmon-macwrap-$arch" ./cmd/agentmon-macwrap
+            cp "build/agentmon-$arch" "unsigned-$arch/agentmon"
+            # macwrap is absent from the GoReleaser archive entirely (it cannot
+            # be cross-compiled with cgo), so this is a create, not a replace.
+            cp "build/agentmon-macwrap-$arch" "unsigned-$arch/agentmon-macwrap"
+          done
+
+      - name: Verify cgo binaries are real, not nocgo stubs
+        run: |
+          # A cgo-less agentmon-macwrap builds, lipos and signs cleanly, then
+          # fails at every exec. Catch it here, not in a user's audit log.
+          # Note otool -L is no use for this: the pure-Go darwin runtime links
+          # libSystem either way. Check the recorded build setting instead.
+          for arch in arm64 amd64; do
+            for bin in "unsigned-$arch/agentmon" "unsigned-$arch/agentmon-macwrap"; do
+              if ! go version -m "$bin" | grep -q "^	build	CGO_ENABLED=1$"; then
+                echo "::error::$bin was built with CGO_ENABLED=0"
+                go version -m "$bin" | grep CGO_ENABLED || true
+                exit 1
+              fi
+            done
+            # Belt and braces for the one binary whose whole purpose is this
+            # private API: prove the symbol is actually linked.
+            if ! nm -u "unsigned-$arch/agentmon-macwrap" | grep -q "_sandbox_init_with_parameters"; then
+              echo "::error::unsigned-$arch/agentmon-macwrap does not reference sandbox_init_with_parameters"
+              exit 1
+            fi
+            echo "unsigned-$arch: agentmon and agentmon-macwrap are cgo builds"
+          done
 
       - name: Create universal Go binaries
         run: |
