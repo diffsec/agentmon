@@ -131,7 +131,38 @@ func (m *SysExtManager) Activate() (ActivateResult, error) {
 	return activateExtension()
 }
 
+// Deactivate submits a deactivation request for the system extension.
+//
+// This is the only way to remove the extension while SIP is enabled:
+// `systemextensionsctl uninstall` refuses to run under SIP, and until the
+// extension is deregistered macOS denies writes into the app bundle it was
+// staged from -- so an in-place upgrade fails with "Operation not permitted"
+// and an uninstall leaves the extension running with no app behind it.
+//
+// The calling binary must be running from an app inside /Applications.
+// Verified: invoking it from a build directory is rejected with
+// OSSystemExtensionErrorUnsupportedParentBundleLocation (Code=3), "App
+// containing System Extension to be activated must be in /Applications
+// folder". So this cannot rescue a bundle that has already been emptied --
+// deactivate BEFORE touching the app, not after. Once the app is gone the
+// only route left is removing the extension in System Settings.
+func (m *SysExtManager) Deactivate() (ActivateResult, error) {
+	return deactivateExtension()
+}
+
 // Uninstall removes the System Extension.
+//
+// Deprecated: use Deactivate. Kept so existing callers keep compiling; it
+// previously returned "not implemented: requires Swift integration", which
+// was wrong -- OSSystemExtensionRequest.deactivationRequest does this from Go
+// through the same cgo bridge Activate already used.
 func (m *SysExtManager) Uninstall() error {
-	return fmt.Errorf("not implemented: requires Swift integration")
+	result, err := m.Deactivate()
+	if err != nil {
+		return err
+	}
+	if result == ActivateFailed {
+		return fmt.Errorf("deactivation failed")
+	}
+	return nil
 }

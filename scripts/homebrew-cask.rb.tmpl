@@ -16,6 +16,19 @@ cask "agentmon" do
   binary "#{appdir}/AgentMon.app/Contents/MacOS/agentmon-stub"
   binary "#{appdir}/AgentMon.app/Contents/MacOS/agentmon-macwrap"
 
+  # Deregister the system extension BEFORE the app is removed. While an
+  # extension is registered, macOS denies writes into the bundle it was staged
+  # from, so `brew upgrade` fails with "Operation not permitted" and
+  # `brew uninstall` leaves a running extension with no app behind it. The
+  # request must come from an app inside /Applications, which is why it runs
+  # here rather than after deletion. `systemextensionsctl uninstall` is not an
+  # alternative: it refuses to run while SIP is enabled.
+  uninstall_preflight do
+    system_command "#{appdir}/AgentMon.app/Contents/MacOS/agentmon",
+                   args: ["deactivate-extension"],
+                   must_succeed: false
+  end
+
   uninstall quit:      "dev.diffsec.agentmon",
             signal:    ["TERM", "agentmon"],
             launchctl: "dev.diffsec.agentmon.daemon"
