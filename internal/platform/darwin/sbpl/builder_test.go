@@ -95,12 +95,16 @@ func TestAllowFileReadWriteIOctl_Subpath(t *testing.T) {
 
 func TestAllowFileRead_Regex(t *testing.T) {
 	p := New()
-	p.AllowFileRead(Regex, `#"/usr/lib/.*\.dylib"#`)
+	// The caller passes a bare pattern; the builder owns the delimiters.
+	p.AllowFileRead(Regex, `/usr/lib/.*\.dylib`)
 	out, err := p.Build()
 	if err != nil {
 		t.Fatalf("Build() error = %v", err)
 	}
-	expected := `(allow file-read* (regex #"/usr/lib/.*\.dylib"#))`
+	// #"..." with no trailing #. This assertion used to require the trailing
+	// form, which the sandbox parser rejects outright ("undefined sharp
+	// expression"), taking the whole profile with it.
+	expected := `(allow file-read* (regex #"/usr/lib/.*\.dylib"))`
 	if !strings.Contains(out, expected) {
 		t.Errorf("Build() output should contain %q, got:\n%s", expected, out)
 	}
@@ -108,11 +112,34 @@ func TestAllowFileRead_Regex(t *testing.T) {
 
 func TestBuild_RegexPathNotRejected(t *testing.T) {
 	p := New()
-	// Regex paths don't need to be absolute
-	p.AllowFileRead(Regex, `#"relative/.*"#`)
+	// Regex patterns don't need to be absolute
+	p.AllowFileRead(Regex, `relative/.*`)
 	_, err := p.Build()
 	if err != nil {
-		t.Errorf("Build() should not reject regex paths, got error: %v", err)
+		t.Errorf("Build() should not reject regex patterns, got error: %v", err)
+	}
+}
+
+func TestBuild_RejectsSwiftRawStringDelimiters(t *testing.T) {
+	// A caller carrying over the old convention supplies its own delimiters.
+	// #"..."# is Swift syntax, not SBPL; passing it through produced a profile
+	// the kernel refused to load, disabling the sandbox entirely rather than
+	// weakening it. Build must refuse it instead of emitting it.
+	p := New()
+	p.AllowFileRead(Regex, `#"/usr/lib/.*"#`)
+	if _, err := p.Build(); err == nil {
+		t.Fatal("Build() accepted a pattern with Swift raw-string delimiters; the sandbox parser rejects the whole profile on these")
+	}
+}
+
+func TestBuild_RejectsQuoteInRegex(t *testing.T) {
+	// #"..." has no escape mechanism: the string ends at the first ". A quote
+	// inside the pattern silently terminates the rule early and the remainder
+	// is parsed as further SBPL.
+	p := New()
+	p.AllowFileRead(Regex, `/tmp/a"))(allow file-read*)((`)
+	if _, err := p.Build(); err == nil {
+		t.Fatal("Build() accepted a regex containing a double quote, which can terminate the rule early and change what the profile means")
 	}
 }
 
@@ -126,7 +153,7 @@ func TestQuotePathForMatch(t *testing.T) {
 		{"simple path", Subpath, "/usr/lib", `"/usr/lib"`},
 		{"path with quotes", Literal, `/path"quoted`, `"/path\"quoted"`},
 		{"path with backslash", Literal, `/path\slash`, `"/path\\slash"`},
-		{"regex passthrough", Regex, `#"/pattern"#`, `#"/pattern"#`},
+		{"regex gets SBPL raw-string delimiters", Regex, `/pattern`, `#"/pattern"`},
 		{"hash prefix NOT treated as regex when match is Literal", Literal, `#"not-regex`, `"#\"not-regex"`},
 	}
 	for _, tt := range tests {

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 
 	"github.com/diffsec/agentmon/internal/platform/darwin"
+	"github.com/diffsec/agentmon/internal/platform/helperbin"
 )
 
 func buildDarwinDomains(caps map[string]any, esfDetail string) []ProtectionDomain {
@@ -148,8 +149,11 @@ func checkLima() bool {
 }
 
 func checkMacwrap() bool {
-	_, err := exec.LookPath("agentmon-macwrap")
-	return err == nil
+	// helperbin.Resolve, not exec.LookPath: agentmon-macwrap ships inside
+	// AgentMon.app/Contents/MacOS, which is not on PATH for a launchd-started
+	// daemon. PATH-only lookup reported "not found" for a wrapper that was
+	// present and working, understating the protection score.
+	return helperbin.Resolve("agentmon-macwrap") != ""
 }
 
 func selectDarwinMode(caps map[string]any) (string, int) {

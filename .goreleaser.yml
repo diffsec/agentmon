@@ -142,21 +142,17 @@ builds:
     ldflags:
       - -s -w
 
-  # macwrap: XPC sandbox wrapper for macOS (requires CGO)
-  # NOTE: This build requires macOS with Xcode to compile - SKIPPED in CI
-  # Build locally with: CGO_ENABLED=1 go build -o bin/agentmon-macwrap ./cmd/agentmon-macwrap
-  # - id: macwrap-darwin
-  #   main: ./cmd/agentmon-macwrap
-  #   binary: agentmon-macwrap
-  #   env:
-  #     - CGO_ENABLED=1
-  #   goos:
-  #     - darwin
-  #   goarch:
-  #     - amd64
-  #     - arm64
-  #   ldflags:
-  #     - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}}
+  # agentmon-macwrap is deliberately NOT built here.
+  #
+  # It calls sandbox_init_with_parameters through cgo, and GoReleaser
+  # cross-compiles darwin from a Linux runner with CGO_ENABLED=0. Building it
+  # here would produce main_nocgo.go -- a stub that exits non-zero on every
+  # invocation -- which archives, lipos and signs cleanly and then silently
+  # disables seatbelt enforcement for every exec.
+  #
+  # It is built with cgo on the macOS runner in .github/workflows/release.yml
+  # ("Rebuild CGO binaries on macOS") and ships in AgentMon.app only. Locally:
+  #   make build-macwrap
 
 archives:
   - id: agentmon-linux
@@ -194,7 +190,8 @@ archives:
       - agentmon-darwin
       - shim-darwin
       - stub-darwin
-      # macwrap-darwin excluded - requires native macOS build
+      # agentmon-macwrap is absent from this archive by design; see the build
+      # section above. It is delivered through AgentMon.app / the Homebrew cask.
     formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_darwin_{{ .Arch }}"
     files:
