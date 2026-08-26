@@ -17,3 +17,8 @@ const (
 func activateExtension() (ActivateResult, error) {
 	return ActivateFailed, fmt.Errorf("system extension activation requires CGO")
 }
+
+// deactivateExtension is a no-op when CGO is disabled.
+func deactivateExtension() (ActivateResult, error) {
+	return ActivateFailed, fmt.Errorf("system extension deactivation requires CGO")
+}

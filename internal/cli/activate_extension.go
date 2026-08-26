@@ -60,3 +60,43 @@ func openFullDiskAccessSettings() {
 func openEndpointSecuritySettings() {
 	exec.Command("open", "x-apple.systempreferences:com.apple.preference.security?Privacy_EndpointSecurity").Run()
 }
+
+func newDeactivateExtensionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "deactivate-extension",
+		Short: "Deactivate the AgentMon system extension",
+		Long: "Submits a deactivation request for the AgentMon system extension.\n\n" +
+			"Run this before replacing or removing /Applications/AgentMon.app. While the\n" +
+			"extension is registered, macOS denies writes into the bundle it was staged\n" +
+			"from, so an in-place upgrade fails with \"Operation not permitted\"; and\n" +
+			"removing the app without deactivating leaves the extension running with\n" +
+			"nothing behind it. `systemextensionsctl uninstall` is not an alternative --\n" +
+			"it refuses to run while System Integrity Protection is enabled.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			mgr := darwin.NewSysExtManager()
+
+			fmt.Println("Deactivating AgentMon system extension...")
+			result, err := mgr.Deactivate()
+
+			switch result {
+			case darwin.ActivateOK:
+				fmt.Println("System extension deactivated.")
+				return nil
+			case darwin.ActivateNeedsApproval:
+				// Not a failure: macOS wants the user to confirm the removal.
+				// The extension stays registered until they do, so say so
+				// rather than reporting success and leaving them to discover
+				// the bundle is still locked.
+				fmt.Println("Removal requires approval in System Settings.")
+				fmt.Println("The extension stays active until you confirm it there.")
+				openEndpointSecuritySettings()
+				return nil
+			default:
+				if err != nil {
+					return fmt.Errorf("deactivation failed: %w", err)
+				}
+				return fmt.Errorf("deactivation failed")
+			}
+		},
+	}
+}

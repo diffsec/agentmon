@@ -92,6 +92,47 @@ static int activateSysExt(const char *bundleID, char **errOut) {
 		return activator.result;
 	}
 }
+
+// deactivateSysExt submits a deactivation request and blocks until completion.
+//
+// With SIP enabled, `systemextensionsctl uninstall` refuses to run, so an
+// OSSystemExtensionRequest from the owning app is the only way to remove the
+// extension without a trip through System Settings. Skipping this is not
+// cosmetic: while an extension is registered, macOS refuses writes into the
+// app bundle it was staged from, so an in-place upgrade fails with
+// "Operation not permitted" and `brew uninstall` leaves a running extension
+// behind with no app.
+//
+// Returns: 0 = deactivated, -1 = failed.
+static int deactivateSysExt(const char *bundleID, char **errOut) {
+	@autoreleasepool {
+		SysExtActivator *activator = [[SysExtActivator alloc] init];
+		NSString *identifier = [NSString stringWithUTF8String:bundleID];
+
+		OSSystemExtensionRequest *request = [OSSystemExtensionRequest
+			deactivationRequestForExtension:identifier
+			queue:dispatch_get_main_queue()];
+		request.delegate = activator;
+		[[OSSystemExtensionManager sharedManager] submitRequest:request];
+
+		NSDate *timeout = [NSDate dateWithTimeIntervalSinceNow:30.0];
+		while (!activator.completed && [[NSDate date] compare:timeout] == NSOrderedAscending) {
+			CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, false);
+		}
+
+		if (!activator.completed) {
+			if (errOut) *errOut = strdup("deactivation timed out after 30 seconds");
+			return ACTIVATE_FAILED;
+		}
+		if (activator.result == ACTIVATE_FAILED && errOut && activator.errorMessage) {
+			*errOut = strdup([activator.errorMessage UTF8String]);
+		}
+		// requestNeedsUserApproval maps to ACTIVATE_NEEDS_APPROVAL, which for a
+		// deactivation means the removal is pending the user's confirmation in
+		// System Settings rather than having failed.
+		return activator.result;
+	}
+}
 */
 import "C"
 
@@ -127,5 +168,25 @@ func activateExtension() (ActivateResult, error) {
 		return ActivateResult(result), fmt.Errorf("%s", errMsg)
 	}
 
+	return ActivateResult(result), nil
+}
+
+// deactivateExtension calls OSSystemExtensionManager to deactivate the system
+// extension, blocking until the request completes.
+//
+// Returns ActivateNeedsApproval when macOS wants the user to confirm the
+// removal in System Settings; the extension is not gone until they do.
+func deactivateExtension() (ActivateResult, error) {
+	cBundleID := C.CString(sysExtBundleID)
+	defer C.free(unsafe.Pointer(cBundleID))
+
+	var cErr *C.char
+	result := C.deactivateSysExt(cBundleID, &cErr)
+
+	if cErr != nil {
+		errMsg := C.GoString(cErr)
+		C.free(unsafe.Pointer(cErr))
+		return ActivateResult(result), fmt.Errorf("%s", errMsg)
+	}
 	return ActivateResult(result), nil
 }
