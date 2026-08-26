@@ -41,8 +41,14 @@ func (t *DarwinProcessTracker) Track(pid int) error {
 	return nil
 }
 
+// darwinPollInterval is how often the tracker rescans the process table for
+// new children and departed ones. Exported to the package so tests can size
+// their waits against it instead of hardcoding a duration that silently
+// becomes a coin flip when the interval changes.
+const darwinPollInterval = 100 * time.Millisecond
+
 func (t *DarwinProcessTracker) poll() {
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(darwinPollInterval)
 	defer ticker.Stop()
 
 	for {

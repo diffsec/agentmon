@@ -127,7 +127,7 @@ func TestDarwinProcessTracker_DetectsChildProcess(t *testing.T) {
 	select {
 	case <-spawned:
 		// Child detected
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(spawnDetectBudget):
 		t.Fatal("timeout waiting for spawn detection")
 	}
 
@@ -185,7 +185,7 @@ func TestDarwinProcessTracker_DetectsChildExit(t *testing.T) {
 	select {
 	case <-spawned:
 		// Child detected
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(spawnDetectBudget):
 		t.Fatal("timeout waiting for spawn detection")
 	}
 
@@ -199,7 +199,7 @@ func TestDarwinProcessTracker_DetectsChildExit(t *testing.T) {
 		mu.Lock()
 		assert.Equal(t, childPID, exitedPID)
 		mu.Unlock()
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(spawnDetectBudget):
 		t.Fatal("timeout waiting for exit detection")
 	}
 
@@ -479,3 +479,15 @@ func TestDarwinProcessTracker_GrandchildDetection(t *testing.T) {
 	tracker.KillAll(syscall.SIGKILL)
 	cmd.Wait()
 }
+
+// spawnDetectBudget is how long a test waits for the poll loop to notice a
+// process appear or disappear.
+//
+// This was a flat 500ms against a 100ms poll interval -- five chances. That
+// is fine on an idle machine and a coin flip on a CI runner executing
+// `go test ./...` across every core, where the polling goroutine competes
+// with the rest of the suite for a scheduling slot; it produced intermittent
+// "timeout waiting for spawn detection" failures on macOS. Waiting longer
+// costs nothing in the passing case, because the channel fires as soon as
+// detection happens -- only the failure path pays the full budget.
+const spawnDetectBudget = 30 * darwinPollInterval
