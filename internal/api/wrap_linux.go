@@ -10,7 +10,6 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,7 +22,6 @@ import (
 	"github.com/diffsec/agentmon/internal/session"
 	"github.com/diffsec/agentmon/internal/signal"
 	"github.com/diffsec/agentmon/internal/wraphandoff"
-	"github.com/diffsec/agentmon/pkg/types"
 	"golang.org/x/sys/unix"
 )
 
