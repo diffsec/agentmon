@@ -174,18 +174,66 @@ check_bundle() {
   fi
 
   # Check 5: every restricted entitlement the signature claims must be
-  # granted by the profile. Key-presence, not value equality —
-  # networking.networkextension is array-valued on both sides.
+  # granted by the profile.
   if [ "$have_ents" -eq 1 ]; then
     for ent in "${RESTRICTED_ENTITLEMENTS[@]}"; do
       if "$PLISTBUDDY" -c "Print :$ent" "$ents" >/dev/null 2>&1; then
         if "$PLISTBUDDY" -c "Print :Entitlements:$ent" "$decoded" >/dev/null 2>&1; then
           pass "$label: restricted entitlement $ent granted by profile"
+          check_entitlement_values "$label" "$ent" "$ents" "$decoded"
         else
           fail "$label: restricted entitlement $ent claimed by signature but NOT granted by profile (AMFI will reject at exec)"
         fi
       fi
     done
+  fi
+}
+
+# check_entitlement_values compares an array-valued entitlement element by
+# element.
+#
+# Key-presence alone is not enough. networking.networkextension is array-valued,
+# and the profile grants specific provider types: an app claiming the bare
+# content-filter-provider against a profile that grants only
+# content-filter-provider-systemextension has a key the profile also has, so the
+# key check passes — while every value it claims is ungranted. That exact
+# mismatch has now bitten this project twice, in both directions, and codesign
+# does not catch it (it signs such a bundle without complaint; the failure
+# surfaces later as an Xcode validation error or an AMFI kill at exec).
+check_entitlement_values() {
+  local label="$1" ent="$2" ents="$3" decoded="$4"
+  local claimed granted extra esc
+
+  # plutil -extract treats "." as a key-path separator, and every entitlement
+  # name is dotted. Unescaped, the extract silently finds nothing and this
+  # whole check becomes a no-op that reports success.
+  esc="${ent//./\\.}"
+
+  claimed="$(plutil -extract "$esc" json -o - "$ents" 2>/dev/null)"
+  # Only array-valued entitlements need this; booleans have nothing to compare.
+  case "$claimed" in
+    \[*) ;;
+    *) return ;;
+  esac
+  granted="$(plutil -extract "Entitlements.$esc" json -o - "$decoded" 2>/dev/null)"
+  if [ -z "$granted" ]; then
+    return
+  fi
+
+  extra="$(python3 -c '
+import json, sys
+claimed = set(json.loads(sys.argv[1]))
+granted = set(json.loads(sys.argv[2]))
+print("\n".join(sorted(claimed - granted)))
+' "$claimed" "$granted" 2>/dev/null)"
+
+  if [ -n "$extra" ]; then
+    while IFS= read -r v; do
+      [ -n "$v" ] || continue
+      fail "$label: $ent claims $v, which the profile does not grant"
+    done <<< "$extra"
+  else
+    pass "$label: every $ent value is granted by the profile"
   fi
 }
 

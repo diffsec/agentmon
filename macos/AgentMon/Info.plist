@@ -14,6 +14,28 @@
 	<string>1.0.0</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
+	<!-- Claiming the networkextension entitlement makes sysextd run the
+	     NetworkExtension category validator on activation, and that validator
+	     rejects the extension outright if this key is absent or empty:
+	     "The value of the NetworkExtension key must be a non-empty dictionary."
+	     A failed category validation uninstalls the WHOLE extension, taking
+	     Endpoint Security down with it -- endpoint_security validated fine and
+	     the extension was removed anyway. Entitlement and Info.plist must move
+	     together.
+
+	     The class names are module-qualified because these are Swift classes
+	     with no @objc(name); the module is PRODUCT_NAME with dots replaced,
+	     i.e. dev_diffsec_agentmon_SysExt. -->
+	<key>NetworkExtension</key>
+	<dict>
+		<key>NEProviderClasses</key>
+		<dict>
+			<key>com.apple.networkextension.filter-data</key>
+			<string>dev_diffsec_agentmon_SysExt.FilterDataProvider</string>
+			<key>com.apple.networkextension.dns-proxy</key>
+			<string>dev_diffsec_agentmon_SysExt.DNSProxyProvider</string>
+		</dict>
+	</dict>
 	<key>NSEndpointSecurityMachServiceName</key>
 	<string>dev.diffsec.agentmon.SysExt</string>
 	<key>NSSystemExtensionUsageDescription</key>
