@@ -22,7 +22,10 @@ func TestSelectDarwinMode(t *testing.T) {
 		{"esf wins", map[string]any{"esf": true, "lima_available": true}, "esf", 90, false},
 		{"lima second", map[string]any{"esf": false, "lima_available": true}, "lima", 85, false},
 		{"dynamic seatbelt", map[string]any{"esf": false, "lima_available": false}, "dynamic-seatbelt", 65, true},
-		{"sandbox-exec fallback", map[string]any{"esf": false, "lima_available": false}, "sandbox-exec", 60, false},
+		// With no ESF, no Lima and no macwrap there is no enforcement at all.
+		// This used to report "sandbox-exec" scoring 60, but nothing invokes
+		// sandbox-exec -- platform.Sandbox() has no callers.
+		{"no enforcement available", map[string]any{"esf": false, "lima_available": false}, "none", 0, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -30,7 +33,7 @@ func TestSelectDarwinMode(t *testing.T) {
 				t.Skip("agentmon-macwrap not in PATH")
 			}
 			if !tt.needsMacwrap && hasMacwrap {
-				if tt.wantMode == "sandbox-exec" {
+				if tt.wantMode == "none" {
 					t.Skip("macwrap is in PATH, this tests the no-macwrap path")
 				}
 			}
