@@ -4,16 +4,10 @@
 <dict>
 	<key>com.apple.developer.endpoint-security.client</key>
 	<true/>
-	<!-- The extension HOSTS the providers (FilterDataProvider, DNSProxyProvider),
-	     which is a separate requirement from the host app's right to configure
-	     them: the app needs the entitlement to call NEFilterManager, the
-	     extension needs it to be the provider. Values must match the app's and
-	     must be the -systemextension variants, which are what marks a provider
-	     as system-extension-hosted and are the only ones the profile grants. -->
 	<key>com.apple.developer.networking.networkextension</key>
 	<array>
-		<string>content-filter-provider-systemextension</string>
 		<string>dns-proxy-systemextension</string>
+		<string>content-filter-provider-systemextension</string>
 	</array>
 </dict>
 </plist>
