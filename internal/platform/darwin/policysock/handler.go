@@ -30,10 +30,27 @@ func NewPolicyAdapter(engine *policy.Engine, sessions SessionResolver) *PolicyAd
 	}
 }
 
+// noEngine reports that the adapter has no policy engine and returns the
+// fail-closed answer. This is AUDIT H5: every check below used to return
+// allow/"no-policy" when engine was nil, so a daemon that had not finished
+// installing a policy -- or had failed to load one -- waved through every file
+// open, connect and exec the system extension asked about.
+//
+// Denying is safe here because the extension only asks about processes inside a
+// tracked agentmon session: ESFClient guards its AUTH handlers on
+// hasActiveSessions/sessionForPID, and SessionPolicyCache.evaluateFile returns
+// .allow for any PID it does not know. So a nil engine now blocks the sandboxed
+// agent rather than the machine.
+func (a *PolicyAdapter) noEngine(check string) (bool, string) {
+	slog.Error("policy socket: no policy engine installed, denying (fail closed)",
+		"check", check)
+	return false, "no-policy-fail-closed"
+}
+
 // CheckFile evaluates file access policy.
 func (a *PolicyAdapter) CheckFile(path, op string) (allow bool, rule string) {
 	if a.engine == nil {
-		return true, "no-policy"
+		return a.noEngine("file")
 	}
 	dec := a.engine.CheckFile(path, op)
 	return dec.EffectiveDecision == types.DecisionAllow, dec.Rule
@@ -42,7 +59,7 @@ func (a *PolicyAdapter) CheckFile(path, op string) (allow bool, rule string) {
 // CheckNetwork evaluates network access policy.
 func (a *PolicyAdapter) CheckNetwork(ip string, port int, domain string) (allow bool, rule string) {
 	if a.engine == nil {
-		return true, "no-policy"
+		return a.noEngine("network")
 	}
 	// Use domain if provided, otherwise use IP
 	target := domain
@@ -56,7 +73,7 @@ func (a *PolicyAdapter) CheckNetwork(ip string, port int, domain string) (allow 
 // CheckCommand evaluates command execution policy.
 func (a *PolicyAdapter) CheckCommand(cmd string, args []string) (allow bool, rule string) {
 	if a.engine == nil {
-		return true, "no-policy"
+		return a.noEngine("command")
 	}
 	dec := a.engine.CheckCommand(cmd, args)
 	return dec.EffectiveDecision == types.DecisionAllow, dec.Rule
@@ -74,10 +91,12 @@ func (a *PolicyAdapter) ResolveSession(pid int32) string {
 // the full decision and action for the ESF client to act on.
 func (a *PolicyAdapter) CheckExec(executable string, args []string, pid int32, parentPID int32, sessionID string, _ ExecContext) ExecCheckResult {
 	if a.engine == nil {
+		slog.Error("policy socket: no policy engine installed, denying exec (fail closed)",
+			"executable", executable, "pid", pid)
 		return ExecCheckResult{
-			Decision: "allow",
-			Action:   "continue",
-			Rule:     "no-policy",
+			Decision: "deny",
+			Action:   "deny",
+			Rule:     "no-policy-fail-closed",
 		}
 	}
 
@@ -123,14 +142,27 @@ func (a *PolicyAdapter) CheckExec(executable string, args []string, pid int32, p
 
 // BuildPolicySnapshot projects the policy engine's rules into a flat snapshot
 // format suitable for Swift-side local caching and evaluation.
+//
+// KNOWN GAP (remainder of AUDIT H5): the three early returns below still hand
+// back an empty, allow-everything snapshot when no policy is available. The
+// live checks above now fail closed, but this path cannot be fixed from Go
+// alone. SessionPolicyCache evaluates a snapshot by scanning explicit deny
+// rules and returning .allow when none match, and it never reads the top-level
+// Allow field -- so setting Allow:false here would change nothing. Closing this
+// properly needs a paired Swift change: a distinct "no policy available" state
+// that denies for tracked sessions instead of falling through to allow.
 func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint64) PolicyResponse {
 	if a.engine == nil {
-		return PolicyResponse{Allow: true}
+		slog.Error("policy socket: snapshot requested with no policy engine; " +
+			"returning an empty snapshot, which the extension treats as allow-all")
+		return PolicyResponse{Allow: true, Rule: "no-policy"}
 	}
 
 	p := a.engine.Policy()
 	if p == nil {
-		return PolicyResponse{Allow: true}
+		slog.Error("policy socket: snapshot requested with no policy loaded; " +
+			"returning an empty snapshot, which the extension treats as allow-all")
+		return PolicyResponse{Allow: true, Rule: "no-policy"}
 	}
 
 	// If no session_id provided, look up the latest registered session.
@@ -189,9 +221,9 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 		RootPID:         rootPID,
 		SnapshotVersion: 1, // Will be replaced by SessionVersions counter in Task 4
 		FileRules:       fileRules,
-		NetworkRules:      networkRules,
-		DNSRules:          dnsRules,
-		Defaults:          &defaults,
+		NetworkRules:    networkRules,
+		DNSRules:        dnsRules,
+		Defaults:        &defaults,
 	}
 }
 

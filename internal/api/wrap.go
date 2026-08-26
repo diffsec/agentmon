@@ -186,11 +186,6 @@ func (a *App) wrapInitCore(s *session.Session, sessionID string, req types.WrapI
 		}
 	}
 
-	// Windows uses driver-based interception, not seccomp
-	if runtime.GOOS == "windows" {
-		return a.wrapInitWindows(ctx, s, sessionID, req)
-	}
-
 	// Only supported on Linux (seccomp) otherwise
 	if runtime.GOOS != "linux" {
 		return types.WrapInitResponse{}, http.StatusBadRequest, errWrapNotSupported

@@ -1532,6 +1532,17 @@ func (a *App) wrapWithMacSandbox(
 	}
 
 	if _, err := exec.LookPath(wrapperBin); err != nil {
+		// Returning silently here meant every exec on macOS ran completely
+		// unsandboxed with no log, no event and no other signal -- and since
+		// agentmon-macwrap is not currently shipped in the app bundle, that was
+		// the default rather than the exception. Mirror the seccomp wrapper's
+		// warning so a missing wrapper is visible at the point enforcement is
+		// skipped; `agentmon detect` reports the same gap as
+		// "dynamic-seatbelt: not found".
+		slog.Warn("seatbelt wrapper unavailable: wrapper binary not found (running without macOS sandbox enforcement)",
+			"wrapper_bin", wrapperBin,
+			"session_id", sess.ID,
+			"err", err.Error())
 		return
 	}
 
@@ -1576,6 +1587,9 @@ func (a *App) wrapWithMacSandbox(
 
 	cfgJSON, err := json.Marshal(cfg)
 	if err != nil {
+		slog.Error("seatbelt wrapper config could not be encoded (running without macOS sandbox enforcement)",
+			"session_id", sess.ID,
+			"err", err.Error())
 		return
 	}
 

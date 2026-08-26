@@ -1,4 +1,4 @@
-//go:build (!linux || !cgo) && !windows
+//go:build !linux || !cgo
 
 package api
 
@@ -7,11 +7,9 @@ import (
 	"errors"
 	"io"
 	"net"
-	"net/http"
 	"os"
 
 	"github.com/diffsec/agentmon/internal/session"
-	"github.com/diffsec/agentmon/pkg/types"
 )
 
 var (
@@ -45,10 +43,6 @@ func startSignalHandlerForWrap(ctx context.Context, signalFD *os.File, sessionID
 	if signalFD != nil {
 		signalFD.Close()
 	}
-}
-
-func (a *App) wrapInitWindows(ctx context.Context, s *session.Session, sessionID string, req types.WrapInitRequest) (types.WrapInitResponse, int, error) {
-	return types.WrapInitResponse{}, http.StatusBadRequest, errWrapNotSupported
 }
 
 func getConnPeerCreds(conn *net.UnixConn) peerCreds {

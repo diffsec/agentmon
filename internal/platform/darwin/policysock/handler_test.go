@@ -423,38 +423,38 @@ func TestPolicyAdapter_ResolveSession(t *testing.T) {
 	})
 }
 
+// TestPolicyAdapter_NilEngine pins the fail-closed behaviour from AUDIT H5.
+// This test previously asserted the opposite -- that a nil engine allowed
+// everything -- which is what let the bug survive. A daemon with no policy
+// installed must not wave through the system extension's checks.
+//
+// Denying is safe because the extension only asks about processes inside a
+// tracked session: ESFClient guards its AUTH handlers on
+// hasActiveSessions/sessionForPID, and SessionPolicyCache returns .allow for
+// PIDs it does not know. A nil engine therefore blocks the sandboxed agent,
+// not the machine.
 func TestPolicyAdapter_NilEngine(t *testing.T) {
 	adapter := NewPolicyAdapter(nil, nil)
 
-	t.Run("CheckFile returns no-policy", func(t *testing.T) {
-		allow, rule := adapter.CheckFile("/any/path", "read")
-		if !allow {
-			t.Error("expected allow=true with nil engine")
-		}
-		if rule != "no-policy" {
-			t.Errorf("rule: got %q, want %q", rule, "no-policy")
-		}
-	})
-
-	t.Run("CheckNetwork returns no-policy", func(t *testing.T) {
-		allow, rule := adapter.CheckNetwork("1.2.3.4", 443, "example.com")
-		if !allow {
-			t.Error("expected allow=true with nil engine")
-		}
-		if rule != "no-policy" {
-			t.Errorf("rule: got %q, want %q", rule, "no-policy")
-		}
-	})
-
-	t.Run("CheckCommand returns no-policy", func(t *testing.T) {
-		allow, rule := adapter.CheckCommand("rm", []string{"-rf", "/"})
-		if !allow {
-			t.Error("expected allow=true with nil engine")
-		}
-		if rule != "no-policy" {
-			t.Errorf("rule: got %q, want %q", rule, "no-policy")
-		}
-	})
+	checks := []struct {
+		name string
+		call func() (bool, string)
+	}{
+		{"CheckFile", func() (bool, string) { return adapter.CheckFile("/any/path", "read") }},
+		{"CheckNetwork", func() (bool, string) { return adapter.CheckNetwork("1.2.3.4", 443, "example.com") }},
+		{"CheckCommand", func() (bool, string) { return adapter.CheckCommand("rm", []string{"-rf", "/"}) }},
+	}
+	for _, c := range checks {
+		t.Run(c.name+" denies", func(t *testing.T) {
+			allow, rule := c.call()
+			if allow {
+				t.Error("expected allow=false with nil engine (fail closed)")
+			}
+			if rule != "no-policy-fail-closed" {
+				t.Errorf("rule: got %q, want %q", rule, "no-policy-fail-closed")
+			}
+		})
+	}
 
 	t.Run("ResolveSession returns empty", func(t *testing.T) {
 		session := adapter.ResolveSession(1234)
@@ -463,16 +463,16 @@ func TestPolicyAdapter_NilEngine(t *testing.T) {
 		}
 	})
 
-	t.Run("CheckExec returns no-policy", func(t *testing.T) {
+	t.Run("CheckExec denies", func(t *testing.T) {
 		result := adapter.CheckExec("/usr/bin/ls", []string{"-la"}, 1234, 1, "session-1", ExecContext{})
-		if result.Decision != "allow" {
-			t.Errorf("decision: got %q, want %q", result.Decision, "allow")
+		if result.Decision != "deny" {
+			t.Errorf("decision: got %q, want %q", result.Decision, "deny")
 		}
-		if result.Action != "continue" {
-			t.Errorf("action: got %q, want %q", result.Action, "continue")
+		if result.Action != "deny" {
+			t.Errorf("action: got %q, want %q", result.Action, "deny")
 		}
-		if result.Rule != "no-policy" {
-			t.Errorf("rule: got %q, want %q", result.Rule, "no-policy")
+		if result.Rule != "no-policy-fail-closed" {
+			t.Errorf("rule: got %q, want %q", result.Rule, "no-policy-fail-closed")
 		}
 	})
 }

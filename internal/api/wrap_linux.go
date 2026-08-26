@@ -232,11 +232,6 @@ func startSignalHandlerForWrap(ctx context.Context, signalFD *os.File, sessionID
 	}()
 }
 
-// wrapInitWindows is not available on Linux.
-func (a *App) wrapInitWindows(_ context.Context, _ *session.Session, _ string, _ types.WrapInitRequest) (types.WrapInitResponse, int, error) {
-	return types.WrapInitResponse{}, http.StatusBadRequest, errWrapNotSupported
-}
-
 type peerCreds struct {
 	PID int
 	UID uint32
