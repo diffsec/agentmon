@@ -58,22 +58,9 @@ jobs:
 
   test-macos:
     runs-on: macos-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install FUSE-T
-        run: |
-          brew install --cask macfuse || true  # Try macFUSE first as fallback
-          brew install fuse-t || true  # FUSE-T preferred
-          # Verify installation
-          if [ -d "/Library/Frameworks/FUSE-T.framework" ] || [ -f "/opt/homebrew/lib/libfuse-t.dylib" ]; then
-            echo "FUSE-T installed successfully"
-          elif [ -d "/Library/Filesystems/macfuse.fs" ]; then
-            echo "macFUSE installed as fallback"
-          else
-            echo "Warning: No FUSE implementation found, CGO build may have limited functionality"
-          fi
 
       - uses: actions/setup-go@v5
         with:
@@ -90,11 +77,33 @@ jobs:
           restore-keys: |
             ${{ env.GO_CACHE_VERSION }}-${{ runner.os }}-go-
 
-      - name: go build (with CGO for FUSE-T support)
-        run: CGO_ENABLED=1 go build ./...
+      # nofuse matches how macOS is actually shipped (Makefile build-macos-go
+      # and release.yml both pass it). macOS uses the Endpoint Security
+      # Framework for file monitoring, never FUSE -- detect_darwin.go hardcodes
+      # checkAvailable() to false -- so the macFUSE/FUSE-T install this job used
+      # to do bought nothing but minutes.
+      - name: go build
+        run: CGO_ENABLED=1 go build -tags nofuse ./...
 
       - name: go test (all packages)
-        run: go test ./...
+        run: CGO_ENABLED=1 go test -tags nofuse ./...
+
+      # Compile the Swift system extension. Without this the entire sysext --
+      # ESFClient, SessionPolicyCache, PolicySocketClient -- is built for the
+      # first time at release, so a Swift break reaches main undetected.
+      # Unsigned: CI has no certificates, and signing is exercised by the
+      # release workflow.
+      - name: xcodebuild (Swift sysext, unsigned)
+        run: |
+          xcodebuild \
+            -project macos/AgentMon/agentmon.xcodeproj \
+            -scheme agentmon \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet
 
   build-matrix:
     needs: [test-linux, test-macos]
