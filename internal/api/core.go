@@ -1565,15 +1565,29 @@ func (a *App) wrapWithMacSandbox(
 		machCfg.BlockPrefixes = DefaultXPCBlockPrefixes
 	}
 
+	// These are only the fallback, used when no policy-derived profile can be
+	// compiled: macwrap prefers cfg.CompiledProfile and falls back to
+	// generateProfile(cfg) otherwise. The fallback used to grant read-write over
+	// the whole of $HOME and unrestricted network, which is not a sandbox --
+	// an agent confined to it could read every credential file the user owns.
+	// Restrict it to the session workspace with no network instead, and say so,
+	// since a silently permissive fallback is exactly the failure this phase is
+	// removing.
 	cfg := macSandboxWrapperConfig{
 		WorkspacePath: sess.Workspace,
-		AllowedPaths:  []string{os.Getenv("HOME")},
-		AllowNetwork:  true,
+		AllowedPaths:  []string{sess.Workspace},
+		AllowNetwork:  false,
 		MachServices:  machCfg,
 	}
 
 	// Compile policy-driven SBPL profile (darwin+cgo only, no-op on other platforms)
 	compileDarwinSandboxProfile(&cfg, a.policyEngineFor(sess), sess.Workspace)
+
+	if cfg.CompiledProfile == "" {
+		slog.Warn("no policy-derived sandbox profile available; falling back to a workspace-only profile with no network access",
+			"session_id", sess.ID,
+			"workspace", sess.Workspace)
+	}
 
 	// Write profile artifact for debugging/inspection
 	if cfg.CompiledProfile != "" && sess.ID != "" {
