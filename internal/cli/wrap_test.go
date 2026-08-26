@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -243,9 +243,9 @@ func TestSetupWrapInterception_CallsWrapInit(t *testing.T) {
 		wrapInitResp: types.WrapInitResponse{
 			WrapperBinary: "/bin/true",
 			SeccompConfig: `{"unix_socket_enabled":true}`,
-			NotifySocket:  "/tmp/agentsh-notify-test.sock",
+			NotifySocket:  "/tmp/agentmon-notify-test.sock",
 			WrapperEnv: map[string]string{
-				"AGENTSH_SECCOMP_CONFIG": `{"unix_socket_enabled":true}`,
+				"AGENTMON_SECCOMP_CONFIG": `{"unix_socket_enabled":true}`,
 			},
 		},
 	}
@@ -324,37 +324,37 @@ func TestBuildWrapEnv_IncludesInSessionWhenBypassEnabled(t *testing.T) {
 		envMap[e] = true
 	}
 
-	assert.True(t, envMap["AGENTSH_SESSION_ID=sess-123"])
-	assert.True(t, envMap["AGENTSH_SERVER=http://127.0.0.1:18080"])
-	assert.True(t, envMap["AGENTSH_IN_SESSION=1"])
+	assert.True(t, envMap["AGENTMON_SESSION_ID=sess-123"])
+	assert.True(t, envMap["AGENTMON_SERVER=http://127.0.0.1:18080"])
+	assert.True(t, envMap["AGENTMON_IN_SESSION=1"])
 }
 
 func TestBuildWrapEnv_OmitsInSessionWhenBypassDisabled(t *testing.T) {
 	env := buildWrapEnv([]string{"PATH=/usr/bin"}, "sess-123", "http://127.0.0.1:18080", false)
 	for _, e := range env {
-		if e == "AGENTSH_IN_SESSION=1" {
-			t.Fatal("did not expect AGENTSH_IN_SESSION when bypass is disabled")
+		if e == "AGENTMON_IN_SESSION=1" {
+			t.Fatal("did not expect AGENTMON_IN_SESSION when bypass is disabled")
 		}
 	}
 }
 
-func TestBuildWrapEnv_StripsInheritedAgentshVarsWhenBypassDisabled(t *testing.T) {
+func TestBuildWrapEnv_StripsInheritedAgentmonVarsWhenBypassDisabled(t *testing.T) {
 	env := buildWrapEnv([]string{
 		"PATH=/usr/bin",
-		"AGENTSH_SESSION_ID=stale-session",
-		"AGENTSH_SERVER=http://stale",
-		"AGENTSH_IN_SESSION=1",
+		"AGENTMON_SESSION_ID=stale-session",
+		"AGENTMON_SERVER=http://stale",
+		"AGENTMON_IN_SESSION=1",
 	}, "sess-123", "http://127.0.0.1:18080", false)
 
 	for _, e := range env {
-		if e == "AGENTSH_IN_SESSION=1" {
-			t.Fatal("did not expect inherited AGENTSH_IN_SESSION when bypass is disabled")
+		if e == "AGENTMON_IN_SESSION=1" {
+			t.Fatal("did not expect inherited AGENTMON_IN_SESSION when bypass is disabled")
 		}
-		if e == "AGENTSH_SESSION_ID=stale-session" {
-			t.Fatal("did not expect stale AGENTSH_SESSION_ID to remain in env")
+		if e == "AGENTMON_SESSION_ID=stale-session" {
+			t.Fatal("did not expect stale AGENTMON_SESSION_ID to remain in env")
 		}
-		if e == "AGENTSH_SERVER=http://stale" {
-			t.Fatal("did not expect stale AGENTSH_SERVER to remain in env")
+		if e == "AGENTMON_SERVER=http://stale" {
+			t.Fatal("did not expect stale AGENTMON_SERVER to remain in env")
 		}
 	}
 
@@ -362,16 +362,16 @@ func TestBuildWrapEnv_StripsInheritedAgentshVarsWhenBypassDisabled(t *testing.T)
 	for _, e := range env {
 		envMap[e]++
 	}
-	assert.Equal(t, 1, envMap["AGENTSH_SESSION_ID=sess-123"])
-	assert.Equal(t, 1, envMap["AGENTSH_SERVER=http://127.0.0.1:18080"])
+	assert.Equal(t, 1, envMap["AGENTMON_SESSION_ID=sess-123"])
+	assert.Equal(t, 1, envMap["AGENTMON_SERVER=http://127.0.0.1:18080"])
 }
 
-func TestBuildWrapEnv_ReplacesInheritedAgentshVarsWhenBypassEnabled(t *testing.T) {
+func TestBuildWrapEnv_ReplacesInheritedAgentmonVarsWhenBypassEnabled(t *testing.T) {
 	env := buildWrapEnv([]string{
 		"PATH=/usr/bin",
-		"AGENTSH_SESSION_ID=stale-session",
-		"AGENTSH_SERVER=http://stale",
-		"AGENTSH_IN_SESSION=1",
+		"AGENTMON_SESSION_ID=stale-session",
+		"AGENTMON_SERVER=http://stale",
+		"AGENTMON_IN_SESSION=1",
 	}, "sess-123", "http://127.0.0.1:18080", true)
 
 	envMap := make(map[string]int)
@@ -379,30 +379,30 @@ func TestBuildWrapEnv_ReplacesInheritedAgentshVarsWhenBypassEnabled(t *testing.T
 		envMap[e]++
 	}
 
-	assert.Equal(t, 1, envMap["AGENTSH_SESSION_ID=sess-123"])
-	assert.Equal(t, 1, envMap["AGENTSH_SERVER=http://127.0.0.1:18080"])
-	assert.Equal(t, 1, envMap["AGENTSH_IN_SESSION=1"])
-	assert.Equal(t, 0, envMap["AGENTSH_SESSION_ID=stale-session"])
-	assert.Equal(t, 0, envMap["AGENTSH_SERVER=http://stale"])
+	assert.Equal(t, 1, envMap["AGENTMON_SESSION_ID=sess-123"])
+	assert.Equal(t, 1, envMap["AGENTMON_SERVER=http://127.0.0.1:18080"])
+	assert.Equal(t, 1, envMap["AGENTMON_IN_SESSION=1"])
+	assert.Equal(t, 0, envMap["AGENTMON_SESSION_ID=stale-session"])
+	assert.Equal(t, 0, envMap["AGENTMON_SERVER=http://stale"])
 }
 
-func TestBuildWrapEnv_StripsInheritedMixedCaseAgentshVarsWhenBypassDisabled(t *testing.T) {
+func TestBuildWrapEnv_StripsInheritedMixedCaseAgentmonVarsWhenBypassDisabled(t *testing.T) {
 	env := buildWrapEnv([]string{
 		"PATH=/usr/bin",
-		"agentsh_session_id=stale-session",
-		"Agentsh_Server=http://stale",
-		"agentsh_in_session=1",
+		"agentmon_session_id=stale-session",
+		"Agentmon_Server=http://stale",
+		"agentmon_in_session=1",
 	}, "sess-123", "http://127.0.0.1:18080", false)
 
 	for _, e := range env {
-		if e == "agentsh_in_session=1" {
-			t.Fatal("did not expect mixed-case inherited AGENTSH_IN_SESSION when bypass is disabled")
+		if e == "agentmon_in_session=1" {
+			t.Fatal("did not expect mixed-case inherited AGENTMON_IN_SESSION when bypass is disabled")
 		}
-		if e == "agentsh_session_id=stale-session" {
-			t.Fatal("did not expect mixed-case stale AGENTSH_SESSION_ID to remain in env")
+		if e == "agentmon_session_id=stale-session" {
+			t.Fatal("did not expect mixed-case stale AGENTMON_SESSION_ID to remain in env")
 		}
-		if e == "Agentsh_Server=http://stale" {
-			t.Fatal("did not expect mixed-case stale AGENTSH_SERVER to remain in env")
+		if e == "Agentmon_Server=http://stale" {
+			t.Fatal("did not expect mixed-case stale AGENTMON_SERVER to remain in env")
 		}
 	}
 
@@ -410,17 +410,17 @@ func TestBuildWrapEnv_StripsInheritedMixedCaseAgentshVarsWhenBypassDisabled(t *t
 	for _, e := range env {
 		envMap[e]++
 	}
-	assert.Equal(t, 1, envMap["AGENTSH_SESSION_ID=sess-123"])
-	assert.Equal(t, 1, envMap["AGENTSH_SERVER=http://127.0.0.1:18080"])
-	assert.Equal(t, 0, envMap["AGENTSH_IN_SESSION=1"])
+	assert.Equal(t, 1, envMap["AGENTMON_SESSION_ID=sess-123"])
+	assert.Equal(t, 1, envMap["AGENTMON_SERVER=http://127.0.0.1:18080"])
+	assert.Equal(t, 0, envMap["AGENTMON_IN_SESSION=1"])
 }
 
-func TestBuildWrapEnv_ReplacesInheritedMixedCaseAgentshVarsWhenBypassEnabled(t *testing.T) {
+func TestBuildWrapEnv_ReplacesInheritedMixedCaseAgentmonVarsWhenBypassEnabled(t *testing.T) {
 	env := buildWrapEnv([]string{
 		"PATH=/usr/bin",
-		"agentsh_session_id=stale-session",
-		"Agentsh_Server=http://stale",
-		"agentsh_in_session=1",
+		"agentmon_session_id=stale-session",
+		"Agentmon_Server=http://stale",
+		"agentmon_in_session=1",
 	}, "sess-123", "http://127.0.0.1:18080", true)
 
 	envMap := make(map[string]int)
@@ -428,12 +428,12 @@ func TestBuildWrapEnv_ReplacesInheritedMixedCaseAgentshVarsWhenBypassEnabled(t *
 		envMap[e]++
 	}
 
-	assert.Equal(t, 1, envMap["AGENTSH_SESSION_ID=sess-123"])
-	assert.Equal(t, 1, envMap["AGENTSH_SERVER=http://127.0.0.1:18080"])
-	assert.Equal(t, 1, envMap["AGENTSH_IN_SESSION=1"])
-	assert.Equal(t, 0, envMap["agentsh_session_id=stale-session"])
-	assert.Equal(t, 0, envMap["Agentsh_Server=http://stale"])
-	assert.Equal(t, 0, envMap["agentsh_in_session=1"])
+	assert.Equal(t, 1, envMap["AGENTMON_SESSION_ID=sess-123"])
+	assert.Equal(t, 1, envMap["AGENTMON_SERVER=http://127.0.0.1:18080"])
+	assert.Equal(t, 1, envMap["AGENTMON_IN_SESSION=1"])
+	assert.Equal(t, 0, envMap["agentmon_session_id=stale-session"])
+	assert.Equal(t, 0, envMap["Agentmon_Server=http://stale"])
+	assert.Equal(t, 0, envMap["agentmon_in_session=1"])
 }
 
 func envSliceToMap(env []string) map[string]string {
@@ -562,9 +562,9 @@ func TestWrapLaunchConfig_EnvContainsSessionAndWrapper(t *testing.T) {
 		wrapInitResp: types.WrapInitResponse{
 			WrapperBinary: "/bin/true",
 			SeccompConfig: `{"unix_socket_enabled":true}`,
-			NotifySocket:  "/tmp/agentsh-notify-test.sock",
+			NotifySocket:  "/tmp/agentmon-notify-test.sock",
 			WrapperEnv: map[string]string{
-				"AGENTSH_SECCOMP_CONFIG": `{"unix_socket_enabled":true}`,
+				"AGENTMON_SECCOMP_CONFIG": `{"unix_socket_enabled":true}`,
 			},
 		},
 	}
@@ -580,12 +580,12 @@ func TestWrapLaunchConfig_EnvContainsSessionAndWrapper(t *testing.T) {
 	for _, e := range lcfg.env {
 		envMap[e] = true
 	}
-	assert.True(t, envMap["AGENTSH_SESSION_ID=test-session"], "env should contain AGENTSH_SESSION_ID")
-	assert.True(t, envMap["AGENTSH_SERVER=http://127.0.0.1:18080"], "env should contain AGENTSH_SERVER")
+	assert.True(t, envMap["AGENTMON_SESSION_ID=test-session"], "env should contain AGENTMON_SESSION_ID")
+	assert.True(t, envMap["AGENTMON_SERVER=http://127.0.0.1:18080"], "env should contain AGENTMON_SERVER")
 
-	// AGENTSH_NOTIFY_SOCK_FD is Linux-only (seccomp notification socket)
+	// AGENTMON_NOTIFY_SOCK_FD is Linux-only (seccomp notification socket)
 	if runtime.GOOS == "linux" {
-		assert.True(t, envMap["AGENTSH_NOTIFY_SOCK_FD=3"], "env should contain AGENTSH_NOTIFY_SOCK_FD=3")
+		assert.True(t, envMap["AGENTMON_NOTIFY_SOCK_FD=3"], "env should contain AGENTMON_NOTIFY_SOCK_FD=3")
 	}
 
 	// Clean up
@@ -598,18 +598,18 @@ func TestWrapLaunchConfig_EnvContainsSessionAndWrapper(t *testing.T) {
 
 func TestWrapLaunchConfig_AppliesEnvInject(t *testing.T) {
 	if runtime.GOOS != "linux" {
-		t.Skip("agentsh-unixwrap env_inject path is Linux-only")
+		t.Skip("agentmon-unixwrap env_inject path is Linux-only")
 	}
 
 	mc := &mockWrapClient{
 		wrapInitResp: types.WrapInitResponse{
 			WrapperBinary: "/bin/true",
-			NotifySocket:  "/tmp/agentsh-notify-test.sock",
+			NotifySocket:  "/tmp/agentmon-notify-test.sock",
 			WrapperEnv: map[string]string{
-				"AGENTSH_SECCOMP_CONFIG": `{"unix_socket_enabled":true}`,
+				"AGENTMON_SECCOMP_CONFIG": `{"unix_socket_enabled":true}`,
 			},
 			EnvInject: map[string]string{
-				"BASH_ENV": "/usr/lib/agentsh/bash_startup.sh",
+				"BASH_ENV": "/usr/lib/agentmon/bash_startup.sh",
 			},
 		},
 	}
@@ -623,7 +623,7 @@ func TestWrapLaunchConfig_AppliesEnvInject(t *testing.T) {
 	for _, e := range lcfg.env {
 		envMap[e] = true
 	}
-	assert.True(t, envMap["BASH_ENV=/usr/lib/agentsh/bash_startup.sh"],
+	assert.True(t, envMap["BASH_ENV=/usr/lib/agentmon/bash_startup.sh"],
 		"wrap env should contain injected BASH_ENV (issue #374)")
 
 	for _, f := range lcfg.extraFiles {
@@ -641,9 +641,9 @@ func TestWrapLaunchConfig_AppliesEnvInject_PtraceMode(t *testing.T) {
 	mc := &mockWrapClient{
 		wrapInitResp: types.WrapInitResponse{
 			PtraceMode:   true,
-			NotifySocket: "/tmp/agentsh-ptrace-test.sock",
+			NotifySocket: "/tmp/agentmon-ptrace-test.sock",
 			EnvInject: map[string]string{
-				"BASH_ENV": "/usr/lib/agentsh/bash_startup.sh",
+				"BASH_ENV": "/usr/lib/agentmon/bash_startup.sh",
 			},
 		},
 	}
@@ -657,7 +657,7 @@ func TestWrapLaunchConfig_AppliesEnvInject_PtraceMode(t *testing.T) {
 	for _, e := range lcfg.env {
 		envMap[e] = true
 	}
-	assert.True(t, envMap["BASH_ENV=/usr/lib/agentsh/bash_startup.sh"],
+	assert.True(t, envMap["BASH_ENV=/usr/lib/agentmon/bash_startup.sh"],
 		"ptrace-mode wrap env should contain injected BASH_ENV (issue #374)")
 
 	for _, f := range lcfg.extraFiles {
@@ -675,10 +675,10 @@ func TestWrapLaunchConfig_EnvIncludesInSessionWhenSafe(t *testing.T) {
 	mc := &mockWrapClient{
 		wrapInitResp: types.WrapInitResponse{
 			WrapperBinary:         "/bin/true",
-			NotifySocket:          "/tmp/agentsh-notify-test.sock",
+			NotifySocket:          "/tmp/agentmon-notify-test.sock",
 			SafeToBypassShellShim: true,
 			WrapperEnv: map[string]string{
-				"AGENTSH_SECCOMP_CONFIG": `{"unix_socket_enabled":true}`,
+				"AGENTMON_SECCOMP_CONFIG": `{"unix_socket_enabled":true}`,
 			},
 		},
 	}
@@ -691,7 +691,7 @@ func TestWrapLaunchConfig_EnvIncludesInSessionWhenSafe(t *testing.T) {
 	for _, e := range lcfg.env {
 		envMap[e] = true
 	}
-	assert.True(t, envMap["AGENTSH_IN_SESSION=1"])
+	assert.True(t, envMap["AGENTMON_IN_SESSION=1"])
 
 	for _, f := range lcfg.extraFiles {
 		if f != nil {
@@ -708,10 +708,10 @@ func TestWrapLaunchConfig_EnvOmitsInSessionWhenUnsafe(t *testing.T) {
 	mc := &mockWrapClient{
 		wrapInitResp: types.WrapInitResponse{
 			WrapperBinary:         "/bin/true",
-			NotifySocket:          "/tmp/agentsh-notify-test.sock",
+			NotifySocket:          "/tmp/agentmon-notify-test.sock",
 			SafeToBypassShellShim: false,
 			WrapperEnv: map[string]string{
-				"AGENTSH_SECCOMP_CONFIG": `{"unix_socket_enabled":true}`,
+				"AGENTMON_SECCOMP_CONFIG": `{"unix_socket_enabled":true}`,
 			},
 		},
 	}
@@ -721,8 +721,8 @@ func TestWrapLaunchConfig_EnvOmitsInSessionWhenUnsafe(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, e := range lcfg.env {
-		if e == "AGENTSH_IN_SESSION=1" {
-			t.Fatal("did not expect AGENTSH_IN_SESSION when wrap response marks bypass unsafe")
+		if e == "AGENTMON_IN_SESSION=1" {
+			t.Fatal("did not expect AGENTMON_IN_SESSION when wrap response marks bypass unsafe")
 		}
 	}
 

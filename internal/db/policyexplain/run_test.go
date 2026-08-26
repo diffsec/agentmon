@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/catalog"
-	"github.com/agentsh/agentsh/internal/db/effects"
-	dbpolicy "github.com/agentsh/agentsh/internal/db/policy"
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/db/catalog"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	dbpolicy "github.com/diffsec/agentmon/internal/db/policy"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestRun_WithCatalogFixtureAllowsCanonicalRelation(t *testing.T) {

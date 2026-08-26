@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 var _ EventStore = (*IntegrityStore)(nil)

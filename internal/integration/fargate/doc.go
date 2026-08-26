@@ -5,7 +5,7 @@
 //
 // Required environment variables:
 //   - AWS_REGION
-//   - AGENTSH_TEST_IMAGE (ECR URI for agentsh sidecar image)
+//   - AGENTMON_TEST_IMAGE (ECR URI for agentmon sidecar image)
 //   - WORKLOAD_TEST_IMAGE (ECR URI for workload image)
 //   - AWS_ECS_CLUSTER
 //   - AWS_ECS_SUBNET

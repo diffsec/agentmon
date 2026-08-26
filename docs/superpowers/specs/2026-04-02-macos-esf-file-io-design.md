@@ -9,7 +9,7 @@ Complete end-to-end file I/O tracking on macOS via ESF, achieving parity with Li
 The previous implementation plan (2026-04-02-macos-fuse-removal-esf-integration) removed FUSE-T, renamed xpc→policysock, added socket authentication, wired up the policy socket server, and added NE proxy enforcement. The infrastructure is in place:
 
 - ESF AUTH handlers evaluate locally via `SessionPolicyCache` (no IPC on critical path)
-- `PolicySocketClient` communicates with the Go server via Unix socket at `/tmp/agentsh-policy.sock` (note: earlier specs reference `/var/run/agentsh/policy.sock` — this was migrated to `/tmp/` to avoid requiring root; see FUSE removal plan)
+- `PolicySocketClient` communicates with the Go server via Unix socket at `/tmp/agentmon-policy.sock` (note: earlier specs reference `/var/run/agentmon/policy.sock` — this was migrated to `/tmp/` to avoid requiring root; see FUSE removal plan)
 - `policysock.Server` accepts connections, routes requests, and has an `EventHandler` interface
 
 What's missing: the sysext sends file events but the Go server silently drops them (no `EventHandler` wired up). File approve/redirect/soft_delete actions are defined in Go policy but hardcoded to deny in Swift with no follow-through.

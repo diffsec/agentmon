@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/approvals"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/approvals"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/google/uuid"
 )
 
@@ -228,7 +228,7 @@ func (p *Proxy) serveDeclaredService(w http.ResponseWriter, r *http.Request, raw
 			// session command ID) corrupts downstream command-level
 			// correlation and indexes approval events under a command
 			// ID that doesn't correspond to any real command. A future
-			// improvement could attach a command ID if agentsh tracks
+			// improvement could attach a command ID if agentmon tracks
 			// an "active command" per session.
 			req := approvals.Request{
 				ID:        "approval-" + uuid.NewString(),

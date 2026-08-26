@@ -721,7 +721,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestSyncer_FetchesAndPopulatesStore(t *testing.T) {
@@ -921,7 +921,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // Syncer periodically downloads threat feeds and updates the store.
@@ -1092,8 +1092,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/agentsh/agentsh/internal/threatfeed"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/threatfeed"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestCheckNetworkCtx_ThreatFeedDeny(t *testing.T) {
@@ -1220,7 +1220,7 @@ threatStore  *threatfeed.Store
 threatAction string // "deny" or "audit"
 ```
 
-Add import for `"github.com/agentsh/agentsh/internal/threatfeed"` at the top.
+Add import for `"github.com/diffsec/agentmon/internal/threatfeed"` at the top.
 
 Add the `SetThreatStore` method after `NewEngine`:
 
@@ -1293,7 +1293,7 @@ threatSyncer *threatfeed.Syncer
 threatStore  *threatfeed.Store
 ```
 
-Add import for `"github.com/agentsh/agentsh/internal/threatfeed"`.
+Add import for `"github.com/diffsec/agentmon/internal/threatfeed"`.
 
 **Step 2: Create store and syncer in New()**
 

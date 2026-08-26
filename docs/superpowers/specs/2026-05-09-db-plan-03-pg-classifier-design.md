@@ -4,7 +4,7 @@ Status: design approved 2026-05-09. Implementation plan to follow via writing-pl
 
 Cross-references:
 - Roadmap: `docs/superpowers/specs/2026-05-08-db-access-phase-1-roadmap-design.md` §3 Plan 03.
-- Spec: `docs/agentsh-db-access-spec.md` v0.8 §6 (object scoping), §7 (per-protocol classification), §20 (corpus), Appendix B (`unsafe_io` / `bulk_export` reference).
+- Spec: `docs/agentmon-db-access-spec.md` v0.8 §6 (object scoping), §7 (per-protocol classification), §20 (corpus), Appendix B (`unsafe_io` / `bulk_export` reference).
 - Predecessors: Plans 01 (`internal/db/effects`, `internal/db/events`, `internal/db/service`) and 02 (`internal/db/policy/`, `MustLoadSample`) already shipped.
 
 This document captures the package-shape and interface decisions the spec leaves to the implementer. The §7.3 mapping table and §20 corpus categories are authoritative upstream and are not re-derived here.

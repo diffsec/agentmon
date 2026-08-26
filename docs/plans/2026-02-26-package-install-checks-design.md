@@ -6,7 +6,7 @@
 
 ## 1. Problem Statement
 
-AI coding agents running under AgentSH routinely install packages — `npm install`,
+AI coding agents running under AgentMon routinely install packages — `npm install`,
 `pip install`, `poetry add` — as part of their workflow. These installs are
 unsupervised by default: the agent decides what to install based on LLM reasoning,
 documentation it read, or Stack Overflow snippets.
@@ -340,7 +340,7 @@ Custom providers are executables that speak JSON over stdin/stdout:
 
 ## 5. Configuration Schema
 
-### Operational Config (`agentsh.yaml`)
+### Operational Config (`agentmon.yaml`)
 
 ```yaml
 package_checks:
@@ -581,7 +581,7 @@ package_rules:
 - **`api_key_env`** references env var names, never raw keys in config.
 - **`match` clauses** support static matching (package names, patterns) and
   finding-based matching (severity, SPDX IDs, reason codes).
-- **First-match-wins** — consistent with all other rule types in AgentSH.
+- **First-match-wins** — consistent with all other rule types in AgentMon.
 - **Final `match: {}`** catch-all ensures a verdict is always produced.
 
 ---
@@ -685,11 +685,11 @@ package_rules:
   raw tokens. Keys are read at runtime, never written to disk or logs.
 - **Redaction in audit logs.** If a private package name appears in an audit event,
   it is only included when the registry trust level permits it.
-- **Sandboxed resolution.** Dry-run commands run inside the existing AgentSH sandbox
+- **Sandboxed resolution.** Dry-run commands run inside the existing AgentMon sandbox
   with `--ignore-scripts` (npm/pnpm) or equivalent to prevent install-time code
   execution during resolution.
 - **Exec-protocol isolation.** Custom provider executables receive only the package
-  list on stdin. They do not inherit AgentSH's environment variables (API keys for
+  list on stdin. They do not inherit AgentMon's environment variables (API keys for
   other providers are stripped).
 
 ---

@@ -5,7 +5,7 @@ package darwin
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 func TestResourceHandleGetRlimits(t *testing.T) {

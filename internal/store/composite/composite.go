@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/store"
-	"github.com/agentsh/agentsh/internal/store/sqlite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/store"
+	"github.com/diffsec/agentmon/internal/store/sqlite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Store fans an event out to a primary EventStore plus zero-or-more chained

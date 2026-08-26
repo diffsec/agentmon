@@ -300,7 +300,7 @@ Expected: FAIL — the two `DenyCwdSubtree*` tests fail (today deny mode blanket
 
 - [ ] **Step 4: Add the imports to `fuse.go`**
 
-In `internal/fsmonitor/fuse.go`, add to the import block (L5-19): `"log/slog"` in the stdlib group and `"github.com/agentsh/agentsh/internal/pathutil"` in the agentsh group:
+In `internal/fsmonitor/fuse.go`, add to the import block (L5-19): `"log/slog"` in the stdlib group and `"github.com/diffsec/agentmon/internal/pathutil"` in the agentmon group:
 
 ```go
 	"context"
@@ -313,10 +313,10 @@ In `internal/fsmonitor/fuse.go`, add to the import block (L5-19): `"log/slog"` i
 	"syscall"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/approvals"
-	"github.com/agentsh/agentsh/internal/pathutil"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
+	"github.com/diffsec/agentmon/internal/approvals"
+	"github.com/diffsec/agentmon/internal/pathutil"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
 ```
 
 - [ ] **Step 5: Replace the escape-branch gate**

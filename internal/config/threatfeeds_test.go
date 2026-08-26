@@ -60,7 +60,7 @@ func TestThreatFeedsConfigStruct(t *testing.T) {
 		Feeds: []ThreatFeedEntry{
 			{Name: "test", URL: "https://example.com/hosts", Format: "hostfile"},
 		},
-		LocalLists:   []string{"/etc/agentsh/blocklist.txt"},
+		LocalLists:   []string{"/etc/agentmon/blocklist.txt"},
 		Allowlist:     []string{"safe.example.com"},
 		SyncInterval:  6 * time.Hour,
 		CacheDir:      "/tmp/feeds",

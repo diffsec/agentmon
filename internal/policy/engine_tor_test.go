@@ -5,7 +5,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type fakeTor struct {

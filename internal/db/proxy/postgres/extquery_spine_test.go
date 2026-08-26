@@ -12,7 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/events"
 )
 
 type clientBackendObservation struct {

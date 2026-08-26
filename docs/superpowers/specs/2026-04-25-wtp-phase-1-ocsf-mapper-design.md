@@ -56,7 +56,7 @@ internal/ocsf/
 ├── mapper.go                  // type Mapper, New(), Map(ev) → MappedEvent
 ├── registry.go                // var registry = map[string]Mapping{ ... }
 ├── mapping.go                 // type Mapping, type Projector, FieldRule
-├── activity.go                // OCSF activity_id constants + agentsh-internal extensions
+├── activity.go                // OCSF activity_id constants + agentmon-internal extensions
 ├── version.go                 // const SchemaVersion = "1.8.0"
 ├── project_process.go
 ├── project_file.go
@@ -99,7 +99,7 @@ internal/ocsf/
 
 Eight classes cover the full event catalog. The full per-event registry lives in `internal/ocsf/registry.go`; this section is the contract for which classes the proto authoring covers.
 
-| Class | UID | agentsh Types |
+| Class | UID | agentmon Types |
 |---|---|---|
 | **Process Activity** | 1007 | `execve`, `exec`, `exec_intercept`, `exec.start`, `ptrace_execve`, `command_started`, `command_executed`, `command_finished`, `command_killed`, `command_redirected`, `command_redirect`, `process_start`, `exit` |
 | **File System Activity** | 1001 | `file_open`, `file_read`, `file_write`, `file_create`, `file_created`, `file_delete`, `file_deleted`, `file_chmod`, `file_mkdir`, `file_rmdir`, `file_rename`, `file_renamed`, `file_modified`, `file_soft_deleted`, `ptrace_file`, `registry_write`, `registry_error` |
@@ -109,7 +109,7 @@ Eight classes cover the full event catalog. The full per-event registry lives in
 | **Detection Finding** | 2004 | `command_policy`, `seccomp_blocked`, `agent_detected`, `taint_created`, `taint_propagated`, `taint_removed`, `mcp_cross_server_blocked`, `mcp_tool_call_intercepted` |
 | **Application Activity** | 6005 | MCP family (`mcp_tool_called`, `mcp_tool_seen`, `mcp_tool_changed`, `mcp_tools_list_changed`, `mcp_sampling_request`, `mcp_tool_result_inspected`), proxies (`llm_proxy_started`, `llm_proxy_failed`, `net_proxy_started`, `net_proxy_failed`), `secret_access`, **plus all infra events** (`cgroup_*`, `fuse_*`, `ebpf_*`, `wrap_init`, `fsevents_error`, `integrity_chain_rotated`, `policy_created/updated/deleted`, `session_created/destroyed/expired/updated`) tagged with `agent_internal=true` |
 
-Activity IDs follow OCSF's class-specific enums for the standard classes. For `Application Activity 6005`, agentsh-internal activities use values ≥ 100 (e.g., `EBPF_ATTACHED=100`, `FUSE_MOUNTED=101`, `CGROUP_APPLIED=102`, `INTEGRITY_CHAIN_ROTATED=110`, `POLICY_CREATED=120`, `SESSION_CREATED=130`) to stay clear of OCSF-reserved ranges.
+Activity IDs follow OCSF's class-specific enums for the standard classes. For `Application Activity 6005`, agentmon-internal activities use values ≥ 100 (e.g., `EBPF_ATTACHED=100`, `FUSE_MOUNTED=101`, `CGROUP_APPLIED=102`, `INTEGRITY_CHAIN_ROTATED=110`, `POLICY_CREATED=120`, `SESSION_CREATED=130`) to stay clear of OCSF-reserved ranges.
 
 A small set of test-only Type values appearing only in test files (`a`, `b`, `x`, `y`, `test`, `test_event`, `demo`, `hello`, `phone`, `license`, `ok`, `none`, `live`, `email`, `external`, `self`, `invalid`, `invalid_type`, `pid_range`, `signal`, `resize`, `rotate`, `after_rotate`, `start`, `big_event`, `command`, `fatal_sidecar`, `file`, `malware`, `network`, `process`, `session`, `sse`, `stream`, `unix`, `vulnerability`) is explicitly listed in `internal/ocsf/skiplist.go` and excluded from the exhaustiveness check. Each entry carries a `// reason:` comment justifying inclusion. The `skiplist_test.go` asserts the comment is non-empty for every entry. The skiplist must not contain any value listed in the OCSF Class Set table above; a `TestSkiplistDoesNotShadowRegistry` sub-test asserts the disjointness.
 
@@ -121,14 +121,14 @@ A small set of test-only Type values appearing only in test files (`a`, `b`, `x`
 package ocsf
 
 import (
-    "github.com/agentsh/agentsh/internal/store/watchtower/compact"
-    "github.com/agentsh/agentsh/pkg/types"
+    "github.com/diffsec/agentmon/internal/store/watchtower/compact"
+    "github.com/diffsec/agentmon/pkg/types"
     "google.golang.org/protobuf/proto"
 )
 
 type Mapping struct {
     ClassUID        uint32          // OCSF class_uid
-    ActivityID      uint32          // OCSF activity_id (or agentsh-extended for infra)
+    ActivityID      uint32          // OCSF activity_id (or agentmon-extended for infra)
     AgentInternal   bool            // true for class 6005 infra events
     FieldsAllowlist []FieldRule     // per-key projection rules for ev.Fields
     Project         Projector       // builds the per-class proto payload
@@ -223,16 +223,16 @@ A mapping that produces a payload exceeding the per-event cap is rejected at the
 Layout under `proto/canyonroad/wtp/v1/ocsf/` — one `.proto` file per class plus `common.proto` for shared types. All messages use:
 
 - `package canyonroad.wtp.v1.ocsf;`
-- `option go_package = "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf;ocsfpb";`
+- `option go_package = "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf;ocsfpb";`
 - snake_case field names matching OCSF v1.8.0 JSON keys verbatim
 - proto3 explicit-presence (`optional`) on every field so absence is distinguishable from zero-value
 
 Modelling rules:
 
-1. **Direct OCSF subset.** Each message models only the fields agentsh actually populates today. Adding a field later is an additive proto change.
-2. **Shared types in `common.proto`.** Reused objects (`Process`, `File`, `Actor`, `Endpoint`, `Metadata`, `User`) are defined once. `Metadata` carries `version: "1.8.0"` and `product.name: "agentsh"`.
-3. **Enum subsets.** Class-specific activity enums declare only the values agentsh uses, plus the OCSF-mandated `UNKNOWN = 0`.
-4. **Agent-internal extension activities.** `application_activity.proto` declares an extended activity enum with values ≥ 100 for agentsh-internal activities. Each `ApplicationActivity` message also declares `bool agent_internal = 50;` so server-side filtering does not depend on the activity range.
+1. **Direct OCSF subset.** Each message models only the fields agentmon actually populates today. Adding a field later is an additive proto change.
+2. **Shared types in `common.proto`.** Reused objects (`Process`, `File`, `Actor`, `Endpoint`, `Metadata`, `User`) are defined once. `Metadata` carries `version: "1.8.0"` and `product.name: "agentmon"`.
+3. **Enum subsets.** Class-specific activity enums declare only the values agentmon uses, plus the OCSF-mandated `UNKNOWN = 0`.
+4. **Agent-internal extension activities.** `application_activity.proto` declares an extended activity enum with values ≥ 100 for agentmon-internal activities. Each `ApplicationActivity` message also declares `bool agent_internal = 50;` so server-side filtering does not depend on the activity range.
 5. **No inheritance.** OCSF's "object" model is JSON-flavored; we flatten where needed and accept that some `*Info` fields (e.g., `ConnectionInfo`) are redeclared per class rather than extending a base message.
 6. **Versioning.** OCSF additive minor (1.8 → 1.9) = new optional fields; existing wire bytes stay valid. OCSF major (1.x → 2.0) = new sibling package `proto/canyonroad/wtp/v2/ocsf/` with a corresponding `internal/ocsf/v2/`. The `ocsf_version` string in `SessionInit` is the source of truth for which version a stream uses.
 
@@ -345,7 +345,7 @@ Phase 1 lands as a single PR series that toggles the WTP store from `StubMapper`
    - When the last class lands, `pendingTypes` is empty and the check enforces the entire production catalog.
 
    Recommended order: Process → File → Network → DNS → HTTP → Detection Finding → Application Activity (largest, includes infra). Each PR is reviewable in isolation; each is independently reverable.
-4. **Wiring switch.** Single small PR in `cmd/agentshd` (or wherever `watchtower.New` is called):
+4. **Wiring switch.** Single small PR in `cmd/agentmond` (or wherever `watchtower.New` is called):
    ```go
    wtp, err := watchtower.New(
        watchtower.WithMapper(ocsf.New()),  // ← was: compact.StubMapper{}
@@ -384,4 +384,4 @@ Acceptance criteria for declaring Phase 1 done:
 3. `redaction_test.go` passes — no sensitive key name appears in any allowlist.
 4. The WTP E2E round-trip test (with the real mapper) passes; an injected payload-byte mutation latches `ErrStaleResult` on chain replay.
 5. `Store.validate()` accepts `ocsf.New()` and rejects `compact.StubMapper{}` (already implemented; this verifies it still holds after wiring).
-6. `cmd/agentshd` boots green with `output.wtp.enabled=true`; first emitted event arrives at the in-tree testserver with the expected `(class_uid, activity_id, payload)` triple.
+6. `cmd/agentmond` boots green with `output.wtp.enabled=true`; first emitted event arrives at the in-tree testserver with the expected `(class_uid, activity_id, payload)` triple.

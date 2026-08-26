@@ -7,7 +7,7 @@
 
 ## Summary
 
-Add per-socket-family blocking to agentsh's sandbox. A new config field
+Add per-socket-family blocking to agentmon's sandbox. A new config field
 `sandbox.seccomp.blocked_socket_families` lets operators block creation
 of specified `AF_*` socket families on `socket(2)` and `socketpair(2)`,
 with per-family action override (`errno|kill|log|log_and_kill`).
@@ -48,7 +48,7 @@ The copy.fail mitigation says explicitly:
 > For untrusted workloads, block `AF_ALG` socket creation via seccomp
 > regardless of patch state.
 
-agentsh today exposes `BlockedSyscalls []string` for whole-syscall
+agentmon today exposes `BlockedSyscalls []string` for whole-syscall
 blocking by name. Adding `socket` to that list blocks every
 `socket(2)` call (including AF_INET, AF_UNIX) — far too broad.
 `libseccomp-golang` (already a project dep, used at
@@ -74,8 +74,8 @@ adds a ptrace fallback for hosts where seccomp is unavailable.
   CAP_BPF). Separate spec when/if pursued.
 - **Landlock network rules for arbitrary families.** Kernel only
   exposes TCP bind/connect via Landlock. Kernel-side change required;
-  out of agentsh's control.
-- **`socketcall(2)` (i386 multiplexed entry).** Agentsh's existing
+  out of agentmon's control.
+- **`socketcall(2)` (i386 multiplexed entry).** Agentmon's existing
   seccomp setup doesn't filter it; libseccomp 2.6+ auto-emulates the
   modern entries on architectures without a dedicated `socket` syscall.
   Documented as a known limitation.
@@ -397,13 +397,13 @@ is platform-neutral; the engine code is `//go:build linux`.
 
 `go:build linux` on all enforcement code. Config parsing is
 platform-neutral so cross-compile builds clean. On non-Linux,
-agentsh logs `socket family blocking is configured but only enforced
+agentmon logs `socket family blocking is configured but only enforced
 on Linux; ignored on this platform` once at startup if the field is
 non-empty.
 
 ## Open questions / future work
 
-- **eBPF LSM tier.** When agentsh adopts libbpf for other purposes
+- **eBPF LSM tier.** When agentmon adopts libbpf for other purposes
   (network filtering, file integrity), revisit the `security_socket_create`
   hook as a third enforcement engine. Cleaner than ptrace, lower
   overhead. Out of scope for v1.

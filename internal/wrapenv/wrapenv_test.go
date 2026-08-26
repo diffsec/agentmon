@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func has(env []string, kv string) bool { return slices.Contains(env, kv) }

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
 )
 
 // TestBackoff_ExponentialWithJitter verifies the per-attempt sleep grows

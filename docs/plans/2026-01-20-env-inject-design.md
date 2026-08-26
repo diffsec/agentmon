@@ -15,7 +15,7 @@ Add `env_inject` configuration that injects environment variables into command e
 ```yaml
 sandbox:
   env_inject:
-    BASH_ENV: "/usr/lib/agentsh/bash_startup.sh"
+    BASH_ENV: "/usr/lib/agentmon/bash_startup.sh"
     # Operators can add other vars
     MY_CUSTOM_VAR: "value"
 ```
@@ -42,7 +42,7 @@ env_inject:
 
 ## Bundled Startup Script
 
-**Location:** `/usr/lib/agentsh/bash_startup.sh`
+**Location:** `/usr/lib/agentmon/bash_startup.sh`
 
 **Content:**
 ```bash
@@ -61,7 +61,7 @@ enable -n command   # Function/alias bypass
 | Package Type | Script Location | Config File |
 |--------------|-----------------|-------------|
 | Tarballs (linux) | `bash_startup.sh` in archive root | `.goreleaser.yml` archives |
-| deb/rpm/arch | `/usr/lib/agentsh/bash_startup.sh` | `.goreleaser.yml` nfpms.contents |
+| deb/rpm/arch | `/usr/lib/agentmon/bash_startup.sh` | `.goreleaser.yml` nfpms.contents |
 | Alpine musl | In tarball root | `.github/workflows/release.yml` |
 | Homebrew (macOS) | Not included | N/A (BASH_ENV is Linux-specific) |
 
@@ -123,7 +123,7 @@ func mergeEnvInject(cfg *config.Config, pol *policy.Engine) map[string]string {
 In `exec.go`, after existing env building (~line 159-163):
 
 ```go
-// Existing: add wrapper env (AGENTSH_* vars)
+// Existing: add wrapper env (AGENTMON_* vars)
 for k, v := range extra.env {
     env = append(env, k+"="+v)
 }
@@ -149,7 +149,7 @@ cmd.Env = env
 ```yaml
 # Test policy
 env_inject:
-  BASH_ENV: "/usr/lib/agentsh/bash_startup.sh"
+  BASH_ENV: "/usr/lib/agentmon/bash_startup.sh"
 
 command_rules:
   - name: block-kill
@@ -172,6 +172,6 @@ bash -c "kill -0 $$"  # Should fail
 ## Security Considerations
 
 - `env_inject` bypasses policy filtering because values are operator-configured (trusted)
-- Same trust model as `AGENTSH_*` internal variables
+- Same trust model as `AGENTMON_*` internal variables
 - Defense-in-depth: config file access control is the security boundary
 - The bundled script disables `enable` itself to prevent re-enabling builtins

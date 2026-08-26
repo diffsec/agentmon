@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/mcpinspect"
-	"github.com/agentsh/agentsh/internal/mcpregistry"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
 )
 
 func TestExtractToolCalls_AnthropicSingleTool(t *testing.T) {
@@ -1691,7 +1691,7 @@ func TestProxy_MCPInterception_SSE_Integration(t *testing.T) {
 	if strings.Contains(string(respBody), `"type":"tool_use"`) {
 		t.Error("expected blocked tool_use to be suppressed from SSE stream")
 	}
-	if !strings.Contains(string(respBody), "[agentsh] Tool 'get_weather' blocked by policy") {
+	if !strings.Contains(string(respBody), "[agentmon] Tool 'get_weather' blocked by policy") {
 		t.Error("expected replacement text block in SSE stream")
 	}
 	if !strings.Contains(string(respBody), "content_block_start") {

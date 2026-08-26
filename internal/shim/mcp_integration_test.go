@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
 )
 
 func TestMCPIntegration_FullPipeline(t *testing.T) {

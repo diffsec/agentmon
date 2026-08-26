@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fix notify socket permissions so `agentsh wrap` works when the server runs as root and the CLI runs as an unprivileged user, with per-caller isolation via chown and SO_PEERCRED verification.
+**Goal:** Fix notify socket permissions so `agentmon wrap` works when the server runs as root and the CLI runs as an unprivileged user, with per-caller isolation via chown and SO_PEERCRED verification.
 
 **Architecture:** Add `CallerUID` to the wrap-init protocol. Server chowns the temp directory + sockets to the caller's UID (falls back to relaxed `0711`/`0666` if not root). On accept, the server verifies the connecting process's UID via kernel-provided SO_PEERCRED credentials.
 
@@ -70,7 +70,7 @@ func TestWrapInit_CallerUIDPassedThrough(t *testing.T) {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -run TestWrapInit_CallerUIDPassedThrough -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -run TestWrapInit_CallerUIDPassedThrough -v`
 Expected: compilation error — `CallerUID` field does not exist on `WrapInitRequest`.
 
 - [ ] **Step 3: Add CallerUID field to WrapInitRequest**
@@ -96,7 +96,7 @@ type WrapInitRequest struct {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -run TestWrapInit_CallerUIDPassedThrough -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -run TestWrapInit_CallerUIDPassedThrough -v`
 Expected: PASS
 
 - [ ] **Step 5: Set CallerUID in CLI wrap**
@@ -124,12 +124,12 @@ Add `"os"` to imports if not already present.
 
 - [ ] **Step 6: Verify build**
 
-Run: `cd /home/eran/work/agentsh && go build ./...`
+Run: `cd /home/eran/work/agentmon && go build ./...`
 Expected: clean build
 
 - [ ] **Step 7: Run full test suite**
 
-Run: `cd /home/eran/work/agentsh && go test ./...`
+Run: `cd /home/eran/work/agentmon && go test ./...`
 Expected: all tests pass
 
 - [ ] **Step 8: Commit**
@@ -251,7 +251,7 @@ Add `"net"` to the test file imports.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -run "TestSecureNotifyDir|TestSecureSocket" -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -run "TestSecureNotifyDir|TestSecureSocket" -v`
 Expected: compilation error — `secureNotifyDir` and `secureSocket` are undefined.
 
 - [ ] **Step 3: Implement the helpers**
@@ -297,12 +297,12 @@ func secureSocket(socketPath string, callerUID int, chownOK bool) {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -run "TestSecureNotifyDir|TestSecureSocket" -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -run "TestSecureNotifyDir|TestSecureSocket" -v`
 Expected: all 4 tests PASS
 
 - [ ] **Step 5: Verify full build + existing tests**
 
-Run: `cd /home/eran/work/agentsh && go build ./... && go test ./internal/api/ -v`
+Run: `cd /home/eran/work/agentmon && go build ./... && go test ./internal/api/ -v`
 Expected: clean build, all tests pass
 
 - [ ] **Step 6: Commit**
@@ -409,7 +409,7 @@ func TestWrapInit_NotifyDirPermissions_CallerUID(t *testing.T) {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -run "TestWrapInit_NotifyDirPermissions" -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -run "TestWrapInit_NotifyDirPermissions" -v`
 Expected: FAIL — directory is still 0700 (hardcoded), not 0711.
 
 - [ ] **Step 3: Wire secureNotifyDir + secureSocket into the ptrace path**
@@ -417,7 +417,7 @@ Expected: FAIL — directory is still 0700 (hardcoded), not 0711.
 In `internal/api/wrap.go`, in the ptrace path (starting at line ~76), replace:
 
 ```go
-		notifyDir, err := os.MkdirTemp("", "agentsh-wrap-*")
+		notifyDir, err := os.MkdirTemp("", "agentmon-wrap-*")
 		if err != nil {
 			return types.WrapInitResponse{}, http.StatusInternalServerError, err
 		}
@@ -430,7 +430,7 @@ In `internal/api/wrap.go`, in the ptrace path (starting at line ~76), replace:
 with:
 
 ```go
-		notifyDir, err := os.MkdirTemp("", "agentsh-wrap-*")
+		notifyDir, err := os.MkdirTemp("", "agentmon-wrap-*")
 		if err != nil {
 			return types.WrapInitResponse{}, http.StatusInternalServerError, err
 		}
@@ -448,7 +448,7 @@ Then after `net.Listen("unix", notifySocketPath)` (line ~105), before the `go a.
 In the seccomp path (starting at line ~198), replace:
 
 ```go
-	notifyDir, err := os.MkdirTemp("", "agentsh-wrap-*")
+	notifyDir, err := os.MkdirTemp("", "agentmon-wrap-*")
 	if err != nil {
 		return types.WrapInitResponse{}, http.StatusInternalServerError, err
 	}
@@ -461,7 +461,7 @@ In the seccomp path (starting at line ~198), replace:
 with:
 
 ```go
-	notifyDir, err := os.MkdirTemp("", "agentsh-wrap-*")
+	notifyDir, err := os.MkdirTemp("", "agentmon-wrap-*")
 	if err != nil {
 		return types.WrapInitResponse{}, http.StatusInternalServerError, err
 	}
@@ -482,17 +482,17 @@ And after `signalListener, err := net.Listen("unix", signalSocketPath)` (line ~2
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -run "TestWrapInit_NotifyDirPermissions" -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -run "TestWrapInit_NotifyDirPermissions" -v`
 Expected: both tests PASS
 
 - [ ] **Step 6: Run full test suite**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -v`
 Expected: all tests pass (existing tests use CallerUID=0, so they get fallback behavior — still functional)
 
 - [ ] **Step 7: Cross-compile check**
 
-Run: `cd /home/eran/work/agentsh && GOOS=windows go build ./...`
+Run: `cd /home/eran/work/agentmon && GOOS=windows go build ./...`
 Expected: clean build
 
 - [ ] **Step 8: Commit**
@@ -568,7 +568,7 @@ func TestGetConnPeerCreds(t *testing.T) {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -run TestGetConnPeerCreds -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -run TestGetConnPeerCreds -v`
 Expected: compilation error — `getConnPeerCreds` undefined, returns wrong type.
 
 - [ ] **Step 3: Implement getConnPeerCreds on Linux**
@@ -676,17 +676,17 @@ with:
 
 - [ ] **Step 7: Run test and verify it passes**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -run TestGetConnPeerCreds -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -run TestGetConnPeerCreds -v`
 Expected: PASS
 
 - [ ] **Step 8: Cross-compile check**
 
-Run: `cd /home/eran/work/agentsh && GOOS=windows go build ./... && GOOS=darwin go build ./...`
+Run: `cd /home/eran/work/agentmon && GOOS=windows go build ./... && GOOS=darwin go build ./...`
 Expected: clean build on all platforms
 
 - [ ] **Step 9: Run full test suite**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -v`
 Expected: all tests pass
 
 - [ ] **Step 10: Commit**
@@ -788,7 +788,7 @@ Add `"context"` and `"time"` to the test file imports if not already present.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -run "TestAcceptNotifyFD" -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -run "TestAcceptNotifyFD" -v`
 Expected: compilation error — `acceptNotifyFD` doesn't accept `expectedUID` parameter.
 
 - [ ] **Step 3: Add expectedUID to acceptNotifyFD**
@@ -922,17 +922,17 @@ to:
 
 - [ ] **Step 8: Run the UID verification tests**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -run "TestAcceptNotifyFD" -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -run "TestAcceptNotifyFD" -v`
 Expected: both tests PASS
 
 - [ ] **Step 9: Cross-compile check**
 
-Run: `cd /home/eran/work/agentsh && GOOS=windows go build ./... && GOOS=darwin go build ./...`
+Run: `cd /home/eran/work/agentmon && GOOS=windows go build ./... && GOOS=darwin go build ./...`
 Expected: clean build
 
 - [ ] **Step 10: Run full test suite**
 
-Run: `cd /home/eran/work/agentsh && go test ./... -count=1`
+Run: `cd /home/eran/work/agentmon && go test ./... -count=1`
 Expected: all tests pass
 
 - [ ] **Step 11: Commit**
@@ -950,12 +950,12 @@ git commit -m "feat(wrap): add SO_PEERCRED UID verification on notify socket acc
 
 - [ ] **Step 1: Full build and test**
 
-Run: `cd /home/eran/work/agentsh && go build ./... && go test ./... -count=1`
+Run: `cd /home/eran/work/agentmon && go build ./... && go test ./... -count=1`
 Expected: all pass
 
 - [ ] **Step 2: Cross-compile**
 
-Run: `cd /home/eran/work/agentsh && GOOS=windows go build ./... && GOOS=darwin go build ./...`
+Run: `cd /home/eran/work/agentmon && GOOS=windows go build ./... && GOOS=darwin go build ./...`
 Expected: clean build on all platforms
 
 - [ ] **Step 3: Verify the complete permission flow manually**
@@ -963,7 +963,7 @@ Expected: clean build on all platforms
 Run the new tests specifically to confirm the full chain works:
 
 ```bash
-cd /home/eran/work/agentsh
+cd /home/eran/work/agentmon
 go test ./internal/api/ -run "TestWrapInit_CallerUID|TestWrapInit_NotifyDirPermissions|TestSecureNotifyDir|TestSecureSocket|TestGetConnPeerCreds|TestAcceptNotifyFD" -v
 ```
 

@@ -6,13 +6,13 @@
 
 ## Overview
 
-This design adds **MCP protocol-layer visibility** to agentsh, enabling inspection of tool definitions for poisoning detection, rug pull alerts, and suspicious pattern matching. Currently, agentsh enforces policy at the action layer but has no visibility into MCP protocol messages—this closes that gap.
+This design adds **MCP protocol-layer visibility** to agentmon, enabling inspection of tool definitions for poisoning detection, rug pull alerts, and suspicious pattern matching. Currently, agentmon enforces policy at the action layer but has no visibility into MCP protocol messages—this closes that gap.
 
 ## Design Decisions (from brainstorming)
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| **Architecture** | Agent-side interception | Fits agentsh's existing model, provides session correlation |
+| **Architecture** | Agent-side interception | Fits agentmon's existing model, provides session correlation |
 | **stdio interception** | Extend existing shell shim | Reuses infrastructure, no config rewriting needed |
 | **Server detection** | Hybrid (default patterns + custom list) | Works out-of-box, extensible for custom servers |
 | **Detection aggressiveness** | Tiered severity, `high` default threshold | Catches likely attacks without overwhelming users |
@@ -23,7 +23,7 @@ This design adds **MCP protocol-layer visibility** to agentsh, enabling inspecti
 
 From `docs/mcp-security.md`:
 
-> **Tool Poisoning Detection**: agentsh doesn't see tool descriptions or metadata.
+> **Tool Poisoning Detection**: agentmon doesn't see tool descriptions or metadata.
 >
 > **Status**: ❌ Cannot address without MCP protocol integration
 
@@ -42,10 +42,10 @@ MCP tool definitions contain descriptions that LLMs use to understand how to inv
 }
 ```
 
-The LLM processes this as legitimate guidance. agentsh currently cannot detect this because:
+The LLM processes this as legitimate guidance. agentmon currently cannot detect this because:
 1. MCP protocol messages flow directly between agent and MCP server
 2. Tool definitions are consumed by the LLM before any action occurs
-3. By the time agentsh sees `curl` or `cp`, the context is lost
+3. By the time agentmon sees `curl` or `cp`, the context is lost
 
 ## Goals
 
@@ -66,7 +66,7 @@ The LLM processes this as legitimate guidance. agentsh currently cannot detect t
 
 ### Interception Strategy: Shell Shim Extension
 
-Rather than creating a separate `agentsh-mcp-shim` binary, we extend the existing shell shim to detect MCP server launches and wrap them transparently. This reuses existing infrastructure and avoids config file rewriting.
+Rather than creating a separate `agentmon-mcp-shim` binary, we extend the existing shell shim to detect MCP server launches and wrap them transparently. This reuses existing infrastructure and avoids config file rewriting.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -133,7 +133,7 @@ mcp:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              agentsh                                         │
+│                              agentmon                                         │
 │                                                                              │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │                         Session Manager                              │   │
@@ -187,7 +187,7 @@ mcp:
       alert_on_change: true
       # Persist registry across sessions
       persistent: true
-      path: ~/.agentsh/mcp-tool-registry.json
+      path: ~/.agentmon/mcp-tool-registry.json
 
     # Pattern detection
     detection:
@@ -933,34 +933,34 @@ type MCPDetectionEvent struct {
 
 ```bash
 # View tool registry
-agentsh mcp registry list
-agentsh mcp registry list --server filesystem
-agentsh mcp registry show filesystem:read_file
+agentmon mcp registry list
+agentmon mcp registry list --server filesystem
+agentmon mcp registry show filesystem:read_file
 
 # Manual inspection
-agentsh mcp inspect <tool-definition.json>
-agentsh mcp inspect --server https://mcp.example.com
+agentmon mcp inspect <tool-definition.json>
+agentmon mcp inspect --server https://mcp.example.com
 
 # Approve tools (after manual review)
-agentsh mcp approve filesystem:read_file
-agentsh mcp approve --server filesystem --all
+agentmon mcp approve filesystem:read_file
+agentmon mcp approve --server filesystem --all
 
 # View detection events
-agentsh mcp events --session <id>
-agentsh mcp events --severity critical
+agentmon mcp events --session <id>
+agentmon mcp events --severity critical
 ```
 
 ### Example Output
 
 ```
-$ agentsh mcp registry list
+$ agentmon mcp registry list
 
 SERVER      TOOL           HASH        STATUS     DETECTIONS
 filesystem  read_file      a1b2c3d4    pinned     none
 filesystem  write_file     e5f6g7h8    changed!   1 high
 suspicious  helper         i9j0k1l2    new        2 critical
 
-$ agentsh mcp events --severity high
+$ agentmon mcp events --severity high
 
 TIMESTAMP            SERVER      TOOL        PATTERN           SEVERITY
 2026-01-06 10:31:00  suspicious  helper      credential_theft  critical
@@ -1059,8 +1059,8 @@ type DetectionSummary struct {
 
 ### Phase 4: CLI and Events
 
-- [ ] Add `agentsh mcp registry list` command
-- [ ] Add `agentsh mcp events` command
+- [ ] Add `agentmon mcp registry list` command
+- [ ] Add `agentmon mcp events` command
 - [ ] Add MCP inspection summary to session reports
 - [ ] Webhook support for alerts (optional)
 
@@ -1123,4 +1123,4 @@ type DetectionSummary struct {
 - [MCP Protocol Specification](https://modelcontextprotocol.io/specification)
 - [Tool Poisoning Attack Research - Palo Alto Unit 42](https://unit42.paloaltonetworks.com/model-context-protocol-attack-vectors/)
 - [MCP Security Vulnerabilities - Practical DevSecOps](https://www.practical-devsecops.com/mcp-security-vulnerabilities/)
-- [docs/mcp-security.md](../mcp-security.md) - agentsh MCP security analysis
+- [docs/mcp-security.md](../mcp-security.md) - agentmon MCP security analysis

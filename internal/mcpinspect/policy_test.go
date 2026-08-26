@@ -3,7 +3,7 @@ package mcpinspect
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestPolicyEvaluator_AllowlistMode(t *testing.T) {

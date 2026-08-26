@@ -1,6 +1,6 @@
 package otel
 
-import "github.com/agentsh/agentsh/internal/store/eventfilter"
+import "github.com/diffsec/agentmon/internal/store/eventfilter"
 
 // Filter is an alias for the shared eventfilter.Filter so existing callers
 // continue to use otel.Filter without churn.

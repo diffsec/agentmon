@@ -1,5 +1,5 @@
-// Package policy implements the AgentSH database-access policy evaluator
-// per docs/agentsh-db-access-spec.md §9–§10. The package is platform-agnostic
+// Package policy implements the AgentMon database-access policy evaluator
+// per docs/agentmon-db-access-spec.md §9–§10. The package is platform-agnostic
 // and produces only data types and pure functions; events, approvals, and
 // wire I/O belong to later plans (Plan 04+).
 package policy
@@ -7,8 +7,8 @@ package policy
 import (
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/service"
 )
 
 // ServiceID is the operator-supplied identifier of a db_service.

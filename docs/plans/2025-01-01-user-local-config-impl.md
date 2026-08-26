@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Enable agentsh to search for configuration in user-local directories before falling back to system-wide locations.
+**Goal:** Enable agentmon to search for configuration in user-local directories before falling back to system-wide locations.
 
 **Architecture:** Add ConfigSource tracking to distinguish where config was loaded from (env var, user-local, system-wide). Use this source to derive default paths for policies and data directories. Update defaultConfigPath() to implement the new search order.
 
@@ -55,8 +55,8 @@ func TestGetUserDataDir(t *testing.T) {
 		defer os.Setenv("XDG_DATA_HOME", orig)
 
 		got := GetUserDataDir()
-		if got != "/custom/data/agentsh" {
-			t.Errorf("GetUserDataDir() with XDG_DATA_HOME = %q, want %q", got, "/custom/data/agentsh")
+		if got != "/custom/data/agentmon" {
+			t.Errorf("GetUserDataDir() with XDG_DATA_HOME = %q, want %q", got, "/custom/data/agentmon")
 		}
 		os.Setenv("XDG_DATA_HOME", orig)
 	}
@@ -70,7 +70,7 @@ func TestGetUserDataDir(t *testing.T) {
 			t.Error("GetUserDataDir() returned empty on Windows")
 		}
 	case "darwin":
-		want := home + "/Library/Application Support/agentsh"
+		want := home + "/Library/Application Support/agentmon"
 		if got != want {
 			t.Errorf("GetUserDataDir() = %q, want %q", got, want)
 		}
@@ -78,7 +78,7 @@ func TestGetUserDataDir(t *testing.T) {
 		// Linux default without XDG_DATA_HOME
 		os.Unsetenv("XDG_DATA_HOME")
 		got = GetUserDataDir()
-		want := home + "/.local/share/agentsh"
+		want := home + "/.local/share/agentmon"
 		if got != want {
 			t.Errorf("GetUserDataDir() = %q, want %q", got, want)
 		}
@@ -100,7 +100,7 @@ Add to `internal/config/platform.go` after the imports:
 type ConfigSource int
 
 const (
-	// ConfigSourceEnv means config path was specified via AGENTSH_CONFIG env var.
+	// ConfigSourceEnv means config path was specified via AGENTMON_CONFIG env var.
 	ConfigSourceEnv ConfigSource = iota
 	// ConfigSourceUser means config was loaded from user-local directory.
 	ConfigSourceUser
@@ -132,16 +132,16 @@ func GetUserDataDir() string {
 	switch runtime.GOOS {
 	case "windows":
 		if appdata := os.Getenv("APPDATA"); appdata != "" {
-			return appdata + `\agentsh`
+			return appdata + `\agentmon`
 		}
-		return home + `\AppData\Roaming\agentsh`
+		return home + `\AppData\Roaming\agentmon`
 	case "darwin":
-		return home + "/Library/Application Support/agentsh"
+		return home + "/Library/Application Support/agentmon"
 	default:
 		if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
-			return xdg + "/agentsh"
+			return xdg + "/agentmon"
 		}
-		return home + "/.local/share/agentsh"
+		return home + "/.local/share/agentmon"
 	}
 }
 ```
@@ -359,16 +359,16 @@ func applyDefaultsWithSource(cfg *Config, source ConfigSource, configPath string
 		cfg.Platform.Mode = "auto"
 	}
 	if cfg.Platform.MountPoints.Linux == "" {
-		cfg.Platform.MountPoints.Linux = "/tmp/agentsh/workspace"
+		cfg.Platform.MountPoints.Linux = "/tmp/agentmon/workspace"
 	}
 	if cfg.Platform.MountPoints.Darwin == "" {
-		cfg.Platform.MountPoints.Darwin = "/tmp/agentsh/workspace"
+		cfg.Platform.MountPoints.Darwin = "/tmp/agentmon/workspace"
 	}
 	if cfg.Platform.MountPoints.Windows == "" {
 		cfg.Platform.MountPoints.Windows = "X:"
 	}
 	if cfg.Platform.MountPoints.WindowsWSL2 == "" {
-		cfg.Platform.MountPoints.WindowsWSL2 = "/tmp/agentsh/workspace"
+		cfg.Platform.MountPoints.WindowsWSL2 = "/tmp/agentmon/workspace"
 	}
 
 	if cfg.Server.HTTP.Addr == "" {
@@ -410,7 +410,7 @@ func applyDefaultsWithSource(cfg *Config, source ConfigSource, configPath string
 		cfg.Sandbox.FUSE.Audit.Mode = "monitor"
 	}
 	if cfg.Sandbox.FUSE.Audit.TrashPath == "" {
-		cfg.Sandbox.FUSE.Audit.TrashPath = ".agentsh_trash"
+		cfg.Sandbox.FUSE.Audit.TrashPath = ".agentmon_trash"
 	}
 	if cfg.Sandbox.FUSE.Audit.TTL == "" {
 		cfg.Sandbox.FUSE.Audit.TTL = "7d"
@@ -568,16 +568,16 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestFindConfigPath_EnvVar(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), "custom.yaml")
 	os.WriteFile(tmpFile, []byte("platform:\n  mode: auto\n"), 0644)
 
-	orig := os.Getenv("AGENTSH_CONFIG")
-	os.Setenv("AGENTSH_CONFIG", tmpFile)
-	defer os.Setenv("AGENTSH_CONFIG", orig)
+	orig := os.Getenv("AGENTMON_CONFIG")
+	os.Setenv("AGENTMON_CONFIG", tmpFile)
+	defer os.Setenv("AGENTMON_CONFIG", orig)
 
 	path, source := findConfigPath()
 	if path != tmpFile {
@@ -590,9 +590,9 @@ func TestFindConfigPath_EnvVar(t *testing.T) {
 
 func TestFindConfigPath_UserConfig(t *testing.T) {
 	// Clear env var
-	orig := os.Getenv("AGENTSH_CONFIG")
-	os.Unsetenv("AGENTSH_CONFIG")
-	defer os.Setenv("AGENTSH_CONFIG", orig)
+	orig := os.Getenv("AGENTMON_CONFIG")
+	os.Unsetenv("AGENTMON_CONFIG")
+	defer os.Setenv("AGENTMON_CONFIG", orig)
 
 	// Create a mock user config dir
 	tmpDir := t.TempDir()
@@ -618,9 +618,9 @@ func TestFindConfigPath_UserConfig(t *testing.T) {
 
 func TestFindConfigPath_FallbackToSystem(t *testing.T) {
 	// Clear env var
-	orig := os.Getenv("AGENTSH_CONFIG")
-	os.Unsetenv("AGENTSH_CONFIG")
-	defer os.Setenv("AGENTSH_CONFIG", orig)
+	orig := os.Getenv("AGENTMON_CONFIG")
+	os.Unsetenv("AGENTMON_CONFIG")
+	defer os.Setenv("AGENTMON_CONFIG", orig)
 
 	// When no user config exists, should fall back to system
 	path, source := findConfigPath()
@@ -653,18 +653,18 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // findConfigPath searches for config file in priority order and returns
 // the path and its source.
 // Search order:
-// 1. AGENTSH_CONFIG env var
-// 2. User-local config (~/.config/agentsh/config.yaml or platform equivalent)
-// 3. System-wide config (/etc/agentsh/config.yaml or platform equivalent)
+// 1. AGENTMON_CONFIG env var
+// 2. User-local config (~/.config/agentmon/config.yaml or platform equivalent)
+// 3. System-wide config (/etc/agentmon/config.yaml or platform equivalent)
 func findConfigPath() (string, config.ConfigSource) {
 	// 1. Check env var first
-	if v := os.Getenv("AGENTSH_CONFIG"); v != "" {
+	if v := os.Getenv("AGENTMON_CONFIG"); v != "" {
 		return v, config.ConfigSourceEnv
 	}
 
@@ -782,7 +782,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestUserLocalConfigIntegration(t *testing.T) {
@@ -790,7 +790,7 @@ func TestUserLocalConfigIntegration(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create user config
-	userConfigDir := filepath.Join(tmpDir, "user", ".config", "agentsh")
+	userConfigDir := filepath.Join(tmpDir, "user", ".config", "agentmon")
 	os.MkdirAll(userConfigDir, 0755)
 	userConfigFile := filepath.Join(userConfigDir, "config.yaml")
 	userPoliciesDir := filepath.Join(userConfigDir, "policies")
@@ -815,9 +815,9 @@ commands:
 
 	// Test: Load config from user location
 	// This would require mocking GetUserConfigDir or setting up real paths
-	// For now, test via AGENTSH_CONFIG env var pointing to user-style layout
-	os.Setenv("AGENTSH_CONFIG", userConfigFile)
-	defer os.Unsetenv("AGENTSH_CONFIG")
+	// For now, test via AGENTMON_CONFIG env var pointing to user-style layout
+	os.Setenv("AGENTMON_CONFIG", userConfigFile)
+	defer os.Unsetenv("AGENTMON_CONFIG")
 
 	cfg, source, err := loadLocalConfig("")
 	if err != nil {

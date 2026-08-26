@@ -10,7 +10,7 @@ import (
 
 	keyringlib "github.com/zalando/go-keyring"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // Provider is an OS-keyring-backed secrets.SecretProvider.
@@ -44,8 +44,8 @@ type Provider struct {
 // real keyring — it exists only to verify that keyring.Get can
 // reach the backend at all.
 const (
-	probeService = "agentsh-probe"
-	probeAccount = "agentsh-keyring-availability-probe"
+	probeService = "agentmon-probe"
+	probeAccount = "agentmon-keyring-availability-probe"
 )
 
 // testFetchPreLockHook is a test-only seam invoked (when non-nil)

@@ -15,17 +15,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/approvals"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/pkgcheck"
-	"github.com/agentsh/agentsh/internal/platform"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/policy/signing"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/signal"
-	"github.com/agentsh/agentsh/internal/wrapperlog"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/approvals"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/platform"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy/signing"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/signal"
+	"github.com/diffsec/agentmon/internal/wrapperlog"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/metadata"
@@ -45,8 +45,8 @@ func traceparentFromContext(ctx context.Context) string {
 	return ""
 }
 
-// macSandboxWrapperConfig is passed to agentsh-macwrap via
-// AGENTSH_SANDBOX_CONFIG environment variable.
+// macSandboxWrapperConfig is passed to agentmon-macwrap via
+// AGENTMON_SANDBOX_CONFIG environment variable.
 type macSandboxWrapperConfig struct {
 	WorkspacePath string                       `json:"workspace_path"`
 	AllowedPaths  []string                     `json:"allowed_paths"`
@@ -72,9 +72,9 @@ type wrapperSetupResult struct {
 	extraCfg   *extraProcConfig
 }
 
-// setupSeccompWrapper configures the command to run through agentsh-unixwrap for seccomp enforcement.
+// setupSeccompWrapper configures the command to run through agentmon-unixwrap for seccomp enforcement.
 // Returns the wrapped request and extra process config, or nil extraCfg if wrapping is disabled.
-// Note: agentsh-unixwrap is Linux-only; this function returns early on other platforms.
+// Note: agentmon-unixwrap is Linux-only; this function returns early on other platforms.
 func (a *App) setupSeccompWrapper(req types.ExecRequest, sessionID string, s *session.Session) *wrapperSetupResult {
 	// Helper: return early without seccomp wrapping but with envInject applied.
 	earlyReturn := func() *wrapperSetupResult {
@@ -86,7 +86,7 @@ func (a *App) setupSeccompWrapper(req types.ExecRequest, sessionID string, s *se
 		return &wrapperSetupResult{wrappedReq: req, extraCfg: nil}
 	}
 
-	// agentsh-unixwrap is Linux-only (uses seccomp-bpf)
+	// agentmon-unixwrap is Linux-only (uses seccomp-bpf)
 	if runtime.GOOS != "linux" {
 		return earlyReturn()
 	}
@@ -108,7 +108,7 @@ func (a *App) setupSeccompWrapper(req types.ExecRequest, sessionID string, s *se
 
 	wrapperBin := strings.TrimSpace(a.cfg.Sandbox.UnixSockets.WrapperBin)
 	if wrapperBin == "" {
-		wrapperBin = "agentsh-unixwrap"
+		wrapperBin = "agentmon-unixwrap"
 	}
 
 	// Check if wrapper binary exists before proceeding (CGO-disabled builds won't have it)
@@ -138,7 +138,7 @@ func (a *App) setupSeccompWrapper(req types.ExecRequest, sessionID string, s *se
 	sessionPolicy := a.policyEngineFor(s)
 
 	envFD := 3 // first ExtraFile
-	wrappedReq.Env["AGENTSH_NOTIFY_SOCK_FD"] = strconv.Itoa(envFD)
+	wrappedReq.Env["AGENTMON_NOTIFY_SOCK_FD"] = strconv.Itoa(envFD)
 
 	// execveEnabled must be computed before the signal-filter gate: the
 	// signal filter stacks a second SECCOMP_RET_USER_NOTIF filter on top
@@ -181,13 +181,13 @@ func (a *App) setupSeccompWrapper(req types.ExecRequest, sessionID string, s *se
 		ExecveEnabled:       execveEnabled,
 	})
 	if cfgJSON, err := json.Marshal(seccompCfg); err == nil {
-		wrappedReq.Env["AGENTSH_SECCOMP_CONFIG"] = string(cfgJSON)
+		wrappedReq.Env["AGENTMON_SECCOMP_CONFIG"] = string(cfgJSON)
 	}
 
 	wrappedReq.Command = wrapperBin
 	wrappedReq.Args = append([]string{"--", origCommand}, origArgs...)
 
-	extraEnv := map[string]string{"AGENTSH_NOTIFY_SOCK_FD": strconv.Itoa(envFD)}
+	extraEnv := map[string]string{"AGENTMON_NOTIFY_SOCK_FD": strconv.Itoa(envFD)}
 	// Only enable ptrace sync handshake when the wrapper will produce a notify FD.
 	// If no seccomp features need USER_NOTIF, the wrapper skips the FD send and
 	// the READY/GO handshake has nothing to synchronize on.
@@ -198,21 +198,21 @@ func (a *App) setupSeccompWrapper(req types.ExecRequest, sessionID string, s *se
 		blockListUsesNotify(seccompCfg.BlockedSyscalls, seccompCfg.OnBlock) ||
 		blockedFamiliesUseNotifyForSeccomp(a.cfg.Sandbox.Seccomp) ||
 		seccompSocketRulesUseNotify(a.cfg.Sandbox.Seccomp)
-	// AGENTSH_PTRACE_SYNC goes into envInject (not env) so it overrides any
+	// AGENTMON_PTRACE_SYNC goes into envInject (not env) so it overrides any
 	// user-supplied value. envInject deduplicates keys before appending.
 	ptraceSyncValue := "0"
 	if a.ptraceTracer != nil && hasNotifyFeatures {
 		ptraceSyncValue = "1"
 	}
-	if seccompJSON, ok := wrappedReq.Env["AGENTSH_SECCOMP_CONFIG"]; ok {
-		extraEnv["AGENTSH_SECCOMP_CONFIG"] = seccompJSON
+	if seccompJSON, ok := wrappedReq.Env["AGENTMON_SECCOMP_CONFIG"]; ok {
+		extraEnv["AGENTMON_SECCOMP_CONFIG"] = seccompJSON
 	}
 
 	envInject := mergeEnvInject(a.cfg, sessionPolicy)
 	if envInject == nil {
 		envInject = make(map[string]string)
 	}
-	envInject["AGENTSH_PTRACE_SYNC"] = ptraceSyncValue
+	envInject["AGENTMON_PTRACE_SYNC"] = ptraceSyncValue
 	// The wrapper log fd is set authoritatively in wrappedReq.Env /
 	// extraCfg.env by the pipe block below; an operator env_inject copy
 	// would shadow it in the child env (issue #415).
@@ -244,8 +244,8 @@ func (a *App) setupSeccompWrapper(req types.ExecRequest, sessionID string, s *se
 	// Add signal filter config if socket pair succeeded
 	if signalFilterActive && sigSP != nil {
 		signalFD := 4 // second ExtraFile (after notify socket at FD 3)
-		wrappedReq.Env["AGENTSH_SIGNAL_SOCK_FD"] = strconv.Itoa(signalFD)
-		extraCfg.env["AGENTSH_SIGNAL_SOCK_FD"] = strconv.Itoa(signalFD)
+		wrappedReq.Env["AGENTMON_SIGNAL_SOCK_FD"] = strconv.Itoa(signalFD)
+		extraCfg.env["AGENTMON_SIGNAL_SOCK_FD"] = strconv.Itoa(signalFD)
 		extraCfg.extraFiles = append(extraCfg.extraFiles, sigSP.child)
 		extraCfg.signalParentSock = sigSP.parent
 		extraCfg.signalEngine = sessionPolicy.SignalEngine()
@@ -1199,7 +1199,7 @@ func (a *App) execInSessionCore(ctx context.Context, id string, req types.ExecRe
 			CurrentOffset: 0,
 			CurrentLimit:  int64(len(stdoutB)),
 			HasMore:       true,
-			NextCommand:   fmt.Sprintf("agentsh output %s %s --stream stdout --offset %d --limit %d", id, cmdID, len(stdoutB), len(stdoutB)),
+			NextCommand:   fmt.Sprintf("agentmon output %s %s --stream stdout --offset %d --limit %d", id, cmdID, len(stdoutB), len(stdoutB)),
 		}
 	}
 
@@ -1303,7 +1303,7 @@ func (a *App) mountFUSEForSession(ctx context.Context, p fuseMountParams) bool {
 				Path:      path,
 				Fields: map[string]any{
 					"trash_token":  token,
-					"restore_hint": fmt.Sprintf("agentsh trash restore %s", token),
+					"restore_hint": fmt.Sprintf("agentmon trash restore %s", token),
 				},
 			}
 			persistCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1519,7 +1519,7 @@ func (a *App) ensureFUSEMount(ctx context.Context, s *session.Session) {
 	})
 }
 
-// wrapWithMacSandbox wraps command with agentsh-macwrap for XPC control.
+// wrapWithMacSandbox wraps command with agentmon-macwrap for XPC control.
 func (a *App) wrapWithMacSandbox(
 	req *types.ExecRequest,
 	origCommand string,
@@ -1528,7 +1528,7 @@ func (a *App) wrapWithMacSandbox(
 ) {
 	wrapperBin := strings.TrimSpace(a.cfg.Sandbox.XPC.WrapperBin)
 	if wrapperBin == "" {
-		wrapperBin = "agentsh-macwrap"
+		wrapperBin = "agentmon-macwrap"
 	}
 
 	if _, err := exec.LookPath(wrapperBin); err != nil {
@@ -1566,7 +1566,7 @@ func (a *App) wrapWithMacSandbox(
 
 	// Write profile artifact for debugging/inspection
 	if cfg.CompiledProfile != "" && sess.ID != "" {
-		artifactDir := filepath.Join(os.Getenv("HOME"), ".agentsh", "sessions", sess.ID)
+		artifactDir := filepath.Join(os.Getenv("HOME"), ".agentmon", "sessions", sess.ID)
 		os.MkdirAll(artifactDir, 0700)
 		artifactPath := filepath.Join(artifactDir, "sandbox.sb")
 		if err := os.WriteFile(artifactPath, []byte(cfg.CompiledProfile), 0600); err != nil {
@@ -1586,14 +1586,14 @@ func (a *App) wrapWithMacSandbox(
 	// Use file-based config if payload is too large for env var
 	cfgStr := string(cfgJSON)
 	if len(cfgStr) > 64*1024 {
-		tmpFile := fmt.Sprintf("/tmp/agentsh-sandbox-%s.json", sess.ID)
+		tmpFile := fmt.Sprintf("/tmp/agentmon-sandbox-%s.json", sess.ID)
 		if err := os.WriteFile(tmpFile, cfgJSON, 0600); err != nil {
 			slog.Warn("failed to write sandbox config file", "error", err)
 			return
 		}
-		req.Env["AGENTSH_SANDBOX_CONFIG_FILE"] = tmpFile
+		req.Env["AGENTMON_SANDBOX_CONFIG_FILE"] = tmpFile
 	} else {
-		req.Env["AGENTSH_SANDBOX_CONFIG"] = cfgStr
+		req.Env["AGENTMON_SANDBOX_CONFIG"] = cfgStr
 	}
 
 	req.Command = wrapperBin
@@ -1648,7 +1648,7 @@ func (a *App) emitPackageCheckEvent(ctx context.Context, sessionID, commandID st
 
 // setTraceContext sets the W3C trace context on a session for distributed
 // tracing correlation. This allows external processes (e.g. Python agents)
-// running inside a session to associate their OTEL traces with agentsh events.
+// running inside a session to associate their OTEL traces with agentmon events.
 func (a *App) setTraceContext(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	s, ok := a.sessions.Get(id)

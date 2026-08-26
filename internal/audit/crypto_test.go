@@ -293,7 +293,7 @@ func TestLoadEncryptionKey_FromFileTruncates(t *testing.T) {
 }
 
 func TestLoadEncryptionKey_FromEnv(t *testing.T) {
-	envKey := "TEST_AGENTSH_ENCRYPTION_KEY"
+	envKey := "TEST_AGENTMON_ENCRYPTION_KEY"
 	keyValue := bytes.Repeat([]byte("e"), 32)
 
 	// Set the environment variable
@@ -322,7 +322,7 @@ func TestLoadEncryptionKey_EnvTakesPrecedence(t *testing.T) {
 	}
 
 	// Set environment variable with different key
-	envKeyName := "TEST_AGENTSH_ENCRYPTION_KEY_PRECEDENCE"
+	envKeyName := "TEST_AGENTMON_ENCRYPTION_KEY_PRECEDENCE"
 	envKey := bytes.Repeat([]byte("e"), 32)
 	os.Setenv(envKeyName, string(envKey))
 	defer os.Unsetenv(envKeyName)
@@ -369,7 +369,7 @@ func TestLoadEncryptionKey_NoSource(t *testing.T) {
 }
 
 func TestLoadEncryptionKey_EmptyEnvVar(t *testing.T) {
-	envKeyName := "TEST_AGENTSH_ENCRYPTION_KEY_EMPTY"
+	envKeyName := "TEST_AGENTMON_ENCRYPTION_KEY_EMPTY"
 	os.Setenv(envKeyName, "")
 	defer os.Unsetenv(envKeyName)
 
@@ -381,7 +381,7 @@ func TestLoadEncryptionKey_EmptyEnvVar(t *testing.T) {
 }
 
 func TestLoadEncryptionKey_EnvTooShort(t *testing.T) {
-	envKeyName := "TEST_AGENTSH_ENCRYPTION_KEY_SHORT"
+	envKeyName := "TEST_AGENTMON_ENCRYPTION_KEY_SHORT"
 	// Set a key that's too short (16 bytes instead of 32)
 	shortKey := string(bytes.Repeat([]byte("s"), 16))
 	os.Setenv(envKeyName, shortKey)
@@ -398,7 +398,7 @@ func TestLoadEncryptionKey_EnvTooShort(t *testing.T) {
 }
 
 func TestLoadEncryptionKey_FromEnvTruncates(t *testing.T) {
-	envKeyName := "TEST_AGENTSH_ENCRYPTION_KEY_LONG"
+	envKeyName := "TEST_AGENTMON_ENCRYPTION_KEY_LONG"
 	// Set a key that's longer than 32 bytes (64 bytes)
 	longKey := bytes.Repeat([]byte("l"), 64)
 	os.Setenv(envKeyName, string(longKey))

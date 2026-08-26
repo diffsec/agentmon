@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // ResourceLimiter implements platform.ResourceLimiter for macOS.
 // Uses userspace CPU monitoring with SIGSTOP/SIGCONT throttling.
-// Memory limits are enforced via RLIMIT_AS using the agentsh-rlimit-exec wrapper.
+// Memory limits are enforced via RLIMIT_AS using the agentmon-rlimit-exec wrapper.
 type ResourceLimiter struct {
 	available       bool
 	supportedLimits []platform.ResourceType
@@ -24,7 +24,7 @@ func NewResourceLimiter() *ResourceLimiter {
 	r := &ResourceLimiter{
 		available: true,
 		supportedLimits: []platform.ResourceType{
-			platform.ResourceMemory, // Via agentsh-rlimit-exec wrapper
+			platform.ResourceMemory, // Via agentmon-rlimit-exec wrapper
 			platform.ResourceCPU,    // Via SIGSTOP/SIGCONT throttling
 		},
 		handles: make(map[string]*ResourceHandle),

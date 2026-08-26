@@ -95,7 +95,7 @@ Replacement text block (3 events emitted at the original index):
 
 ```
 data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}
-data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"[agentsh] Tool 'get_weather' blocked by policy"}}
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"[agentmon] Tool 'get_weather' blocked by policy"}}
 data: {"type":"content_block_stop","index":1}
 ```
 

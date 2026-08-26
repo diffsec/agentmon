@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide covers deploying the agentsh Windows mini filter driver in production environments, including code signing requirements, installation procedures, and monitoring.
+This guide covers deploying the agentmon Windows mini filter driver in production environments, including code signing requirements, installation procedures, and monitoring.
 
 ## Requirements
 
@@ -22,12 +22,12 @@ This guide covers deploying the agentsh Windows mini filter driver in production
 
 1. Create a test certificate:
 ```cmd
-makecert -r -pe -ss PrivateCertStore -n "CN=AgentSH Test" agentsh-test.cer
+makecert -r -pe -ss PrivateCertStore -n "CN=AgentMon Test" agentmon-test.cer
 ```
 
 2. Sign the driver:
 ```cmd
-signtool sign /v /s PrivateCertStore /n "AgentSH Test" /t http://timestamp.digicert.com agentsh.sys
+signtool sign /v /s PrivateCertStore /n "AgentMon Test" /t http://timestamp.digicert.com agentmon.sys
 ```
 
 3. Enable test signing on target machine:
@@ -42,7 +42,7 @@ bcdedit /set testsigning on
 2. **Sign the driver catalog**:
 ```cmd
 inf2cat /driver:. /os:10_x64
-signtool sign /v /ac cross-cert.cer /n "Your Company" /tr http://timestamp.digicert.com /td sha256 /fd sha256 agentsh.cat
+signtool sign /v /ac cross-cert.cer /n "Your Company" /tr http://timestamp.digicert.com /td sha256 /fd sha256 agentmon.cat
 ```
 
 3. **Submit for attestation signing** (Windows 10 1607+):
@@ -56,9 +56,9 @@ signtool sign /v /ac cross-cert.cer /n "Your Company" /tr http://timestamp.digic
 
 ```cmd
 REM As Administrator
-copy agentsh.sys %SystemRoot%\System32\drivers\
-rundll32.exe setupapi.dll,InstallHinfSection DefaultInstall 132 agentsh.inf
-fltmc load agentsh
+copy agentmon.sys %SystemRoot%\System32\drivers\
+rundll32.exe setupapi.dll,InstallHinfSection DefaultInstall 132 agentmon.inf
+fltmc load agentmon
 ```
 
 ### Verify Installation
@@ -71,15 +71,15 @@ Expected output:
 ```
 Filter Name                     Num Instances    Altitude    Frame
 ------------------------------  -------------  ------------  -----
-AgentSH                               3          385200       0
+AgentMon                               3          385200       0
 ```
 
 ### Uninstallation
 
 ```cmd
-fltmc unload agentsh
-rundll32.exe setupapi.dll,InstallHinfSection DefaultUninstall 132 agentsh.inf
-del %SystemRoot%\System32\drivers\agentsh.sys
+fltmc unload agentmon
+rundll32.exe setupapi.dll,InstallHinfSection DefaultUninstall 132 agentmon.inf
+del %SystemRoot%\System32\drivers\agentmon.sys
 ```
 
 ## Configuration
@@ -120,7 +120,7 @@ The driver intercepts Windows registry operations via `CmRegisterCallbackEx`. Th
 
 #### Registry Policy Configuration
 
-In your policy file (`agentsh.yaml`):
+In your policy file (`agentmon.yaml`):
 
 ```yaml
 registry_rules:
@@ -192,7 +192,7 @@ Key metrics:
 
 Driver events appear in:
 - Event Viewer → Windows Logs → System
-- Source: AgentSH
+- Source: AgentMon
 
 ### Debug Output
 
@@ -203,7 +203,7 @@ In development, view DbgPrint output with DebugView (Sysinternals).
 ### Driver won't load
 
 1. Check test signing: `bcdedit | findstr testsigning`
-2. Verify driver signature: `signtool verify /v /pa agentsh.sys`
+2. Verify driver signature: `signtool verify /v /pa agentmon.sys`
 3. Check Event Viewer for errors
 
 ### High latency
@@ -228,12 +228,12 @@ In development, view DbgPrint output with DebugView (Sysinternals).
 
 ## WinFsp Coexistence
 
-When using both the minifilter driver and WinFsp filesystem mounting, the agentsh process is automatically excluded from minifilter interception to prevent double-capture of file events.
+When using both the minifilter driver and WinFsp filesystem mounting, the agentmon process is automatically excluded from minifilter interception to prevent double-capture of file events.
 
 ### How It Works
 
 1. Before mounting WinFsp, the Go client calls `ExcludeSelf()` on the driver client
-2. The driver stores the agentsh process ID in `gExcludedProcessId`
+2. The driver stores the agentmon process ID in `gExcludedProcessId`
 3. All minifilter pre-callbacks (PreCreate, PreWrite, PreSetInfo) check for the excluded PID
 4. If the current process matches, the operation is allowed without policy check
 

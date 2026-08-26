@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // TestRunCommand_EnvInjectStdoutCapture verifies that stdout is captured correctly
@@ -19,7 +19,7 @@ import (
 //   - ptrace: disabled (tracer=nil)
 //   - cgroups: disabled (hook=nil)
 //   - unix_sockets: disabled (no wrapper)
-//   - env_inject has BASH_ENV and AGENTSH_SERVER
+//   - env_inject has BASH_ENV and AGENTMON_SERVER
 func TestRunCommand_EnvInjectStdoutCapture(t *testing.T) {
 	ws := t.TempDir()
 	s := &session.Session{
@@ -45,7 +45,7 @@ func TestRunCommand_EnvInjectStdoutCapture(t *testing.T) {
 			extra: &extraProcConfig{
 				envInject: map[string]string{
 					"BASH_ENV":       "/nonexistent/bash_startup.sh",
-					"AGENTSH_SERVER": "http://localhost:9999",
+					"AGENTMON_SERVER": "http://localhost:9999",
 				},
 			},
 		},

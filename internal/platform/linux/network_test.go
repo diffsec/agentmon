@@ -5,7 +5,7 @@ package linux
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 func TestNewNetwork(t *testing.T) {

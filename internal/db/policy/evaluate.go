@@ -3,7 +3,7 @@ package policy
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // Evaluate applies the statement-rule policy to a classified statement per

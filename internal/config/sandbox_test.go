@@ -18,7 +18,7 @@ func TestExecveConfig_Defaults(t *testing.T) {
 	assert.Equal(t, "deny", cfg.OnTruncated)
 	assert.Equal(t, 10*time.Second, cfg.ApprovalTimeout)
 	assert.Equal(t, "deny", cfg.ApprovalTimeoutAction)
-	assert.Equal(t, []string{"/usr/local/bin/agentsh", "/usr/local/bin/agentsh-unixwrap"}, cfg.InternalBypass)
+	assert.Equal(t, []string{"/usr/local/bin/agentmon", "/usr/local/bin/agentmon-unixwrap"}, cfg.InternalBypass)
 }
 
 func TestExecveConfig_ParseYAML(t *testing.T) {
@@ -31,7 +31,7 @@ execve:
   approval_timeout: 5s
   approval_timeout_action: deny
   internal_bypass:
-    - /usr/local/bin/agentsh
+    - /usr/local/bin/agentmon
     - "*.real"
 `
 	var cfg SeccompConfig
@@ -43,5 +43,5 @@ execve:
 	assert.Equal(t, 32768, cfg.Execve.MaxArgvBytes)
 	assert.Equal(t, "approval", cfg.Execve.OnTruncated)
 	assert.Equal(t, 5*time.Second, cfg.Execve.ApprovalTimeout)
-	assert.Contains(t, cfg.Execve.InternalBypass, "/usr/local/bin/agentsh")
+	assert.Contains(t, cfg.Execve.InternalBypass, "/usr/local/bin/agentmon")
 }

@@ -90,7 +90,7 @@ export GOPATH="${GOPATH:-$repo_root/.gopath}"
 make build >/dev/null
 
 set +e
-host_guard_out="$(./bin/agentsh shim install-shell --root / --shim "$repo_root/bin/agentsh-shell-shim" 2>&1)"
+host_guard_out="$(./bin/agentmon shim install-shell --root / --shim "$repo_root/bin/agentmon-shell-shim" 2>&1)"
 host_guard_rc=$?
 set -e
 if [[ "$host_guard_rc" == "0" ]]; then
@@ -104,7 +104,7 @@ fi
 
 port="$(free_port)"
 base_url="http://127.0.0.1:${port}"
-export AGENTSH_SERVER="$base_url"
+export AGENTMON_SERVER="$base_url"
 
 cat >"$tmp/config.yml" <<YAML
 server:
@@ -151,7 +151,7 @@ sandbox:
       enabled: false
 YAML
 
-./bin/agentsh server --config "$tmp/config.yml" >"$tmp/server.log" 2>&1 &
+./bin/agentmon server --config "$tmp/config.yml" >"$tmp/server.log" 2>&1 &
 SERVER_PID="$!"
 
 for _ in $(seq 1 200); do
@@ -166,7 +166,7 @@ if ! curl -fsS "${base_url}/health" >/dev/null 2>&1; then
   exit 1
 fi
 
-sid_json="$(./bin/agentsh session create --workspace . --json)"
+sid_json="$(./bin/agentmon session create --workspace . --json)"
 sid="$("$PYTHON" -c 'import json,sys; print(json.loads(sys.stdin.read())["id"])' <<<"$sid_json")"
 if [[ -z "$sid" ]]; then
   echo "smoke: failed to parse session id" >&2
@@ -180,7 +180,7 @@ exec_rc=0
 max_exec_attempts=3
 for attempt in $(seq 1 $max_exec_attempts); do
   {
-    exec_out="$(./bin/agentsh exec "$sid" -- sh -c 'echo hi' 2>&1 | tr -d '\r')"
+    exec_out="$(./bin/agentmon exec "$sid" -- sh -c 'echo hi' 2>&1 | tr -d '\r')"
     exec_rc=$?
   } || exec_rc=$?
 
@@ -218,10 +218,10 @@ if ! pty_ok; then
 else
   pty_out="$(
     set +e
-    ./bin/agentsh exec --pty "$sid" -- sh -c 'printf pty_hi' 2>&1 | tr -d '\r'
+    ./bin/agentmon exec --pty "$sid" -- sh -c 'printf pty_hi' 2>&1 | tr -d '\r'
     exit ${PIPESTATUS[0]}
   )" || {
-    echo "smoke: NOTE (agentsh PTY failed; skipping PTY checks): $pty_out" >&2
+    echo "smoke: NOTE (agentmon PTY failed; skipping PTY checks): $pty_out" >&2
     SMOKE_PTY_OK=0
   }
 fi
@@ -235,14 +235,14 @@ fi
 # Shim delegation (simulated install).
 shim_dir="$tmp/shim"
 mkdir -p "$shim_dir"
-cp -f ./bin/agentsh-shell-shim "$shim_dir/sh"
+cp -f ./bin/agentmon-shell-shim "$shim_dir/sh"
 chmod +x "$shim_dir/sh"
 ln -sf "$(command -v sh)" "$shim_dir/sh.real"
 
 # Shim test with retry for transient failures.
 shim_out=""
 for attempt in $(seq 1 $max_exec_attempts); do
-  shim_out="$(AGENTSH_BIN="$repo_root/bin/agentsh" AGENTSH_SESSION_ID="$sid" AGENTSH_SERVER="$base_url" "$shim_dir/sh" -c 'echo shim_hi' | tr -d '\r' | tail -n 1)" || true
+  shim_out="$(AGENTMON_BIN="$repo_root/bin/agentmon" AGENTMON_SESSION_ID="$sid" AGENTMON_SERVER="$base_url" "$shim_dir/sh" -c 'echo shim_hi' | tr -d '\r' | tail -n 1)" || true
   if [[ "$shim_out" == "shim_hi" ]]; then
     break
   fi
@@ -267,9 +267,9 @@ else
   rootfs_bash=0
 fi
 
-install_args=(./bin/agentsh shim install-shell --root "$rootfs" --shim "$repo_root/bin/agentsh-shell-shim")
-uninstall_args=(./bin/agentsh shim uninstall-shell --root "$rootfs")
-status_args=(./bin/agentsh shim status --output json --root "$rootfs" --shim "$repo_root/bin/agentsh-shell-shim")
+install_args=(./bin/agentmon shim install-shell --root "$rootfs" --shim "$repo_root/bin/agentmon-shell-shim")
+uninstall_args=(./bin/agentmon shim uninstall-shell --root "$rootfs")
+status_args=(./bin/agentmon shim status --output json --root "$rootfs" --shim "$repo_root/bin/agentmon-shell-shim")
 if [[ "$rootfs_bash" == "1" ]]; then
   install_args+=(--bash)
   uninstall_args+=(--bash)
@@ -283,7 +283,7 @@ fi
 # Rootfs shim test with retry.
 rootfs_out=""
 for attempt in $(seq 1 $max_exec_attempts); do
-  rootfs_out="$(AGENTSH_BIN="$repo_root/bin/agentsh" AGENTSH_SESSION_ID="$sid" AGENTSH_SERVER="$base_url" "$rootfs/bin/sh" -c 'echo rootfs_hi' | tr -d '\r' | tail -n 1)" || true
+  rootfs_out="$(AGENTMON_BIN="$repo_root/bin/agentmon" AGENTMON_SESSION_ID="$sid" AGENTMON_SERVER="$base_url" "$rootfs/bin/sh" -c 'echo rootfs_hi' | tr -d '\r' | tail -n 1)" || true
   if [[ "$rootfs_out" == "rootfs_hi" ]]; then
     break
   fi
@@ -304,10 +304,10 @@ if [[ "$restored_out" != "restored_hi" ]]; then
   exit 1
 fi
 
-# Shim delegation via PATH (no AGENTSH_BIN) with retry.
+# Shim delegation via PATH (no AGENTMON_BIN) with retry.
 shim_out_path=""
 for attempt in $(seq 1 $max_exec_attempts); do
-  shim_out_path="$(PATH="$repo_root/bin:$PATH" AGENTSH_SESSION_ID="$sid" AGENTSH_SERVER="$base_url" "$shim_dir/sh" -c 'echo shim_path_hi' | tr -d '\r' | tail -n 1)" || true
+  shim_out_path="$(PATH="$repo_root/bin:$PATH" AGENTMON_SESSION_ID="$sid" AGENTMON_SERVER="$base_url" "$shim_dir/sh" -c 'echo shim_path_hi' | tr -d '\r' | tail -n 1)" || true
   if [[ "$shim_out_path" == "shim_path_hi" ]]; then
     break
   fi
@@ -321,8 +321,8 @@ if [[ "$shim_out_path" != "shim_path_hi" ]]; then
   exit 1
 fi
 
-# Shim recursion guard: should not need agentsh when already in-session.
-rec_out="$(AGENTSH_BIN="/nonexistent/agentsh" AGENTSH_IN_SESSION=1 "$shim_dir/sh" -c 'echo recursion_hi' | tr -d '\r' | tail -n 1)"
+# Shim recursion guard: should not need agentmon when already in-session.
+rec_out="$(AGENTMON_BIN="/nonexistent/agentmon" AGENTMON_IN_SESSION=1 "$shim_dir/sh" -c 'echo recursion_hi' | tr -d '\r' | tail -n 1)"
 if [[ "$rec_out" != "recursion_hi" ]]; then
   echo "smoke: shim recursion output mismatch: got=$rec_out" >&2
   exit 1
@@ -332,7 +332,7 @@ if [[ "$SMOKE_PTY_OK" == "1" ]]; then
   # Shim PTY: allocate a pseudo-tty so shim chooses --pty.
   pty_shim_out="$(
     SMOKE_SHIM="$shim_dir/sh" \
-    SMOKE_AGENTSH="$repo_root/bin/agentsh" \
+    SMOKE_AGENTMON="$repo_root/bin/agentmon" \
     SMOKE_SID="$sid" \
     SMOKE_SERVER="$base_url" \
     "$PYTHON" - <<'PY'
@@ -340,9 +340,9 @@ import os, pty, select, subprocess, sys, time
 
 shim = os.environ["SMOKE_SHIM"]
 env = os.environ.copy()
-env["AGENTSH_BIN"] = os.environ["SMOKE_AGENTSH"]
-env["AGENTSH_SESSION_ID"] = os.environ["SMOKE_SID"]
-env["AGENTSH_SERVER"] = os.environ["SMOKE_SERVER"]
+env["AGENTMON_BIN"] = os.environ["SMOKE_AGENTMON"]
+env["AGENTMON_SESSION_ID"] = os.environ["SMOKE_SID"]
+env["AGENTMON_SERVER"] = os.environ["SMOKE_SERVER"]
 
 m, s = pty.openpty()
 try:
@@ -384,18 +384,18 @@ fi
 
 # Optional: bash shim, if bash exists.
 if command -v bash >/dev/null 2>&1; then
-  cp -f ./bin/agentsh-shell-shim "$shim_dir/bash"
+  cp -f ./bin/agentmon-shell-shim "$shim_dir/bash"
   chmod +x "$shim_dir/bash"
   ln -sf "$(command -v bash)" "$shim_dir/bash.real"
 
-  bash_out="$(AGENTSH_BIN="$repo_root/bin/agentsh" AGENTSH_SESSION_ID="$sid" AGENTSH_SERVER="$base_url" "$shim_dir/bash" -c 'echo bash_hi' | tr -d '\r' | tail -n 1)"
+  bash_out="$(AGENTMON_BIN="$repo_root/bin/agentmon" AGENTMON_SESSION_ID="$sid" AGENTMON_SERVER="$base_url" "$shim_dir/bash" -c 'echo bash_hi' | tr -d '\r' | tail -n 1)"
   if [[ "$bash_out" != "bash_hi" ]]; then
     echo "smoke: bash shim output mismatch: got=$bash_out" >&2
     exit 1
   fi
 
   # Login-style argv0 ("-bash") should still select bash semantics.
-  login_out="$(AGENTSH_BIN="$repo_root/bin/agentsh" AGENTSH_SESSION_ID="$sid" AGENTSH_SERVER="$base_url" SMOKE_BASH_SHIM="$shim_dir/bash" bash -lc 'exec -a -bash "$SMOKE_BASH_SHIM" -c "echo login_hi"' | tr -d '\r' | tail -n 1)"
+  login_out="$(AGENTMON_BIN="$repo_root/bin/agentmon" AGENTMON_SESSION_ID="$sid" AGENTMON_SERVER="$base_url" SMOKE_BASH_SHIM="$shim_dir/bash" bash -lc 'exec -a -bash "$SMOKE_BASH_SHIM" -c "echo login_hi"' | tr -d '\r' | tail -n 1)"
   if [[ "$login_out" != "login_hi" ]]; then
     echo "smoke: bash login shim output mismatch: got=$login_out" >&2
     exit 1
@@ -403,12 +403,12 @@ if command -v bash >/dev/null 2>&1; then
 fi
 
 # Test seccomp blocking (if seccomp available)
-if [[ -f ./bin/agentsh-unixwrap ]]; then
+if [[ -f ./bin/agentmon-unixwrap ]]; then
   echo "smoke: testing seccomp blocking..."
   # Try to run strace (which uses ptrace) - should fail if seccomp is working
   # First check if strace is available to avoid false positives
   set +e
-  seccomp_out="$(./bin/agentsh exec "$sid" -- sh -c 'command -v strace >/dev/null 2>&1 || { echo strace_not_found; exit 0; }; strace -V 2>&1 || echo strace_blocked' 2>&1 | tail -n 1)"
+  seccomp_out="$(./bin/agentmon exec "$sid" -- sh -c 'command -v strace >/dev/null 2>&1 || { echo strace_not_found; exit 0; }; strace -V 2>&1 || echo strace_blocked' 2>&1 | tail -n 1)"
   set -e
 
   # Handle different scenarios

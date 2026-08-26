@@ -22,24 +22,24 @@ func TestNewWebAuthnService(t *testing.T) {
 	}{
 		{
 			name:             "valid configuration",
-			rpID:             "agentsh.local",
-			rpName:           "agentsh",
+			rpID:             "agentmon.local",
+			rpName:           "agentmon",
 			rpOrigins:        []string{"http://localhost:18080"},
 			userVerification: "preferred",
 			wantErr:          false,
 		},
 		{
 			name:             "valid with multiple origins",
-			rpID:             "agentsh.local",
-			rpName:           "agentsh",
-			rpOrigins:        []string{"http://localhost:18080", "https://agentsh.local"},
+			rpID:             "agentmon.local",
+			rpName:           "agentmon",
+			rpOrigins:        []string{"http://localhost:18080", "https://agentmon.local"},
 			userVerification: "preferred",
 			wantErr:          false,
 		},
 		{
 			name:             "empty rpID",
 			rpID:             "",
-			rpName:           "agentsh",
+			rpName:           "agentmon",
 			rpOrigins:        []string{"http://localhost:18080"},
 			userVerification: "preferred",
 			wantErr:          true,
@@ -47,7 +47,7 @@ func TestNewWebAuthnService(t *testing.T) {
 		},
 		{
 			name:             "empty rpName",
-			rpID:             "agentsh.local",
+			rpID:             "agentmon.local",
 			rpName:           "",
 			rpOrigins:        []string{"http://localhost:18080"},
 			userVerification: "preferred",
@@ -56,8 +56,8 @@ func TestNewWebAuthnService(t *testing.T) {
 		},
 		{
 			name:             "empty origins",
-			rpID:             "agentsh.local",
-			rpName:           "agentsh",
+			rpID:             "agentmon.local",
+			rpName:           "agentmon",
 			rpOrigins:        []string{},
 			userVerification: "preferred",
 			wantErr:          true,
@@ -65,8 +65,8 @@ func TestNewWebAuthnService(t *testing.T) {
 		},
 		{
 			name:             "nil origins",
-			rpID:             "agentsh.local",
-			rpName:           "agentsh",
+			rpID:             "agentmon.local",
+			rpName:           "agentmon",
 			rpOrigins:        nil,
 			userVerification: "preferred",
 			wantErr:          true,
@@ -74,8 +74,8 @@ func TestNewWebAuthnService(t *testing.T) {
 		},
 		{
 			name:             "invalid user verification",
-			rpID:             "agentsh.local",
-			rpName:           "agentsh",
+			rpID:             "agentmon.local",
+			rpName:           "agentmon",
 			rpOrigins:        []string{"http://localhost:18080"},
 			userVerification: "invalid_mode",
 			wantErr:          true,
@@ -167,8 +167,8 @@ func TestWebAuthnService_UserVerificationModes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc, err := NewWebAuthnService(
-				"agentsh.local",
-				"agentsh",
+				"agentmon.local",
+				"agentmon",
 				[]string{"http://localhost:18080"},
 				tt.userVerification,
 				store,

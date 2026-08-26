@@ -2,14 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `agentsh daemon install` produce a service unit that no longer fails at flag parsing, and repair installations already broken by the nonexistent `--daemon` flag.
+**Goal:** Make `agentmon daemon install` produce a service unit that no longer fails at flag parsing, and repair installations already broken by the nonexistent `--daemon` flag.
 
 **Architecture:** Two independent halves. Drop `--daemon` from the generated systemd and launchd templates so new installs are clean, and register `--daemon` on the `server` command as a hidden deprecated no-op so units already written to disk — which a binary upgrade does not rewrite — stop failing. A guard test renders each template, extracts the argv the service manager would exec, and dry-parses it against the real root command.
 
 **Tech Stack:** Go 1.25, `github.com/spf13/cobra`, `github.com/spf13/pflag` v1.0.9, standard `testing`.
 
 **Spec:** `docs/superpowers/specs/2026-08-05-daemon-install-flag-design.md`
-**Issue:** [#437](https://github.com/canyonroad/agentsh/issues/437) (also audit finding H20)
+**Issue:** [#437](https://github.com/diffsec/agentmon/issues/437) (also audit finding H20)
 
 ## Global Constraints
 
@@ -98,13 +98,13 @@ func argvFromLaunchdPlist(t *testing.T, plist string) []string {
 // #437: an unregistered flag, a renamed or removed `server` subcommand, and a
 // structurally broken ExecStart / ProgramArguments all fail here.
 func TestDaemonTemplates_GenerateRunnableCommand(t *testing.T) {
-	const exePath = "/usr/local/bin/agentsh"
+	const exePath = "/usr/local/bin/agentmon"
 
 	systemdUnit := fmt.Sprintf(systemdServiceTemplate,
-		exePath, "/home/testuser", "1000", "/home/testuser/.local/share/agentsh")
+		exePath, "/home/testuser", "1000", "/home/testuser/.local/share/agentmon")
 	launchdPlist := fmt.Sprintf(launchdPlistTemplate,
-		exePath, "/home/testuser/Library/Logs/agentsh",
-		"/home/testuser/Library/Logs/agentsh", "/home/testuser")
+		exePath, "/home/testuser/Library/Logs/agentmon",
+		"/home/testuser/Library/Logs/agentmon", "/home/testuser")
 
 	for _, tc := range []struct {
 		name string
@@ -174,7 +174,7 @@ Expected: PASS, both `systemd` and `launchd` subtests.
 Then confirm nothing else in the package regressed — `TestSystemdServiceTemplate` and `TestLaunchdPlistTemplate` assert on these same constants:
 
 Run: `go test ./internal/cli/`
-Expected: `ok  github.com/agentsh/agentsh/internal/cli`
+Expected: `ok  github.com/diffsec/agentmon/internal/cli`
 
 - [ ] **Step 5: Commit**
 
@@ -182,7 +182,7 @@ Expected: `ok  github.com/agentsh/agentsh/internal/cli`
 git add internal/cli/daemon.go internal/cli/daemon_test.go
 git commit -m "fix(daemon): stop generating units that pass a nonexistent --daemon flag
 
-The systemd and launchd templates both invoked `agentsh server --daemon`,
+The systemd and launchd templates both invoked `agentmon server --daemon`,
 which the server command never registered. Cobra rejected it, the process
 exited 1, and both service managers restart-looped it forever.
 
@@ -196,7 +196,7 @@ Refs #437"
 
 ### Task 2: Accept `--daemon` as a hidden deprecated no-op
 
-Repairs installations already on disk. A user who ran `agentsh daemon install` before this fix has `--daemon` baked into their unit file, and upgrading the binary does not rewrite it — without this task they stay in the restart loop until they manually re-run `agentsh daemon install --force`.
+Repairs installations already on disk. A user who ran `agentmon daemon install` before this fix has `--daemon` baked into their unit file, and upgrading the binary does not rewrite it — without this task they stay in the restart loop until they manually re-run `agentmon daemon install --force`.
 
 **Files:**
 - Modify: `internal/cli/server.go:39` (append after the existing `--config` registration in `newServerCmd`)
@@ -246,17 +246,17 @@ Expected: FAIL with `server must tolerate the legacy --daemon flag: unknown flag
 In `internal/cli/server.go`, in `newServerCmd`, directly after the existing `--config` line:
 
 ```go
-	cmd.Flags().StringVar(&configPath, "config", "", "Path to server config YAML (default: ./config.yml, ./config.yaml, or /etc/agentsh/config.yaml)")
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to server config YAML (default: ./config.yml, ./config.yaml, or /etc/agentmon/config.yaml)")
 
 	// Accepted and ignored for compatibility with service units generated
-	// before #437, which hardcode `agentsh server --daemon`. A binary upgrade
+	// before #437, which hardcode `agentmon server --daemon`. A binary upgrade
 	// does not rewrite those files, and rejecting the flag leaves the daemon
 	// restart-looping. There is no behavior to implement: systemd Type=simple
 	// and launchd both require the supervised process to stay in the
 	// foreground, so self-daemonizing would break process tracking either way.
 	cmd.Flags().Bool("daemon", false, "Deprecated: accepted for compatibility, ignored")
 	_ = cmd.Flags().MarkDeprecated("daemon",
-		"the server always runs in the foreground under systemd/launchd; remove it or re-run `agentsh daemon install --force`")
+		"the server always runs in the foreground under systemd/launchd; remove it or re-run `agentmon daemon install --force`")
 
 	return cmd
 ```
@@ -270,12 +270,12 @@ Expected: PASS
 
 Confirm the flag is genuinely hidden from help:
 
-Run: `go run ./cmd/agentsh server --help`
+Run: `go run ./cmd/agentmon server --help`
 Expected: usage text that does **not** list `--daemon`.
 
 Confirm the original reported failure is gone — the command must get past flag parsing and fail (or succeed) on config loading instead:
 
-Run: `go run ./cmd/agentsh server --daemon --config /nonexistent/config.yaml`
+Run: `go run ./cmd/agentmon server --daemon --config /nonexistent/config.yaml`
 Expected: a deprecation notice on stderr mentioning `--daemon`, then a config-related error. Specifically **not** `unknown flag: --daemon`.
 
 - [ ] **Step 5: Commit**
@@ -284,10 +284,10 @@ Expected: a deprecation notice on stderr mentioning `--daemon`, then a config-re
 git add internal/cli/server.go internal/cli/daemon_test.go
 git commit -m "fix(server): accept legacy --daemon as a hidden deprecated no-op
 
-Units written by an earlier `agentsh daemon install` hardcode
+Units written by an earlier `agentmon daemon install` hardcode
 `server --daemon`, and upgrading the binary does not rewrite them.
 Accepting and ignoring the flag lets those installations recover without
-the user re-running `agentsh daemon install --force`.
+the user re-running `agentmon daemon install --force`.
 
 The deprecation notice pflag prints on each start lands in the daemon's
 error log, telling an operator how to clean the unit up.

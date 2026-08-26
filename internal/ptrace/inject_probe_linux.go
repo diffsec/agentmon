@@ -36,8 +36,8 @@ import (
 // argv sentinel + >=16-char env token two-factor detection + init() dispatch).
 
 const (
-	injectProbeArgvSentinel = "--agentsh-internal-ptrace-inject-probe-child-v1"
-	injectProbeEnv          = "AGENTSH_PTRACE_INJECT_PROBE_CHILD"
+	injectProbeArgvSentinel = "--agentmon-internal-ptrace-inject-probe-child-v1"
+	injectProbeEnv          = "AGENTMON_PTRACE_INJECT_PROBE_CHILD"
 	// injectProbeIterations is how many independent inject attempts must all
 	// map before we trust injection. A genuinely broken kernel fails the
 	// FIRST iteration cleanly and repeatably (#369), so 8 is ample margin
@@ -100,7 +100,7 @@ func init() {
 // runInjectProbeChild is the child sentinel: it blocks forever so the parent
 // probe can attach, inject a test mmap, verify the mapping, and kill it. It is
 // only reached when both the sentinel argv and a valid env token are present,
-// so a normal `agentsh` invocation never enters here. PTRACE_O_EXITKILL set by
+// so a normal `agentmon` invocation never enters here. PTRACE_O_EXITKILL set by
 // the parent guarantees the child dies if the parent does, so a lost parent
 // cannot orphan a blocked child.
 func runInjectProbeChild() {

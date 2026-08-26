@@ -75,7 +75,7 @@ func TestInstallFilter_EmitsWaitKillEngagedOnSupportedKernel(t *testing.T) {
 // sigurgProbeHelperEnv gates the re-exec body of the test. Setting it
 // outside this test's parent->child dispatch is unsupported; the child
 // will install a seccomp filter in whatever process reads the env var.
-const sigurgProbeHelperEnv = "AGENTSH_TEST_SIGURG_PROBE_HELPER"
+const sigurgProbeHelperEnv = "AGENTMON_TEST_SIGURG_PROBE_HELPER"
 
 // TestInstallFilter_HonorsOperatorOverride re-execs the test binary
 // with FilterConfig.WaitKillable=&false + WaitKillableSource="config"
@@ -151,7 +151,7 @@ func TestInstallFilter_HonorsOperatorOverride(t *testing.T) {
 // sigurgOverrideHelperEnv gates the re-exec child body for
 // TestInstallFilter_HonorsOperatorOverride. Like sigurgProbeHelperEnv,
 // it must not be set outside the parent->child dispatch.
-const sigurgOverrideHelperEnv = "AGENTSH_TEST_SIGURG_OVERRIDE_HELPER"
+const sigurgOverrideHelperEnv = "AGENTMON_TEST_SIGURG_OVERRIDE_HELPER"
 
 // boolPtrLocalSigurg returns a pointer to v. Local helper to keep the
 // override test self-contained without depending on test fixtures

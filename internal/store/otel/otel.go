@@ -1,5 +1,5 @@
 // Package otel implements a store.EventStore that exports events via
-// OpenTelemetry (OTLP). It converts agentsh events to OTEL log records,
+// OpenTelemetry (OTLP). It converts agentmon events to OTEL log records,
 // shipping them to a configured collector.
 package otel
 
@@ -10,8 +10,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/pkg/types"
 	otellog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"google.golang.org/grpc/credentials"
@@ -98,7 +98,7 @@ func New(ctx context.Context, cfg Config) (*Store, error) {
 			sdklog.WithProcessor(batchProc),
 			sdklog.WithResource(cfg.Resource),
 		)
-		s.logger = s.logProvider.Logger("agentsh")
+		s.logger = s.logProvider.Logger("agentmon")
 	}
 
 	return s, nil

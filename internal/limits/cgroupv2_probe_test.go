@@ -19,7 +19,7 @@ func seedHealthyRoot(f *fakeCgroupFS) {
 func TestProbe_NestedAlreadyDelegated(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu io memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "cpu io memory pids")
 
@@ -41,7 +41,7 @@ func TestProbe_NestedAlreadyDelegated(t *testing.T) {
 func TestProbe_NestedEnableSucceeds(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 
@@ -60,7 +60,7 @@ func TestProbe_NestedEnableSucceeds(t *testing.T) {
 func TestProbe_EnableEBUSY_FallbackToTopLevel(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	// Injected: the enable write fails with EBUSY.
@@ -68,7 +68,7 @@ func TestProbe_EnableEBUSY_FallbackToTopLevel(t *testing.T) {
 	// Top-level needs to be ready: slice dir will be created by probe, but we
 	// must seed memory.max to appear after mkdir (our fake doesn't auto-create
 	// controller files, so we prepopulate the file at the expected path).
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 
 	res, err := ProbeCgroupsV2(context.Background(), f, own, false)
 	if err != nil {
@@ -88,11 +88,11 @@ func TestProbe_EnableEBUSY_FallbackToTopLevel(t *testing.T) {
 func TestProbe_EnableEACCES_FallbackToTopLevel(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EACCES
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 
 	res, err := ProbeCgroupsV2(context.Background(), f, own, false)
 	if err != nil {
@@ -111,7 +111,7 @@ func TestProbe_TopLevelMissingMemoryController(t *testing.T) {
 	// Root is missing memory.
 	f.seedFile("/sys/fs/cgroup/cgroup.controllers", "cpu pids")
 	f.seedFile("/sys/fs/cgroup/cgroup.subtree_control", "")
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 
@@ -130,11 +130,11 @@ func TestProbe_TopLevelMissingMemoryController(t *testing.T) {
 func TestProbe_TopLevelSliceMissingControllerFiles(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EBUSY
-	// Do NOT seed agentsh.slice/memory.max — our fake mkdir won't auto-create it.
+	// Do NOT seed agentmon.slice/memory.max — our fake mkdir won't auto-create it.
 
 	res, err := ProbeCgroupsV2(context.Background(), f, own, false)
 	if err != nil {
@@ -151,15 +151,15 @@ func TestProbe_TopLevelSliceMissingControllerFiles(t *testing.T) {
 func TestProbe_TopLevelOrphanReap(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EBUSY
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 	// Orphan A is unpopulated -> should be reaped.
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/orphan-A/cgroup.events", "populated 0\nfrozen 0\n")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/orphan-A/cgroup.events", "populated 0\nfrozen 0\n")
 	// Orphan B is populated -> should be left alone.
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/orphan-B/cgroup.events", "populated 1\nfrozen 0\n")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/orphan-B/cgroup.events", "populated 1\nfrozen 0\n")
 
 	res, err := ProbeCgroupsV2(context.Background(), f, own, false)
 	if err != nil {
@@ -171,10 +171,10 @@ func TestProbe_TopLevelOrphanReap(t *testing.T) {
 	if len(res.OrphansReaped) != 1 || res.OrphansReaped[0] != "orphan-A" {
 		t.Fatalf("expected orphan-A reaped, got %v", res.OrphansReaped)
 	}
-	if _, err := f.Stat("/sys/fs/cgroup/agentsh.slice/orphan-A"); err == nil {
+	if _, err := f.Stat("/sys/fs/cgroup/agentmon.slice/orphan-A"); err == nil {
 		t.Fatalf("orphan-A should have been removed")
 	}
-	if _, err := f.Stat("/sys/fs/cgroup/agentsh.slice/orphan-B"); err != nil {
+	if _, err := f.Stat("/sys/fs/cgroup/agentmon.slice/orphan-B"); err != nil {
 		t.Fatalf("orphan-B should still exist: %v", err)
 	}
 }
@@ -184,7 +184,7 @@ func TestProbe_IOControllerOptional(t *testing.T) {
 	// Root has everything except io.
 	f.seedFile("/sys/fs/cgroup/cgroup.controllers", "cpu memory pids")
 	f.seedFile("/sys/fs/cgroup/cgroup.subtree_control", "cpu memory pids")
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "cpu memory pids")
 
@@ -203,14 +203,14 @@ func TestProbe_IOControllerOptional(t *testing.T) {
 func TestProbe_AllOrphansPopulated(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EBUSY
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 	// All orphans are populated (active) — none should be reaped.
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/child-A/cgroup.events", "populated 1\nfrozen 0\n")
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/child-B/cgroup.events", "populated 1\nfrozen 0\n")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/child-A/cgroup.events", "populated 1\nfrozen 0\n")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/child-B/cgroup.events", "populated 1\nfrozen 0\n")
 
 	res, err := ProbeCgroupsV2(context.Background(), f, own, false)
 	if err != nil {
@@ -223,10 +223,10 @@ func TestProbe_AllOrphansPopulated(t *testing.T) {
 		t.Fatalf("expected no orphans reaped, got %v", res.OrphansReaped)
 	}
 	// Both children should still exist.
-	if _, err := f.Stat("/sys/fs/cgroup/agentsh.slice/child-A"); err != nil {
+	if _, err := f.Stat("/sys/fs/cgroup/agentmon.slice/child-A"); err != nil {
 		t.Fatalf("child-A should still exist: %v", err)
 	}
-	if _, err := f.Stat("/sys/fs/cgroup/agentsh.slice/child-B"); err != nil {
+	if _, err := f.Stat("/sys/fs/cgroup/agentmon.slice/child-B"); err != nil {
 		t.Fatalf("child-B should still exist: %v", err)
 	}
 }
@@ -234,7 +234,7 @@ func TestProbe_AllOrphansPopulated(t *testing.T) {
 func TestProbe_LeafMove_EBUSYSucceeds(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	// First enableControllers call fails with EBUSY (process in cgroup);
@@ -260,7 +260,7 @@ func TestProbe_LeafMove_EBUSYSucceeds(t *testing.T) {
 		t.Fatalf("OwnCgroup should be %q, got %q", own, res.OwnCgroup)
 	}
 	// Verify the leaf directory was created.
-	if _, err := f.Stat(own + "/agentsh.leaf"); err != nil {
+	if _, err := f.Stat(own + "/agentmon.leaf"); err != nil {
 		t.Fatalf("leaf dir should exist: %v", err)
 	}
 }
@@ -268,15 +268,15 @@ func TestProbe_LeafMove_EBUSYSucceeds(t *testing.T) {
 func TestProbe_LeafMove_MkdirFails_FallbackTopLevel(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openWriteErrsOnce[own+"/cgroup.subtree_control:write"] = syscall.EBUSY
 	// Pre-create own/leaf so mkdir returns EEXIST (tolerated),
 	// then block the cgroup.procs write to simulate permission failure.
-	f.seedDir(own + "/agentsh.leaf")
-	f.writeErrs[own+"/agentsh.leaf/cgroup.procs"] = syscall.EACCES
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+	f.seedDir(own + "/agentmon.leaf")
+	f.writeErrs[own+"/agentmon.leaf/cgroup.procs"] = syscall.EACCES
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 
 	res, err := ProbeCgroupsV2(context.Background(), f, own, false)
 	if err != nil {
@@ -296,13 +296,13 @@ func TestProbe_LeafMove_MkdirFails_FallbackTopLevel(t *testing.T) {
 func TestProbe_LeafMove_RetryEnableFails_FallbackTopLevel(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	// Use permanent openErrs — both the first and retry calls fail.
 	f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EBUSY
 	f.seedFile(own+"/cgroup.procs", "1234")
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 
 	res, err := ProbeCgroupsV2(context.Background(), f, own, false)
 	if err != nil {
@@ -324,11 +324,11 @@ func TestProbe_LeafMove_RetryEnableFails_FallbackTopLevel(t *testing.T) {
 func TestProbe_EACCES_NoLeafMove(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EACCES
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 
 	res, err := ProbeCgroupsV2(context.Background(), f, own, false)
 	if err != nil {
@@ -338,7 +338,7 @@ func TestProbe_EACCES_NoLeafMove(t *testing.T) {
 		t.Fatalf("mode: got %q, want top-level", res.Mode)
 	}
 	// Verify no leaf directory was created.
-	if _, err := f.Stat(own + "/agentsh.leaf"); err == nil {
+	if _, err := f.Stat(own + "/agentmon.leaf"); err == nil {
 		t.Fatalf("leaf dir should NOT exist for EACCES — leaf-move is EBUSY-only")
 	}
 	if res.LeafMoved {
@@ -353,7 +353,7 @@ func TestProbe_LeafMove_IdempotentSecondProbe(t *testing.T) {
 	// attempt another leaf-move.
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openWriteErrsOnce[own+"/cgroup.subtree_control:write"] = syscall.EBUSY
@@ -384,7 +384,7 @@ func TestProbe_LeafMove_IdempotentSecondProbe(t *testing.T) {
 		t.Fatalf("probe 2: expected 'already delegated', got %q", res2.Reason)
 	}
 	// Verify no leaf/leaf was created.
-	if _, err := f.Stat(own + "/agentsh.leaf/agentsh.leaf"); err == nil {
+	if _, err := f.Stat(own + "/agentmon.leaf/agentmon.leaf"); err == nil {
 		t.Fatalf("leaf/leaf should NOT exist — probe should be idempotent")
 	}
 }
@@ -398,14 +398,14 @@ func TestProbe_LeafMove_IdempotentSecondProbe(t *testing.T) {
 func TestProbe_AlreadyDelegated_EEXISTTreatedAsFailure(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "cpu memory pids")
 	// Every mkdir under own returns EEXIST (simulates a host where probe
 	// dirs collide with leftovers — or, more realistically, where the
 	// kernel returns EEXIST as a misleading proxy for some other state).
 	f.mkdirErrUnder[own] = syscall.EEXIST
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 
 	res, err := ProbeCgroupsV2(context.Background(), f, own, false)
 	if err != nil {
@@ -424,7 +424,7 @@ func TestProbe_ExplicitLeafHintNotStripped(t *testing.T) {
 	// rewritten — normalization only applies to auto-discovered paths.
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	leafPath := "/sys/fs/cgroup/system.slice/agentsh.service/agentsh.leaf"
+	leafPath := "/sys/fs/cgroup/system.slice/agentmon.service/agentmon.leaf"
 	f.seedFile(leafPath+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(leafPath+"/cgroup.subtree_control", "cpu memory pids")
 
@@ -441,11 +441,11 @@ func TestProbe_ExplicitLeafHintNotStripped(t *testing.T) {
 // case: cgroup.subtree_control reports cpu/memory/pids delegated, but
 // mkdir within the subtree is denied. Without the writability probe, this
 // silently produces per-command cgroup_apply_failed at runtime while
-// detect over-reports cgroups_v2 ✓ (canyonroad/agentsh#272).
+// detect over-reports cgroups_v2 ✓ (diffsec/agentmon#272).
 func TestProbe_AlreadyDelegated_MkdirDeniedFallsBack(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu io memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "cpu io memory pids")
 	f.mkdirErrUnder[own] = syscall.EACCES
@@ -470,12 +470,12 @@ func TestProbe_AlreadyDelegated_MkdirDeniedFallsBack(t *testing.T) {
 func TestProbe_AlreadyDelegated_MkdirDeniedFallsToTopLevel(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "cpu memory pids")
 	f.mkdirErrUnder[own] = syscall.EACCES
 	// Top-level slice mkdir works; pre-seed memory.max so the slice probe passes.
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 
 	res, err := ProbeCgroupsV2(context.Background(), f, own, false)
 	if err != nil {
@@ -494,7 +494,7 @@ func TestProbe_AlreadyDelegated_MkdirDeniedFallsToTopLevel(t *testing.T) {
 func TestProbe_AlreadyDelegated_MkdirSucceeds_ProbeCleanedUp(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu io memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "cpu io memory pids")
 
@@ -505,13 +505,13 @@ func TestProbe_AlreadyDelegated_MkdirSucceeds_ProbeCleanedUp(t *testing.T) {
 	if res.Mode != ModeNested || res.Reason != "already delegated" {
 		t.Fatalf("mode/reason: got %q/%q, want nested/already delegated", res.Mode, res.Reason)
 	}
-	// No agentsh.write-probe-* directories should remain under own.
+	// No agentmon.write-probe-* directories should remain under own.
 	entries, err := f.ReadDir(own)
 	if err != nil {
 		t.Fatalf("readdir: %v", err)
 	}
 	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), "agentsh.write-probe-") {
+		if strings.HasPrefix(e.Name(), "agentmon.write-probe-") {
 			t.Fatalf("probe directory leaked: %s", e.Name())
 		}
 	}
@@ -524,11 +524,11 @@ func TestProbe_AlreadyDelegated_MkdirSucceeds_ProbeCleanedUp(t *testing.T) {
 func TestProbe_EnabledByProbe_MkdirDeniedFallsBack(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.mkdirErrUnder[own] = syscall.EACCES
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 
 	res, err := ProbeCgroupsV2(context.Background(), f, own, false)
 	if err != nil {
@@ -549,23 +549,23 @@ func TestProbe_EnabledByProbe_MkdirDeniedFallsBack(t *testing.T) {
 func TestProbe_LeafMove_MkdirDeniedFallsBack(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	// First write to subtree_control fails with EBUSY; retry after leaf-move succeeds.
 	f.openWriteErrsOnce[own+"/cgroup.subtree_control:write"] = syscall.EBUSY
 	// Block child cgroup mkdir specifically (but allow the leaf cgroup itself,
-	// since agentsh.leaf creation happens before the writability probe).
+	// since agentmon.leaf creation happens before the writability probe).
 	// We can't easily distinguish the two with mkdirErrUnder, so we accept
 	// that the leaf is created first and then block subsequent probes by
 	// switching the predicate after leaf creation. The fake doesn't support
 	// that natively; instead, verify behavior via top-level fallback path.
 	f.mkdirErrUnder[own] = syscall.EACCES
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 
 	// Pre-create the leaf so the EBUSY+leaf-move retry doesn't need to mkdir
 	// it (which would also be blocked by mkdirErrUnder[own]).
-	f.seedDir(own + "/agentsh.leaf")
+	f.seedDir(own + "/agentmon.leaf")
 
 	res, err := ProbeCgroupsV2(context.Background(), f, own, false)
 	if err != nil {
@@ -584,7 +584,7 @@ func TestProbe_AttachOnly_ReachedWhenPermitted(t *testing.T) {
 	seedHealthyRoot(f)
 	// Own cgroup advertises controllers but rejects subtree_control writes
 	// for memory — mirrors the stock-Docker scope-cgroup symptom.
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.failSubtreeWrite(own+"/cgroup.subtree_control", "+memory", syscall.ENOTSUP)
@@ -609,7 +609,7 @@ func TestProbe_AttachOnly_ReachedWhenPermitted(t *testing.T) {
 func TestProbe_AttachOnly_FilteredWhenNotPermitted(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.failSubtreeWrite(own+"/cgroup.subtree_control", "+memory", syscall.ENOTSUP)
@@ -631,7 +631,7 @@ func TestProbe_AttachOnly_FilteredWhenNotPermitted(t *testing.T) {
 func TestProbe_AttachOnly_FilteredWhenFeasibilityFails(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	// Make the subtree_control write fail so nested/top-level both fail.
@@ -655,7 +655,7 @@ func TestProbe_AttachOnly_FilteredWhenFeasibilityFails(t *testing.T) {
 func TestProbe_TopLevelMemoryMaxNotWritable_DowngradesFromTopLevel(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EBUSY // force fallback to top-level
@@ -678,7 +678,7 @@ func TestProbe_TopLevelMemoryMaxNotWritable_DowngradesFromTopLevel(t *testing.T)
 func TestProbe_TopLevelMemoryMaxNotWritable_UpgradesToAttachOnly(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EBUSY

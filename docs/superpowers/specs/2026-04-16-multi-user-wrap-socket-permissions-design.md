@@ -6,7 +6,7 @@
 
 ## Problem
 
-When `agentsh server` runs as root (e.g. a systemd service) and `agentsh wrap` runs as an unprivileged user (e.g. uid=1000), the wrap process cannot connect to the notify sockets. The server creates the temp directory at `/tmp/agentsh-wrap-*/` as `root:root 0700`. The unprivileged CLI cannot traverse the directory to reach the sockets, failing with `EACCES` at `forwardNotifyFD` → `net.Dial("unix", socketPath)`.
+When `agentmon server` runs as root (e.g. a systemd service) and `agentmon wrap` runs as an unprivileged user (e.g. uid=1000), the wrap process cannot connect to the notify sockets. The server creates the temp directory at `/tmp/agentmon-wrap-*/` as `root:root 0700`. The unprivileged CLI cannot traverse the directory to reach the sockets, failing with `EACCES` at `forwardNotifyFD` → `net.Dial("unix", socketPath)`.
 
 All three socket types are affected: seccomp notify, ptrace notify, and signal filter.
 

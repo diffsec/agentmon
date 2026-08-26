@@ -5,7 +5,7 @@ package postgres
 import (
 	"fmt"
 
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
 )
 
 // buildClassifierMap constructs one Parser per distinct dialect across the

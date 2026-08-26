@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Verifies outside->inside rename emits a create event with metadata.

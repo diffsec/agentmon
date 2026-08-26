@@ -1,4 +1,4 @@
-# CI Strict Policy for agentsh
+# CI Strict Policy for agentmon
 # Locked-down policy for CI runners - deny anything outside workspace
 
 version: 1

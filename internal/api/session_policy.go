@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/tor"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/tor"
 )
 
 // policyEngineFor returns the effective policy engine to consult for the given
@@ -17,7 +17,7 @@ import (
 // Reads the global engine via a.Policy() so a SwapPolicy by the WTP
 // pushed-policy install hook is observed by every subsequent session.
 //
-// This exists to fix canyonroad/agentsh#191: before this helper, the command
+// This exists to fix diffsec/agentmon#191: before this helper, the command
 // precheck and wrap-time Landlock derivation paths used a.policy directly,
 // which silently ignored custom rules authored in any non-default policy file.
 // All new call sites that need to consult "the policy for this session" should

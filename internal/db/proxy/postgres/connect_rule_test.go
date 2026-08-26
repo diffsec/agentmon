@@ -5,8 +5,8 @@ package postgres
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 )
 
 // loadRuleSet decodes a YAML policy via the same path the supervisor uses.

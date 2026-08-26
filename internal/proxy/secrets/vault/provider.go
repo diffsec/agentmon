@@ -16,7 +16,7 @@ import (
 	approleauth "github.com/hashicorp/vault/api/auth/approle"
 	kubeauth "github.com/hashicorp/vault/api/auth/kubernetes"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // Provider is a Vault-backed secrets.SecretProvider using KV v2.

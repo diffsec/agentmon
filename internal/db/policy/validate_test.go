@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 )
 
 // helperValidate runs validate against the decoded shapes; tests construct

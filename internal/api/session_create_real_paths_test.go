@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestCreateSession_RealPaths_RequestOverride(t *testing.T) {

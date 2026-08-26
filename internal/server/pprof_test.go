@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestServer_PprofEnabledServesEndpoint(t *testing.T) {

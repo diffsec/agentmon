@@ -31,11 +31,11 @@ func TestIsInStagingDir(t *testing.T) {
 		policyDir string
 		want      bool
 	}{
-		{"/etc/agentsh/policies/.staging/foo.yaml", "/etc/agentsh/policies", true},
-		{"/etc/agentsh/policies/.staging/foo.yaml.sig", "/etc/agentsh/policies", true},
-		{"/etc/agentsh/policies/foo.yaml", "/etc/agentsh/policies", false},
-		{"/etc/agentsh/policies/subdir/foo.yaml", "/etc/agentsh/policies", false},
-		{"/other/.staging/foo.yaml", "/etc/agentsh/policies", false},
+		{"/etc/agentmon/policies/.staging/foo.yaml", "/etc/agentmon/policies", true},
+		{"/etc/agentmon/policies/.staging/foo.yaml.sig", "/etc/agentmon/policies", true},
+		{"/etc/agentmon/policies/foo.yaml", "/etc/agentmon/policies", false},
+		{"/etc/agentmon/policies/subdir/foo.yaml", "/etc/agentmon/policies", false},
+		{"/other/.staging/foo.yaml", "/etc/agentmon/policies", false},
 	}
 	for _, tt := range tests {
 		if got := isInStagingDir(tt.path, tt.policyDir); got != tt.want {

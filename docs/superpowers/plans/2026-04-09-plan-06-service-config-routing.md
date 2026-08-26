@@ -382,7 +382,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/proxy/secrets"
+	"github.com/diffsec/agentmon/internal/proxy/secrets"
 	"gopkg.in/yaml.v3"
 )
 
@@ -598,7 +598,7 @@ func TestValidateSecrets_Valid(t *testing.T) {
 		{
 			Name:   "anthropic",
 			Match:  ServiceMatchYAML{Hosts: []string{"api.anthropic.com"}},
-			Secret: ServiceSecretYAML{Ref: "keyring://agentsh/anthropic_key"},
+			Secret: ServiceSecretYAML{Ref: "keyring://agentmon/anthropic_key"},
 			Fake:   ServiceFakeYAML{Format: "sk-ant-{rand:93}"},
 			Inject: ServiceInjectYAML{Header: &ServiceInjectHeaderYAML{
 				Name: "x-api-key", Template: "{{secret}}",
@@ -1188,7 +1188,7 @@ git commit -m "fix(proxy): LeakGuardHook skips matched services, blocks unmatche
 In `internal/proxy/proxy.go`, add the import for the services package:
 
 ```go
-"github.com/agentsh/agentsh/internal/proxy/services"
+"github.com/diffsec/agentmon/internal/proxy/services"
 ```
 
 Add a `matcher` field to the `Proxy` struct after the `hookRegistry` field:
@@ -1318,7 +1318,7 @@ func TestProxy_MatcherDispatchesServiceHooks(t *testing.T) {
 Also add the import for `services` at the top of `proxy_hooks_test.go`:
 
 ```go
-"github.com/agentsh/agentsh/internal/proxy/services"
+"github.com/diffsec/agentmon/internal/proxy/services"
 ```
 
 And extend the `fakeHook` struct to support a custom `preFn` callback. Find the existing `fakeHook` in the test file. If it doesn't have a `preFn` field, we need to check what it looks like.
@@ -1384,11 +1384,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/proxy/secrets"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/keyring"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/vault"
-	"github.com/agentsh/agentsh/internal/proxy/services"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/proxy/secrets"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/keyring"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/vault"
+	"github.com/diffsec/agentmon/internal/proxy/services"
 	"gopkg.in/yaml.v3"
 )
 
@@ -1568,8 +1568,8 @@ package session
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/vault"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/vault"
 	"gopkg.in/yaml.v3"
 )
 
@@ -1603,7 +1603,7 @@ func TestResolveProviderConfigs_Keyring(t *testing.T) {
 
 func TestResolveProviderConfigs_Vault(t *testing.T) {
 	providers := map[string]yaml.Node{
-		"v": mustYAMLNode(t, "type: vault\naddress: https://vault.example.com\nauth:\n  method: token\n  token_ref: keyring://agentsh/vt"),
+		"v": mustYAMLNode(t, "type: vault\naddress: https://vault.example.com\nauth:\n  method: token\n  token_ref: keyring://agentmon/vt"),
 	}
 	configs, err := ResolveProviderConfigs(providers)
 	if err != nil {
@@ -1639,7 +1639,7 @@ func TestResolveServiceConfigs(t *testing.T) {
 		{
 			Name:   "github",
 			Match:  policy.ServiceMatchYAML{Hosts: []string{"api.github.com"}},
-			Secret: policy.ServiceSecretYAML{Ref: "keyring://agentsh/gh"},
+			Secret: policy.ServiceSecretYAML{Ref: "keyring://agentmon/gh"},
 			Fake:   policy.ServiceFakeYAML{Format: "ghp_{rand:36}"},
 			Inject: policy.ServiceInjectYAML{Header: &policy.ServiceInjectHeaderYAML{
 				Name: "Authorization", Template: "Bearer {{secret}}",
@@ -1701,8 +1701,8 @@ func StartLLMProxy(
 Add the necessary imports:
 
 ```go
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/proxy/services"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/proxy/services"
 	"gopkg.in/yaml.v3"
 ```
 
@@ -1833,12 +1833,12 @@ func TestIntegration_PolicyYAML_FullFlow(t *testing.T) {
 	// Setup: create a memory provider with a known secret.
 	memProvider := &memoryProvider{
 		secrets: map[string][]byte{
-			"keyring://agentsh/github_token": []byte("ghp_REAL1234567890abcdef"),
+			"keyring://agentmon/github_token": []byte("ghp_REAL1234567890abcdef"),
 		},
 	}
 
 	// Build ServiceConfigs as if resolved from YAML.
-	ref, err := secrets.ParseRef("keyring://agentsh/github_token")
+	ref, err := secrets.ParseRef("keyring://agentmon/github_token")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1914,7 +1914,7 @@ func TestIntegration_PolicyYAML_FullFlow(t *testing.T) {
 }
 ```
 
-Add the necessary imports (`"github.com/agentsh/agentsh/internal/proxy/services"` and `"net/http/httptest"`) if not already present.
+Add the necessary imports (`"github.com/diffsec/agentmon/internal/proxy/services"` and `"net/http/httptest"`) if not already present.
 
 - [ ] **Step 2: Run the integration test**
 

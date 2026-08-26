@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/cmd/gen-wire-goldens/fixtures"
+	"github.com/diffsec/agentmon/internal/store/watchtower/cmd/gen-wire-goldens/fixtures"
 	"google.golang.org/protobuf/proto"
 )
 

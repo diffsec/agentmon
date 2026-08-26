@@ -1,7 +1,7 @@
 # macOS Packaging: Shared Assemble/Sign Scripts
 
 **Date:** 2026-08-05
-**Issue:** [#442](https://github.com/canyonroad/agentsh/issues/442)
+**Issue:** [#442](https://github.com/diffsec/agentmon/issues/442)
 **Status:** Approved
 
 ## Problem
@@ -18,16 +18,16 @@ runtime.
 Full drift inventory (Makefile vs. release.yml on `main` @ `b16add89`):
 
 1. **No provisioning profiles embedded.** Neither
-   `macos/AgentSH/AgentSH_Distribution.provisionprofile` into the app nor
-   `macos/AgentSH/AgentSH_SysExt_Distribution.provisionprofile` into the
+   `macos/AgentMon/AgentMon_Distribution.provisionprofile` into the app nor
+   `macos/AgentMon/AgentMon_SysExt_Distribution.provisionprofile` into the
    sysext. The sysext carries the restricted `endpoint-security.client`
    entitlement with no granting profile, so AMFI refuses to exec it (#436).
 2. **Stale sysext product name.** The Makefile copies
    `SysExt.systemextension`; Xcode names the product
-   `ai.canyonroad.agentsh.SysExt.systemextension`, so `assemble-bundle`
+   `dev.diffsec.agentmon.SysExt.systemextension`, so `assemble-bundle`
    fails outright.
-3. **Path case drift.** The Makefile references `macos/agentsh/...` for
-   entitlements and the Xcode project; the directory is `macos/AgentSH/`.
+3. **Path case drift.** The Makefile references `macos/agentmon/...` for
+   entitlements and the Xcode project; the directory is `macos/AgentMon/`.
    Works only on case-insensitive filesystems. release.yml has the same
    latent bug in its `xcodebuild -project` path.
 4. **No verify gate.** release.yml runs `scripts/verify-macos-bundle.sh`
@@ -36,10 +36,10 @@ Full drift inventory (Makefile vs. release.yml on `main` @ `b16add89`):
 5. **Missing bundle resources.** release.yml copies `config.yml`,
    `default-policy.yml`, and `configs/policies/*.yaml` into
    `Contents/Resources/`; the Makefile copies none of them.
-6. **Wrong Go binary set.** release.yml bundles `agentsh`,
-   `agentsh-shell-shim`, and `agentsh-stub` into `Contents/MacOS/`; the
-   Makefile builds only `agentsh`.
-7. **Wrong `agentsh` build flags.** release.yml rebuilds `agentsh` with
+6. **Wrong Go binary set.** release.yml bundles `agentmon`,
+   `agentmon-shell-shim`, and `agentmon-stub` into `Contents/MacOS/`; the
+   Makefile builds only `agentmon`.
+7. **Wrong `agentmon` build flags.** release.yml rebuilds `agentmon` with
    `CGO_ENABLED=1 -tags nofuse` for system extension support; the Makefile
    uses `CGO_ENABLED=0`.
 
@@ -66,14 +66,14 @@ Environment:
 Steps:
 
 1. Copy `${GO_BIN_DIR}/*` into `Contents/MacOS/`.
-2. Copy `macos/AgentSH-files/Info.plist` into `Contents/`.
-3. Copy `${PRODUCTS_DIR}/ai.canyonroad.agentsh.SysExt.systemextension` into
+2. Copy `macos/AgentMon-files/Info.plist` into `Contents/`.
+3. Copy `${PRODUCTS_DIR}/dev.diffsec.agentmon.SysExt.systemextension` into
    `Contents/Library/SystemExtensions/`.
 4. Copy `${PRODUCTS_DIR}/xpc.xpc` into `Contents/XPCServices/`.
 5. Copy `${PRODUCTS_DIR}/approval-dialog.app` into `Contents/Resources/`.
-6. Copy `macos/AgentSH/AgentSH_Distribution.provisionprofile` to
+6. Copy `macos/AgentMon/AgentMon_Distribution.provisionprofile` to
    `Contents/embedded.provisionprofile`.
-7. Copy `macos/AgentSH/AgentSH_SysExt_Distribution.provisionprofile` to the
+7. Copy `macos/AgentMon/AgentMon_SysExt_Distribution.provisionprofile` to the
    sysext's `Contents/embedded.provisionprofile`.
 8. Copy `config.yml`, `default-policy.yml`, and `configs/policies/*.yaml`
    into `Contents/Resources/` (policies under
@@ -85,28 +85,28 @@ Steps:
 Inside-out signing. Requires `SIGNING_IDENTITY` in the environment. All
 signing uses `--force --options runtime --timestamp`.
 
-1. Each binary in `Contents/MacOS/`: `agentsh-shell-shim` signs with no
-   entitlements; every other binary (`agentsh`, `agentsh-stub`) signs with
-   `macos/AgentSH/agentsh/agentsh.entitlements`. This is release.yml's
+1. Each binary in `Contents/MacOS/`: `agentmon-shell-shim` signs with no
+   entitlements; every other binary (`agentmon`, `agentmon-stub`) signs with
+   `macos/AgentMon/diffsec/agentmon.entitlements`. This is release.yml's
    exact selection rule, preserved verbatim — including the fact that
-   `agentsh-stub` carries the restricted `system-extension.install`
+   `agentmon-stub` carries the restricted `system-extension.install`
    entitlement today. Whether the stub *should* carry it is a separate
    question, out of scope here (see Out of scope).
-2. The sysext, with `macos/AgentSH/SysExt.entitlements`.
+2. The sysext, with `macos/AgentMon/SysExt.entitlements`.
 3. `xpc.xpc`, no entitlements.
 4. `approval-dialog.app`, with
-   `macos/AgentSH/approval-dialog/approval-dialog.entitlements`.
-5. The outer app, with `macos/AgentSH/agentsh/agentsh.entitlements`.
+   `macos/AgentMon/approval-dialog/approval-dialog.entitlements`.
+5. The outer app, with `macos/AgentMon/diffsec/agentmon.entitlements`.
 6. `codesign --verify --deep --strict --verbose=2` on the app.
 
-All repo paths use canonical case (`macos/AgentSH/...`).
+All repo paths use canonical case (`macos/AgentMon/...`).
 
 ### Caller: release.yml
 
 - The "Assemble app bundle" step body becomes
-  `GO_BIN_DIR=build/go-universal scripts/assemble-macos-bundle.sh build/AgentSH.app`.
+  `GO_BIN_DIR=build/go-universal scripts/assemble-macos-bundle.sh build/AgentMon.app`.
 - The "Sign app bundle (inside-out)" step body becomes
-  `scripts/sign-macos-bundle.sh build/AgentSH.app`.
+  `scripts/sign-macos-bundle.sh build/AgentMon.app`.
 - The "Create and sign universal Go binaries" step keeps its lipo logic and
   drops its codesign loop: the shared sign script signs those binaries
   post-assembly, and a later `--force` re-sign would overwrite the earlier
@@ -116,7 +116,7 @@ All repo paths use canonical case (`macos/AgentSH/...`).
   `lipo -info` diagnostics; the final `codesign --verify --deep --strict`
   in the sign script subsumes the former.
 - Fix the `xcodebuild -project` path case to
-  `macos/AgentSH/agentsh.xcodeproj`.
+  `macos/AgentMon/agentmon.xcodeproj`.
 - The existing "Verify provisioning profiles" step is unchanged.
 
 Net behavior change to the release pipeline: none. Same signatures, same
@@ -127,17 +127,17 @@ tag.
 
 - `build-macos-go`: build the release binary set into `build/go-local/`,
   `GOARCH=arm64` —
-  - `agentsh` with `CGO_ENABLED=1 -tags nofuse` (matches release.yml's
+  - `agentmon` with `CGO_ENABLED=1 -tags nofuse` (matches release.yml's
     system-extension-support rebuild),
-  - `agentsh-shell-shim` and `agentsh-stub` with `CGO_ENABLED=0`.
+  - `agentmon-shell-shim` and `agentmon-stub` with `CGO_ENABLED=0`.
 - `assemble-bundle`: keeps its `build-macos-go build-swift` prerequisites;
   recipe becomes
-  `GO_BIN_DIR=build/go-local scripts/assemble-macos-bundle.sh build/AgentSH.app`.
-- `sign-bundle`: `scripts/sign-macos-bundle.sh build/AgentSH.app`.
+  `GO_BIN_DIR=build/go-local scripts/assemble-macos-bundle.sh build/AgentMon.app`.
+- `sign-bundle`: `scripts/sign-macos-bundle.sh build/AgentMon.app`.
 - `build-macos-enterprise`: assemble + sign, then
-  `scripts/verify-macos-bundle.sh build/AgentSH.app` as the final step.
+  `scripts/verify-macos-bundle.sh build/AgentMon.app` as the final step.
 - `build-swift`: fix the project path case to
-  `macos/AgentSH/agentsh.xcodeproj`.
+  `macos/AgentMon/agentmon.xcodeproj`.
 
 ### Docs
 
@@ -163,8 +163,8 @@ Both scripts run `set -euo pipefail` and preflight with actionable errors:
   `assemble-macos-bundle.sh`, assert the expected bundle tree including
   both `embedded.provisionprofile` files. Wire it into
   `.github/workflows/ci.yml` as a Linux job step: Linux filesystems are
-  case-sensitive, so this permanently catches the `macos/agentsh` vs
-  `macos/AgentSH` bug class that macOS runners cannot see.
+  case-sensitive, so this permanently catches the `macos/agentmon` vs
+  `macos/AgentMon` bug class that macOS runners cannot see.
 - Signing and verification need Xcode plus a signing identity: acceptance
   is `make build-macos-enterprise` passing the verify gate on a developer
   Mac, and the next release tag exercising the extracted release path.
@@ -172,8 +172,8 @@ Both scripts run `set -euo pipefail` and preflight with actionable errors:
 ## Out of scope
 
 Local notarization, universal (multi-arch) local binaries, local DMG
-creation, and `agentsh-macwrap` (commented out in `.goreleaser.yml`).
-Also out of scope: changing which entitlements `agentsh-stub` is signed
+creation, and `agentmon-macwrap` (commented out in `.goreleaser.yml`).
+Also out of scope: changing which entitlements `agentmon-stub` is signed
 with — today release signs it with the restricted
 `system-extension.install` entitlement, and this spec preserves that
 verbatim; dropping it would change shipped signatures and deserves its own

@@ -4,19 +4,19 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // findConfigPath searches for config file in priority order and returns
 // the path and its source.
 // Search order:
-// 1. AGENTSH_CONFIG env var
-// 2. User-local config (~/.config/agentsh/config.yaml or platform equivalent)
-// 3. System-wide config (/etc/agentsh/config.yaml or platform equivalent)
+// 1. AGENTMON_CONFIG env var
+// 2. User-local config (~/.config/agentmon/config.yaml or platform equivalent)
+// 3. System-wide config (/etc/agentmon/config.yaml or platform equivalent)
 // 4. macOS app bundle Resources (fallback for Homebrew Cask installs)
 func findConfigPath() (string, config.ConfigSource) {
 	// 1. Check env var first
-	if v := os.Getenv("AGENTSH_CONFIG"); v != "" {
+	if v := os.Getenv("AGENTMON_CONFIG"); v != "" {
 		return v, config.ConfigSourceEnv
 	}
 

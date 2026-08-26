@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/agentsh/agentsh/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
 	"github.com/spf13/cobra"
 )
 
@@ -23,9 +23,9 @@ func newMCPPinsCmd() *cobra.Command {
 }
 
 func getPinStore() (*mcpinspect.PinStore, error) {
-	path := os.Getenv("AGENTSH_PINS_PATH")
+	path := os.Getenv("AGENTMON_PINS_PATH")
 	if path == "" {
-		path = getenvDefault("AGENTSH_DATA_DIR", "./data") + "/mcp_pins.db"
+		path = getenvDefault("AGENTMON_DATA_DIR", "./data") + "/mcp_pins.db"
 	}
 	return mcpinspect.NewPinStore(path)
 }
@@ -150,7 +150,7 @@ func newMCPPinsDiffCmd() *cobra.Command {
 
 			cmd.Printf("Pinned hash: %s\n", pin.Hash)
 			cmd.Printf("Trusted at:  %s\n", pin.TrustedAt.Format("2006-01-02 15:04:05"))
-			cmd.Println("\nNote: To see current hash, use 'agentsh mcp tools --server <server>'")
+			cmd.Println("\nNote: To see current hash, use 'agentmon mcp tools --server <server>'")
 			return nil
 		},
 	}

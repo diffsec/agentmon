@@ -179,24 +179,24 @@ jobs:
           CGO_ENABLED=1 \
           CGO_LDFLAGS="-static -lseccomp" \
           go build -ldflags='-s -w -extldflags "-static"' \
-            -o agentsh ./cmd/agentsh
-          file agentsh
+            -o agentmon ./cmd/agentmon
+          file agentmon
 
           CGO_ENABLED=1 \
           CGO_LDFLAGS="-static -lseccomp" \
           go build -ldflags='-s -w -extldflags "-static"' \
-            -o agentsh-unixwrap ./cmd/agentsh-unixwrap
-          file agentsh-unixwrap
+            -o agentmon-unixwrap ./cmd/agentmon-unixwrap
+          file agentmon-unixwrap
 
           CGO_ENABLED=0 \
           go build -ldflags='-s -w' \
-            -o agentsh-shell-shim ./cmd/agentsh-shell-shim
+            -o agentmon-shell-shim ./cmd/agentmon-shell-shim
 
           mkdir -p dist
-          tar -czvf "dist/agentsh_${VERSION}_linux_${ARCH}_musl.tar.gz" \
-            agentsh \
-            agentsh-unixwrap \
-            agentsh-shell-shim \
+          tar -czvf "dist/agentmon_${VERSION}_linux_${ARCH}_musl.tar.gz" \
+            agentmon \
+            agentmon-unixwrap \
+            agentmon-shell-shim \
             packaging/bash_startup.sh \
             README.md \
             LICENSE \
@@ -217,7 +217,7 @@ jobs:
 
           # Files created inside the container are root-owned on the host.
           # Chown them back so subsequent host-side steps can read them.
-          sudo chown -R "$(id -u):$(id -g)" dist agentsh agentsh-unixwrap agentsh-shell-shim 2>/dev/null || true
+          sudo chown -R "$(id -u):$(id -g)" dist agentmon agentmon-unixwrap agentmon-shell-shim 2>/dev/null || true
 
       - name: Upload Alpine binaries to release
         env:
@@ -226,7 +226,7 @@ jobs:
           ARCH: ${{ matrix.arch }}
         run: |
           gh release upload "$VERSION" \
-            "dist/agentsh_${VERSION}_linux_${ARCH}_musl.tar.gz" \
+            "dist/agentmon_${VERSION}_linux_${ARCH}_musl.tar.gz" \
             --repo "${{ github.repository }}" \
             --clobber
 
@@ -271,7 +271,7 @@ jobs:
           VERSION: ${{ env.RELEASE_TAG }}
         run: |
           for arch in amd64 arm64; do
-            ARCHIVE="agentsh_${VERSION#v}_darwin_${arch}.tar.gz"
+            ARCHIVE="agentmon_${VERSION#v}_darwin_${arch}.tar.gz"
             gh release download "$VERSION" \
               --pattern "$ARCHIVE" \
               --repo "${{ github.repository }}" \
@@ -280,19 +280,19 @@ jobs:
             tar -xzf "$ARCHIVE" -C "unsigned-${arch}"
           done
 
-      - name: Rebuild agentsh with CGO for system extension support
+      - name: Rebuild agentmon with CGO for system extension support
         env:
           VERSION: ${{ env.RELEASE_TAG }}
         run: |
           LDFLAGS="-s -w -X main.version=${VERSION#v} -X main.commit=$(git rev-parse --short HEAD)"
           # Build for both architectures with CGO enabled (nofuse: macFUSE headers not available on CI)
           CGO_ENABLED=1 GOARCH=arm64 go build -tags nofuse -ldflags "$LDFLAGS" \
-            -o build/agentsh-arm64 ./cmd/agentsh
+            -o build/agentmon-arm64 ./cmd/agentmon
           CGO_ENABLED=1 GOARCH=amd64 go build -tags nofuse -ldflags "$LDFLAGS" \
-            -o build/agentsh-amd64 ./cmd/agentsh
-          # Replace goreleaser-built agentsh with CGO-enabled builds
-          cp build/agentsh-arm64 unsigned-arm64/agentsh
-          cp build/agentsh-amd64 unsigned-amd64/agentsh
+            -o build/agentmon-amd64 ./cmd/agentmon
+          # Replace goreleaser-built agentmon with CGO-enabled builds
+          cp build/agentmon-arm64 unsigned-arm64/agentmon
+          cp build/agentmon-amd64 unsigned-amd64/agentmon
 
       - name: Create universal Go binaries
         run: |
@@ -300,7 +300,7 @@ jobs:
           # Lipo each Mach-O binary into a universal. Signing happens later,
           # inside scripts/sign-macos-bundle.sh, after assembly.
           created=0
-          for bin in unsigned-arm64/agentsh*; do
+          for bin in unsigned-arm64/agentmon*; do
             name=$(basename "$bin")
             [ -f "$bin" ] || continue
             file "$bin" | grep -q "Mach-O" || continue
@@ -325,8 +325,8 @@ jobs:
       - name: Build Swift targets (universal)
         run: |
           xcodebuild \
-            -project macos/AgentSH/agentsh.xcodeproj \
-            -scheme agentsh \
+            -project macos/AgentMon/agentmon.xcodeproj \
+            -scheme agentmon \
             -configuration Release \
             -derivedDataPath build/DerivedData \
             ARCHS="arm64 x86_64" \
@@ -336,15 +336,15 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
       - name: Assemble app bundle
-        run: GO_BIN_DIR=build/go-universal scripts/assemble-macos-bundle.sh build/AgentSH.app
+        run: GO_BIN_DIR=build/go-universal scripts/assemble-macos-bundle.sh build/AgentMon.app
 
       - name: Sign app bundle (inside-out)
         env:
           SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
-        run: scripts/sign-macos-bundle.sh build/AgentSH.app
+        run: scripts/sign-macos-bundle.sh build/AgentMon.app
 
       - name: Verify provisioning profiles
-        run: scripts/verify-macos-bundle.sh build/AgentSH.app
+        run: scripts/verify-macos-bundle.sh build/AgentMon.app
 
       - name: Notarize app bundle
         env:
@@ -352,10 +352,10 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
           TEAM_ID: ${{ secrets.MACOS_NOTARIZATION_TEAM_ID }}
         run: |
-          ditto -c -k --keepParent build/AgentSH.app build/AgentSH.zip
+          ditto -c -k --keepParent build/AgentMon.app build/AgentMon.zip
 
           # Submit and capture submission ID
-          SUBMIT_OUT=$(xcrun notarytool submit build/AgentSH.zip \
+          SUBMIT_OUT=$(xcrun notarytool submit build/AgentMon.zip \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_PASSWORD" \
             --team-id "$TEAM_ID" \
@@ -374,7 +374,7 @@ jobs:
               --apple-id "$APPLE_ID" \
               --password "$APPLE_PASSWORD" \
               --team-id "$TEAM_ID"
-            xcrun stapler staple build/AgentSH.app
+            xcrun stapler staple build/AgentMon.app
             echo "NOTARIZED=true" >> "$GITHUB_ENV"
           else
             echo "::warning::Notarization timed out (submission $SUBMISSION_ID). Run staple-macos workflow later."
@@ -391,21 +391,21 @@ jobs:
           VERSION: ${{ env.RELEASE_TAG }}
         run: |
           # Create DMG
-          hdiutil create -volname "AgentSH" \
-            -srcfolder build/AgentSH.app \
+          hdiutil create -volname "AgentMon" \
+            -srcfolder build/AgentMon.app \
             -ov -format UDZO \
-            "build/AgentSH-${VERSION}.dmg"
+            "build/AgentMon-${VERSION}.dmg"
 
           # Delete old darwin tarballs from release
           for arch in amd64 arm64; do
-            ARCHIVE="agentsh_${VERSION#v}_darwin_${arch}.tar.gz"
+            ARCHIVE="agentmon_${VERSION#v}_darwin_${arch}.tar.gz"
             gh release delete-asset "$VERSION" "$ARCHIVE" \
               --repo "${{ github.repository }}" \
               --yes || true
           done
 
           # Upload DMG
-          gh release upload "$VERSION" "build/AgentSH-${VERSION}.dmg" \
+          gh release upload "$VERSION" "build/AgentMon-${VERSION}.dmg" \
             --repo "${{ github.repository }}" \
             --clobber
 
@@ -452,10 +452,10 @@ jobs:
           VERSION: ${{ env.RELEASE_TAG }}
         run: |
           gh release download "$VERSION" \
-            --pattern "AgentSH-*.dmg" \
+            --pattern "AgentMon-*.dmg" \
             --repo "${{ github.repository }}" \
             --dir .
-          DMG_FILE=$(ls AgentSH-*.dmg)
+          DMG_FILE=$(ls AgentMon-*.dmg)
           if [ "$(echo "$DMG_FILE" | wc -l)" -ne 1 ]; then
             echo "::error::Expected exactly one DMG file, found: $DMG_FILE"
             exit 1
@@ -468,9 +468,9 @@ jobs:
         run: |
           sed -e "s/__VERSION__/$CLEAN_VERSION/g" \
               -e "s/__SHA256__/$SHA256/g" \
-              scripts/homebrew-cask.rb.tmpl > agentsh.rb
+              scripts/homebrew-cask.rb.tmpl > agentmon.rb
           echo "--- Generated cask formula ---"
-          cat agentsh.rb
+          cat agentmon.rb
 
       - name: Push to homebrew-tap
         env:
@@ -478,12 +478,12 @@ jobs:
         run: |
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/canyonroad/homebrew-tap.git" tap
           mkdir -p tap/Casks
-          cp agentsh.rb tap/Casks/agentsh.rb
+          cp agentmon.rb tap/Casks/agentmon.rb
           cd tap
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Casks/agentsh.rb
-          git diff --cached --quiet || git commit -m "Update agentsh cask to ${CLEAN_VERSION}"
+          git add Casks/agentmon.rb
+          git diff --cached --quiet || git commit -m "Update agentmon cask to ${CLEAN_VERSION}"
           git push
 
   # Run integration tests across all supported Linux distros.
@@ -540,8 +540,8 @@ jobs:
           DOCKER_BUILDKIT: "1"
         run: |
           docker build -f ${{ matrix.dockerfile }} \
-            --build-arg AGENTSH_TAG=${{ env.RELEASE_TAG }} \
-            -t agentsh-test-${{ matrix.name }}:latest .
+            --build-arg AGENTMON_TAG=${{ env.RELEASE_TAG }} \
+            -t agentmon-test-${{ matrix.name }}:latest .
           RUN_FLAGS="${{ matrix.docker_run_flags }}"
           # Only pass FUSE flags if /dev/fuse exists on the runner
           if echo "$RUN_FLAGS" | grep -q '/dev/fuse' && [ ! -e /dev/fuse ]; then
@@ -550,4 +550,4 @@ jobs:
           fi
           docker run --rm $RUN_FLAGS \
             -v /tmp/sigurg_probe:/probe/sigurg_probe:ro \
-            agentsh-test-${{ matrix.name }}:latest
+            agentmon-test-${{ matrix.name }}:latest

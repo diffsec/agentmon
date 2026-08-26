@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 const (

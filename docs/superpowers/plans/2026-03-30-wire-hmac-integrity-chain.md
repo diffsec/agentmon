@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Wire the existing HMAC integrity chain infrastructure into the JSONL audit output so events are signed and `agentsh audit verify` works against the live audit log.
+**Goal:** Wire the existing HMAC integrity chain infrastructure into the JSONL audit output so events are signed and `agentmon audit verify` works against the live audit log.
 
 **Architecture:** Add a `RawWriter` interface + `WriteRaw` to the JSONL store, make `IntegrityStore.AppendEvent` actually call `chain.Wrap()` and write signed bytes via `RawWriter`, then wire the chain creation into `server.New()` with proper lifecycle management.
 
@@ -149,8 +149,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 var testKey = []byte("test-key-32-bytes-for-hmac-sha!!")
@@ -399,8 +399,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 var _ EventStore = (*IntegrityStore)(nil)
@@ -493,9 +493,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/store/jsonl"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/store/jsonl"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 ```
 
@@ -625,9 +625,9 @@ kmsProvider io.Closer // audit/kms.Provider for HMAC key lifecycle
 
 - [ ] **Step 2: Add `audit` import**
 
-Add to imports (between the `"github.com/agentsh/agentsh/internal/approvals"` and `"github.com/agentsh/agentsh/internal/auth"` lines):
+Add to imports (between the `"github.com/diffsec/agentmon/internal/approvals"` and `"github.com/diffsec/agentmon/internal/auth"` lines):
 ```go
-"github.com/agentsh/agentsh/internal/audit"
+"github.com/diffsec/agentmon/internal/audit"
 ```
 
 - [ ] **Step 3: Declare local `kmsProvider` variable and wire integrity chain**

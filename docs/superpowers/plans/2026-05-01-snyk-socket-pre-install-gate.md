@@ -170,7 +170,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 // providerFactory builds a CheckProvider configured to talk to the given baseURL.
@@ -691,7 +691,7 @@ package provider
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 func TestSocket_BuildPURLs_NPM(t *testing.T) {
@@ -740,7 +740,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 // buildSocketPURLs converts a list of PackageRef to PURL strings (per spec
@@ -905,7 +905,7 @@ Append to `internal/pkgcheck/provider/socket.go`:
 
 ```go
 import (
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 // socketPackageResp is one element in the Socket /v0/purl response array.
@@ -1407,7 +1407,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 func TestSnyk_MapResponseToFindings(t *testing.T) {
@@ -1461,7 +1461,7 @@ Create `internal/pkgcheck/provider/snyk.go`:
 package provider
 
 import (
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 // snykTestResp is the response shape for /test/{ecosystem}/{name}/{version}.
@@ -2496,7 +2496,7 @@ package config
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestCompileBlockOn_DefaultsAndOverrides(t *testing.T) {
@@ -2562,7 +2562,7 @@ Expected: build error — `BlockOnConfig`, `CompileBlockOn` undefined.
 Append to `internal/config/pkgcheck.go`:
 
 ```go
-import "github.com/agentsh/agentsh/internal/policy"
+import "github.com/diffsec/agentmon/internal/policy"
 
 // BlockOnConfig is the policy shorthand:
 //   each finding type maps to a severity threshold at which to block.
@@ -3064,9 +3064,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/pkgcheck"
-	"github.com/agentsh/agentsh/internal/pkgcheck/provider"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck/provider"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestIntegration_SocketDownDegradesToOSV(t *testing.T) {

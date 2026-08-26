@@ -1,8 +1,8 @@
 # DB Access Phase 1 — Implementation Roadmap
 
-**Status:** Design approved 2026-05-08. Decomposes implementation of `docs/agentsh-db-access-spec.md` v0.8 (PostgreSQL) into seven sequenced plans.
+**Status:** Design approved 2026-05-08. Decomposes implementation of `docs/agentmon-db-access-spec.md` v0.8 (PostgreSQL) into seven sequenced plans.
 **Owner:** Canyon Road
-**Source spec:** [`docs/agentsh-db-access-spec.md`](../../agentsh-db-access-spec.md) v0.8 (APPROVED FOR PHASE 1 IMPLEMENTATION)
+**Source spec:** [`docs/agentmon-db-access-spec.md`](../../agentmon-db-access-spec.md) v0.8 (APPROVED FOR PHASE 1 IMPLEMENTATION)
 
 This document is the *roadmap*, not the spec. It commits to plan decomposition, package layout, dependencies, and cross-cutting build/runtime decisions. Each individual plan gets its own brainstorming pass at the time it is started, producing its own per-plan design doc and implementation plan. This avoids spec drift compounding across seven plans built over many weeks.
 
@@ -228,7 +228,7 @@ Spec-§: 11.1 deploy, 12, 17; §23.4 steps 10+11.
 Deliverables:
 
 - `internal/db/listener/` (`//go:build linux`): SO_PEERCRED-based listener authentication (§12.5).
-- SessionID-keyed proxy identity exemption (§12.4 R10) using AgentSH's existing ptrace-attach primitive.
+- SessionID-keyed proxy identity exemption (§12.4 R10) using AgentMon's existing ptrace-attach primitive.
 - Bypass-attempt event emission (§12.6) with R11 dedup per `(session_id, process_identity, destination_tuple)` within a 60s window.
 - Bypass-tool detection bundle (§12.7) covering R22 enumerated tools: `chisel`, `gost`, `frpc`, raw `nc`, `--net=host` containers, custom-compiled tunnels.
 - `internal/db/service/bundle.go`: unavoidability bundle generator (§12.3) emitting `dest` rules, network rules, file rules over Unix sockets — all consumed by the existing supervisor.
@@ -237,7 +237,7 @@ Deliverables:
 
 Tests: integration suite; bypass-attempt detection tests; SessionID-keyed identity tests against ptrace-attach.
 
-External behavior: declared DB services become unavoidable for processes inside the AgentSH-governed process tree, per §1's thesis.
+External behavior: declared DB services become unavoidable for processes inside the AgentMon-governed process tree, per §1's thesis.
 
 ## 4. Cross-cutting decisions
 
@@ -261,8 +261,8 @@ These apply to every plan; locking them here avoids per-plan re-litigation.
 
 - Per-plan implementation specs (these get their own brainstorming pass when started).
 - Phase 2+ planning (catalog-aware redirect, credential broker, additional adapters).
-- Watchtower-side control-plane work; this roadmap covers AgentSH OSS only.
-- Spec changes to `docs/agentsh-db-access-spec.md` v0.8. The spec is implementation-frozen. If implementation reveals a spec defect, that triggers a redline cycle (the v0.7→v0.8 process), not an inline edit during plan execution.
+- Watchtower-side control-plane work; this roadmap covers AgentMon OSS only.
+- Spec changes to `docs/agentmon-db-access-spec.md` v0.8. The spec is implementation-frozen. If implementation reveals a spec defect, that triggers a redline cycle (the v0.7→v0.8 process), not an inline edit during plan execution.
 
 ## 6. Done definition
 

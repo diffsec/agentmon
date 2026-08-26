@@ -221,7 +221,7 @@ func TestDetect_WrapperMissing_Tip(t *testing.T) {
 	// Override LookPath to simulate missing wrapper
 	orig := wrapperLookPath
 	wrapperLookPath = func(file string) (string, error) {
-		if file == "agentsh-unixwrap" {
+		if file == "agentmon-unixwrap" {
 			return "", exec.ErrNotFound
 		}
 		return exec.LookPath(file)

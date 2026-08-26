@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/mcpinspect"
-	"github.com/agentsh/agentsh/internal/mcpregistry"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
 )
 
 func TestIsSSEResponse(t *testing.T) {
@@ -421,7 +421,7 @@ func TestSSEProxyTransport_WithInterceptor(t *testing.T) {
 	}
 
 	// 2. The replacement text should appear.
-	if !strings.Contains(clientOutput, "[agentsh] Tool 'get_weather' blocked by policy") {
+	if !strings.Contains(clientOutput, "[agentmon] Tool 'get_weather' blocked by policy") {
 		t.Error("replacement text should appear in client output")
 	}
 
@@ -438,7 +438,7 @@ func TestSSEProxyTransport_WithInterceptor(t *testing.T) {
 	if strings.Contains(callbackStr, `"type":"tool_use"`) {
 		t.Error("callback body should not contain blocked tool_use")
 	}
-	if !strings.Contains(callbackStr, "[agentsh] Tool 'get_weather' blocked by policy") {
+	if !strings.Contains(callbackStr, "[agentmon] Tool 'get_weather' blocked by policy") {
 		t.Error("callback body should contain replacement text")
 	}
 

@@ -1,7 +1,7 @@
 package platform
 
 import (
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // PolicyAdapter wraps *policy.Engine to implement platform.PolicyEngine.

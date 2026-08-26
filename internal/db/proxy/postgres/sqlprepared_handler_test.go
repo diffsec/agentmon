@@ -11,7 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/events"
 )
 
 // preparePolicyYAML returns a policy that allows all reads but denies DELETE.

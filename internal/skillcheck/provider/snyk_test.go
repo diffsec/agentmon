@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 func TestSnyk_BinaryPath_HappyPath(t *testing.T) {

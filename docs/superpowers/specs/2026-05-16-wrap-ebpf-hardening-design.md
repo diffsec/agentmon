@@ -7,14 +7,14 @@
 ## Problem
 
 Issue #343 reports that domain-based `network_rules` can be bypassed under
-`agentsh wrap` when a wrapped process or subprocess removes `HTTP_PROXY`,
+`agentmon wrap` when a wrapped process or subprocess removes `HTTP_PROXY`,
 `HTTPS_PROXY`, or related proxy environment variables.
 
 The report is directionally correct, and the local code shows the gap is
 broader than child env stripping:
 
-- `agentsh exec` injects the session network proxy into command env.
-- `agentsh wrap` only injects LLM base URLs and does not inject the session
+- `agentmon exec` injects the session network proxy into command env.
+- `agentmon wrap` only injects LLM base URLs and does not inject the session
   network proxy env.
 - eBPF network enforcement is attached through the exec cgroup hook.
 - the Linux wrap path starts the seccomp notify handler but never moves the
@@ -26,14 +26,14 @@ enforceable only through mechanisms that see the final IP/port.
 
 ## Goal
 
-Make `agentsh wrap` use the same two-layer network posture as `agentsh exec`
+Make `agentmon wrap` use the same two-layer network posture as `agentmon exec`
 for this issue:
 
 1. normal HTTP clients receive the session network proxy env; and
 2. the wrapped agent process tree is attached to cgroup/eBPF before the real
    agent is allowed to exec.
 
-This should close the proxy-env bypass for `agentsh wrap` without adding DNS
+This should close the proxy-env bypass for `agentmon wrap` without adding DNS
 syscall parsing in this change.
 
 ## Non-Goals
@@ -70,7 +70,7 @@ configured, attaches the existing cgroup eBPF connect/sendmsg programs.
 `internal/cli/wrap.go` fetches or creates a session and keeps
 `sess.LLMProxyURL`, but does not keep or apply `sess.ProxyURL`.
 
-On Linux, `internal/cli/wrap_linux.go` starts `agentsh-unixwrap`, passes it a
+On Linux, `internal/cli/wrap_linux.go` starts `agentmon-unixwrap`, passes it a
 socketpair, and starts a `postStart` goroutine. The wrapper installs seccomp
 notify, sends the notify fd to the CLI over the socketpair, and then waits for
 an ACK from the CLI before execing the real agent.
@@ -83,10 +83,10 @@ to a cgroup.
 
 ## Recommended Design
 
-### 1. Inject network proxy env in `agentsh wrap`
+### 1. Inject network proxy env in `agentmon wrap`
 
 Extend the wrap env construction so the CLI keeps `sess.ProxyURL` and appends
-the same network proxy variables that `agentsh exec` uses.
+the same network proxy variables that `agentmon exec` uses.
 
 The env helper should be local to the CLI package unless a clean shared helper
 already exists at implementation time. It should:
@@ -106,13 +106,13 @@ security boundary.
 Change the Linux notify-fd forwarding protocol between the CLI and server.
 
 The CLI should send the seccomp notify fd together with metadata containing the
-`agentsh-unixwrap` child PID. After sending, the CLI must wait for a one-byte
+`agentmon-unixwrap` child PID. After sending, the CLI must wait for a one-byte
 server response:
 
 - `1`: server finished pre-ACK setup and started the notify handler;
 - `0`: server rejected setup.
 
-Only after receiving `1` may the CLI ACK `agentsh-unixwrap`. If the server
+Only after receiving `1` may the CLI ACK `agentmon-unixwrap`. If the server
 rejects setup or the response is missing, the CLI must not ACK the wrapper.
 The wrapper will fail before execing the real agent, which is the desired
 fail-closed behavior for this setup phase.
@@ -140,7 +140,7 @@ The server-side order should be:
 6. write success to the CLI connection;
 7. clean up the cgroup/eBPF resources when the notify handler exits.
 
-Because `agentsh-unixwrap` waits for the CLI ACK before execing the real agent,
+Because `agentmon-unixwrap` waits for the CLI ACK before execing the real agent,
 this avoids a window where the agent could connect before eBPF is attached.
 Child processes inherit the wrapper's cgroup, so the whole wrapped process tree
 is covered.
@@ -163,7 +163,7 @@ configuration.
 
 ### 5. Keep failure semantics explicit
 
-For `agentsh wrap`:
+For `agentmon wrap`:
 
 - if cgroups/eBPF are disabled, existing wrap behavior continues plus proxy env
   injection when `ProxyURL` is set;
@@ -191,7 +191,7 @@ That means:
   are not solved by DNS syscall interception in this change.
 
 The reason this still fixes #343 is that a process which strips proxy env no
-longer gets an unmonitored direct connect path under `agentsh wrap`; eBPF sees
+longer gets an unmonitored direct connect path under `agentmon wrap`; eBPF sees
 the final connect attempt from the wrapped cgroup.
 
 ## Files Expected To Change
@@ -202,7 +202,7 @@ the final connect attempt from the wrapped cgroup.
 
 - `internal/cli/wrap_linux.go`
   - send wrapper PID metadata with the notify fd;
-  - wait for server success before ACKing `agentsh-unixwrap`.
+  - wait for server success before ACKing `agentmon-unixwrap`.
 
 - `internal/shim/kernelinstall/install_linux.go`
   - preserve compatibility with the server's notify handshake, or update the
@@ -284,7 +284,7 @@ Each step can be committed independently.
 - Windows and macOS builds must remain green.
 - The server must not trust the Unix socket peer PID for the wrapper PID,
   because the peer is the CLI relay process.
-- The CLI must not ACK `agentsh-unixwrap` until the server has completed the
+- The CLI must not ACK `agentmon-unixwrap` until the server has completed the
   cgroup/eBPF setup decision.
 
 ## Alternatives Considered
@@ -310,7 +310,7 @@ for this fix should be final connect enforcement via cgroup/eBPF.
 ## Self-Review
 
 - The design covers the accepted scope: proxy env injection plus cgroup/eBPF
-  attachment for `agentsh wrap`.
+  attachment for `agentmon wrap`.
 - It explicitly excludes DNS syscall interception.
 - It defines the required ordering to avoid the pre-exec race.
 - It identifies the important compatibility risk with shim forwarding.

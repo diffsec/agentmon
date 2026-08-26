@@ -14,7 +14,7 @@ type ShellInvokeEvent struct {
 	Strategy    string   `json:"strategy"` // "binary_replace", "path", "profile", "terminal"
 }
 
-// ShellPassthroughEvent - Shell shim bypassed (not in agentsh mode).
+// ShellPassthroughEvent - Shell shim bypassed (not in agentmon mode).
 type ShellPassthroughEvent struct {
 	BaseEvent
 

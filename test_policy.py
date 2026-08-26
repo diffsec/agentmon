@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Policy enforcement test — exercises agentsh command_rules via subprocess."""
+"""Policy enforcement test — exercises agentmon command_rules via subprocess."""
 import subprocess
 import sys
 
@@ -35,7 +35,7 @@ def test_allowed(label, cmd):
 
 
 def test_denied(label, cmd):
-    """Verify command exits non-zero (blocked by agentsh)."""
+    """Verify command exits non-zero (blocked by agentmon)."""
     global passed, failed
     rc, out, err = run(cmd)
     if rc != 0:

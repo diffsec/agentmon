@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/netmonitor/pnacl"
+	"github.com/diffsec/agentmon/internal/netmonitor/pnacl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -2,11 +2,11 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Add an embedded HTTP proxy to agentsh that intercepts LLM API requests, applies DLP redaction, and logs request/response pairs with token usage.
+**Goal:** Add an embedded HTTP proxy to agentmon that intercepts LLM API requests, applies DLP redaction, and logs request/response pairs with token usage.
 
-**Architecture:** The proxy runs inside the agentsh session lifecycle, starting before the agent process and binding to a random port. It detects LLM provider dialect (Anthropic/OpenAI/ChatGPT) from request headers, applies DLP patterns to request bodies, forwards to upstream, and logs everything to session storage.
+**Architecture:** The proxy runs inside the agentmon session lifecycle, starting before the agent process and binding to a random port. It detects LLM provider dialect (Anthropic/OpenAI/ChatGPT) from request headers, applies DLP patterns to request bodies, forwards to upstream, and logs everything to session storage.
 
-**Tech Stack:** Go standard library (`net/http`, `net/http/httputil`), existing session/config patterns from agentsh.
+**Tech Stack:** Go standard library (`net/http`, `net/http/httputil`), existing session/config patterns from agentmon.
 
 ---
 
@@ -369,7 +369,7 @@ package llmproxy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestDLPProcessor_RedactEmail(t *testing.T) {
@@ -451,7 +451,7 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // Built-in regex patterns for PII detection.
@@ -1044,7 +1044,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestProxy_AnthropicPassthrough(t *testing.T) {
@@ -1203,7 +1203,7 @@ package session
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestSession_LLMProxyEnvVars(t *testing.T) {
@@ -1252,8 +1252,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/llmproxy"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/llmproxy"
 )
 
 // StartLLMProxy starts the embedded LLM proxy for a session.
@@ -1303,7 +1303,7 @@ func (s *Session) LLMProxyEnvVars() map[string]string {
 	return map[string]string{
 		"ANTHROPIC_BASE_URL": s.llmProxyURL,
 		"OPENAI_BASE_URL":    s.llmProxyURL,
-		"AGENTSH_SESSION_ID": s.ID,
+		"AGENTMON_SESSION_ID": s.ID,
 	}
 }
 ```
@@ -1375,7 +1375,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/client"
+	"github.com/diffsec/agentmon/internal/client"
 	"github.com/spf13/cobra"
 )
 
@@ -1397,10 +1397,10 @@ func newProxyStatusCmd() *cobra.Command {
 
 Examples:
   # Status for latest session
-  agentsh proxy status
+  agentmon proxy status
 
   # Status for specific session
-  agentsh proxy status abc123`,
+  agentmon proxy status abc123`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := getClientConfig(cmd)
@@ -1525,7 +1525,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestIntegration_FullFlow(t *testing.T) {

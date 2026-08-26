@@ -13,7 +13,7 @@ type InstallShellShimOptions struct {
 	// For the real host filesystem, pass "/".
 	Root string
 
-	// ShimPath is the path to the agentsh shell shim binary to install.
+	// ShimPath is the path to the agentmon shell shim binary to install.
 	ShimPath string
 
 	// InstallBash controls whether to also install to bash when present.
@@ -25,11 +25,11 @@ type InstallShellShimOptions struct {
 	// When set, InstallBash must also be true.
 	BashOnly bool
 
-	// Force writes /etc/agentsh/shim.conf with force=true after installing.
+	// Force writes /etc/agentmon/shim.conf with force=true after installing.
 	Force bool
 }
 
-// InstallShellShim installs the agentsh shell shim as /bin/sh (and optionally /bin/bash)
+// InstallShellShim installs the agentmon shell shim as /bin/sh (and optionally /bin/bash)
 // under opts.Root, preserving the original binaries as *.real.
 //
 // This function is intended for container build/install scripts; it is idempotent.

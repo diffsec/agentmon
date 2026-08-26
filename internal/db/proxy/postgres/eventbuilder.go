@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"strings"
 
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 // buildArgs collects the inputs to buildStatementEvent. Keeping them in a

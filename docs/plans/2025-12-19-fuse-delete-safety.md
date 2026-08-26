@@ -13,10 +13,10 @@
 - Modes: `monitor` (log), `soft_block` (deny), `soft_delete` (divert to trash), `strict` (fail ops if audit/logging unhealthy applied atop selected mode). Configurable per instance/session.
 - Covered ops: `unlink`, `rmdir`, `rename` (overwrite or cross-mount), `create`, `open(O_TRUNC)`, `write` (metadata size delta), `setattr` truncation. Cross-mount rename inside→outside treated as delete; outside→inside as create.
 - Audit event fields: op type, src/dst paths, inode & parent, pid/ppid/uid/gid, exe/cmdline, agent session/run id, timestamps, link_count_before/after, size_before/after (when cheap), policy result (`allowed|blocked|diverted|error`), reason, trash token (if any).
-- Logging: bounded channel → jsonl at `~/.agentsh/fuse-audit.log`; drop-oldest unless in strict, where ops fail if sink unhealthy/full. 
-- Soft-delete: divert target to `.agentsh_trash/<ts>-<session>/<orig-path>`, prefer `rename`, fallback to copy+unlink cross-device. Manifest entry (json) stores original path, trash path, mode, uid/gid, mtime, size, optional hash for small files, session id, command, timestamp. Feedback to caller: stderr note with restore command token.
-- CLI: `agentsh trash list`, `restore <token> [--dest PATH] [--force-overwrite]`, `purge [--ttl 7d] [--quota 5GB] [--session ID]`. Session teardown optionally runs purge for that session.
-- Cleanup: TTL + quota enforced via purge; background/teardown purge only touches `.agentsh_trash`. Strict path normalization to avoid escapes; operations on file handles where possible.
+- Logging: bounded channel → jsonl at `~/.agentmon/fuse-audit.log`; drop-oldest unless in strict, where ops fail if sink unhealthy/full. 
+- Soft-delete: divert target to `.agentmon_trash/<ts>-<session>/<orig-path>`, prefer `rename`, fallback to copy+unlink cross-device. Manifest entry (json) stores original path, trash path, mode, uid/gid, mtime, size, optional hash for small files, session id, command, timestamp. Feedback to caller: stderr note with restore command token.
+- CLI: `agentmon trash list`, `restore <token> [--dest PATH] [--force-overwrite]`, `purge [--ttl 7d] [--quota 5GB] [--session ID]`. Session teardown optionally runs purge for that session.
+- Cleanup: TTL + quota enforced via purge; background/teardown purge only touches `.agentmon_trash`. Strict path normalization to avoid escapes; operations on file handles where possible.
 - Performance/robustness: avoid hashing large files; non-blocking logging; path normalization and symlink safety; clear error messages on block/divert failure.
 
 ---
@@ -46,7 +46,7 @@ Status: Done (2025-12-19) — bounded async logger with drop-oldest/strict modes
 **Steps:**
 1. Write failing tests for bounded async logger: drop-oldest vs strict mode, jsonl formatting, includes pid/uid/session, and behavior when sink unavailable.
 2. Run `go test ./internal/fsmonitor/audit -run Test`.
-3. Implement event struct, bounded channel, drop-oldest policy, strict failure path, and writer to `~/.agentsh/fuse-audit.log`.
+3. Implement event struct, bounded channel, drop-oldest policy, strict failure path, and writer to `~/.agentmon/fuse-audit.log`.
 4. Run `go test ./internal/fsmonitor/audit -run Test`.
 
 ### Task 3: Wire FUSE handlers with policy and auditing
@@ -75,7 +75,7 @@ Status: Done (2025-12-19) — divert/manifest/restore/purge plus CLI commands an
 1. Write failing tests for diversion (rename vs copy fallback), manifest writing, restore (default path and `--dest`, `--force-overwrite`), and purge (TTL/quota/session filter).
 2. Run `go test ./internal/trash -run Test`.
 3. Implement diversion helpers used by FUSE, manifest format, restore/purge functions.
-4. Implement `agentsh trash list|restore|purge` CLI wiring to trash package.
+4. Implement `agentmon trash list|restore|purge` CLI wiring to trash package.
 5. Run `go test ./internal/trash -run Test && go test ./internal/cli -run TestTrash` (or nearest CLI test).
 
 ### Task 5: Session teardown hook and integration verification

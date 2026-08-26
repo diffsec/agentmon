@@ -4,7 +4,7 @@
 
 **Goal:** Pre-install seccomp BPF filter via a loader binary to eliminate ~4-8ms of deferred injection overhead per exec in ptrace mode.
 
-**Architecture:** New `agentsh-loader` binary reads a serialized BPF filter from an inherited pipe fd, installs it via prctl+seccomp, then execs the real command. Server wraps commands with the loader when ptrace is active. Tracer skips deferred injection when the filter is pre-installed.
+**Architecture:** New `agentmon-loader` binary reads a serialized BPF filter from an inherited pipe fd, installs it via prctl+seccomp, then execs the real command. Server wraps commands with the loader when ptrace is active. Tracer skips deferred injection when the filter is pre-installed.
 
 **Tech Stack:** Go, Linux seccomp, `golang.org/x/sys/unix`, `os/exec`
 
@@ -16,7 +16,7 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `cmd/agentsh-loader/main.go` | Create | Loader binary — read filter, install seccomp, exec real command |
+| `cmd/agentmon-loader/main.go` | Create | Loader binary — read filter, install seccomp, exec real command |
 | `internal/ptrace/filter_serialize.go` | Create | `buildSessionFilter`, `SerializeFilter`, `DeserializeFilter` |
 | `internal/ptrace/filter_serialize_test.go` | Create | Tests for serialization round-trip and buildSessionFilter |
 | `internal/ptrace/inject_seccomp.go` | Modify | Use shared `buildSessionFilter` instead of inline filter construction |
@@ -27,7 +27,7 @@
 | `internal/api/exec_loader_other.go` | Create | No-op `wrapWithLoader` stub for non-Linux platforms |
 | `internal/api/exec_ptrace_linux.go` | Modify | Pass `WithPrefilterInstalled()` to AttachPID |
 | `internal/api/exec_ptrace_other.go` | Modify | Add `prefilterInstalled` parameter to `ptraceExecAttach` stub |
-| `Dockerfile.bench` | Modify | Build and copy agentsh-loader |
+| `Dockerfile.bench` | Modify | Build and copy agentmon-loader |
 
 ---
 
@@ -297,14 +297,14 @@ programs for pipe transport to the loader binary."
 
 ---
 
-### Task 2: agentsh-loader binary
+### Task 2: agentmon-loader binary
 
 **Files:**
-- Create: `cmd/agentsh-loader/main.go`
+- Create: `cmd/agentmon-loader/main.go`
 
 - [ ] **Step 1: Create the loader binary**
 
-Create `cmd/agentsh-loader/main.go`:
+Create `cmd/agentmon-loader/main.go`:
 
 ```go
 //go:build linux
@@ -337,7 +337,7 @@ func run() int {
 		if strings.HasPrefix(arg, "--filter-fd=") {
 			fd, err := strconv.Atoi(arg[len("--filter-fd="):])
 			if err != nil || fd < 0 {
-				fmt.Fprintf(os.Stderr, "agentsh-loader: invalid --filter-fd: %s\n", arg)
+				fmt.Fprintf(os.Stderr, "agentmon-loader: invalid --filter-fd: %s\n", arg)
 				return 126
 			}
 			filterFD = fd
@@ -347,46 +347,46 @@ func run() int {
 		}
 	}
 	if filterFD < 0 {
-		fmt.Fprintf(os.Stderr, "agentsh-loader: missing --filter-fd=N\n")
+		fmt.Fprintf(os.Stderr, "agentmon-loader: missing --filter-fd=N\n")
 		return 126
 	}
 	if sepIdx < 0 || sepIdx+1 >= len(os.Args) {
-		fmt.Fprintf(os.Stderr, "agentsh-loader: missing -- separator or command\n")
+		fmt.Fprintf(os.Stderr, "agentmon-loader: missing -- separator or command\n")
 		return 126
 	}
 
 	cmdArgs := os.Args[sepIdx+1:]
 	if len(cmdArgs) == 0 {
-		fmt.Fprintf(os.Stderr, "agentsh-loader: no command after --\n")
+		fmt.Fprintf(os.Stderr, "agentmon-loader: no command after --\n")
 		return 126
 	}
 
 	// Read BPF filter from fd
 	f := os.NewFile(uintptr(filterFD), "filter-pipe")
 	if f == nil {
-		fmt.Fprintf(os.Stderr, "agentsh-loader: cannot open fd %d\n", filterFD)
+		fmt.Fprintf(os.Stderr, "agentmon-loader: cannot open fd %d\n", filterFD)
 		return 126
 	}
 	data, err := io.ReadAll(f)
 	f.Close()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "agentsh-loader: read filter: %v\n", err)
+		fmt.Fprintf(os.Stderr, "agentmon-loader: read filter: %v\n", err)
 		return 126
 	}
 
 	// Deserialize filter
 	if len(data) < 2 {
-		fmt.Fprintf(os.Stderr, "agentsh-loader: filter data too short\n")
+		fmt.Fprintf(os.Stderr, "agentmon-loader: filter data too short\n")
 		return 126
 	}
 	n := int(binary.LittleEndian.Uint16(data[0:2]))
 	if n == 0 {
-		fmt.Fprintf(os.Stderr, "agentsh-loader: empty filter\n")
+		fmt.Fprintf(os.Stderr, "agentmon-loader: empty filter\n")
 		return 126
 	}
 	expected := 2 + n*8
 	if len(data) < expected {
-		fmt.Fprintf(os.Stderr, "agentsh-loader: filter truncated: %d < %d\n", len(data), expected)
+		fmt.Fprintf(os.Stderr, "agentmon-loader: filter truncated: %d < %d\n", len(data), expected)
 		return 126
 	}
 
@@ -395,7 +395,7 @@ func run() int {
 
 	// Install PR_SET_NO_NEW_PRIVS
 	if _, _, errno := unix.RawSyscall(unix.SYS_PRCTL, 38, 1, 0); errno != 0 {
-		fmt.Fprintf(os.Stderr, "agentsh-loader: prctl(PR_SET_NO_NEW_PRIVS): %v\n", errno)
+		fmt.Fprintf(os.Stderr, "agentmon-loader: prctl(PR_SET_NO_NEW_PRIVS): %v\n", errno)
 		return 126
 	}
 
@@ -410,7 +410,7 @@ func run() int {
 		Filter: uintptr(unsafe.Pointer(&filterBuf[0])),
 	}
 	if _, _, errno := unix.RawSyscall(unix.SYS_SECCOMP, 1, 0, uintptr(unsafe.Pointer(&prog))); errno != 0 {
-		fmt.Fprintf(os.Stderr, "agentsh-loader: seccomp(SET_MODE_FILTER): %v\n", errno)
+		fmt.Fprintf(os.Stderr, "agentmon-loader: seccomp(SET_MODE_FILTER): %v\n", errno)
 		return 126
 	}
 
@@ -419,7 +419,7 @@ func run() int {
 	if !strings.Contains(cmdPath, "/") {
 		resolved, err := exec.LookPath(cmdPath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "agentsh-loader: %s: %v\n", cmdPath, err)
+			fmt.Fprintf(os.Stderr, "agentmon-loader: %s: %v\n", cmdPath, err)
 			return 127
 		}
 		cmdPath = resolved
@@ -427,7 +427,7 @@ func run() int {
 
 	// Exec the real command — replaces this process
 	if err := syscall.Exec(cmdPath, cmdArgs, os.Environ()); err != nil {
-		fmt.Fprintf(os.Stderr, "agentsh-loader: exec %s: %v\n", cmdPath, err)
+		fmt.Fprintf(os.Stderr, "agentmon-loader: exec %s: %v\n", cmdPath, err)
 		return 126
 	}
 	return 0 // unreachable
@@ -436,7 +436,7 @@ func run() int {
 
 - [ ] **Step 2: Write loader argument parsing tests**
 
-Create `cmd/agentsh-loader/main_test.go`:
+Create `cmd/agentmon-loader/main_test.go`:
 
 ```go
 //go:build linux
@@ -460,7 +460,7 @@ func TestLoaderBuilds(t *testing.T) {
 
 func TestLoaderMissingFilterFD(t *testing.T) {
 	if os.Getenv("TEST_LOADER_EXEC") == "1" {
-		os.Args = []string{"agentsh-loader", "--", "/bin/true"}
+		os.Args = []string{"agentmon-loader", "--", "/bin/true"}
 		os.Exit(run())
 	}
 	cmd := exec.Command(os.Args[0], "-test.run=TestLoaderMissingFilterFD")
@@ -479,7 +479,7 @@ func TestLoaderMissingFilterFD(t *testing.T) {
 
 func TestLoaderMissingSeparator(t *testing.T) {
 	if os.Getenv("TEST_LOADER_EXEC") == "1" {
-		os.Args = []string{"agentsh-loader", "--filter-fd=99"}
+		os.Args = []string{"agentmon-loader", "--filter-fd=99"}
 		os.Exit(run())
 	}
 	cmd := exec.Command(os.Args[0], "-test.run=TestLoaderMissingSeparator")
@@ -493,14 +493,14 @@ func TestLoaderMissingSeparator(t *testing.T) {
 
 - [ ] **Step 3: Verify it compiles and tests pass**
 
-Run: `go build ./cmd/agentsh-loader/ && go test ./cmd/agentsh-loader/ -v && GOOS=windows go build ./...`
+Run: `go build ./cmd/agentmon-loader/ && go test ./cmd/agentmon-loader/ -v && GOOS=windows go build ./...`
 Expected: PASS (loader is linux-only, windows build skips it)
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add cmd/agentsh-loader/
-git commit -m "feat(ptrace): add agentsh-loader binary for seccomp prefilter pre-installation
+git add cmd/agentmon-loader/
+git commit -m "feat(ptrace): add agentmon-loader binary for seccomp prefilter pre-installation
 
 Reads serialized BPF filter from inherited pipe fd, installs via
 prctl(PR_SET_NO_NEW_PRIVS) + seccomp(SET_MODE_FILTER), then execs
@@ -551,7 +551,7 @@ Add the option constructor after `WithKeepStopped` (line 234):
 
 ```go
 // WithPrefilterInstalled indicates the tracee already has the seccomp
-// prefilter installed (e.g., via agentsh-loader). Skips deferred injection
+// prefilter installed (e.g., via agentmon-loader). Skips deferred injection
 // and uses PtraceCont for the initial resume.
 func WithPrefilterInstalled() AttachOption {
 	return func(o *attachOpts) { o.prefilterInstalled = true }
@@ -638,23 +638,23 @@ import (
 	"os/exec"
 	"strconv"
 
-	"github.com/agentsh/agentsh/internal/ptrace"
+	"github.com/diffsec/agentmon/internal/ptrace"
 )
 
 // loaderPath is resolved once at init time. Empty if not found.
 var loaderPath string
 
 func init() {
-	path, err := exec.LookPath("agentsh-loader")
+	path, err := exec.LookPath("agentmon-loader")
 	if err != nil {
-		slog.Debug("agentsh-loader not found, will use deferred BPF injection", "error", err)
+		slog.Debug("agentmon-loader not found, will use deferred BPF injection", "error", err)
 		return
 	}
 	loaderPath = path
-	slog.Info("agentsh-loader found", "path", loaderPath)
+	slog.Info("agentmon-loader found", "path", loaderPath)
 }
 
-// wrapWithLoader wraps a command with agentsh-loader if available.
+// wrapWithLoader wraps a command with agentmon-loader if available.
 // Returns true if the loader was used. The caller must pass this to
 // ptraceExecAttach so it sets WithPrefilterInstalled.
 //
@@ -699,12 +699,12 @@ func wrapWithLoader(cmd *exec.Cmd, tracer *ptrace.Tracer) bool {
 	// For netns mode, cmd.Path is "ip" and cmd.Args is:
 	//   ["ip", "netns", "exec", "<ns>", "realcmd", "arg1", ...]
 	// We need to insert the loader before "realcmd":
-	//   ["ip", "netns", "exec", "<ns>", "agentsh-loader", "--filter-fd=N", "--", "realcmd", "arg1", ...]
+	//   ["ip", "netns", "exec", "<ns>", "agentmon-loader", "--filter-fd=N", "--", "realcmd", "arg1", ...]
 	//
 	// For normal mode, cmd.Path is "realcmd" and cmd.Args is:
 	//   ["realcmd", "arg1", ...]
 	// We rewrite to:
-	//   ["agentsh-loader", "--filter-fd=N", "--", "realcmd", "arg1", ...]
+	//   ["agentmon-loader", "--filter-fd=N", "--", "realcmd", "arg1", ...]
 
 	loaderArgs := []string{loaderPath, "--filter-fd=" + strconv.Itoa(filterFD), "--"}
 
@@ -815,9 +815,9 @@ Expected: PASS
 
 ```bash
 git add internal/api/exec.go internal/api/exec_loader_linux.go internal/api/exec_ptrace_linux.go internal/ptrace/filter_serialize.go
-git commit -m "feat(ptrace): wrap exec with agentsh-loader for pre-installed seccomp
+git commit -m "feat(ptrace): wrap exec with agentmon-loader for pre-installed seccomp
 
-Server wraps commands with agentsh-loader when ptrace mode is active.
+Server wraps commands with agentmon-loader when ptrace mode is active.
 Loader pre-installs BPF filter via pipe, tracer skips deferred injection.
 Fallback to deferred injection if loader binary not found."
 ```
@@ -834,29 +834,29 @@ Fallback to deferred injection if loader binary not found."
 In `Dockerfile.bench`, line 23-26, add the loader to the build:
 
 ```dockerfile
-RUN go build -o /out/agentsh          ./cmd/agentsh && \
-    go build -o /out/agentsh-shell-shim ./cmd/agentsh-shell-shim && \
-    go build -o /out/agentsh-unixwrap  ./cmd/agentsh-unixwrap && \
-    go build -o /out/agentsh-stub      ./cmd/agentsh-stub && \
-    go build -o /out/agentsh-loader    ./cmd/agentsh-loader
+RUN go build -o /out/agentmon          ./cmd/agentmon && \
+    go build -o /out/agentmon-shell-shim ./cmd/agentmon-shell-shim && \
+    go build -o /out/agentmon-unixwrap  ./cmd/agentmon-unixwrap && \
+    go build -o /out/agentmon-stub      ./cmd/agentmon-stub && \
+    go build -o /out/agentmon-loader    ./cmd/agentmon-loader
 ```
 
 After line 41 (the last COPY --from=builder), add:
 
 ```dockerfile
-COPY --from=builder /out/agentsh-loader    /usr/bin/agentsh-loader
+COPY --from=builder /out/agentmon-loader    /usr/bin/agentmon-loader
 ```
 
 - [ ] **Step 2: Verify Docker builds**
 
-Run: `docker build -f Dockerfile.bench -t agentsh-bench:latest . 2>&1 | tail -10`
+Run: `docker build -f Dockerfile.bench -t agentmon-bench:latest . 2>&1 | tail -10`
 Expected: BUILD SUCCESS
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add Dockerfile.bench
-git commit -m "build: add agentsh-loader to benchmark Docker image"
+git commit -m "build: add agentmon-loader to benchmark Docker image"
 ```
 
 ---

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // Filesystem implements platform.FilesystemInterceptor for Lima.

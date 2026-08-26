@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/mcpinspect"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestMCPInterceptedToEvent_Allow(t *testing.T) {

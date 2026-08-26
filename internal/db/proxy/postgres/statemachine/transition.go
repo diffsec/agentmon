@@ -5,9 +5,9 @@ package statemachine
 import (
 	"time"
 
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 // PolicyClassifier is the minimal classifier surface Transition needs at the
@@ -310,12 +310,12 @@ func lookupStatementRule(rs *policy.RuleSet, name string) policy.StatementRule {
 
 func renderDenyMessage(d policy.Decision) string {
 	if d.RuleName != "" {
-		return "denied by AgentSH policy: " + d.RuleName
+		return "denied by AgentMon policy: " + d.RuleName
 	}
 	if d.Reason != "" {
-		return "denied by AgentSH policy: " + d.Reason
+		return "denied by AgentMon policy: " + d.Reason
 	}
-	return "denied by AgentSH policy"
+	return "denied by AgentMon policy"
 }
 
 func sqlstateForDecision(d policy.Decision) string {

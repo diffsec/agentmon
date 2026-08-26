@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Implement `agentsh report` CLI command that generates markdown reports summarizing session activity for human operators.
+**Goal:** Implement `agentmon report` CLI command that generates markdown reports summarizing session activity for human operators.
 
 **Architecture:** New `internal/report` package handles report generation with findings detection. CLI command in `internal/cli/report.go` wires it up. Reports query events from SQLite store and format as markdown.
 
@@ -65,7 +65,7 @@ package report
 import (
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Level specifies the detail level of a report.
@@ -202,7 +202,7 @@ package report
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestDetectBlockedFindings(t *testing.T) {
@@ -296,7 +296,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Sensitive path patterns for anomaly detection.
@@ -421,7 +421,7 @@ func detectFindings(events []types.Event) []Finding {
 			Severity:    SeverityWarning,
 			Category:    "soft_delete",
 			Title:       "Files soft-deleted",
-			Description: "Files were moved to trash (recoverable via agentsh trash)",
+			Description: "Files were moved to trash (recoverable via agentmon trash)",
 			Count:       len(softDeleteEvents),
 			Events:      softDeleteEvents,
 		})
@@ -537,7 +537,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type mockEventStore struct {
@@ -634,8 +634,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/store"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Generator creates reports from session data.
@@ -903,7 +903,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestFormatSummaryMarkdown(t *testing.T) {
@@ -1263,10 +1263,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/internal/report"
-	"github.com/agentsh/agentsh/internal/store/sqlite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/internal/report"
+	"github.com/diffsec/agentmon/internal/store/sqlite"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -1285,13 +1285,13 @@ func newReportCmd() *cobra.Command {
 
 Examples:
   # Quick summary of latest session
-  agentsh report latest --level=summary
+  agentmon report latest --level=summary
 
   # Detailed report saved to file
-  agentsh report abc123 --level=detailed --output=report.md
+  agentmon report abc123 --level=detailed --output=report.md
 
   # Offline mode using local database
-  agentsh report latest --level=summary --direct-db`,
+  agentmon report latest --level=summary --direct-db`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate level
@@ -1310,7 +1310,7 @@ Examples:
 			if directDB {
 				// Direct database access (offline mode)
 				if dbPath == "" {
-					dbPath = "/var/lib/agentsh/events.db"
+					dbPath = "/var/lib/agentmon/events.db"
 				}
 				sess, events, err = loadFromDB(ctx, dbPath, sessionArg)
 			} else {
@@ -1351,7 +1351,7 @@ Examples:
 	cmd.Flags().StringVar(&level, "level", "", "Report level: summary or detailed (required)")
 	cmd.Flags().StringVar(&output, "output", "", "Output file path (default: stdout)")
 	cmd.Flags().BoolVar(&directDB, "direct-db", false, "Query local database directly (offline mode)")
-	cmd.Flags().StringVar(&dbPath, "db-path", "", "Path to events database (default: /var/lib/agentsh/events.db)")
+	cmd.Flags().StringVar(&dbPath, "db-path", "", "Path to events database (default: /var/lib/agentmon/events.db)")
 	_ = cmd.MarkFlagRequired("level")
 
 	return cmd
@@ -1401,7 +1401,7 @@ func loadFromAPI(ctx context.Context, cfg clientConfig, sessionArg string) (type
 
 	sess, err := c.GetSession(ctx, sessionID)
 	if err != nil {
-		return types.Session{}, nil, fmt.Errorf("get session: %w (hint: run 'agentsh session list')", err)
+		return types.Session{}, nil, fmt.Errorf("get session: %w (hint: run 'agentmon session list')", err)
 	}
 
 	events, err := c.QueryEvents(ctx, types.EventQuery{SessionID: sessionID, Asc: true})
@@ -1509,8 +1509,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store/sqlite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/store/sqlite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestReportIntegration(t *testing.T) {
@@ -1621,14 +1621,14 @@ git commit -m "test(report): add integration test"
 Add the following section to CLI documentation:
 
 ```markdown
-## agentsh report
+## agentmon report
 
 Generate a markdown report summarizing session activity.
 
 ### Synopsis
 
 ```
-agentsh report <session-id|latest> --level=<summary|detailed> [--output=<path>]
+agentmon report <session-id|latest> --level=<summary|detailed> [--output=<path>]
 ```
 
 ### Arguments
@@ -1645,22 +1645,22 @@ agentsh report <session-id|latest> --level=<summary|detailed> [--output=<path>]
 | `--level` | Report detail level: `summary` (1 page) or `detailed` (full investigation) |
 | `--output` | Write report to file instead of stdout |
 | `--direct-db` | Query local database directly (offline mode) |
-| `--db-path` | Path to events database (default: /var/lib/agentsh/events.db) |
+| `--db-path` | Path to events database (default: /var/lib/agentmon/events.db) |
 
 ### Examples
 
 ```bash
 # Quick summary of latest session
-agentsh report latest --level=summary
+agentmon report latest --level=summary
 
 # Detailed investigation, save to file
-agentsh report abc123-def4-5678 --level=detailed --output=report.md
+agentmon report abc123-def4-5678 --level=detailed --output=report.md
 
 # Pipe to pager
-agentsh report latest --level=summary | less
+agentmon report latest --level=summary | less
 
 # Offline mode (no server required)
-agentsh report latest --level=summary --direct-db
+agentmon report latest --level=summary --direct-db
 ```
 
 ### Report Levels
@@ -1717,11 +1717,11 @@ git commit -m "docs: add report command reference"
 ```markdown
 # CI/CD Integration Guide
 
-This guide shows how to integrate agentsh session reports into your CI/CD pipelines.
+This guide shows how to integrate agentmon session reports into your CI/CD pipelines.
 
 ## Overview
 
-When running AI agents in CI/CD pipelines, agentsh captures all activity for auditing. After the agent completes, generate a report to:
+When running AI agents in CI/CD pipelines, agentmon captures all activity for auditing. After the agent completes, generate a report to:
 
 - Verify the agent behaved as expected
 - Detect policy violations or anomalies
@@ -1746,33 +1746,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install agentsh
+      - name: Install agentmon
         run: |
-          curl -fsSL https://agentsh.dev/install.sh | bash
+          curl -fsSL https://agentmon.dev/install.sh | bash
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Start agentsh server
+      - name: Start agentmon server
         run: |
-          agentsh server start --background
+          agentmon server start --background
           sleep 2
 
       - name: Create session
         id: session
         run: |
-          SESSION=$(agentsh session create --workspace . --policy ci-agent | jq -r '.id')
+          SESSION=$(agentmon session create --workspace . --policy ci-agent | jq -r '.id')
           echo "id=$SESSION" >> $GITHUB_OUTPUT
 
       - name: Run AI agent
         env:
-          AGENTSH_SESSION: ${{ steps.session.outputs.id }}
+          AGENTMON_SESSION: ${{ steps.session.outputs.id }}
         run: |
           # Your AI agent command here
-          agentsh exec $AGENTSH_SESSION -- your-agent-cli "${{ inputs.task }}"
+          agentmon exec $AGENTMON_SESSION -- your-agent-cli "${{ inputs.task }}"
 
       - name: Generate session report
         if: always()
         run: |
-          agentsh report ${{ steps.session.outputs.id }} \
+          agentmon report ${{ steps.session.outputs.id }} \
             --level=detailed \
             --output=session-report.md
 
@@ -1780,7 +1780,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: agentsh-session-report
+          name: agentmon-session-report
           path: session-report.md
 
       - name: Add report to job summary
@@ -1791,7 +1791,7 @@ jobs:
 
       - name: Cleanup session
         if: always()
-        run: agentsh session destroy ${{ steps.session.outputs.id }}
+        run: agentmon session destroy ${{ steps.session.outputs.id }}
 ```
 
 ## GitLab CI Example
@@ -1801,18 +1801,18 @@ ai-agent-task:
   stage: build
   image: ubuntu:22.04
   variables:
-    AGENTSH_SESSION: ""
+    AGENTMON_SESSION: ""
   before_script:
-    - curl -fsSL https://agentsh.dev/install.sh | bash
+    - curl -fsSL https://agentmon.dev/install.sh | bash
     - export PATH="$HOME/.local/bin:$PATH"
-    - agentsh server start --background
+    - agentmon server start --background
     - sleep 2
-    - export AGENTSH_SESSION=$(agentsh session create --workspace . --policy ci-agent | jq -r '.id')
+    - export AGENTMON_SESSION=$(agentmon session create --workspace . --policy ci-agent | jq -r '.id')
   script:
-    - agentsh exec $AGENTSH_SESSION -- your-agent-cli "do the task"
+    - agentmon exec $AGENTMON_SESSION -- your-agent-cli "do the task"
   after_script:
-    - agentsh report $AGENTSH_SESSION --level=detailed --output=session-report.md
-    - agentsh session destroy $AGENTSH_SESSION || true
+    - agentmon report $AGENTMON_SESSION --level=detailed --output=session-report.md
+    - agentmon session destroy $AGENTMON_SESSION || true
   artifacts:
     when: always
     paths:
@@ -1833,26 +1833,26 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install agentsh
+          name: Install agentmon
           command: |
-            curl -fsSL https://agentsh.dev/install.sh | bash
+            curl -fsSL https://agentmon.dev/install.sh | bash
             echo 'export PATH="$HOME/.local/bin:$PATH"' >> $BASH_ENV
       - run:
           name: Start server and create session
           command: |
-            agentsh server start --background
+            agentmon server start --background
             sleep 2
-            SESSION=$(agentsh session create --workspace . | jq -r '.id')
-            echo "export AGENTSH_SESSION=$SESSION" >> $BASH_ENV
+            SESSION=$(agentmon session create --workspace . | jq -r '.id')
+            echo "export AGENTMON_SESSION=$SESSION" >> $BASH_ENV
       - run:
           name: Run AI agent
           command: |
-            agentsh exec $AGENTSH_SESSION -- your-agent-cli "complete the task"
+            agentmon exec $AGENTMON_SESSION -- your-agent-cli "complete the task"
       - run:
           name: Generate report
           when: always
           command: |
-            agentsh report $AGENTSH_SESSION --level=detailed --output=session-report.md
+            agentmon report $AGENTMON_SESSION --level=detailed --output=session-report.md
       - store_artifacts:
           path: session-report.md
           destination: session-report
@@ -1896,10 +1896,10 @@ Use different policies for different CI contexts:
 
 ```yaml
 # For PR checks - stricter
-agentsh session create --policy pr-check
+agentmon session create --policy pr-check
 
 # For deployment agents - more permissive but audited
-agentsh session create --policy deploy-agent
+agentmon session create --policy deploy-agent
 ```
 
 ### 6. Archive Reports for Compliance
@@ -1910,29 +1910,29 @@ Store reports in a compliance-friendly location:
 - name: Archive for compliance
   run: |
     DATE=$(date +%Y-%m-%d)
-    aws s3 cp session-report.md s3://audit-logs/agentsh/$DATE/${{ github.run_id }}.md
+    aws s3 cp session-report.md s3://audit-logs/agentmon/$DATE/${{ github.run_id }}.md
 ```
 
 ## Troubleshooting
 
 ### "No sessions found"
 
-The agentsh server may have restarted or the session timed out. Use `--direct-db` for offline access:
+The agentmon server may have restarted or the session timed out. Use `--direct-db` for offline access:
 
 ```bash
-agentsh report latest --level=summary --direct-db --db-path=/path/to/events.db
+agentmon report latest --level=summary --direct-db --db-path=/path/to/events.db
 ```
 
 ### Report is empty or minimal
 
-Check that your agent is actually running through agentsh:
+Check that your agent is actually running through agentmon:
 
 ```bash
-# Wrong - agent runs outside agentsh
+# Wrong - agent runs outside agentmon
 ./my-agent
 
-# Right - agent runs through agentsh
-agentsh exec $SESSION -- ./my-agent
+# Right - agent runs through agentmon
+agentmon exec $SESSION -- ./my-agent
 ```
 
 ### Large reports
@@ -1941,10 +1941,10 @@ For very active sessions, the detailed report can be large. Consider:
 
 ```bash
 # Summary for quick checks
-agentsh report latest --level=summary
+agentmon report latest --level=summary
 
 # Detailed only when investigating issues
-agentsh report $SESSION --level=detailed --output=full-report.md
+agentmon report $SESSION --level=detailed --output=full-report.md
 ```
 ```
 
@@ -1973,10 +1973,10 @@ Generate markdown reports summarizing session activity:
 
 ```bash
 # Quick summary
-agentsh report latest --level=summary
+agentmon report latest --level=summary
 
 # Detailed investigation
-agentsh report <session-id> --level=detailed --output=report.md
+agentmon report <session-id> --level=detailed --output=report.md
 ```
 
 Reports include:
@@ -2011,7 +2011,7 @@ Expected: All tests pass
 
 ```bash
 go build ./...
-./agentsh report --help
+./agentmon report --help
 ```
 
 Expected: Shows help with usage, flags, examples
@@ -2035,7 +2035,7 @@ git push origin feature/session-report
 
 ## Summary
 
-This plan creates the `agentsh report` command with:
+This plan creates the `agentmon report` command with:
 
 1. **Data types** (`internal/report/types.go`) - Report structure and findings
 2. **Findings detection** (`internal/report/findings.go`) - Anomaly and violation detection

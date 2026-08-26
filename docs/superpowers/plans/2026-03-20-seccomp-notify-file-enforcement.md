@@ -31,7 +31,7 @@
 | `internal/capabilities/detect_linux.go` | Modify | Add detectFileEnforcementBackend |
 | `internal/capabilities/security_caps.go` | Modify | Add FileEnforcement field |
 | `internal/cli/detect.go` | Modify | Render file_enforcement in output |
-| `cmd/agentsh-unixwrap/config.go` | Modify | Add new fields to WrapperConfig |
+| `cmd/agentmon-unixwrap/config.go` | Modify | Add new fields to WrapperConfig |
 | `internal/netmonitor/unix/file_syscalls_legacy_amd64.go` | Modify | Add isLegacyOpenSyscallNr |
 | `internal/netmonitor/unix/file_syscalls_legacy_other.go` | Modify | Add isLegacyOpenSyscallNr stub |
 | `internal/netmonitor/unix/mount_registry.go` | Modify | Add HasAnyMounts method |
@@ -104,13 +104,13 @@ enforce_without_fuse is enabled."
 ### Task 2: Config bridge — WrapperConfig + FilterConfig
 
 **Files:**
-- Modify: `cmd/agentsh-unixwrap/config.go`
+- Modify: `cmd/agentmon-unixwrap/config.go`
 - Modify: `internal/netmonitor/unix/seccomp_linux.go:173-186`
 - Modify: `internal/api/core.go` (setupSeccompWrapper)
 
 - [ ] **Step 1: Add fields to WrapperConfig**
 
-In `cmd/agentsh-unixwrap/config.go`, add to `WrapperConfig`:
+In `cmd/agentmon-unixwrap/config.go`, add to `WrapperConfig`:
 
 ```go
 InterceptMetadata bool `json:"intercept_metadata,omitempty"`
@@ -154,7 +154,7 @@ seccompCfg.InterceptMetadata = fileMonitorBoolWithDefault(a.cfg.Sandbox.Seccomp.
 seccompCfg.BlockIOUring = fileMonitorBoolWithDefault(a.cfg.Sandbox.Seccomp.FileMonitor.BlockIOUring, defaultVal)
 ```
 
-Also bridge in `cmd/agentsh-unixwrap/main.go` where `FilterConfig` is constructed:
+Also bridge in `cmd/agentmon-unixwrap/main.go` where `FilterConfig` is constructed:
 
 ```go
 filterCfg := unixmon.FilterConfig{
@@ -172,7 +172,7 @@ Expected: Compiles cleanly.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add cmd/agentsh-unixwrap/config.go internal/netmonitor/unix/seccomp_linux.go internal/api/core.go cmd/agentsh-unixwrap/main.go
+git add cmd/agentmon-unixwrap/config.go internal/netmonitor/unix/seccomp_linux.go internal/api/core.go cmd/agentmon-unixwrap/main.go
 git commit -m "feat(seccomp): bridge new config fields to FilterConfig and WrapperConfig"
 ```
 
@@ -1248,7 +1248,7 @@ In `internal/cli/detect.go`, add `file_enforcement` to the table/json/yaml outpu
 
 - [ ] **Step 5: Build + test detect command**
 
-Run: `go build ./cmd/agentsh/... && go test ./internal/capabilities/... -v`
+Run: `go build ./cmd/agentmon/... && go test ./internal/capabilities/... -v`
 Expected: Compiles cleanly, existing tests pass.
 
 - [ ] **Step 6: Commit**
@@ -1289,7 +1289,7 @@ In `internal/api/file_monitor_linux.go`, first add the import:
 ```go
 import (
 	// ... existing imports ...
-	"github.com/agentsh/agentsh/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/capabilities"
 )
 ```
 

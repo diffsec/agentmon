@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 	cgofuse "github.com/winfsp/cgofuse/fuse"
 )
 
@@ -44,7 +44,7 @@ func Mount(cfg Config) (platform.FSMount, error) {
 		return nil, fmt.Errorf("create mount point: %w", err)
 	}
 	// Explicitly chmod the per-session directory and mount point to 0755
-	// regardless of the process umask, so unprivileged clients (e.g. agentsh
+	// regardless of the process umask, so unprivileged clients (e.g. agentmon
 	// exec running as the agent user) can traverse these root-created paths.
 	_ = os.Chmod(filepath.Dir(cfg.MountPoint), 0o755)
 	_ = os.Chmod(cfg.MountPoint, 0o755)
@@ -93,7 +93,7 @@ func Mount(cfg Config) (platform.FSMount, error) {
 func mountOptions(cfg Config) []string {
 	volname := cfg.VolumeName
 	if volname == "" {
-		volname = "agentsh"
+		volname = "agentmon"
 	}
 
 	switch runtime.GOOS {
@@ -116,7 +116,7 @@ func mountOptions(cfg Config) []string {
 		return opts
 	default:
 		// On Linux, allow_other lets unprivileged users (the agent user running
-		// agentsh exec) access a FUSE mount created by root. Without it, only
+		// agentmon exec) access a FUSE mount created by root. Without it, only
 		// the mounting process can traverse the mount point.
 		return []string{"-o", "allow_other"}
 	}

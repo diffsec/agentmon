@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add Ed25519 detached signature support for agentsh policy files with configurable verification modes.
+**Goal:** Add Ed25519 detached signature support for agentmon policy files with configurable verification modes.
 
-**Architecture:** New `internal/policy/signing` package containing all signing logic (types, keygen, sign, verify, trust store). Integration hooks into `Manager.Get()` and `DefaultPolicyLoader.Load()` for verification at load time. Three new CLI subcommands under `agentsh policy`.
+**Architecture:** New `internal/policy/signing` package containing all signing logic (types, keygen, sign, verify, trust store). Integration hooks into `Manager.Get()` and `DefaultPolicyLoader.Load()` for verification at load time. Three new CLI subcommands under `agentmon policy`.
 
 **Tech Stack:** Go stdlib only — `crypto/ed25519`, `crypto/sha256`, `encoding/json`
 
@@ -1239,7 +1239,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy/signing"
+	"github.com/diffsec/agentmon/internal/policy/signing"
 )
 ```
 
@@ -1389,7 +1389,7 @@ func (m *Manager) verifySigning(path string, data []byte) error {
 }
 ```
 
-Add imports: `"github.com/agentsh/agentsh/internal/policy/signing"`
+Add imports: `"github.com/diffsec/agentmon/internal/policy/signing"`
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -1513,7 +1513,7 @@ In `newPolicyCmd()`, after the existing `cmd.AddCommand(generateCmd)` line, add:
 	cmd.AddCommand(verifyCmd)
 ```
 
-Add import for `"github.com/agentsh/agentsh/internal/policy/signing"` to the file.
+Add import for `"github.com/diffsec/agentmon/internal/policy/signing"` to the file.
 
 - [ ] **Step 4: Write CLI tests**
 
@@ -1684,7 +1684,7 @@ func (l *DefaultPolicyLoader) Load(name string) (*policy.Engine, error) {
 }
 ```
 
-Add import for `"github.com/agentsh/agentsh/internal/policy/signing"`.
+Add import for `"github.com/diffsec/agentmon/internal/policy/signing"`.
 
 - [ ] **Step 2: Update the single caller of NewDefaultPolicyLoader**
 
@@ -1741,7 +1741,7 @@ Note: This requires reading the raw policy bytes before parsing. The existing co
 
 If `LoadFromBytes` does not exist, add it as a thin wrapper in `internal/policy/load.go` that accepts `[]byte` instead of a file path. This avoids double-reading the file.
 
-Add import for `"github.com/agentsh/agentsh/internal/policy/signing"`.
+Add import for `"github.com/diffsec/agentmon/internal/policy/signing"`.
 
 - [ ] **Step 4: Build to verify compilation**
 
@@ -1783,16 +1783,16 @@ Expected: Success
 
 ```bash
 # Generate a keypair
-go run ./cmd/agentsh policy keygen --output /tmp/agentsh-keys --label test
+go run ./cmd/agentmon policy keygen --output /tmp/agentmon-keys --label test
 
 # Sign a policy
-go run ./cmd/agentsh policy sign configs/policies/default.yaml --key /tmp/agentsh-keys/private.key.json --signer test
+go run ./cmd/agentmon policy sign configs/policies/default.yaml --key /tmp/agentmon-keys/private.key.json --signer test
 
 # Verify the signed policy
-go run ./cmd/agentsh policy verify configs/policies/default.yaml --key-dir /tmp/agentsh-keys
+go run ./cmd/agentmon policy verify configs/policies/default.yaml --key-dir /tmp/agentmon-keys
 
 # Clean up
-rm -rf /tmp/agentsh-keys configs/policies/default.yaml.sig
+rm -rf /tmp/agentmon-keys configs/policies/default.yaml.sig
 ```
 
 - [ ] **Step 4: Final commit if any cleanup needed**

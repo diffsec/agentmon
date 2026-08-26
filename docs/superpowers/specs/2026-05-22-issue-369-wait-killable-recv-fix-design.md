@@ -2,11 +2,11 @@
 
 **Date:** 2026-05-22
 **Status:** Design — pending implementation
-**Tracking issue:** [#369](https://github.com/agentsh/agentsh/issues/369)
+**Tracking issue:** [#369](https://github.com/diffsec/agentmon/issues/369)
 
 ## Problem
 
-Since #316 (v0.20.x), `agentsh-unixwrap` sets `SECCOMP_FILTER_FLAG_WAIT_KILLABLE_RECV` on the raw `seccomp(2)` syscall whenever the kernel reports a major version ≥6. On exe.dev VMs (kernel `6.12.67`, with `ProcessVMReadv` returning `ENOSYS`), every wrapped command launched with both `unix_socket` notify rules and file/metadata notify rules in the same filter is killed by signal within ~80 ms of filter install — before any policy events fire. The same configuration on the same VM worked under v0.19.2 because the libseccomp 2.5.3 path used by v0.19.2 had `SetWaitKill` as a silent no-op (the API arrived in libseccomp 2.6), so the flag was never actually on the kernel ABI mask. The intent of #316 is correct; this design addresses the latent kernel quirk it exposed.
+Since #316 (v0.20.x), `agentmon-unixwrap` sets `SECCOMP_FILTER_FLAG_WAIT_KILLABLE_RECV` on the raw `seccomp(2)` syscall whenever the kernel reports a major version ≥6. On exe.dev VMs (kernel `6.12.67`, with `ProcessVMReadv` returning `ENOSYS`), every wrapped command launched with both `unix_socket` notify rules and file/metadata notify rules in the same filter is killed by signal within ~80 ms of filter install — before any policy events fire. The same configuration on the same VM worked under v0.19.2 because the libseccomp 2.5.3 path used by v0.19.2 had `SetWaitKill` as a silent no-op (the API arrived in libseccomp 2.6), so the flag was never actually on the kernel ABI mask. The intent of #316 is correct; this design addresses the latent kernel quirk it exposed.
 
 The current detection function, `ProbeWaitKillable` (`internal/netmonitor/unix/addfd_linux.go:117`), is a uname-based version check. It is a guess, not a probe. On `6.12.67` it returns `true` while the kernel's WAIT_KILLABLE_RECV implementation, when combined with the production filter composition, kills wrapped processes.
 
@@ -28,7 +28,7 @@ The existing EINVAL-retry path (`seccomp_load_linux.go:185`) only catches kernel
 
 ## Architecture overview
 
-Two-layer decision: server-process makes the call once at startup; wrapper-process consumes the decision via the existing `AGENTSH_SECCOMP_CONFIG` env var.
+Two-layer decision: server-process makes the call once at startup; wrapper-process consumes the decision via the existing `AGENTMON_SECCOMP_CONFIG` env var.
 
 ```
 Server startup (once per process)
@@ -109,12 +109,12 @@ Four files; all add a `WaitKillable *bool` (tri-state: nil = auto, true = force 
 |---|---|---|
 | `internal/config/config.go` | `SandboxSeccompConfig.WaitKillable *bool` | YAML: `sandbox.seccomp.wait_killable` |
 | `internal/api/seccomp_wrapper_config.go` | `seccompWrapperConfig.WaitKillable *bool` | JSON tag `wait_killable` |
-| `cmd/agentsh-unixwrap/config.go` | `WrapperConfig.WaitKillable *bool` | JSON tag `wait_killable` |
+| `cmd/agentmon-unixwrap/config.go` | `WrapperConfig.WaitKillable *bool` | JSON tag `wait_killable` |
 | `internal/netmonitor/unix/seccomp_linux.go` | `FilterConfig.WaitKillable *bool` | in-process struct |
 
 Server side, in `App` (or the equivalent startup context): decide once, memoize on `a.waitKillableDecision bool` and `a.waitKillableSource string`. `buildSeccompWrapperConfig` sets `seccompCfg.WaitKillable = &a.waitKillableDecision` on every session.
 
-Wrapper side: `cmd/agentsh-unixwrap/main.go` already wires `WrapperConfig` → `FilterConfig`; add the new field to that mapping.
+Wrapper side: `cmd/agentmon-unixwrap/main.go` already wires `WrapperConfig` → `FilterConfig`; add the new field to that mapping.
 
 `InstallFilterWithConfig` (`seccomp_linux.go:303`):
 
@@ -127,7 +127,7 @@ if cfg.WaitKillable != nil {
 }
 ```
 
-When `AGENTSH_SECCOMP_CONFIG` is unset (defaults path in `loadConfig`, used by some tests), `cfg.WaitKillable` is nil and the legacy uname-based probe is used. The new behavioral probe runs in the server process only; the wrapper never probes.
+When `AGENTMON_SECCOMP_CONFIG` is unset (defaults path in `loadConfig`, used by some tests), `cfg.WaitKillable` is nil and the legacy uname-based probe is used. The new behavioral probe runs in the server process only; the wrapper never probes.
 
 ### 4. Diagnosability
 
@@ -177,12 +177,12 @@ Six test surfaces, all gated correctly for platform:
 
 1. **Decision-logic unit test** (`internal/api/wait_killable_decision_test.go`): table-driven over the seven branches of the startup switch. Pure logic; runs on all platforms. Inject `ProbeWaitKillable`, `filterCompositionCouldTriggerBug`, and the behavioral probe via a small interface.
 2. **Composition-heuristic unit test**: matrix covering `unix_socket.enabled`, `file_monitor.enabled`, `enforce_without_fuse`, explicit `intercept_metadata`. Catches the bisection-misleading row from the issue.
-3. **JSON plumbing round-trip tests**: extend `internal/api/seccomp_wrapper_test.go` and `cmd/agentsh-unixwrap/config_test.go` to assert `*bool` survives marshal/unmarshal for `nil` / `&true` / `&false`.
+3. **JSON plumbing round-trip tests**: extend `internal/api/seccomp_wrapper_test.go` and `cmd/agentmon-unixwrap/config_test.go` to assert `*bool` survives marshal/unmarshal for `nil` / `&true` / `&false`.
 4. **`InstallFilterWithConfig` override test** (`internal/netmonitor/unix/seccomp_linux_test.go`): reuse the existing `loadFilterSyscall` injection seam to verify the `WAIT_KILLABLE_RECV` bit on the syscall flags arg for each combination of `cfg.WaitKillable` and host `ProbeWaitKillable()`.
 5. **Probe tests** (`internal/netmonitor/unix/wait_killable_probe_linux_test.go`):
    - **5a (mocked iteration runner):** inject the per-iteration runner as a function; verify all-pass → true, first-fail → false (short-circuit), all-error → error.
    - **5b (real iteration, Linux only):** run probe with iterations=2 on stock CI kernel; assert `(true, nil)` and duration < 2 s. Second test: force the iteration child to `kill(getpid(), SIGKILL)` right after notify-fd handoff to verify the "saw a death" path returns `(false, nil)`. Skip when `/bin/true` missing.
-6. **Sigurg-probe test extension** (`internal/netmonitor/unix/sigurg_probe_test.go`): add an assertion that when `AGENTSH_SECCOMP_CONFIG` carries `"wait_killable": false`, the loaded-filter log line emits `wait_killable=false` and `wait_killable_source=config`. Proves the operator override flows end-to-end.
+6. **Sigurg-probe test extension** (`internal/netmonitor/unix/sigurg_probe_test.go`): add an assertion that when `AGENTMON_SECCOMP_CONFIG` carries `"wait_killable": false`, the loaded-filter log line emits `wait_killable=false` and `wait_killable_source=config`. Proves the operator override flows end-to-end.
 
 **Out of scope**: simulating the exe.dev-style broken kernel in CI. We don't have it; the probe is the production safety net. If we ever obtain a reproducible image, we add a CI lane in a follow-up.
 

@@ -5,12 +5,12 @@
 
 ## Problem
 
-The HMAC integrity chain infrastructure is fully built but not wired into the server startup path. Events written to the JSONL audit log are unsigned, so `agentsh audit verify` cannot verify the live audit log even when `audit.integrity.enabled: true` is configured.
+The HMAC integrity chain infrastructure is fully built but not wired into the server startup path. Events written to the JSONL audit log are unsigned, so `agentmon audit verify` cannot verify the live audit log even when `audit.integrity.enabled: true` is configured.
 
 **Existing infrastructure:**
 - `internal/audit/integrity.go` — `IntegrityChain` with `Wrap()`, `NewIntegrityChainFromConfig()`
 - `internal/store/integrity_wrapper.go` — `IntegrityStore` wrapper (pass-through, does not wrap)
-- `internal/cli/audit.go` — `agentsh audit verify` command
+- `internal/cli/audit.go` — `agentmon audit verify` command
 - Config: `audit.integrity.enabled`, `algorithm`, `key_source`, `key_file`, etc.
 
 **What's missing:**
@@ -87,7 +87,7 @@ func (s *IntegrityStore) AppendEvent(ctx context.Context, ev types.Event) error 
 After JSONL store creation (~line 162) and before the composite store assembly (~line 232).
 
 New imports needed in `server.go`:
-- `"github.com/agentsh/agentsh/internal/audit"`
+- `"github.com/diffsec/agentmon/internal/audit"`
 - `"io"` (for `io.Closer` type on kmsProvider field)
 
 ```go

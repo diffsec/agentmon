@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/seccomp"
 )
 
 func TestResolveBlockedFamilies(t *testing.T) {

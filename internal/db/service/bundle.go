@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 const (
@@ -67,7 +67,7 @@ func GenerateBundle(cfg Config, opts BundleOptions) (Bundle, error) {
 		Policy: policy.Policy{
 			Version:     1,
 			Name:        "db-unavoidability-" + sanitizeRulePart(opts.SessionID),
-			Description: "Generated DB unavoidability bundle for AgentSH session " + opts.SessionID,
+			Description: "Generated DB unavoidability bundle for AgentMon session " + opts.SessionID,
 		},
 	}
 	serviceParts := serviceRuleParts(cfg.Services)
@@ -96,17 +96,17 @@ func addCoreServiceRules(b *Bundle, svc Service, servicePart string) {
 		RedirectToUnix: svc.Listen.Path,
 		Visibility:     "audit_only",
 		OnFailure:      "fail_closed",
-		Message:        "Routed through AgentSH DB proxy",
+		Message:        "Routed through AgentMon DB proxy",
 	})
 	addMetadata(b, redirectName, svc.Name, BypassModeTCPDirect, destination)
 
 	b.Policy.NetworkRules = append(b.Policy.NetworkRules, policy.NetworkRule{
 		Name:        networkName,
-		Description: "Deny direct DB egress; traffic must use AgentSH DB proxy",
+		Description: "Deny direct DB egress; traffic must use AgentMon DB proxy",
 		Domains:     []string{strings.ToLower(svc.Upstream.Host)},
 		Ports:       []int{svc.Upstream.Port},
 		Decision:    "deny",
-		Message:     "Direct database egress is blocked; use the AgentSH DB proxy",
+		Message:     "Direct database egress is blocked; use the AgentMon DB proxy",
 	})
 	addMetadata(b, networkName, svc.Name, BypassModeTCPDirect, destination)
 
@@ -119,7 +119,7 @@ func addCoreServiceRules(b *Bundle, svc Service, servicePart string) {
 		},
 		Operations: []string{"connect"},
 		Decision:   "deny",
-		Message:    "Direct local database socket access is blocked; use the AgentSH DB proxy",
+		Message:    "Direct local database socket access is blocked; use the AgentMon DB proxy",
 	})
 	addMetadata(b, unixName, svc.Name, BypassModeUnixSocket, "postgres-local-sockets")
 }
@@ -167,7 +167,7 @@ func addResolvedIPRules(ctx context.Context, b *Bundle, svc Service, servicePart
 			CIDRs:       []string{ipCIDR(ip)},
 			Ports:       []int{svc.Upstream.Port},
 			Decision:    "deny",
-			Message:     "Direct database egress is blocked; use the AgentSH DB proxy",
+			Message:     "Direct database egress is blocked; use the AgentMon DB proxy",
 		})
 		addMetadata(b, name, svc.Name, BypassModeDNSAlias, destination)
 	}
@@ -199,77 +199,77 @@ func addBypassToolRules(b *Bundle, services []Service) {
 			Commands:     []string{"ssh"},
 			ArgsPatterns: []string{"(^|\\s)-L(\\s|[^\\s]*:).*:(" + portPattern + ")(\\s|$)"},
 			Decision:     "deny",
-			Message:      "DB port forwarding is blocked by AgentSH DB unavoidability",
+			Message:      "DB port forwarding is blocked by AgentMon DB unavoidability",
 		},
 		{
 			Name:         "db-bypass-socat",
 			Commands:     []string{"socat"},
 			ArgsPatterns: []string{"(?i)(tcp-listen|listen|tcp:).*" + portTokenPattern},
 			Decision:     "deny",
-			Message:      "DB socket forwarding is blocked by AgentSH DB unavoidability",
+			Message:      "DB socket forwarding is blocked by AgentMon DB unavoidability",
 		},
 		{
 			Name:         "db-bypass-kubectl-port-forward",
 			Commands:     []string{"kubectl"},
 			ArgsPatterns: []string{"(^|\\s)port-forward(\\s|$).*(:(" + portPattern + ")([^0-9]|$)|\\s(" + portPattern + "):)"},
 			Decision:     "deny",
-			Message:      "DB port forwarding is blocked by AgentSH DB unavoidability",
+			Message:      "DB port forwarding is blocked by AgentMon DB unavoidability",
 		},
 		{
 			Name:         "db-bypass-cloud-sql-proxy",
 			Commands:     []string{"cloud-sql-proxy"},
 			ArgsPatterns: []string{".*"},
 			Decision:     "deny",
-			Message:      "Cloud SQL proxy is blocked by AgentSH DB unavoidability",
+			Message:      "Cloud SQL proxy is blocked by AgentMon DB unavoidability",
 		},
 		{
 			Name:         "db-bypass-gcloud-sql-connect",
 			Commands:     []string{"gcloud"},
 			ArgsPatterns: []string{"(^|\\s)sql\\s+connect(\\s|$)"},
 			Decision:     "deny",
-			Message:      "gcloud SQL connect is blocked by AgentSH DB unavoidability",
+			Message:      "gcloud SQL connect is blocked by AgentMon DB unavoidability",
 		},
 		{
 			Name:         "db-bypass-aws-rds-connect",
 			Commands:     []string{"aws"},
 			ArgsPatterns: []string{"(^|\\s)rds\\s+connect(\\s|$)"},
 			Decision:     "deny",
-			Message:      "AWS RDS connect is blocked by AgentSH DB unavoidability",
+			Message:      "AWS RDS connect is blocked by AgentMon DB unavoidability",
 		},
 		{
 			Name:         "db-bypass-chisel",
 			Commands:     []string{"chisel"},
 			ArgsPatterns: []string{".*"},
 			Decision:     "deny",
-			Message:      "Tunnel tool is blocked by AgentSH DB unavoidability",
+			Message:      "Tunnel tool is blocked by AgentMon DB unavoidability",
 		},
 		{
 			Name:         "db-bypass-gost",
 			Commands:     []string{"gost"},
 			ArgsPatterns: []string{".*"},
 			Decision:     "deny",
-			Message:      "Tunnel tool is blocked by AgentSH DB unavoidability",
+			Message:      "Tunnel tool is blocked by AgentMon DB unavoidability",
 		},
 		{
 			Name:         "db-bypass-frpc",
 			Commands:     []string{"frpc"},
 			ArgsPatterns: []string{".*"},
 			Decision:     "deny",
-			Message:      "Tunnel tool is blocked by AgentSH DB unavoidability",
+			Message:      "Tunnel tool is blocked by AgentMon DB unavoidability",
 		},
 		{
 			Name:         "db-bypass-netcat",
 			Commands:     []string{"nc", "ncat", "netcat"},
 			ArgsPatterns: []string{"(?i)(-l|--listen|" + portTokenPattern + ")"},
 			Decision:     "deny",
-			Message:      "Raw TCP forwarding is blocked by AgentSH DB unavoidability",
+			Message:      "Raw TCP forwarding is blocked by AgentMon DB unavoidability",
 		},
 		{
 			Name:         "db-bypass-container-net-host",
 			Commands:     []string{"docker", "podman", "nerdctl"},
 			ArgsPatterns: []string{"(^|\\s)(run|create)(\\s|$).*(--net=host|--network=host)"},
 			Decision:     "deny",
-			Message:      "Host-network containers are blocked by AgentSH DB unavoidability",
+			Message:      "Host-network containers are blocked by AgentMon DB unavoidability",
 		},
 	}
 	for _, r := range rules {

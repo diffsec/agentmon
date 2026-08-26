@@ -6,7 +6,7 @@ import (
 	"io"
 )
 
-// Wire protocol message types for the agentsh stub <-> server communication.
+// Wire protocol message types for the agentmon stub <-> server communication.
 // Frame format: [1 byte type][4 bytes length big-endian][payload]
 const (
 	MsgReady  = byte(0x01) // stub -> server: ready to receive

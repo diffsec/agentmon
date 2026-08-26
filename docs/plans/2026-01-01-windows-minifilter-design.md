@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document describes the architecture for implementing a Windows kernel mini filter driver for agentsh. The driver provides full file system and registry interception with blocking capabilities, achieving feature parity with Linux and exceeding the current Windows stub implementation.
+This document describes the architecture for implementing a Windows kernel mini filter driver for agentmon. The driver provides full file system and registry interception with blocking capabilities, achieving feature parity with Linux and exceeding the current Windows stub implementation.
 
 ## Goals
 
@@ -36,7 +36,7 @@ This document describes the architecture for implementing a Windows kernel mini 
 
 ## Architecture Overview
 
-The implementation follows a similar pattern to the macOS ESF design: a privileged native component (kernel driver) communicates with the Go agentsh server via IPC.
+The implementation follows a similar pattern to the macOS ESF design: a privileged native component (kernel driver) communicates with the Go agentmon server via IPC.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -44,7 +44,7 @@ The implementation follows a similar pattern to the macOS ESF design: a privileg
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │  ┌──────────────────────┐         ┌──────────────────────────────┐  │
-│  │    agentsh server    │◄───────►│  Windows Driver Client       │  │
+│  │    agentmon server    │◄───────►│  Windows Driver Client       │  │
 │  │    (Go, policy)      │  chan   │  (Go, FilterConnect API)     │  │
 │  └──────────────────────┘         └──────────────┬───────────────┘  │
 │                                                  │                   │
@@ -55,7 +55,7 @@ The implementation follows a similar pattern to the macOS ESF design: a privileg
 ├──────────────────────────────────────────────────┼──────────────────┤
 │                                                  ▼                   │
 │  ┌───────────────────────────────────────────────────────────────┐  │
-│  │                  agentsh.sys Mini Filter                       │  │
+│  │                  agentmon.sys Mini Filter                       │  │
 │  ├───────────────────┬───────────────────┬───────────────────────┤  │
 │  │  Filesystem Ops   │   Registry Ops    │   Process Tracking    │  │
 │  │  (IRP callbacks)  │ (CmRegisterCb)    │ (PsSetCreateNotify)   │  │
@@ -73,9 +73,9 @@ The implementation follows a similar pattern to the macOS ESF design: a privileg
 
 | Component | Role |
 |-----------|------|
-| **agentsh.sys** | Kernel mini filter - intercepts file/registry ops, tracks processes, queries policy |
+| **agentmon.sys** | Kernel mini filter - intercepts file/registry ops, tracks processes, queries policy |
 | **Driver Client (Go)** | Connects to filter port, receives policy queries, sends decisions |
-| **Policy Engine (Go)** | Existing agentsh policy engine - unchanged |
+| **Policy Engine (Go)** | Existing agentmon policy engine - unchanged |
 
 The driver is intentionally "dumb" - it intercepts, asks, and enforces. All policy logic stays in Go.
 
@@ -88,7 +88,7 @@ The driver and user-mode client communicate via filter ports using a request/res
 ```c
 // protocol.h - shared between driver and Go client
 
-typedef enum _AGENTSH_MSG_TYPE {
+typedef enum _AGENTMON_MSG_TYPE {
     // Driver → User-mode (requests)
     MSG_POLICY_CHECK_FILE = 1,
     MSG_POLICY_CHECK_REGISTRY = 2,
@@ -100,42 +100,42 @@ typedef enum _AGENTSH_MSG_TYPE {
     MSG_UNREGISTER_SESSION = 101,
     MSG_UPDATE_CACHE = 102,
     MSG_SHUTDOWN = 103,
-} AGENTSH_MSG_TYPE;
+} AGENTMON_MSG_TYPE;
 
-typedef enum _AGENTSH_DECISION {
+typedef enum _AGENTMON_DECISION {
     DECISION_ALLOW = 0,
     DECISION_DENY = 1,
     DECISION_PENDING = 2,  // Hold for approval
-} AGENTSH_DECISION;
+} AGENTMON_DECISION;
 ```
 
 ### Policy Check Message (File)
 
 ```c
-typedef struct _AGENTSH_FILE_REQUEST {
-    AGENTSH_MSG_TYPE Type;          // MSG_POLICY_CHECK_FILE
+typedef struct _AGENTMON_FILE_REQUEST {
+    AGENTMON_MSG_TYPE Type;          // MSG_POLICY_CHECK_FILE
     ULONG ProcessId;
     ULONG ThreadId;
-    ULONG64 SessionToken;           // Maps to agentsh session
+    ULONG64 SessionToken;           // Maps to agentmon session
     ULONG Operation;                // Create/Read/Write/Delete/Rename
     ULONG CreateDisposition;        // For creates: CREATE_NEW, OPEN_EXISTING, etc.
     ULONG DesiredAccess;            // Read/Write/Delete access flags
     WCHAR Path[MAX_PATH_LENGTH];    // Full NT path
     WCHAR RenameDest[MAX_PATH_LENGTH]; // For renames only
-} AGENTSH_FILE_REQUEST;
+} AGENTMON_FILE_REQUEST;
 
-typedef struct _AGENTSH_POLICY_RESPONSE {
-    AGENTSH_DECISION Decision;
+typedef struct _AGENTMON_POLICY_RESPONSE {
+    AGENTMON_DECISION Decision;
     ULONG CacheTTLMs;               // How long driver can cache this decision
     WCHAR RedirectPath[MAX_PATH_LENGTH]; // For redirects (empty = no redirect)
-} AGENTSH_POLICY_RESPONSE;
+} AGENTMON_POLICY_RESPONSE;
 ```
 
 ### Policy Check Message (Registry)
 
 ```c
-typedef struct _AGENTSH_REGISTRY_REQUEST {
-    AGENTSH_MSG_TYPE Type;          // MSG_POLICY_CHECK_REGISTRY
+typedef struct _AGENTMON_REGISTRY_REQUEST {
+    AGENTMON_MSG_TYPE Type;          // MSG_POLICY_CHECK_REGISTRY
     ULONG ProcessId;
     ULONG ThreadId;
     ULONG64 SessionToken;
@@ -144,18 +144,18 @@ typedef struct _AGENTSH_REGISTRY_REQUEST {
     WCHAR ValueName[256];           // For value operations
     ULONG ValueType;                // REG_SZ, REG_DWORD, etc.
     ULONG DataSize;                 // Size of value data
-} AGENTSH_REGISTRY_REQUEST;
+} AGENTMON_REGISTRY_REQUEST;
 ```
 
 ### Session Registration
 
 ```c
-typedef struct _AGENTSH_SESSION_REGISTER {
-    AGENTSH_MSG_TYPE Type;          // MSG_REGISTER_SESSION
+typedef struct _AGENTMON_SESSION_REGISTER {
+    AGENTMON_MSG_TYPE Type;          // MSG_REGISTER_SESSION
     ULONG64 SessionToken;           // Unique session identifier
     ULONG RootProcessId;            // Initial session process (children auto-tracked)
     WCHAR WorkspacePath[MAX_PATH_LENGTH]; // Session workspace root
-} AGENTSH_SESSION_REGISTER;
+} AGENTMON_SESSION_REGISTER;
 ```
 
 ## Filesystem Mini Filter Implementation
@@ -165,7 +165,7 @@ The filesystem component uses standard mini filter callbacks to intercept I/O op
 ### Driver Registration
 
 ```c
-// agentsh.c
+// agentmon.c
 
 const FLT_OPERATION_REGISTRATION FilterCallbacks[] = {
     { IRP_MJ_CREATE,              0, PreCreate,  PostCreate },
@@ -218,8 +218,8 @@ FLT_PREOP_CALLBACK_STATUS PreCreate(
     PVOID *CompletionContext)
 {
     ULONG64 sessionToken;
-    AGENTSH_FILE_REQUEST request;
-    AGENTSH_POLICY_RESPONSE response;
+    AGENTMON_FILE_REQUEST request;
+    AGENTMON_POLICY_RESPONSE response;
 
     // Fast path: not a session process?
     if (!IsSessionProcess(PsGetCurrentProcessId(), &sessionToken)) {
@@ -478,7 +478,7 @@ func NewDriverClient(policyEngine platform.PolicyEngine, eventChan chan<- platfo
 
 ```go
 func (c *DriverClient) Connect() error {
-    portName, _ := windows.UTF16PtrFromString("\\AgentshPort")
+    portName, _ := windows.UTF16PtrFromString("\\AgentmonPort")
 
     var port windows.Handle
     err := filterConnectCommunicationPort(portName, 0, nil, 0, nil, &port)
@@ -565,7 +565,7 @@ typedef struct _CACHE_ENTRY {
     ULONG64 SessionToken;
     ULONG Operation;
     ULONG Hash;
-    AGENTSH_DECISION Decision;
+    AGENTMON_DECISION Decision;
     LARGE_INTEGER ExpiryTime;
     WCHAR Path[MAX_PATH_LENGTH];
 } CACHE_ENTRY, *PCACHE_ENTRY;
@@ -598,7 +598,7 @@ typedef struct _POLICY_CACHE {
 static volatile LONG gConsecutiveFailures = 0;
 static volatile BOOLEAN gFailOpenMode = FALSE;
 
-BOOLEAN QueryPolicy(PVOID Request, PAGENTSH_POLICY_RESPONSE Response) {
+BOOLEAN QueryPolicy(PVOID Request, PAGENTMON_POLICY_RESPONSE Response) {
     // If in fail-open mode, allow everything
     if (gFailOpenMode) {
         Response->Decision = DECISION_ALLOW;
@@ -618,7 +618,7 @@ BOOLEAN QueryPolicy(PVOID Request, PAGENTSH_POLICY_RESPONSE Response) {
     LONG failures = InterlockedIncrement(&gConsecutiveFailures);
     if (failures >= MAX_CONSECUTIVE_FAILURES && !gFailOpenMode) {
         gFailOpenMode = TRUE;
-        LogEvent(AGENTSH_EVENT_FAILOPEN, "Entering fail-open mode");
+        LogEvent(AGENTMON_EVENT_FAILOPEN, "Entering fail-open mode");
     }
 
     Response->Decision = DECISION_ALLOW;
@@ -646,8 +646,8 @@ type DriverConfig struct {
 ## Directory Structure
 
 ```
-agentsh/
-├── cmd/agentsh/
+agentmon/
+├── cmd/agentmon/
 ├── internal/platform/windows/
 │   ├── driver_client.go          # Go filter port client
 │   ├── driver_client_windows.go  # Windows-specific syscalls
@@ -655,10 +655,10 @@ agentsh/
 │   └── ...
 ├── drivers/
 │   └── windows/
-│       └── agentsh-minifilter/
-│           ├── agentsh.sln               # Visual Studio solution
-│           ├── agentsh.vcxproj           # Project file
-│           ├── agentsh.inf               # Driver install manifest
+│       └── agentmon-minifilter/
+│           ├── agentmon.sln               # Visual Studio solution
+│           ├── agentmon.vcxproj           # Project file
+│           ├── agentmon.inf               # Driver install manifest
 │           ├── src/
 │           │   ├── driver.c              # DriverEntry, registration
 │           │   ├── filesystem.c          # File system callbacks
@@ -688,29 +688,29 @@ Class       = "ActivityMonitor"
 ClassGuid   = {b86dff51-a31e-4bac-b3cf-e8cfe75c9fc2}
 Provider    = %Provider%
 DriverVer   = 01/01/2026,1.0.0.0
-CatalogFile = agentsh.cat
+CatalogFile = agentmon.cat
 
 [DefaultInstall.NTamd64.Services]
-AddService = %ServiceName%,,AgentSH.Service
+AddService = %ServiceName%,,AgentMon.Service
 
-[AgentSH.Service]
+[AgentMon.Service]
 DisplayName    = %ServiceName%
 Description    = %ServiceDescription%
-ServiceBinary  = %12%\agentsh.sys
+ServiceBinary  = %12%\agentmon.sys
 ServiceType    = 2                      ; SERVICE_FILE_SYSTEM_DRIVER
 StartType      = 3                      ; SERVICE_DEMAND_START
 ErrorControl   = 1                      ; SERVICE_ERROR_NORMAL
 LoadOrderGroup = "FSFilter Activity Monitor"
 
-[AgentSH.AddRegistry]
+[AgentMon.AddRegistry]
 HKR,"Instances","DefaultInstance",0x00000000,%DefaultInstance%
 HKR,"Instances\"%Instance1.Name%,"Altitude",0x00000000,"385200"
 HKR,"Instances\"%Instance1.Name%,"Flags",0x00010001,0x0
 
 [Strings]
-Provider           = "AgentSH"
-ServiceName        = "AgentSH"
-ServiceDescription = "AgentSH Security Monitor"
+Provider           = "AgentMon"
+ServiceName        = "AgentMon"
+ServiceDescription = "AgentMon Security Monitor"
 ```
 
 ## Testing Strategy
@@ -763,7 +763,7 @@ ServiceDescription = "AgentSH Security Monitor"
 - IRP callbacks for Create/Read/Write/SetInfo
 - Policy queries to user-mode
 - Policy cache (file operations)
-- Event emission to agentsh
+- Event emission to agentmon
 
 ### Phase 4: Registry Interception
 
@@ -783,10 +783,10 @@ ServiceDescription = "AgentSH Security Monitor"
 
 ## Security Considerations
 
-1. **Filter port validation**: Driver validates connection is from signed agentsh binary
+1. **Filter port validation**: Driver validates connection is from signed agentmon binary
 2. **No secrets in driver**: All policy logic in Go; driver only asks yes/no
 3. **Audit logging**: All decisions logged regardless of allow/deny
-4. **Fail-open default**: Prevents system lockup if agentsh crashes
+4. **Fail-open default**: Prevents system lockup if agentmon crashes
 5. **Session scoping**: Only session processes are filtered; system processes bypass
 
 ## Comparison with Other Platforms

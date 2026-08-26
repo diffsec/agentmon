@@ -11,8 +11,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 func copyLoopFixture(t *testing.T) (*proxyConn, *pgproto3.Frontend, *pgproto3.Backend) {

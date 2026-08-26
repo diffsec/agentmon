@@ -34,7 +34,7 @@ func FormatTOTPURI(sessionID, secret string) string {
 	if len(label) > 8 {
 		label = label[:8]
 	}
-	return fmt.Sprintf("otpauth://totp/agentsh:%s?secret=%s&issuer=agentsh", label, secret)
+	return fmt.Sprintf("otpauth://totp/agentmon:%s?secret=%s&issuer=agentmon", label, secret)
 }
 
 // DisplayTOTPSetup writes the TOTP setup screen (QR code + manual secret) to the writer.

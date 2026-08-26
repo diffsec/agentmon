@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/events"
+	"github.com/diffsec/agentmon/internal/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -397,7 +397,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type mockEventHandler struct {
@@ -585,7 +585,7 @@ func TestNotifyPolicyUpdated(t *testing.T) {
 }
 
 func TestNotifyName(t *testing.T) {
-	if PolicyUpdatedNotification != "ai.canyonroad.agentsh.policy-updated" {
+	if PolicyUpdatedNotification != "dev.diffsec.agentmon.policy-updated" {
 		t.Fatalf("unexpected notification name: %s", PolicyUpdatedNotification)
 	}
 }
@@ -613,7 +613,7 @@ import "unsafe"
 
 // PolicyUpdatedNotification is the Darwin notification name posted when
 // policy changes. The Swift SysExt listens for this to refresh its cache.
-const PolicyUpdatedNotification = "ai.canyonroad.agentsh.policy-updated"
+const PolicyUpdatedNotification = "dev.diffsec.agentmon.policy-updated"
 
 // NotifyPolicyUpdated posts a Darwin notification to signal the SysExt
 // that the policy cache should be refreshed. This is a fire-and-forget
@@ -711,17 +711,17 @@ git commit -m "feat(darwin): add notify_post wrapper, session version counter, a
 The core local policy cache — data structures, glob matching, Darwin notification listener, snapshot fetch.
 
 **Files:**
-- Create: `macos/agentsh/SessionPolicyCache.swift`
-- Modify: `macos/agentsh/agentsh.xcodeproj/project.pbxproj` (add to SysExt Sources)
+- Create: `macos/agentmon/SessionPolicyCache.swift`
+- Modify: `macos/diffsec/agentmon.xcodeproj/project.pbxproj` (add to SysExt Sources)
 
 - [ ] **Step 1: Write SessionPolicyCache.swift**
 
 ```swift
-// macos/agentsh/SessionPolicyCache.swift
+// macos/agentmon/SessionPolicyCache.swift
 import Foundation
 
 /// Darwin notification name posted by Go server when policy changes.
-let policyUpdatedNotification = "ai.canyonroad.agentsh.policy-updated"
+let policyUpdatedNotification = "dev.diffsec.agentmon.policy-updated"
 
 // MARK: - Rule Types
 
@@ -783,7 +783,7 @@ class SessionPolicyCache {
     private var sessions: [String: SessionCache] = [:]  // sessionID -> cache
     private var pidToSession: [pid_t: String] = [:]      // fast PID -> sessionID lookup
     private var execDepths: [pid_t: Int] = [:]
-    private let queue = DispatchQueue(label: "ai.canyonroad.agentsh.policycache",
+    private let queue = DispatchQueue(label: "dev.diffsec.agentmon.policycache",
                                        attributes: .concurrent)
 
     private var notifyToken: Int32 = 0
@@ -1088,13 +1088,13 @@ extension SessionCache {
 // MARK: - Notification Name
 
 extension Notification.Name {
-    static let policyCacheNeedsRefresh = Notification.Name("ai.canyonroad.agentsh.policyCacheNeedsRefresh")
+    static let policyCacheNeedsRefresh = Notification.Name("dev.diffsec.agentmon.policyCacheNeedsRefresh")
 }
 ```
 
 - [ ] **Step 2: Add to Xcode project**
 
-Open `macos/agentsh/agentsh.xcodeproj` in Xcode and drag `SessionPolicyCache.swift` into the SysExt group. Ensure it is added to the SysExt target's Sources build phase (check the target membership checkbox). Alternatively, manually edit `project.pbxproj` following the same pattern as `ESFClient.swift`:
+Open `macos/diffsec/agentmon.xcodeproj` in Xcode and drag `SessionPolicyCache.swift` into the SysExt group. Ensure it is added to the SysExt target's Sources build phase (check the target membership checkbox). Alternatively, manually edit `project.pbxproj` following the same pattern as `ESFClient.swift`:
 1. Generate two new UUIDs (use `uuidgen | tr -d '-' | head -c 24`)
 2. Add a `PBXFileReference` entry for `SessionPolicyCache.swift`
 3. Add a `PBXBuildFile` entry referencing it
@@ -1103,13 +1103,13 @@ Open `macos/agentsh/agentsh.xcodeproj` in Xcode and drag `SessionPolicyCache.swi
 
 - [ ] **Step 3: Build to verify compilation**
 
-Run: `xcodebuild -project macos/agentsh/agentsh.xcodeproj -target SysExt -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E 'error:|BUILD'`
+Run: `xcodebuild -project macos/diffsec/agentmon.xcodeproj -target SysExt -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E 'error:|BUILD'`
 Expected: BUILD SUCCEEDED
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add macos/agentsh/SessionPolicyCache.swift macos/agentsh/agentsh.xcodeproj/project.pbxproj
+git add macos/agentmon/SessionPolicyCache.swift macos/diffsec/agentmon.xcodeproj/project.pbxproj
 git commit -m "feat(darwin/sysext): add SessionPolicyCache with glob matching and Darwin notification listener"
 ```
 
@@ -1120,8 +1120,8 @@ git commit -m "feat(darwin/sysext): add SessionPolicyCache with glob matching an
 Add `fetchPolicySnapshot` method and `sessionID` parameter to `checkNetworkPNACL`.
 
 **Files:**
-- Modify: `macos/agentsh/xpc/xpcProtocol.swift:68-79` (checkNetworkPNACL signature)
-- Modify: `macos/agentsh/xpc/PolicyBridge.swift:167-206` (checkNetworkPNACL impl), `macos/agentsh/xpc/PolicyBridge.swift:155-163` (emitEvent)
+- Modify: `macos/agentmon/xpc/xpcProtocol.swift:68-79` (checkNetworkPNACL signature)
+- Modify: `macos/agentmon/xpc/PolicyBridge.swift:167-206` (checkNetworkPNACL impl), `macos/agentmon/xpc/PolicyBridge.swift:155-163` (emitEvent)
 
 - [ ] **Step 1: Add fetchPolicySnapshot to protocol**
 
@@ -1212,13 +1212,13 @@ In `FilterDataProvider.swift`, add `sessionID: nil` (for now) to all existing `c
 
 - [ ] **Step 4: Build to verify compilation**
 
-Run: `xcodebuild -project macos/agentsh/agentsh.xcodeproj -scheme agentsh -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E 'error:|warning:.*\.swift|BUILD'`
+Run: `xcodebuild -project macos/diffsec/agentmon.xcodeproj -scheme agentmon -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E 'error:|warning:.*\.swift|BUILD'`
 Expected: BUILD SUCCEEDED
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add macos/agentsh/xpc/xpcProtocol.swift macos/agentsh/xpc/PolicyBridge.swift macos/agentsh/FilterDataProvider.swift
+git add macos/agentmon/xpc/xpcProtocol.swift macos/agentmon/xpc/PolicyBridge.swift macos/agentmon/FilterDataProvider.swift
 git commit -m "feat(darwin/xpc): add fetchPolicySnapshot, add sessionID to checkNetworkPNACL"
 ```
 
@@ -1229,7 +1229,7 @@ git commit -m "feat(darwin/xpc): add fetchPolicySnapshot, add sessionID to check
 Wire AUTH_CREATE, AUTH_UNLINK, AUTH_RENAME to policy checks. Retrofit AUTH_OPEN with session scoping and cache fast-path. Update subscription arrays.
 
 **Files:**
-- Modify: `macos/agentsh/ESFClient.swift:54-68` (subscriptions), `macos/agentsh/ESFClient.swift:227-256` (AUTH handlers), `macos/agentsh/ESFClient.swift:198-222` (switch), `macos/agentsh/ESFClient.swift:15-20` (state)
+- Modify: `macos/agentmon/ESFClient.swift:54-68` (subscriptions), `macos/agentmon/ESFClient.swift:227-256` (AUTH handlers), `macos/agentmon/ESFClient.swift:198-222` (switch), `macos/agentmon/ESFClient.swift:15-20` (state)
 
 - [ ] **Step 1: Remove activeSessions and sessionQueue, use SessionPolicyCache**
 
@@ -1433,13 +1433,13 @@ Pass `depth` through `checkExecPipeline` — the existing `checkExecPipeline` XP
 
 - [ ] **Step 8: Build to verify compilation**
 
-Run: `xcodebuild -project macos/agentsh/agentsh.xcodeproj -target SysExt -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E 'error:|BUILD'`
+Run: `xcodebuild -project macos/diffsec/agentmon.xcodeproj -target SysExt -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E 'error:|BUILD'`
 Expected: BUILD SUCCEEDED
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add macos/agentsh/ESFClient.swift
+git add macos/agentmon/ESFClient.swift
 git commit -m "feat(darwin/esf): wire AUTH_CREATE/UNLINK/RENAME, retrofit AUTH_OPEN with session scoping and cache"
 ```
 
@@ -1450,7 +1450,7 @@ git commit -m "feat(darwin/esf): wire AUTH_CREATE/UNLINK/RENAME, retrofit AUTH_O
 Wire NOTIFY_CLOSE and NOTIFY_SETATTR to emit events via XPC. Add NOTIFY_SETATTR subscription.
 
 **Files:**
-- Modify: `macos/agentsh/ESFClient.swift:54-68` (notifyEvents subscription), `macos/agentsh/ESFClient.swift:400-403` (handleNotifyClose), add handleNotifySetattr
+- Modify: `macos/agentmon/ESFClient.swift:54-68` (notifyEvents subscription), `macos/agentmon/ESFClient.swift:400-403` (handleNotifyClose), add handleNotifySetattr
 
 - [ ] **Step 0: Add NOTIFY_SETATTR to subscription and switch**
 
@@ -1531,13 +1531,13 @@ private func handleNotifySetattr(_ message: es_message_t, pid: pid_t) {
 
 - [ ] **Step 3: Build to verify**
 
-Run: `xcodebuild -project macos/agentsh/agentsh.xcodeproj -target SysExt -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E 'error:|BUILD'`
+Run: `xcodebuild -project macos/diffsec/agentmon.xcodeproj -target SysExt -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E 'error:|BUILD'`
 Expected: BUILD SUCCEEDED
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add macos/agentsh/ESFClient.swift
+git add macos/agentmon/ESFClient.swift
 git commit -m "feat(darwin/esf): wire NOTIFY_CLOSE and NOTIFY_SETATTR event emission"
 ```
 
@@ -1548,7 +1548,7 @@ git commit -m "feat(darwin/esf): wire NOTIFY_CLOSE and NOTIFY_SETATTR event emis
 Add session scoping to the network extension's filter data provider.
 
 **Files:**
-- Modify: `macos/agentsh/FilterDataProvider.swift:64-152` (handleNewFlow), `macos/agentsh/FilterDataProvider.swift:157-204` (audit-only mode), `macos/agentsh/FilterDataProvider.swift:209-346` (blocking mode)
+- Modify: `macos/agentmon/FilterDataProvider.swift:64-152` (handleNewFlow), `macos/agentmon/FilterDataProvider.swift:157-204` (audit-only mode), `macos/agentmon/FilterDataProvider.swift:209-346` (blocking mode)
 
 - [ ] **Step 1: Add session check at the top of flow handling**
 
@@ -1580,13 +1580,13 @@ Update all `checkNetworkPNACL` calls to pass `sessionID: sessionID` instead of `
 
 - [ ] **Step 3: Build to verify**
 
-Run: `xcodebuild -project macos/agentsh/agentsh.xcodeproj -scheme agentsh -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E 'error:|BUILD'`
+Run: `xcodebuild -project macos/diffsec/agentmon.xcodeproj -scheme agentmon -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E 'error:|BUILD'`
 Expected: BUILD SUCCEEDED
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add macos/agentsh/FilterDataProvider.swift
+git add macos/agentmon/FilterDataProvider.swift
 git commit -m "feat(darwin/ne): add session scoping and cache fast-path to FilterDataProvider"
 ```
 
@@ -1597,7 +1597,7 @@ git commit -m "feat(darwin/ne): add session scoping and cache fast-path to Filte
 Add DNS query parsing, policy evaluation, and NXDOMAIN synthesis.
 
 **Files:**
-- Modify: `macos/agentsh/DNSProxyProvider.swift:53-80`
+- Modify: `macos/agentmon/DNSProxyProvider.swift:53-80`
 
 - [ ] **Step 1: Add DNS wire format parser**
 
@@ -1694,13 +1694,13 @@ private func readAndProcessDNS(_ flow: NEAppProxyUDPFlow) {
 
 - [ ] **Step 3: Build to verify**
 
-Run: `xcodebuild -project macos/agentsh/agentsh.xcodeproj -target SysExt -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E 'error:|BUILD'`
+Run: `xcodebuild -project macos/diffsec/agentmon.xcodeproj -target SysExt -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E 'error:|BUILD'`
 Expected: BUILD SUCCEEDED
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add macos/agentsh/DNSProxyProvider.swift
+git add macos/agentmon/DNSProxyProvider.swift
 git commit -m "feat(darwin/dns): add DNS query parsing, policy evaluation, and NXDOMAIN synthesis"
 ```
 
@@ -1711,7 +1711,7 @@ git commit -m "feat(darwin/dns): add DNS query parsing, policy evaluation, and N
 Connect ESFClient to the Darwin notification-triggered cache refresh cycle. When `SessionPolicyCache` receives a notification, ESFClient fetches the new snapshot via XPC and updates the cache.
 
 **Files:**
-- Modify: `macos/agentsh/ESFClient.swift` (init, registerSession, add observer)
+- Modify: `macos/agentmon/ESFClient.swift` (init, registerSession, add observer)
 
 - [ ] **Step 1: Add NotificationCenter observer in ESFClient.init**
 
@@ -1784,13 +1784,13 @@ func unregisterSession(rootPID: pid_t) {
 
 - [ ] **Step 5: Build to verify**
 
-Run: `xcodebuild -project macos/agentsh/agentsh.xcodeproj -target SysExt -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E 'error:|BUILD'`
+Run: `xcodebuild -project macos/diffsec/agentmon.xcodeproj -target SysExt -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E 'error:|BUILD'`
 Expected: BUILD SUCCEEDED
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add macos/agentsh/ESFClient.swift
+git add macos/agentmon/ESFClient.swift
 git commit -m "feat(darwin/esf): wire cache refresh from Darwin notifications and initial snapshot fetch"
 ```
 
@@ -1825,7 +1825,7 @@ Expected: Success
 
 - [ ] **Step 5: Full Xcode build**
 
-Run: `xcodebuild -project macos/agentsh/agentsh.xcodeproj -scheme agentsh -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E 'error:|warning:.*\.swift|BUILD'`
+Run: `xcodebuild -project macos/diffsec/agentmon.xcodeproj -scheme agentmon -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build 2>&1 | grep -E 'error:|warning:.*\.swift|BUILD'`
 Expected: BUILD SUCCEEDED, zero Swift warnings
 
 - [ ] **Step 6: Commit and push**

@@ -5,10 +5,10 @@ package postgres
 import (
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/preparedcache"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/preparedcache"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 // Intercept implements the spec §7.4 SQL-level prepared statement plus
@@ -54,7 +54,7 @@ func Intercept(
 		// "PREPARE_<INNER_VERB>". Decisions[0] is the inner-stmt result.
 		if len(decisions) > 0 && decisions[0].Verb == policy.VerbDeny {
 			rule := lookupStatementRuleByName(rs, decisions[0].RuleName)
-			msg := "denied by AgentSH policy: " + decisions[0].RuleName
+			msg := "denied by AgentMon policy: " + decisions[0].RuleName
 			return true, statemachine.DenyRoute(s, rule, msg, "42501")
 		}
 		// Allow path: populate cache with inner classification.
@@ -70,7 +70,7 @@ func Intercept(
 			return true, []statemachine.Action{
 				&statemachine.ActionSynthError{
 					SQLState: "26000",
-					Message:  "SQL_PREPARED_CACHE_MISS: prepared statement \"" + first.PreparedName + "\" does not exist in AgentSH proxy cache",
+					Message:  "SQL_PREPARED_CACHE_MISS: prepared statement \"" + first.PreparedName + "\" does not exist in AgentMon proxy cache",
 				},
 				&statemachine.ActionSynthReadyForQuery{Status: 'I'},
 			}

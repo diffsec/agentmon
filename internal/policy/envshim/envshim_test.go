@@ -34,7 +34,7 @@ func buildShim(t *testing.T) string {
 	return out
 }
 
-// Test that when AGENTSH_ENV_BLOCK_ITERATION=1, iterating env (via /usr/bin/env)
+// Test that when AGENTMON_ENV_BLOCK_ITERATION=1, iterating env (via /usr/bin/env)
 // yields an empty environment.
 func TestEnvShimBlocksIteration(t *testing.T) {
 	if runtime.GOOS != "linux" {
@@ -45,7 +45,7 @@ func TestEnvShimBlocksIteration(t *testing.T) {
 	cmd := exec.Command("/usr/bin/env")
 	cmd.Env = []string{
 		"LD_PRELOAD=" + shim,
-		"AGENTSH_ENV_BLOCK_ITERATION=1",
+		"AGENTMON_ENV_BLOCK_ITERATION=1",
 		"FOO=bar",
 		"PATH=" + os.Getenv("PATH"),
 	}

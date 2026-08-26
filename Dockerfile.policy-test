@@ -1,11 +1,11 @@
-# Automated policy test + interactive shell for agentsh agent-default policy.
-# Runs claude -p prompts through agentsh wrap to validate policy enforcement.
+# Automated policy test + interactive shell for agentmon agent-default policy.
+# Runs claude -p prompts through agentmon wrap to validate policy enforcement.
 #
 # Build:
-#   go build -o agentsh ./cmd/agentsh
-#   go build -o agentsh-unixwrap ./cmd/agentsh-unixwrap
-#   go build -o agentsh-stub ./cmd/agentsh-stub
-#   docker build -f Dockerfile.policy-test -t agentsh-policy-test .
+#   go build -o agentmon ./cmd/agentmon
+#   go build -o agentmon-unixwrap ./cmd/agentmon-unixwrap
+#   go build -o agentmon-stub ./cmd/agentmon-stub
+#   docker build -f Dockerfile.policy-test -t agentmon-policy-test .
 #
 # Run automated tests (default — requires claude binary + API key):
 #   docker run --rm \
@@ -14,7 +14,7 @@
 #     --device /dev/fuse \
 #     --env-file .env \
 #     -v "$(which claude):/usr/local/bin/claude:ro" \
-#     agentsh-policy-test
+#     agentmon-policy-test
 #
 # Run automated tests with verbose output (show Claude responses):
 #   docker run --rm \
@@ -23,7 +23,7 @@
 #     --device /dev/fuse \
 #     --env-file .env \
 #     -v "$(which claude):/usr/local/bin/claude:ro" \
-#     agentsh-policy-test -v
+#     agentmon-policy-test -v
 #
 # Run interactive mode:
 #   docker run -it --rm \
@@ -32,7 +32,7 @@
 #     --device /dev/fuse \
 #     --env-file .env \
 #     -v "$(which claude):/usr/local/bin/claude:ro" \
-#     agentsh-policy-test interactive
+#     agentmon-policy-test interactive
 
 FROM debian:bookworm-slim
 
@@ -44,13 +44,13 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy locally-built binaries
-COPY agentsh /usr/bin/agentsh
-COPY agentsh-unixwrap /usr/bin/agentsh-unixwrap
-COPY agentsh-stub /usr/bin/agentsh-stub
-RUN chmod +x /usr/bin/agentsh /usr/bin/agentsh-unixwrap /usr/bin/agentsh-stub
+COPY agentmon /usr/bin/agentmon
+COPY agentmon-unixwrap /usr/bin/agentmon-unixwrap
+COPY agentmon-stub /usr/bin/agentmon-stub
+RUN chmod +x /usr/bin/agentmon /usr/bin/agentmon-unixwrap /usr/bin/agentmon-stub
 
 # Copy policies
-COPY configs/policies/ /etc/agentsh/policies/
+COPY configs/policies/ /etc/agentmon/policies/
 
 # Create workspace and Claude config dir
 RUN mkdir -p /work/app /root/.claude && \
@@ -62,7 +62,7 @@ COPY test_policy.py /work/app/test_policy.py
 RUN chmod +x /work/app/test_policy.py
 
 # ---------------------------------------------------------------------------
-# Embedded test script — runs claude -p through agentsh wrap
+# Embedded test script — runs claude -p through agentmon wrap
 # ---------------------------------------------------------------------------
 COPY <<'TEST_SCRIPT' /test.sh
 #!/bin/bash
@@ -89,7 +89,7 @@ fail() {
 }
 
 # -------------------------------------------------------------------
-# Helper: run claude -p through agentsh wrap
+# Helper: run claude -p through agentmon wrap
 # Usage: claude_wrap "prompt" [timeout_secs]
 # Sets: _cw_output (stdout+stderr), _cw_rc (exit code)
 # -------------------------------------------------------------------
@@ -101,7 +101,7 @@ claude_wrap() {
   echo "    > claude -p \"${prompt:0:80}...\""
   set +e
   _cw_output="$(timeout "$max_secs" \
-    agentsh wrap --policy agent-default --root /work/app -- \
+    agentmon wrap --policy agent-default --root /work/app -- \
     claude -p "$prompt" --output-format text 2>/dev/null)"
   _cw_rc=$?
   set -e
@@ -121,12 +121,12 @@ audit_count() {
   echo "${c:-0}"
 }
 
-# Helper: run command via agentsh exec --output json (fast pre-flight)
+# Helper: run command via agentmon exec --output json (fast pre-flight)
 # -------------------------------------------------------------------
 exec_json() {
   local session="$1"; shift
   set +e
-  _ej_json="$(agentsh exec --output json --events all "$session" -- "$@" 2>&1)"
+  _ej_json="$(agentmon exec --output json --events all "$session" -- "$@" 2>&1)"
   _ej_rc=$?
   set -e
 }
@@ -137,7 +137,7 @@ exec_json() {
 echo ""
 echo "=== 1. Pre-flight: policy rule validation ==="
 
-sid_json="$(agentsh session create --workspace /work/app --policy agent-default --json)"
+sid_json="$(agentmon session create --workspace /work/app --policy agent-default --json)"
 sid="$(echo "$sid_json" | jq -r '.id')"
 if [ -z "$sid" ] || [ "$sid" = "null" ]; then
   echo "ERROR: Failed to create session: $sid_json" >&2
@@ -218,7 +218,7 @@ fi
 sleep 0.5
 
 # -------------------------------------------------------------------
-# Audit log verification — proof that agentsh blocked each operation
+# Audit log verification — proof that agentmon blocked each operation
 # -------------------------------------------------------------------
 audit_check() {
   local rule="$1"
@@ -311,7 +311,7 @@ trap cleanup EXIT
 
 port=18923
 base_url="http://127.0.0.1:${port}"
-export AGENTSH_SERVER="$base_url"
+export AGENTMON_SERVER="$base_url"
 
 cat >"$tmp/config.yml" <<YAML
 server:
@@ -332,7 +332,7 @@ health:
   path: "/health"
   readiness_path: "/ready"
 policies:
-  dir: "/etc/agentsh/policies"
+  dir: "/etc/agentmon/policies"
   default: "agent-default"
 sessions:
   base_dir: "${tmp}/sessions"
@@ -382,8 +382,8 @@ llm_storage:
     max_size_mb: 100
 YAML
 
-echo "Starting agentsh server..."
-agentsh server --config "$tmp/config.yml" >"$tmp/server.log" 2>&1 &
+echo "Starting agentmon server..."
+agentmon server --config "$tmp/config.yml" >"$tmp/server.log" 2>&1 &
 SERVER_PID="$!"
 
 server_ready=0
@@ -440,27 +440,27 @@ if [ "$mode" = "interactive" ]; then
   echo ""
 
   echo "================================================================"
-  echo "  agentsh wrap — agent-default policy (seccomp + FUSE)"
+  echo "  agentmon wrap — agent-default policy (seccomp + FUSE)"
   echo "  Workspace: /work/app"
   echo ""
   echo "  Run Claude Code:  claude -p 'your prompt'"
   echo "  Interactive:       claude"
-  echo "  View LLM logs:    agentsh llm-logs \$AGENTSH_SESSION_ID"
+  echo "  View LLM logs:    agentmon llm-logs \$AGENTMON_SESSION_ID"
   echo "  View audit log:   cat ${tmp}/audit.jsonl | jq ."
   echo "================================================================"
   echo ""
 
-  exec agentsh wrap --policy agent-default --root /work/app -- /bin/bash -c '
-    if [ -n "$AGENTSH_WORKSPACE_MOUNT" ] && cd "$AGENTSH_WORKSPACE_MOUNT" 2>/dev/null; then
-      echo "agentsh: FUSE active — working directory: $(pwd)" >&2
+  exec agentmon wrap --policy agent-default --root /work/app -- /bin/bash -c '
+    if [ -n "$AGENTMON_WORKSPACE_MOUNT" ] && cd "$AGENTMON_WORKSPACE_MOUNT" 2>/dev/null; then
+      echo "agentmon: FUSE active — working directory: $(pwd)" >&2
     fi
-    export PS1="agentsh:/work/app\$ "
+    export PS1="agentmon:/work/app\$ "
     exec /bin/bash --norc -i
   '
 else
   # Automated test mode — requires claude binary + API key
   echo ""
-  echo "=== agentsh policy-test: agent-default automated validation ==="
+  echo "=== agentmon policy-test: agent-default automated validation ==="
   echo ""
 
   # Check prerequisites
@@ -491,7 +491,7 @@ else
     echo "    --device /dev/fuse \\" >&2
     echo "    --env-file .env \\" >&2
     echo "    -v \"\$(which claude):/usr/local/bin/claude:ro\" \\" >&2
-    echo "    agentsh-policy-test" >&2
+    echo "    agentmon-policy-test" >&2
     exit 1
   fi
 

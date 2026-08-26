@@ -4,14 +4,14 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/agentsh/agentsh/internal/capabilities"
-	"github.com/agentsh/agentsh/internal/config"
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
-	"github.com/agentsh/agentsh/internal/session"
+	"github.com/diffsec/agentmon/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/config"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/session"
 )
 
-// seccompWrapperConfig is passed to the agentsh-unixwrap wrapper via
-// AGENTSH_SECCOMP_CONFIG environment variable to configure seccomp-bpf filtering.
+// seccompWrapperConfig is passed to the agentmon-unixwrap wrapper via
+// AGENTMON_SECCOMP_CONFIG environment variable to configure seccomp-bpf filtering.
 type seccompWrapperConfig struct {
 	UnixSocketEnabled   bool                      `json:"unix_socket_enabled"`
 	SignalFilterEnabled bool                      `json:"signal_filter_enabled"`

@@ -62,7 +62,7 @@ Replace the entire `sign-macos` job (lines 146-228) with the new `build-macos-ap
           VERSION: ${{ github.ref_name }}
         run: |
           for arch in amd64 arm64; do
-            ARCHIVE="agentsh_${VERSION#v}_darwin_${arch}.tar.gz"
+            ARCHIVE="agentmon_${VERSION#v}_darwin_${arch}.tar.gz"
             gh release download "$VERSION" \
               --pattern "$ARCHIVE" \
               --repo "${{ github.repository }}" \
@@ -73,24 +73,24 @@ Replace the entire `sign-macos` job (lines 146-228) with the new `build-macos-ap
 
       - name: Create universal Go binaries
         run: |
-          mkdir -p build/AgentSH.app/Contents/MacOS
+          mkdir -p build/AgentMon.app/Contents/MacOS
           # Lipo each Mach-O binary into a universal
-          for bin in unsigned-arm64/agentsh*; do
+          for bin in unsigned-arm64/agentmon*; do
             name=$(basename "$bin")
             [ -f "$bin" ] || continue
             file "$bin" | grep -q "Mach-O" || continue
             amd64_bin="unsigned-amd64/${name}"
             if [ -f "$amd64_bin" ]; then
-              lipo -create -output "build/AgentSH.app/Contents/MacOS/${name}" \
+              lipo -create -output "build/AgentMon.app/Contents/MacOS/${name}" \
                 "$bin" "$amd64_bin"
               echo "Created universal binary: ${name}"
             else
-              cp "$bin" "build/AgentSH.app/Contents/MacOS/${name}"
+              cp "$bin" "build/AgentMon.app/Contents/MacOS/${name}"
               echo "Copied arm64-only binary: ${name}"
             fi
           done
           # Verify universals
-          for bin in build/AgentSH.app/Contents/MacOS/*; do
+          for bin in build/AgentMon.app/Contents/MacOS/*; do
             echo "--- $(basename "$bin") ---"
             lipo -info "$bin"
           done
@@ -98,8 +98,8 @@ Replace the entire `sign-macos` job (lines 146-228) with the new `build-macos-ap
       - name: Build Swift targets (universal)
         run: |
           xcodebuild \
-            -project macos/agentsh/agentsh.xcodeproj \
-            -scheme agentsh \
+            -project macos/diffsec/agentmon.xcodeproj \
+            -scheme agentmon \
             -configuration Release \
             -derivedDataPath build/DerivedData \
             ARCHS="arm64 x86_64" \
@@ -111,28 +111,28 @@ Replace the entire `sign-macos` job (lines 146-228) with the new `build-macos-ap
       - name: Assemble app bundle
         run: |
           # Copy Info.plist for host app
-          cp macos/AgentSH-files/Info.plist build/AgentSH.app/Contents/
+          cp macos/AgentMon-files/Info.plist build/AgentMon.app/Contents/
 
           # Copy Swift build products from DerivedData
           PRODUCTS="build/DerivedData/Build/Products/Release"
 
           # System Extension
-          mkdir -p "build/AgentSH.app/Contents/Library/SystemExtensions"
+          mkdir -p "build/AgentMon.app/Contents/Library/SystemExtensions"
           cp -R "${PRODUCTS}/SysExt.systemextension" \
-            "build/AgentSH.app/Contents/Library/SystemExtensions/"
+            "build/AgentMon.app/Contents/Library/SystemExtensions/"
 
           # XPC Service
-          mkdir -p "build/AgentSH.app/Contents/XPCServices"
+          mkdir -p "build/AgentMon.app/Contents/XPCServices"
           cp -R "${PRODUCTS}/xpc.xpc" \
-            "build/AgentSH.app/Contents/XPCServices/"
+            "build/AgentMon.app/Contents/XPCServices/"
 
           # Approval Dialog
-          mkdir -p "build/AgentSH.app/Contents/Resources"
+          mkdir -p "build/AgentMon.app/Contents/Resources"
           cp -R "${PRODUCTS}/approval-dialog.app" \
-            "build/AgentSH.app/Contents/Resources/"
+            "build/AgentMon.app/Contents/Resources/"
 
           echo "=== App bundle structure ==="
-          find build/AgentSH.app -type f | sort
+          find build/AgentMon.app -type f | sort
 
       - name: Sign app bundle (inside-out)
         env:
@@ -140,29 +140,29 @@ Replace the entire `sign-macos` job (lines 146-228) with the new `build-macos-ap
         run: |
           # 1. System Extension
           codesign --force --sign "$SIGNING_IDENTITY" \
-            --entitlements macos/agentsh/SysExt.entitlements \
+            --entitlements macos/agentmon/SysExt.entitlements \
             --options runtime --timestamp \
-            "build/AgentSH.app/Contents/Library/SystemExtensions/SysExt.systemextension"
+            "build/AgentMon.app/Contents/Library/SystemExtensions/SysExt.systemextension"
 
           # 2. XPC Service
           codesign --force --sign "$SIGNING_IDENTITY" \
             --options runtime --timestamp \
-            "build/AgentSH.app/Contents/XPCServices/xpc.xpc"
+            "build/AgentMon.app/Contents/XPCServices/xpc.xpc"
 
           # 3. Approval Dialog
           codesign --force --sign "$SIGNING_IDENTITY" \
-            --entitlements macos/agentsh/approval-dialog/approval-dialog.entitlements \
+            --entitlements macos/agentmon/approval-dialog/approval-dialog.entitlements \
             --options runtime --timestamp \
-            "build/AgentSH.app/Contents/Resources/approval-dialog.app"
+            "build/AgentMon.app/Contents/Resources/approval-dialog.app"
 
           # 4. Main app bundle
           codesign --force --sign "$SIGNING_IDENTITY" \
-            --entitlements macos/agentsh/agentsh/agentsh.entitlements \
+            --entitlements macos/diffsec/agentmon/agentmon.entitlements \
             --options runtime --timestamp \
-            "build/AgentSH.app"
+            "build/AgentMon.app"
 
           # 5. Verify
-          codesign --verify --deep --strict --verbose=2 "build/AgentSH.app"
+          codesign --verify --deep --strict --verbose=2 "build/AgentMon.app"
 
       - name: Notarize app bundle
         env:
@@ -170,13 +170,13 @@ Replace the entire `sign-macos` job (lines 146-228) with the new `build-macos-ap
           APPLE_PASSWORD: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
           TEAM_ID: ${{ secrets.MACOS_NOTARIZATION_TEAM_ID }}
         run: |
-          ditto -c -k --keepParent build/AgentSH.app build/AgentSH.zip
-          xcrun notarytool submit build/AgentSH.zip \
+          ditto -c -k --keepParent build/AgentMon.app build/AgentMon.zip
+          xcrun notarytool submit build/AgentMon.zip \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_PASSWORD" \
             --team-id "$TEAM_ID" \
             --wait --timeout 20m
-          xcrun stapler staple build/AgentSH.app
+          xcrun stapler staple build/AgentMon.app
 
       - name: Create DMG and upload to release
         env:
@@ -184,21 +184,21 @@ Replace the entire `sign-macos` job (lines 146-228) with the new `build-macos-ap
           VERSION: ${{ github.ref_name }}
         run: |
           # Create DMG
-          hdiutil create -volname "AgentSH" \
-            -srcfolder build/AgentSH.app \
+          hdiutil create -volname "AgentMon" \
+            -srcfolder build/AgentMon.app \
             -ov -format UDZO \
-            "build/AgentSH-${VERSION}.dmg"
+            "build/AgentMon-${VERSION}.dmg"
 
           # Delete old darwin tarballs from release
           for arch in amd64 arm64; do
-            ARCHIVE="agentsh_${VERSION#v}_darwin_${arch}.tar.gz"
+            ARCHIVE="agentmon_${VERSION#v}_darwin_${arch}.tar.gz"
             gh release delete-asset "$VERSION" "$ARCHIVE" \
               --repo "${{ github.repository }}" \
               --yes || true
           done
 
           # Upload DMG
-          gh release upload "$VERSION" "build/AgentSH-${VERSION}.dmg" \
+          gh release upload "$VERSION" "build/AgentMon-${VERSION}.dmg" \
             --repo "${{ github.repository }}" \
             --clobber
 ```
@@ -232,19 +232,19 @@ git commit -m "ci: replace macOS CLI signing with app bundle build in release wo
 
 **Files:**
 - Delete: `.github/workflows/macos-enterprise.yml`
-- Delete: `macos/AgentSH-files/AgentSH.entitlements`
+- Delete: `macos/AgentMon-files/AgentMon.entitlements`
 
 **Step 1: Delete stale files**
 
 ```bash
 rm .github/workflows/macos-enterprise.yml
-rm macos/AgentSH-files/AgentSH.entitlements
+rm macos/AgentMon-files/AgentMon.entitlements
 ```
 
 **Step 2: Commit**
 
 ```bash
-git add -A .github/workflows/macos-enterprise.yml macos/AgentSH-files/AgentSH.entitlements
+git add -A .github/workflows/macos-enterprise.yml macos/AgentMon-files/AgentMon.entitlements
 git commit -m "ci: remove disabled macOS enterprise workflow (merged into release.yml)"
 ```
 
@@ -258,8 +258,8 @@ git commit -m "ci: remove disabled macOS enterprise workflow (merged into releas
 **Step 1: Update the macOS build targets**
 
 Replace the macOS enterprise section (lines 108-160) with updated paths. Key changes:
-- `macos/AgentSH.xcodeproj` → `macos/agentsh/agentsh.xcodeproj`
-- Build all Swift targets via the `agentsh` scheme (builds SysExt, xpc, approval-dialog as deps)
+- `macos/AgentMon.xcodeproj` → `macos/diffsec/agentmon.xcodeproj`
+- Build all Swift targets via the `agentmon` scheme (builds SysExt, xpc, approval-dialog as deps)
 - Remove separate `build-approval-dialog` swiftc target (now built by xcodebuild)
 - Update entitlements paths in `sign-bundle`
 - Product names: `SysExt.systemextension`, `xpc.xpc`, `approval-dialog.app`
@@ -272,14 +272,14 @@ Replace the macOS enterprise section (lines 108-160) with updated paths. Key cha
 
 # Build Go binary for macOS (CGO disabled for cross-compilation)
 build-macos-go:
-	mkdir -p build/AgentSH.app/Contents/MacOS
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o build/AgentSH.app/Contents/MacOS/agentsh ./cmd/agentsh
+	mkdir -p build/AgentMon.app/Contents/MacOS
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o build/AgentMon.app/Contents/MacOS/agentmon ./cmd/agentmon
 
 # Build Swift components via Xcode (requires macOS with Xcode)
 build-swift:
 	xcodebuild \
-		-project macos/agentsh/agentsh.xcodeproj \
-		-scheme agentsh \
+		-project macos/diffsec/agentmon.xcodeproj \
+		-scheme agentmon \
 		-configuration Release \
 		-derivedDataPath build/DerivedData \
 		CODE_SIGN_IDENTITY="" \
@@ -288,37 +288,37 @@ build-swift:
 
 # Assemble app bundle
 assemble-bundle: build-macos-go build-swift
-	mkdir -p build/AgentSH.app/Contents/{Library/SystemExtensions,XPCServices,Resources}
-	cp macos/AgentSH-files/Info.plist build/AgentSH.app/Contents/
+	mkdir -p build/AgentMon.app/Contents/{Library/SystemExtensions,XPCServices,Resources}
+	cp macos/AgentMon-files/Info.plist build/AgentMon.app/Contents/
 	cp -R build/DerivedData/Build/Products/Release/SysExt.systemextension \
-		build/AgentSH.app/Contents/Library/SystemExtensions/
+		build/AgentMon.app/Contents/Library/SystemExtensions/
 	cp -R build/DerivedData/Build/Products/Release/xpc.xpc \
-		build/AgentSH.app/Contents/XPCServices/
+		build/AgentMon.app/Contents/XPCServices/
 	cp -R build/DerivedData/Build/Products/Release/approval-dialog.app \
-		build/AgentSH.app/Contents/Resources/
+		build/AgentMon.app/Contents/Resources/
 
 # Sign bundle (requires SIGNING_IDENTITY env var)
 sign-bundle:
 	codesign --force --sign "$(SIGNING_IDENTITY)" \
-		--entitlements macos/agentsh/SysExt.entitlements \
+		--entitlements macos/agentmon/SysExt.entitlements \
 		--options runtime --timestamp \
-		build/AgentSH.app/Contents/Library/SystemExtensions/SysExt.systemextension
+		build/AgentMon.app/Contents/Library/SystemExtensions/SysExt.systemextension
 	codesign --force --sign "$(SIGNING_IDENTITY)" \
 		--options runtime --timestamp \
-		build/AgentSH.app/Contents/XPCServices/xpc.xpc
+		build/AgentMon.app/Contents/XPCServices/xpc.xpc
 	codesign --force --sign "$(SIGNING_IDENTITY)" \
-		--entitlements macos/agentsh/approval-dialog/approval-dialog.entitlements \
+		--entitlements macos/agentmon/approval-dialog/approval-dialog.entitlements \
 		--options runtime --timestamp \
-		build/AgentSH.app/Contents/Resources/approval-dialog.app
+		build/AgentMon.app/Contents/Resources/approval-dialog.app
 	codesign --force --sign "$(SIGNING_IDENTITY)" \
-		--entitlements macos/agentsh/agentsh/agentsh.entitlements \
+		--entitlements macos/diffsec/agentmon/agentmon.entitlements \
 		--options runtime --timestamp \
-		build/AgentSH.app
-	codesign --verify --deep --strict --verbose=2 build/AgentSH.app
+		build/AgentMon.app
+	codesign --verify --deep --strict --verbose=2 build/AgentMon.app
 
 # Full enterprise build
 build-macos-enterprise: assemble-bundle sign-bundle
-	@echo "Enterprise build complete: build/AgentSH.app"
+	@echo "Enterprise build complete: build/AgentMon.app"
 ```
 
 **Step 2: Remove the old `build-approval-dialog` target**
@@ -342,7 +342,7 @@ git commit -m "build: update Makefile macOS targets for new Xcode project struct
 
 Run:
 ```bash
-cd /Users/eran/work/canyonroad/agentsh
+cd /Users/eran/work/diffsec/agentmon
 make clean
 make build-swift
 ```
@@ -363,7 +363,7 @@ Expected: All three products exist
 Run:
 ```bash
 make assemble-bundle
-find build/AgentSH.app -type f | sort
+find build/AgentMon.app -type f | sort
 ```
 Expected: App bundle assembled with Go binary, system extension, XPC service, approval dialog, and Info.plist
 
@@ -385,7 +385,7 @@ Expected: No errors
 
 Run:
 ```bash
-grep -rn "macos/AgentSH.xcodeproj\|macos/SysExt/\|AgentSH/AgentSH.entitlements\|sign-macos" .github/workflows/ Makefile
+grep -rn "macos/AgentMon.xcodeproj\|macos/SysExt/\|AgentMon/AgentMon.entitlements\|sign-macos" .github/workflows/ Makefile
 ```
 Expected: No output (no stale references)
 

@@ -15,7 +15,7 @@ import (
 // Construct one at server startup via NewCgroupManager; all per-exec calls go through Apply.
 //
 // The manager captures an immutable probe result at construction time. If the
-// environment changes mid-run, restart agentsh.
+// environment changes mid-run, restart agentmon.
 type CgroupManager struct {
 	fs    cgroupFS
 	probe *CgroupProbeResult

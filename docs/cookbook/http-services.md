@@ -1,6 +1,6 @@
 # HTTP Services Cookbook
 
-This page is a practical, recipe-first guide to agentsh's **http_services** policy block:
+This page is a practical, recipe-first guide to agentmon's **http_services** policy block:
 how to route an agent's outbound HTTP API calls through the proxy gateway, restrict
 which methods and paths are allowed, gate writes behind an approval prompt, and audit
 sensitive operations without blocking them.
@@ -28,10 +28,10 @@ match wins. If no rule matches, the service's `default` applies (`deny` when not
 
 ## How credential substitution works
 
-When an `http_services` entry includes a `secret:` block, agentsh performs credential
+When an `http_services` entry includes a `secret:` block, agentmon performs credential
 substitution so the agent never sees the real credential:
 
-1. **At session start**, agentsh fetches the real secret from the provider declared
+1. **At session start**, agentmon fetches the real secret from the provider declared
    in `providers:` (Vault, keyring, AWS SM, etc.).
 2. **A length-matched fake credential** is generated using `secret.format` for internal
    substitution and leak-guard use.
@@ -84,7 +84,7 @@ hits `default: deny` and gets a 403.
 **How to verify:** Run the agent and tail the session log:
 
 ```bash
-agentsh session logs <session-id> --type=llm
+agentmon session logs <session-id> --type=llm
 ```
 
 Entries with `"service_kind": "http_service"` and `"service": "github"` appear for each
@@ -211,7 +211,7 @@ providers:
     address: https://vault.corp.internal
     auth:
       method: token
-      token_ref: keyring://agentsh/vault_token
+      token_ref: keyring://agentmon/vault_token
   keyring:
     type: keyring
 
@@ -256,7 +256,7 @@ http_services:
   - name: anthropic
     upstream: https://api.anthropic.com
     secret:
-      ref: keyring://agentsh/anthropic_key
+      ref: keyring://agentmon/anthropic_key
       format: "sk-ant-{rand:93}"
     inject:
       header:
@@ -332,7 +332,7 @@ host or its aliases is blocked at the network layer. Set `allow_direct: true` on
 escape hatch when a third-party SDK cannot be pointed at a custom base URL.
 
 **Env var names collide with the LLM proxy.**
-The names `ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, and `AGENTSH_SESSION_ID` are reserved.
+The names `ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, and `AGENTMON_SESSION_ID` are reserved.
 Using a service name that would derive one of these names (e.g. `name: openai_base`) will
 fail at policy load. Use `expose_as` to choose a different name if your service name would
 collide, or rename the service.

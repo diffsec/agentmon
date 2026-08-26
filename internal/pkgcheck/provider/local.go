@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 // localProvider checks package metadata locally without any network calls.

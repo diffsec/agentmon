@@ -3,7 +3,7 @@ package postgres
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // findEffect scans cs for the first effect with the given group/subtype.

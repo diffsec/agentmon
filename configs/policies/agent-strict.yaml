@@ -1,4 +1,4 @@
-# Agent Strict Policy for agentsh
+# Agent Strict Policy for agentmon
 # High-security policy with minimal permissions
 
 version: 1

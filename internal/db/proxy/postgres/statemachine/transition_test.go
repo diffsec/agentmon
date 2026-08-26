@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 func dummyRules(t *testing.T) *policy.RuleSet {

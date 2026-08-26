@@ -8,50 +8,50 @@ import (
 	"testing"
 )
 
-// Real output captured 2026-08-05 from a machine where the agentsh sysext is
+// Real output captured 2026-08-05 from a machine where the agentmon sysext is
 // activated but AMFI/launchd keeps it from running (the #441 specimen). Note
 // the co-installed beacon extension: whole-output substring matching would
 // false-positive on it.
 const sysextListBoth = `2 extension(s)
 --- com.apple.system_extension.endpoint_security (Go to 'System Settings > General > Login Items & Extensions > Endpoint Security Extensions' to modify these system extension(s))
 enabled	active	teamID	bundleID (version)	name	[state]
-*	*	WCKWMMKJ35	ai.canyonroad.agentsh.SysExt (1.0/14)	ai.canyonroad.agentsh.SysExt	[activated enabled]
-*	*	WCKWMMKJ35	ai.canyonroad.beacon.sysext (0.1.0/1781653639)	Beacon System Extension	[activated enabled]
+*	*	LWSYS6YTUZ	dev.diffsec.agentmon.SysExt (1.0/14)	dev.diffsec.agentmon.SysExt	[activated enabled]
+*	*	LWSYS6YTUZ	ai.canyonroad.beacon.sysext (0.1.0/1781653639)	Beacon System Extension	[activated enabled]
 `
 
 const sysextListBeaconOnly = `1 extension(s)
 --- com.apple.system_extension.endpoint_security
 enabled	active	teamID	bundleID (version)	name	[state]
-*	*	WCKWMMKJ35	ai.canyonroad.beacon.sysext (0.1.0/1781653639)	Beacon System Extension	[activated enabled]
+*	*	LWSYS6YTUZ	ai.canyonroad.beacon.sysext (0.1.0/1781653639)	Beacon System Extension	[activated enabled]
 `
 
 const sysextListWaiting = `1 extension(s)
 --- com.apple.system_extension.endpoint_security
 enabled	active	teamID	bundleID (version)	name	[state]
-		WCKWMMKJ35	ai.canyonroad.agentsh.SysExt (1.0/14)	ai.canyonroad.agentsh.SysExt	[activated waiting for user]
+		LWSYS6YTUZ	dev.diffsec.agentmon.SysExt (1.0/14)	dev.diffsec.agentmon.SysExt	[activated waiting for user]
 `
 
 // Upgrade transient: old version terminating, new one activated enabled.
 const sysextListUpgrade = `2 extension(s)
 --- com.apple.system_extension.endpoint_security
 enabled	active	teamID	bundleID (version)	name	[state]
-		WCKWMMKJ35	ai.canyonroad.agentsh.SysExt (1.0/13)	ai.canyonroad.agentsh.SysExt	[terminated waiting to uninstall on reboot]
-*	*	WCKWMMKJ35	ai.canyonroad.agentsh.SysExt (1.0/14)	ai.canyonroad.agentsh.SysExt	[activated enabled]
+		LWSYS6YTUZ	dev.diffsec.agentmon.SysExt (1.0/13)	dev.diffsec.agentmon.SysExt	[terminated waiting to uninstall on reboot]
+*	*	LWSYS6YTUZ	dev.diffsec.agentmon.SysExt (1.0/14)	dev.diffsec.agentmon.SysExt	[activated enabled]
 `
 
 // A hypothetical prefix-sibling extension: must NOT match our exact token.
 const sysextListPrefixSibling = `1 extension(s)
 --- com.apple.system_extension.endpoint_security
 enabled	active	teamID	bundleID (version)	name	[state]
-*	*	WCKWMMKJ35	ai.canyonroad.agentsh.SysExtBeta (1.0/2)	ai.canyonroad.agentsh.SysExtBeta	[activated enabled]
+*	*	LWSYS6YTUZ	dev.diffsec.agentmon.SysExtBeta (1.0/2)	dev.diffsec.agentmon.SysExtBeta	[activated enabled]
 `
 
 // Prefix-sibling row ABOVE the real row: real row must still win with its team ID.
 const sysextListSiblingBeforeReal = `2 extension(s)
 --- com.apple.system_extension.endpoint_security
 enabled	active	teamID	bundleID (version)	name	[state]
-*	*	WCKWMMKJ35	ai.canyonroad.agentsh.SysExtBeta (1.0/2)	ai.canyonroad.agentsh.SysExtBeta	[activated enabled]
-*	*	WCKWMMKJ35	ai.canyonroad.agentsh.SysExt (1.0/14)	ai.canyonroad.agentsh.SysExt	[activated enabled]
+*	*	LWSYS6YTUZ	dev.diffsec.agentmon.SysExtBeta (1.0/2)	dev.diffsec.agentmon.SysExtBeta	[activated enabled]
+*	*	LWSYS6YTUZ	dev.diffsec.agentmon.SysExt (1.0/14)	dev.diffsec.agentmon.SysExt	[activated enabled]
 `
 
 // Blank team-ID column (possible under `systemextensionsctl developer on`):
@@ -61,7 +61,7 @@ enabled	active	teamID	bundleID (version)	name	[state]
 const sysextListBlankTeamID = `1 extension(s)
 --- com.apple.system_extension.endpoint_security
 enabled	active	teamID	bundleID (version)	name	[state]
-*	*		ai.canyonroad.agentsh.SysExt (1.0/14)	ai.canyonroad.agentsh.SysExt	[activated enabled]
+*	*		dev.diffsec.agentmon.SysExt (1.0/14)	dev.diffsec.agentmon.SysExt	[activated enabled]
 `
 
 func TestParseSysExtList(t *testing.T) {
@@ -71,14 +71,14 @@ func TestParseSysExtList(t *testing.T) {
 		wantActivated bool
 		wantTeamID    string
 	}{
-		{"activated with neighbor extension", sysextListBoth, true, "WCKWMMKJ35"},
+		{"activated with neighbor extension", sysextListBoth, true, "LWSYS6YTUZ"},
 		{"neighbor only must not match", sysextListBeaconOnly, false, ""},
 		{"waiting for user is not activated", sysextListWaiting, false, ""},
-		{"upgrade transient finds enabled row", sysextListUpgrade, true, "WCKWMMKJ35"},
+		{"upgrade transient finds enabled row", sysextListUpgrade, true, "LWSYS6YTUZ"},
 		{"empty output", "", false, ""},
 		{"garbage output", "no extensions here\njust noise\n", false, ""},
 		{"prefix sibling must not match", sysextListPrefixSibling, false, ""},
-		{"sibling row before real row", sysextListSiblingBeforeReal, true, "WCKWMMKJ35"},
+		{"sibling row before real row", sysextListSiblingBeforeReal, true, "LWSYS6YTUZ"},
 		{"blank team ID column yields empty not asterisk", sysextListBlankTeamID, true, ""},
 	}
 	for _, tt := range tests {
@@ -97,13 +97,13 @@ func TestParseSysExtList(t *testing.T) {
 // Trimmed real output (2026-08-05) from the #441 specimen machine. The
 // nested "state = active" lines below the top-level state are real — the
 // parser must take only the FIRST "state =" line.
-const launchdSpawnScheduled = `system/WCKWMMKJ35.ai.canyonroad.agentsh.SysExt = {
+const launchdSpawnScheduled = `system/LWSYS6YTUZ.dev.diffsec.agentmon.SysExt = {
 	active count = 0
 	path = (submitted by smd[532])
 	type = Submitted
 	state = spawn scheduled
 
-	program = /Library/SystemExtensions/0FED1DDB-30D3-4AAD-A31C-8E7F1229868E/ai.canyonroad.agentsh.SysExt.systemextension/Contents/MacOS/ai.canyonroad.agentsh.SysExt
+	program = /Library/SystemExtensions/0FED1DDB-30D3-4AAD-A31C-8E7F1229868E/dev.diffsec.agentmon.SysExt.systemextension/Contents/MacOS/dev.diffsec.agentmon.SysExt
 	domain = system
 	minimum runtime = 10
 	exit timeout = 5
@@ -111,23 +111,23 @@ const launchdSpawnScheduled = `system/WCKWMMKJ35.ai.canyonroad.agentsh.SysExt = 
 	last exit code = 1
 
 	event triggers = {
-		ai.canyonroad.agentsh.SysExt => {
+		dev.diffsec.agentmon.SysExt => {
 			state = active
 		}
-		ai.canyonroad.agentsh.SysExt.esf => {
+		dev.diffsec.agentmon.SysExt.esf => {
 			state = active
 		}
 	}
 }
 `
 
-const launchdRunning = `system/WCKWMMKJ35.ai.canyonroad.agentsh.SysExt = {
+const launchdRunning = `system/LWSYS6YTUZ.dev.diffsec.agentmon.SysExt = {
 	active count = 1
 	path = (submitted by smd[532])
 	type = Submitted
 	state = running
 
-	program = /Library/SystemExtensions/0FED1DDB-30D3-4AAD-A31C-8E7F1229868E/ai.canyonroad.agentsh.SysExt.systemextension/Contents/MacOS/ai.canyonroad.agentsh.SysExt
+	program = /Library/SystemExtensions/0FED1DDB-30D3-4AAD-A31C-8E7F1229868E/dev.diffsec.agentmon.SysExt.systemextension/Contents/MacOS/dev.diffsec.agentmon.SysExt
 	pid = 4242
 	domain = system
 	runs = 1
@@ -136,7 +136,7 @@ const launchdRunning = `system/WCKWMMKJ35.ai.canyonroad.agentsh.SysExt = {
 `
 
 // Synthesized from the #436 report (AMFI rejects the binary at exec).
-const launchdAMFIBlocked = `system/WCKWMMKJ35.ai.canyonroad.agentsh.SysExt = {
+const launchdAMFIBlocked = `system/LWSYS6YTUZ.dev.diffsec.agentmon.SysExt = {
 	active count = 0
 	state = spawn scheduled
 	runs = 324
@@ -324,7 +324,7 @@ func TestCheckSysExtLiveness_DecisionTable(t *testing.T) {
 			}
 			wantCall := ""
 			if tt.wantActivated && !tt.wantLaunchctlSkipped {
-				wantCall = "print system/WCKWMMKJ35." + sysExtBundleID
+				wantCall = "print system/LWSYS6YTUZ." + sysExtBundleID
 			}
 			if launchctlLabel != wantCall {
 				t.Errorf("launchctl invocation = %q, want %q", launchctlLabel, wantCall)

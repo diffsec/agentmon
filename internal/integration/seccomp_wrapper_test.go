@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
 	"github.com/testcontainers/testcontainers-go"
@@ -251,7 +251,7 @@ func TestSeccompWrapperEnabled(t *testing.T) {
 	defer cancel()
 
 	// Build binaries with CGO for seccomp support
-	agentshBin, unixwrapBin := buildSeccompBinaries(t)
+	agentmonBin, unixwrapBin := buildSeccompBinaries(t)
 
 	temp := t.TempDir()
 
@@ -268,7 +268,7 @@ func TestSeccompWrapperEnabled(t *testing.T) {
 	workspace := filepath.Join(temp, "workspace")
 	mustMkdir(t, workspace)
 
-	endpoint, cleanup := startSeccompServerContainer(t, ctx, agentshBin, unixwrapBin, configPath, policiesDir, workspace)
+	endpoint, cleanup := startSeccompServerContainer(t, ctx, agentmonBin, unixwrapBin, configPath, policiesDir, workspace)
 	t.Cleanup(cleanup)
 
 	cli := client.New(endpoint, "test-key")
@@ -316,7 +316,7 @@ func TestSeccompWrapperDisabled(t *testing.T) {
 	defer cancel()
 
 	// Build binaries - CGO not strictly required when disabled, but use same binaries
-	agentshBin, unixwrapBin := buildSeccompBinaries(t)
+	agentmonBin, unixwrapBin := buildSeccompBinaries(t)
 
 	temp := t.TempDir()
 
@@ -333,7 +333,7 @@ func TestSeccompWrapperDisabled(t *testing.T) {
 	workspace := filepath.Join(temp, "workspace")
 	mustMkdir(t, workspace)
 
-	endpoint, cleanup := startSeccompServerContainer(t, ctx, agentshBin, unixwrapBin, configPath, policiesDir, workspace)
+	endpoint, cleanup := startSeccompServerContainer(t, ctx, agentmonBin, unixwrapBin, configPath, policiesDir, workspace)
 	t.Cleanup(cleanup)
 
 	cli := client.New(endpoint, "test-key")
@@ -364,7 +364,7 @@ func TestSeccompWrapperDisabled_WrapInitRefuses(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	agentshBin, unixwrapBin := buildSeccompBinaries(t)
+	agentmonBin, unixwrapBin := buildSeccompBinaries(t)
 
 	temp := t.TempDir()
 
@@ -381,7 +381,7 @@ func TestSeccompWrapperDisabled_WrapInitRefuses(t *testing.T) {
 	workspace := filepath.Join(temp, "workspace")
 	mustMkdir(t, workspace)
 
-	endpoint, cleanup := startSeccompServerContainer(t, ctx, agentshBin, unixwrapBin, configPath, policiesDir, workspace)
+	endpoint, cleanup := startSeccompServerContainer(t, ctx, agentmonBin, unixwrapBin, configPath, policiesDir, workspace)
 	t.Cleanup(cleanup)
 
 	cli := client.New(endpoint, "test-key")
@@ -468,7 +468,7 @@ func TestSeccompWrapperDisabled_WrapInitRefuses_WithPolicyLimits(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	agentshBin, unixwrapBin := buildSeccompBinaries(t)
+	agentmonBin, unixwrapBin := buildSeccompBinaries(t)
 
 	temp := t.TempDir()
 
@@ -485,7 +485,7 @@ func TestSeccompWrapperDisabled_WrapInitRefuses_WithPolicyLimits(t *testing.T) {
 	workspace := filepath.Join(temp, "workspace")
 	mustMkdir(t, workspace)
 
-	endpoint, cleanup := startSeccompServerContainer(t, ctx, agentshBin, unixwrapBin, configPath, policiesDir, workspace)
+	endpoint, cleanup := startSeccompServerContainer(t, ctx, agentmonBin, unixwrapBin, configPath, policiesDir, workspace)
 	t.Cleanup(cleanup)
 
 	cli := client.New(endpoint, "test-key")
@@ -545,12 +545,12 @@ func TestSeccompWrapperDisabled_WrapInitRefuses_WithPolicyLimits(t *testing.T) {
 	}
 }
 
-func buildSeccompBinaries(t *testing.T) (agentsh, unixwrap string) {
+func buildSeccompBinaries(t *testing.T) (agentmon, unixwrap string) {
 	t.Helper()
 
 	tempDir := t.TempDir()
-	agentshOut := filepath.Join(tempDir, "agentsh")
-	unixwrapOut := filepath.Join(tempDir, "agentsh-unixwrap")
+	agentmonOut := filepath.Join(tempDir, "agentmon")
+	unixwrapOut := filepath.Join(tempDir, "agentmon-unixwrap")
 
 	wd, err := os.Getwd()
 	if err != nil {
@@ -569,35 +569,35 @@ func buildSeccompBinaries(t *testing.T) (agentsh, unixwrap string) {
 		repoRoot = next
 	}
 
-	// Build agentsh with CGO enabled for full seccomp support
-	cmd := exec.Command("go", "build", "-o", agentshOut, "./cmd/agentsh")
+	// Build agentmon with CGO enabled for full seccomp support
+	cmd := exec.Command("go", "build", "-o", agentmonOut, "./cmd/agentmon")
 	cmd.Dir = repoRoot
 	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=1")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		t.Fatalf("go build agentsh: %v", err)
+		t.Fatalf("go build agentmon: %v", err)
 	}
 
-	// Build agentsh-unixwrap with CGO (required for seccomp)
-	cmd = exec.Command("go", "build", "-o", unixwrapOut, "./cmd/agentsh-unixwrap")
+	// Build agentmon-unixwrap with CGO (required for seccomp)
+	cmd = exec.Command("go", "build", "-o", unixwrapOut, "./cmd/agentmon-unixwrap")
 	cmd.Dir = repoRoot
 	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=1")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		t.Fatalf("go build agentsh-unixwrap: %v", err)
+		t.Fatalf("go build agentmon-unixwrap: %v", err)
 	}
 
-	return agentshOut, unixwrapOut
+	return agentmonOut, unixwrapOut
 }
 
-func startSeccompServerContainer(t *testing.T, ctx context.Context, agentshBin, unixwrapBin, configPath, policiesDir, workspace string) (string, func()) {
+func startSeccompServerContainer(t *testing.T, ctx context.Context, agentmonBin, unixwrapBin, configPath, policiesDir, workspace string) (string, func()) {
 	t.Helper()
 
 	binds := []testcontainers.ContainerMount{
-		testcontainers.BindMount(agentshBin, "/usr/local/bin/agentsh"),
-		testcontainers.BindMount(unixwrapBin, "/usr/local/bin/agentsh-unixwrap"),
+		testcontainers.BindMount(agentmonBin, "/usr/local/bin/agentmon"),
+		testcontainers.BindMount(unixwrapBin, "/usr/local/bin/agentmon-unixwrap"),
 		testcontainers.BindMount(configPath, "/config.yaml"),
 		testcontainers.BindMount(filepath.Join(filepath.Dir(configPath), "keys.yaml"), "/keys.yaml"),
 		testcontainers.BindMount(policiesDir, "/policies"),
@@ -607,7 +607,7 @@ func startSeccompServerContainer(t *testing.T, ctx context.Context, agentshBin, 
 	req := testcontainers.ContainerRequest{
 		Image:        "debian:bookworm-slim",
 		ExposedPorts: []string{"18080/tcp"},
-		Cmd:          []string{"/usr/local/bin/agentsh", "server", "--config", "/config.yaml"},
+		Cmd:          []string{"/usr/local/bin/agentmon", "server", "--config", "/config.yaml"},
 		Mounts:       binds,
 		Privileged:   true,
 		CapAdd:       []string{"SYS_ADMIN"},
@@ -818,7 +818,7 @@ resource_limits:
 `
 
 // seccompTestPolicyWithResourceLimitsYAML mirrors the limits that
-// @agentsh/secure-sandbox's agentDefault() preset ships for every
+// @agentmon/secure-sandbox's agentDefault() preset ships for every
 // adapter (max_memory_mb: 8192, cpu_quota_percent: 100, pids_max: 500).
 // Used by TestSeccompWrapperDisabled_WrapInitRefuses_WithPolicyLimits
 // to exercise the policy-limits branch of wrapNeedsCgroupBeforeAck that
@@ -896,7 +896,7 @@ func TestExecveInterception_DepthEnforcement(t *testing.T) {
 	defer cancel()
 
 	// Build binaries with CGO for seccomp support
-	agentshBin, unixwrapBin := buildSeccompBinaries(t)
+	agentmonBin, unixwrapBin := buildSeccompBinaries(t)
 
 	temp := t.TempDir()
 
@@ -915,7 +915,7 @@ func TestExecveInterception_DepthEnforcement(t *testing.T) {
 	mustMkdir(t, workspace)
 	writeFile(t, filepath.Join(workspace, "test.txt"), "test content")
 
-	endpoint, cleanup := startSeccompServerContainer(t, ctx, agentshBin, unixwrapBin, configPath, policiesDir, workspace)
+	endpoint, cleanup := startSeccompServerContainer(t, ctx, agentmonBin, unixwrapBin, configPath, policiesDir, workspace)
 	t.Cleanup(cleanup)
 
 	cli := client.New(endpoint, "test-key")

@@ -5,7 +5,7 @@ package lima
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 func TestNetwork_Available(t *testing.T) {
@@ -56,8 +56,8 @@ func TestNetwork_TeardownNotConfigured(t *testing.T) {
 }
 
 func TestIptablesChainName(t *testing.T) {
-	if iptablesChain != "AGENTSH" {
-		t.Errorf("iptablesChain = %q, want AGENTSH", iptablesChain)
+	if iptablesChain != "AGENTMON" {
+		t.Errorf("iptablesChain = %q, want AGENTMON", iptablesChain)
 	}
 }
 

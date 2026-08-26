@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	ocsfpb "github.com/canyonroad/wtp-protos/gen/go/canyonroad/wtp/v1/ocsf"
 )
 
@@ -120,8 +120,8 @@ func buildMetadata(ev types.Event) *ocsfpb.Metadata {
 	md := &ocsfpb.Metadata{
 		Version: strp(SchemaVersion),
 		Product: &ocsfpb.Product{
-			Name:       strp("agentsh"),
-			VendorName: strp("agentsh"),
+			Name:       strp("agentmon"),
+			VendorName: strp("agentmon"),
 		},
 		LoggedTime: u64p(uint64(ev.Timestamp.UTC().UnixNano())),
 		EventCode:  strp(ev.Type),

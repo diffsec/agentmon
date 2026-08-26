@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `agentsh exec` (all four entry points) and `agentsh wrap` Landlock derivation respect the per-session policy engine that was already compiled and stored on the `session.Session`, instead of silently falling back to the process-global `a.policy`. Fixes canyonroad/agentsh#191.
+**Goal:** Make `agentmon exec` (all four entry points) and `agentmon wrap` Landlock derivation respect the per-session policy engine that was already compiled and stored on the `session.Session`, instead of silently falling back to the process-global `a.policy`. Fixes diffsec/agentmon#191.
 
 **Architecture:** The `session.Session` type already has a `PolicyEngine()` accessor returning the per-session `*policy.Engine` (populated on `CreateSession` in `internal/api/core.go:683-716`). Two places in `internal/api/core.go` (`setupSeccompWrapper` at 110-115, and the seccomp handler wiring at 172-177) already use the idiom `if sp := s.PolicyEngine(); sp != nil { use sp }`. This plan extracts that idiom into a tiny helper method on `*App` and applies it to the five command-precheck call sites and the wrap-time Landlock derivation call site that were missed.
 
@@ -28,7 +28,7 @@
 - `internal/api/pty_core.go` — one call site at `:60`.
 - `internal/api/grpc.go` — one call site at `:293`.
 - `internal/api/wrap.go` — Landlock derivation at `:167-170`.
-- `internal/integration/agentsh_policy_test.go` — extend with a regression test that uses a non-`default` policy file name.
+- `internal/integration/agentmon_policy_test.go` — extend with a regression test that uses a non-`default` policy file name.
 
 ---
 
@@ -50,9 +50,9 @@ package api
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // newEngineAllowingCommand returns a minimal *policy.Engine with a single
@@ -155,8 +155,8 @@ Create `internal/api/session_policy.go` with:
 package api
 
 import (
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
 )
 
 // policyEngineFor returns the effective policy engine to consult for the given
@@ -165,7 +165,7 @@ import (
 // process-global engine (a.policy) when the session has no engine of its own
 // or when s is nil.
 //
-// This exists to fix canyonroad/agentsh#191: before this helper, the command
+// This exists to fix diffsec/agentmon#191: before this helper, the command
 // precheck and wrap-time Landlock derivation paths used a.policy directly,
 // which silently ignored custom rules authored in any non-default policy file.
 // All new call sites that need to consult "the policy for this session" should
@@ -226,12 +226,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // newEngineDenyingOnly returns a *policy.Engine with a single explicit
@@ -666,17 +666,17 @@ EOF
 ## Task 5: Extend the integration test to cover non-default policy file names
 
 **Files:**
-- Modify: `internal/integration/agentsh_policy_test.go`
+- Modify: `internal/integration/agentmon_policy_test.go`
 
 The existing integration test `TestPolicyAllowAndDenyCommands` writes its rules to `default.yaml`, which masks #191 because the file happens to become both `a.policy` AND the session engine. Add a sibling test that uses a policy file named `custom.yaml` and creates a session against that named policy, so any future regression that re-introduces the `a.policy` shortcut gets caught by CI.
 
 - [ ] **Step 1: Read the existing test file**
 
-Read `internal/integration/agentsh_policy_test.go` in full so you can mirror its style (testcontainer setup, policy YAML constant, etc.).
+Read `internal/integration/agentmon_policy_test.go` in full so you can mirror its style (testcontainer setup, policy YAML constant, etc.).
 
 - [ ] **Step 2: Add a new test function**
 
-Append to `internal/integration/agentsh_policy_test.go`:
+Append to `internal/integration/agentmon_policy_test.go`:
 
 ```go
 // TestPolicyNonDefaultNameHonored is the regression test for #191. It writes
@@ -690,7 +690,7 @@ Append to `internal/integration/agentsh_policy_test.go`:
 func TestPolicyNonDefaultNameHonored(t *testing.T) {
 	ctx := context.Background()
 
-	bin := buildAgentshBinary(t)
+	bin := buildAgentmonBinary(t)
 	temp := t.TempDir()
 
 	policiesDir := filepath.Join(temp, "policies")
@@ -786,7 +786,7 @@ Expected: PASS (unchanged).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add internal/integration/agentsh_policy_test.go
+git add internal/integration/agentmon_policy_test.go
 git commit -m "$(cat <<'EOF'
 test(integration): add non-default-policy-name regression for #191
 

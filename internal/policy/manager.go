@@ -12,7 +12,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/agentsh/agentsh/internal/policy/signing"
+	"github.com/diffsec/agentmon/internal/policy/signing"
 )
 
 // Manager selects and loads a policy once, based on config and env.
@@ -30,7 +30,7 @@ type Manager struct {
 var nameRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 // NewManager binds the policy name but defers file I/O until first Get().
-// envName is the value of AGENTSH_POLICY_NAME (already read from environment).
+// envName is the value of AGENTMON_POLICY_NAME (already read from environment).
 func NewManager(dir, defaultName string, allowed []string, manifestPath, envName string) *Manager {
 	allowedSet := make(map[string]struct{}, len(allowed))
 	for _, n := range allowed {

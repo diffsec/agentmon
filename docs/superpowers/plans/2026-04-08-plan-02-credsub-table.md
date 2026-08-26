@@ -6,7 +6,7 @@
 
 **Architecture:** A new package `internal/proxy/credsub/` containing a single `Table` type that owns copies of every fake/real byte slice, enforces length preservation and collision invariants at `Add` time, and performs substitution via `bytes.ReplaceAll` loops. No providers, no proxy wiring, no session integration — those land in later plans. Pure stdlib, no new dependencies.
 
-**Tech Stack:** Go stdlib only (`bytes`, `sync`, `testing`, `sync/atomic` for tests). No new module dependencies. Module path: `github.com/agentsh/agentsh/internal/proxy/credsub`.
+**Tech Stack:** Go stdlib only (`bytes`, `sync`, `testing`, `sync/atomic` for tests). No new module dependencies. Module path: `github.com/diffsec/agentmon/internal/proxy/credsub`.
 
 **Scope boundary:** This plan produces a package with zero call sites inside the daemon. It is the "extension infrastructure" piece, parallel to how Plan 1 added an empty `Hook` interface. Plan 3 will add the first consumer (`SecretProvider` interface + keyring provider), and later plans will wire `credsub.Table` into session lifecycle and egress flow.
 
@@ -77,7 +77,7 @@ Write to `internal/proxy/credsub/doc.go`:
 // substitution in both directions:
 //
 //   - ReplaceFakeToReal is used on outbound request bodies, headers,
-//     query strings, and URL paths before they leave agentsh.
+//     query strings, and URL paths before they leave agentmon.
 //   - ReplaceRealToFake is used on inbound response bodies before they
 //     reach the agent (when the matched service has scrub_response: true).
 //

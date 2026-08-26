@@ -23,14 +23,14 @@ func TestParseExecInput_JSON(t *testing.T) {
 }
 
 // Regression test: nested "--" inside the child command must be preserved
-// as a regular argument, not treated as the agentsh separator.
-// e.g. agentsh exec SESSION -- opencode run --format json -- "prompt"
+// as a regular argument, not treated as the agentmon separator.
+// e.g. agentmon exec SESSION -- opencode run --format json -- "prompt"
 // After Cobra strips the first "--", args is:
 //   ["opencode", "run", "--format", "json", "--", "prompt"]
-// The inner "--" belongs to opencode, not agentsh.
+// The inner "--" belongs to opencode, not agentmon.
 func TestParseExecInput_NestedDoubleDash(t *testing.T) {
 	// Simulate what Cobra passes after stripping the outer "--":
-	// agentsh exec SESSION -- opencode run --attach http://x --format json -- "prompt"
+	// agentmon exec SESSION -- opencode run --attach http://x --format json -- "prompt"
 	args := []string{"opencode", "run", "--attach", "http://x", "--format", "json", "--", "Reply with VM_OK"}
 	sid, req, err := parseExecInputWithEnv(args, "", "", false, "session-1")
 	if err != nil {

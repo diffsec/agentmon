@@ -10,20 +10,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/internal/policygen"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/internal/policygen"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // TestPolicyGenEndToEnd tests the full policy generation flow:
-// 1. Start agentsh server with permissive policy
+// 1. Start agentmon server with permissive policy
 // 2. Create session and run commands that generate events
 // 3. Query events from the API
 // 4. Generate a policy and verify it captures command_rules and file_rules
 func TestPolicyGenEndToEnd(t *testing.T) {
 	ctx := context.Background()
 
-	bin := buildAgentshBinary(t)
+	bin := buildAgentmonBinary(t)
 	temp := t.TempDir()
 
 	policiesDir := filepath.Join(temp, "policies")

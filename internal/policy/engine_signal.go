@@ -5,7 +5,7 @@ package policy
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/signal"
+	"github.com/diffsec/agentmon/internal/signal"
 )
 
 // compileSignalRules compiles signal rules into a signal engine.

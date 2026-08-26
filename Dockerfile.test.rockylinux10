@@ -1,4 +1,4 @@
-# Self-contained integration test for agentsh on Rocky Linux 10 (RHEL 10 gap closer).
+# Self-contained integration test for agentmon on Rocky Linux 10 (RHEL 10 gap closer).
 # Rocky Linux 10 ships libseccomp 2.5.x, reproducing the RHEL gap that motivated #296.
 # Validates that the 2.5 system-link design works on an enterprise RHEL-compatible
 # distro. Installs the RPM from a GitHub release, sets up the shell shim,
@@ -6,16 +6,16 @@
 #
 # Build:
 #   docker build -f Dockerfile.test.rockylinux10 \
-#     --build-arg AGENTSH_TAG=v0.10.1 \
-#     -t agentsh-test-rockylinux10:latest .
+#     --build-arg AGENTMON_TAG=v0.10.1 \
+#     -t agentmon-test-rockylinux10:latest .
 #
 # Run:
-#   docker run --rm agentsh-test-rockylinux10:latest
+#   docker run --rm agentmon-test-rockylinux10:latest
 
 FROM rockylinux/rockylinux:10
 
-ARG AGENTSH_REPO=canyonroad/agentsh
-ARG AGENTSH_TAG=v0.10.1
+ARG AGENTMON_REPO=diffsec/agentmon
+ARG AGENTMON_TAG=v0.10.1
 
 # Install dependencies: curl for downloading, bash for shim tests, jq for JSON parsing.
 #
@@ -30,21 +30,21 @@ RUN set -eux; \
   dnf install -y curl bash jq libseccomp; \
   dnf clean all
 
-# Download and install the agentsh RPM package.
+# Download and install the agentmon RPM package.
 RUN set -eux; \
-  version="${AGENTSH_TAG#v}"; \
-  rpm="agentsh_${version}_linux_amd64.rpm"; \
-  url="https://github.com/${AGENTSH_REPO}/releases/download/${AGENTSH_TAG}/${rpm}"; \
+  version="${AGENTMON_TAG#v}"; \
+  rpm="agentmon_${version}_linux_amd64.rpm"; \
+  url="https://github.com/${AGENTMON_REPO}/releases/download/${AGENTMON_TAG}/${rpm}"; \
   echo "Downloading: ${url}"; \
-  curl -fsSL -L "${url}" -o /tmp/agentsh.rpm; \
-  rpm -i /tmp/agentsh.rpm; \
-  rm -f /tmp/agentsh.rpm; \
-  agentsh --version
+  curl -fsSL -L "${url}" -o /tmp/agentmon.rpm; \
+  rpm -i /tmp/agentmon.rpm; \
+  rm -f /tmp/agentmon.rpm; \
+  agentmon --version
 
 # Install the shell shim (replaces /bin/sh and /bin/bash).
-RUN agentsh shim install-shell \
+RUN agentmon shim install-shell \
   --root / \
-  --shim /usr/bin/agentsh-shell-shim \
+  --shim /usr/bin/agentmon-shell-shim \
   --bash \
   --i-understand-this-modifies-the-host
 
@@ -86,7 +86,7 @@ else
   fail "/bin/bash.real exists" "file not found"
 fi
 
-if [ -f /bin/sh ] && [ /bin/sh -ef /usr/bin/agentsh-shell-shim ]; then
+if [ -f /bin/sh ] && [ /bin/sh -ef /usr/bin/agentmon-shell-shim ]; then
   pass "/bin/sh points to the shim"
 elif [ -f /bin/sh ]; then
   pass "/bin/sh exists (shim installed)"
@@ -100,7 +100,7 @@ fi
 echo ""
 echo "=== Package completeness ==="
 
-for bin in /usr/bin/agentsh /usr/bin/agentsh-shell-shim; do
+for bin in /usr/bin/agentmon /usr/bin/agentmon-shell-shim; do
   if [ -x "$bin" ]; then
     pass "$bin exists and is executable"
   else
@@ -108,20 +108,20 @@ for bin in /usr/bin/agentsh /usr/bin/agentsh-shell-shim; do
   fi
 done
 
-# agentsh-unixwrap is only shipped on amd64
+# agentmon-unixwrap is only shipped on amd64
 if [ "$(uname -m)" = "x86_64" ]; then
-  if [ -x /usr/bin/agentsh-unixwrap ]; then
-    pass "/usr/bin/agentsh-unixwrap exists (x86_64)"
+  if [ -x /usr/bin/agentmon-unixwrap ]; then
+    pass "/usr/bin/agentmon-unixwrap exists (x86_64)"
   else
-    fail "/usr/bin/agentsh-unixwrap exists (x86_64)" "not found or not executable"
+    fail "/usr/bin/agentmon-unixwrap exists (x86_64)" "not found or not executable"
   fi
 fi
 
 # Config
-if [ -f /etc/agentsh/config.yaml ]; then
-  pass "/etc/agentsh/config.yaml exists"
+if [ -f /etc/agentmon/config.yaml ]; then
+  pass "/etc/agentmon/config.yaml exists"
 else
-  fail "/etc/agentsh/config.yaml exists" "not found"
+  fail "/etc/agentmon/config.yaml exists" "not found"
 fi
 
 # All 10 policy files
@@ -131,51 +131,51 @@ for policy in \
   ci-strict.yaml \
   agent-sandbox.yaml \
   signal-strict.yaml system-readonly.yaml; do
-  if [ -f "/etc/agentsh/policies/$policy" ]; then
+  if [ -f "/etc/agentmon/policies/$policy" ]; then
     pass "policy $policy exists"
   else
-    fail "policy $policy exists" "not found in /etc/agentsh/policies/"
+    fail "policy $policy exists" "not found in /etc/agentmon/policies/"
   fi
 done
 
 # Shell completions
-if [ -f /usr/share/bash-completion/completions/agentsh ]; then
+if [ -f /usr/share/bash-completion/completions/agentmon ]; then
   pass "bash completion exists"
 else
   fail "bash completion exists" "not found"
 fi
 
-if [ -f /usr/share/zsh/site-functions/_agentsh ]; then
+if [ -f /usr/share/zsh/site-functions/_agentmon ]; then
   pass "zsh completion exists"
 else
   fail "zsh completion exists" "not found"
 fi
 
-if [ -f /usr/share/fish/vendor_completions.d/agentsh.fish ]; then
+if [ -f /usr/share/fish/vendor_completions.d/agentmon.fish ]; then
   pass "fish completion exists"
 else
   fail "fish completion exists" "not found"
 fi
 
 # Libs
-if [ -f /usr/lib/agentsh/bash_startup.sh ]; then
-  pass "/usr/lib/agentsh/bash_startup.sh exists"
+if [ -f /usr/lib/agentmon/bash_startup.sh ]; then
+  pass "/usr/lib/agentmon/bash_startup.sh exists"
 else
-  fail "/usr/lib/agentsh/bash_startup.sh exists" "not found"
+  fail "/usr/lib/agentmon/bash_startup.sh exists" "not found"
 fi
 
 # -------------------------------------------------------------------
-# Start the agentsh server
+# Start the agentmon server
 # -------------------------------------------------------------------
 echo ""
-echo "=== Starting agentsh server ==="
+echo "=== Starting agentmon server ==="
 
 tmp="$(mktemp -d)"
 trap 'set +e; [ -n "${SERVER_PID:-}" ] && kill "$SERVER_PID" 2>/dev/null; rm -rf "$tmp"' EXIT
 
 port=18923
 base_url="http://127.0.0.1:${port}"
-export AGENTSH_SERVER="$base_url"
+export AGENTMON_SERVER="$base_url"
 
 cat >"$tmp/config.yml" <<YAML
 server:
@@ -197,7 +197,7 @@ health:
   readiness_path: "/ready"
 
 policies:
-  dir: "/etc/agentsh/policies"
+  dir: "/etc/agentmon/policies"
   default: "default"
 
 sessions:
@@ -222,7 +222,7 @@ sandbox:
       enabled: false
 YAML
 
-agentsh server --config "$tmp/config.yml" >"$tmp/server.log" 2>&1 &
+agentmon server --config "$tmp/config.yml" >"$tmp/server.log" 2>&1 &
 SERVER_PID="$!"
 
 # Wait for server to become healthy.
@@ -253,7 +253,7 @@ fi
 # with a minimal seccomp filter config and asserts the raw seccomp(2)
 # load path emits wait_killable=true. We don't repeat that check here
 # because this Dockerfile.test config disables sandbox.unix_sockets,
-# so agentsh-unixwrap is never invoked and no Layer 1 filter is
+# so agentmon-unixwrap is never invoked and no Layer 1 filter is
 # installed for the docker matrix to observe.
 
 # -------------------------------------------------------------------
@@ -262,7 +262,7 @@ fi
 echo ""
 echo "=== Creating session ==="
 
-sid_json="$(agentsh session create --workspace /tmp --json)"
+sid_json="$(agentmon session create --workspace /tmp --json)"
 sid="$(echo "$sid_json" | jq -r '.id')"
 
 if [ -n "$sid" ] && [ "$sid" != "null" ]; then
@@ -280,7 +280,7 @@ fi
 echo ""
 echo "=== Shim tests ==="
 
-sh_out="$(AGENTSH_SESSION_ID="$sid" AGENTSH_SHIM_FORCE=1 /bin/sh -c 'echo hello_sh' 2>&1 | tr -d '\r' | tail -n 1)"
+sh_out="$(AGENTMON_SESSION_ID="$sid" AGENTMON_SHIM_FORCE=1 /bin/sh -c 'echo hello_sh' 2>&1 | tr -d '\r' | tail -n 1)"
 if [ "$sh_out" = "hello_sh" ]; then
   pass "echo through /bin/sh shim"
 else
@@ -290,7 +290,7 @@ fi
 # -------------------------------------------------------------------
 # Test: basic echo through /bin/bash shim
 # -------------------------------------------------------------------
-bash_out="$(AGENTSH_SESSION_ID="$sid" AGENTSH_SHIM_FORCE=1 /bin/bash -c 'echo hello_bash' 2>&1 | tr -d '\r' | tail -n 1)"
+bash_out="$(AGENTMON_SESSION_ID="$sid" AGENTMON_SHIM_FORCE=1 /bin/bash -c 'echo hello_bash' 2>&1 | tr -d '\r' | tail -n 1)"
 if [ "$bash_out" = "hello_bash" ]; then
   pass "echo through /bin/bash shim"
 else
@@ -298,22 +298,22 @@ else
 fi
 
 # -------------------------------------------------------------------
-# Test: recursion guard (AGENTSH_IN_SESSION)
+# Test: recursion guard (AGENTMON_IN_SESSION)
 # -------------------------------------------------------------------
-# When AGENTSH_IN_SESSION is set, the shim should delegate directly to the
-# real shell without contacting the server. We set AGENTSH_BIN to a
+# When AGENTMON_IN_SESSION is set, the shim should delegate directly to the
+# real shell without contacting the server. We set AGENTMON_BIN to a
 # nonexistent path to prove the shim doesn't try to call it.
-rec_out="$(AGENTSH_BIN=/nonexistent/agentsh AGENTSH_IN_SESSION=1 /bin/sh -c 'echo recursion_ok' 2>&1 | tr -d '\r' | tail -n 1)"
+rec_out="$(AGENTMON_BIN=/nonexistent/agentmon AGENTMON_IN_SESSION=1 /bin/sh -c 'echo recursion_ok' 2>&1 | tr -d '\r' | tail -n 1)"
 if [ "$rec_out" = "recursion_ok" ]; then
-  pass "AGENTSH_IN_SESSION recursion guard"
+  pass "AGENTMON_IN_SESSION recursion guard"
 else
-  fail "AGENTSH_IN_SESSION recursion guard" "got: ${rec_out}"
+  fail "AGENTMON_IN_SESSION recursion guard" "got: ${rec_out}"
 fi
 
 # -------------------------------------------------------------------
 # Test: multi-word arguments preserved
 # -------------------------------------------------------------------
-multi_out="$(AGENTSH_SESSION_ID="$sid" AGENTSH_SHIM_FORCE=1 /bin/sh -c 'echo "hello world"' 2>&1 | tr -d '\r' | tail -n 1)"
+multi_out="$(AGENTMON_SESSION_ID="$sid" AGENTMON_SHIM_FORCE=1 /bin/sh -c 'echo "hello world"' 2>&1 | tr -d '\r' | tail -n 1)"
 if [ "$multi_out" = "hello world" ]; then
   pass "multi-word arguments preserved"
 else
@@ -324,7 +324,7 @@ fi
 # Test: exit code propagation
 # -------------------------------------------------------------------
 set +e
-AGENTSH_SESSION_ID="$sid" AGENTSH_SHIM_FORCE=1 /bin/sh -c 'exit 42' >/dev/null 2>&1
+AGENTMON_SESSION_ID="$sid" AGENTMON_SHIM_FORCE=1 /bin/sh -c 'exit 42' >/dev/null 2>&1
 exit_rc=$?
 set -e
 if [ "$exit_rc" = "42" ]; then
@@ -334,24 +334,24 @@ else
 fi
 
 # -------------------------------------------------------------------
-# Test: exec through agentsh CLI
+# Test: exec through agentmon CLI
 # -------------------------------------------------------------------
-exec_out="$(agentsh exec "$sid" -- sh -c 'echo exec_ok' 2>&1 | tr -d '\r' | tail -n 1)"
+exec_out="$(agentmon exec "$sid" -- sh -c 'echo exec_ok' 2>&1 | tr -d '\r' | tail -n 1)"
 if [ "$exec_out" = "exec_ok" ]; then
-  pass "agentsh exec command"
+  pass "agentmon exec command"
 else
-  fail "agentsh exec command" "got: ${exec_out}"
+  fail "agentmon exec command" "got: ${exec_out}"
 fi
 
 # -------------------------------------------------------------------
-# Helper: exec_json — run a command via agentsh exec --output json
+# Helper: exec_json — run a command via agentmon exec --output json
 # Usage: exec_json <session_id> <command> [args...]
 # Sets: _ej_rc (exit code), _ej_json (full JSON output)
 # -------------------------------------------------------------------
 exec_json() {
   local session="$1"; shift
   set +e
-  _ej_json="$(agentsh exec --output json --events all "$session" -- "$@" 2>&1)"
+  _ej_json="$(agentmon exec --output json --events all "$session" -- "$@" 2>&1)"
   _ej_rc=$?
   set -e
 }
@@ -435,7 +435,7 @@ fi
 echo ""
 echo "=== Policy enforcement: agent-sandbox policy ==="
 
-sid2_json="$(agentsh session create --workspace /tmp --policy agent-sandbox --json)"
+sid2_json="$(agentmon session create --workspace /tmp --policy agent-sandbox --json)"
 sid2="$(echo "$sid2_json" | jq -r '.id')"
 
 if [ -n "$sid2" ] && [ "$sid2" != "null" ]; then
@@ -512,7 +512,7 @@ echo ""
 echo "=== Shim + policy integration ==="
 
 # Safe command through shim should work
-shim_safe="$(AGENTSH_SESSION_ID="$sid" AGENTSH_SHIM_FORCE=1 /bin/sh -c 'echo shim_policy_ok' 2>&1 | tr -d '\r' | tail -n 1)"
+shim_safe="$(AGENTMON_SESSION_ID="$sid" AGENTMON_SHIM_FORCE=1 /bin/sh -c 'echo shim_policy_ok' 2>&1 | tr -d '\r' | tail -n 1)"
 if [ "$shim_safe" = "shim_policy_ok" ]; then
   pass "safe command through shim works"
 else
@@ -525,11 +525,11 @@ fi
 # installed, non-root in a restricted container), so a vacuous pass
 # would not prove the policy layer actually denied anything.
 # The shim routes through the PTY code path (internal/cli/exec_pty.go),
-# which emits `agentsh: command denied by policy (rule=...)`. The
+# which emits `agentmon: command denied by policy (rule=...)`. The
 # non-PTY path in internal/cli/exec.go emits `blocked by policy`
 # instead. Accept either phrasing so the test is robust to both paths.
 set +e
-shim_block_stderr="$(AGENTSH_SESSION_ID="$sid" AGENTSH_SHIM_FORCE=1 /bin/sh -c 'shutdown now' 2>&1 >/dev/null)"
+shim_block_stderr="$(AGENTMON_SESSION_ID="$sid" AGENTMON_SHIM_FORCE=1 /bin/sh -c 'shutdown now' 2>&1 >/dev/null)"
 shim_block_rc=$?
 set -e
 case "$shim_block_stderr" in

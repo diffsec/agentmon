@@ -98,7 +98,7 @@ func New(ctx context.Context, cfg Config, _ secrets.RefResolver) (*Provider, err
 1. Validate: `cfg.Region` must be non-empty.
 2. Load AWS config: `config.LoadDefaultConfig(ctx, config.WithRegion(cfg.Region))`.
 3. Create client: `secretsmanager.NewFromConfig(awsCfg)`.
-4. Probe connectivity: call `GetSecretValue` with a known-nonexistent secret ID (`"agentsh-probe-nonexistent"`). Expect `ResourceNotFoundException` — that proves auth and connectivity work. Any other error (e.g., `InvalidSignatureException`, network error) fails the constructor.
+4. Probe connectivity: call `GetSecretValue` with a known-nonexistent secret ID (`"agentmon-probe-nonexistent"`). Expect `ResourceNotFoundException` — that proves auth and connectivity work. Any other error (e.g., `InvalidSignatureException`, network error) fails the constructor.
 
 The probe approach mirrors keyring's availability probe. AWS SM has no lightweight "ping" API, so a GetSecretValue that returns NotFound is the cheapest way to verify that credentials are valid and the endpoint is reachable.
 
@@ -188,7 +188,7 @@ Build-tagged `//go:build integration`. Requires real AWS credentials and a test 
 
 ### `internal/session/secretsconfig.go`
 
-1. Add import: `"github.com/agentsh/agentsh/internal/proxy/secrets/awssm"`
+1. Add import: `"github.com/diffsec/agentmon/internal/proxy/secrets/awssm"`
 2. `decodeProviderConfig`: add `case "aws-sm"` that decodes `region` into `awssm.Config`.
 3. `DefaultConstructors`: add `"aws-sm"` entry that type-asserts `awssm.Config` and calls `awssm.New`.
 

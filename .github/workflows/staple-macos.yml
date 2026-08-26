@@ -34,29 +34,29 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           gh release download "$VERSION" \
-            --pattern "AgentSH-${VERSION}.dmg" \
+            --pattern "AgentMon-${VERSION}.dmg" \
             --repo "${{ github.repository }}" \
             --dir .
-          echo "Downloaded AgentSH-${VERSION}.dmg"
+          echo "Downloaded AgentMon-${VERSION}.dmg"
 
       - name: Extract app from DMG
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          hdiutil attach "AgentSH-${VERSION}.dmg" -mountpoint /tmp/agentsh-dmg -nobrowse
-          cp -R /tmp/agentsh-dmg/AgentSH.app ./AgentSH.app
-          hdiutil detach /tmp/agentsh-dmg
+          hdiutil attach "AgentMon-${VERSION}.dmg" -mountpoint /tmp/agentmon-dmg -nobrowse
+          cp -R /tmp/agentmon-dmg/AgentMon.app ./AgentMon.app
+          hdiutil detach /tmp/agentmon-dmg
 
       - name: Strip sysext for diagnostic test
         if: inputs.mode == 'test-stripped'
         run: |
           echo "=== Before stripping ==="
-          find AgentSH.app -type d -maxdepth 4 | sort
-          rm -rf AgentSH.app/Contents/Library/SystemExtensions
-          rm -rf AgentSH.app/Contents/XPCServices
-          rm -rf AgentSH.app/Contents/Resources/approval-dialog.app
+          find AgentMon.app -type d -maxdepth 4 | sort
+          rm -rf AgentMon.app/Contents/Library/SystemExtensions
+          rm -rf AgentMon.app/Contents/XPCServices
+          rm -rf AgentMon.app/Contents/Resources/approval-dialog.app
           echo "=== After stripping ==="
-          find AgentSH.app -type d -maxdepth 4 | sort
+          find AgentMon.app -type d -maxdepth 4 | sort
           echo "Stripped sysext, xpc, and approval-dialog for diagnostic submission"
 
       - name: Submit fresh notarization
@@ -66,9 +66,9 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
           TEAM_ID: ${{ secrets.MACOS_NOTARIZATION_TEAM_ID }}
         run: |
-          ditto -c -k --keepParent AgentSH.app AgentSH.zip
+          ditto -c -k --keepParent AgentMon.app AgentMon.zip
 
-          xcrun notarytool submit AgentSH.zip \
+          xcrun notarytool submit AgentMon.zip \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_PASSWORD" \
             --team-id "$TEAM_ID" \
@@ -109,15 +109,15 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          xcrun stapler staple AgentSH.app
-          xcrun stapler validate AgentSH.app
-          spctl --assess --type exec --verbose=2 AgentSH.app || true
+          xcrun stapler staple AgentMon.app
+          xcrun stapler validate AgentMon.app
+          spctl --assess --type exec --verbose=2 AgentMon.app || true
 
-          rm "AgentSH-${VERSION}.dmg"
-          hdiutil create -volname "AgentSH" \
-            -srcfolder AgentSH.app \
+          rm "AgentMon-${VERSION}.dmg"
+          hdiutil create -volname "AgentMon" \
+            -srcfolder AgentMon.app \
             -ov -format UDZO \
-            "AgentSH-${VERSION}.dmg"
+            "AgentMon-${VERSION}.dmg"
 
       - name: Upload stapled DMG to release
         if: inputs.mode != 'test-stripped'
@@ -125,7 +125,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
         run: |
-          gh release upload "$VERSION" "AgentSH-${VERSION}.dmg" \
+          gh release upload "$VERSION" "AgentMon-${VERSION}.dmg" \
             --repo "${{ github.repository }}" \
             --clobber
           echo "Uploaded stapled DMG to release $VERSION"

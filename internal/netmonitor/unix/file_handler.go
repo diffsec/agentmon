@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	sysunix "golang.org/x/sys/unix"
 )
 

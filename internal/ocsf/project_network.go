@@ -6,7 +6,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	ocsfpb "github.com/canyonroad/wtp-protos/gen/go/canyonroad/wtp/v1/ocsf"
 )
 

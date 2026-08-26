@@ -6,9 +6,9 @@
 
 ## Problem
 
-agentsh today lets operators inject environment variables into spawned sessions via `env_inject` and runs an LLM proxy that tokenizes PII out of LLM request bodies. Neither mechanism solves the broader problem that AI agents routinely need real credentials — GitHub tokens, AWS keys, Anthropic API keys, DB passwords — and any of those credentials, once in the agent's address space, can be exfiltrated by a misbehaving tool call, a prompt injection, or a subtly wrong HTTP destination.
+agentmon today lets operators inject environment variables into spawned sessions via `env_inject` and runs an LLM proxy that tokenizes PII out of LLM request bodies. Neither mechanism solves the broader problem that AI agents routinely need real credentials — GitHub tokens, AWS keys, Anthropic API keys, DB passwords — and any of those credentials, once in the agent's address space, can be exfiltrated by a misbehaving tool call, a prompt injection, or a subtly wrong HTTP destination.
 
-We want agentsh to:
+We want agentmon to:
 
 1. Fetch secrets from a variety of external secret stores (Vault, AWS Secrets Manager, GCP Secret Manager, Azure Key Vault, 1Password, OS keyring).
 2. Give the spawned agent *fake* credentials with the same shape as the real ones.
@@ -43,7 +43,7 @@ See Section 10 at the end of this document for the full out-of-scope list. The h
 
 Three layered mechanisms were considered. v1 ships only Mechanism A.
 
-**A. Explicit local proxy (v1).** The spawned process's environment is set so that cooperating SDKs and tools talk to agentsh's local proxy for the services they use. The proxy terminates HTTP, scans the body and headers for known fakes, rewrites them to real credentials, and forwards the reconstructed request upstream. Covers: Anthropic/OpenAI SDKs via `*_BASE_URL`, any service with an SDK that honors `HTTPS_PROXY`, any service with a configurable endpoint. This is how the existing LLM proxy already works — we are generalizing it.
+**A. Explicit local proxy (v1).** The spawned process's environment is set so that cooperating SDKs and tools talk to agentmon's local proxy for the services they use. The proxy terminates HTTP, scans the body and headers for known fakes, rewrites them to real credentials, and forwards the reconstructed request upstream. Covers: Anthropic/OpenAI SDKs via `*_BASE_URL`, any service with an SDK that honors `HTTPS_PROXY`, any service with a configurable endpoint. This is how the existing LLM proxy already works — we are generalizing it.
 
 **B. Linux TLS uprobes (future).** eBPF uprobes on `SSL_write`, `gnutls_record_send`, and Go's `crypto/tls.(*Conn).Write` catch plaintext before encryption and rewrite in place. Covers the long tail of Linux tools that ignore proxy env vars. Linux-only, requires `CAP_BPF`. Not in v1 — risky, fragile, per-library work.
 
@@ -147,18 +147,18 @@ providers:
     address: https://vault.corp.internal
     auth:
       method: token
-      token_ref: keyring://agentsh/vault_token
+      token_ref: keyring://agentmon/vault_token
 ```
 
 The loader resolves `keyring` first, then passes the token into the Vault provider constructor. Circular references are detected at load time and rejected.
 
 **Error handling.** Providers return `ErrNotFound` for missing secrets, `ErrUnauthorized` for auth failures, and wrapped transport errors otherwise. The service layer decides whether a missing secret is fatal for the session (`on_missing: fail | skip | fake_only`).
 
-**Lifecycle.** `Close()` is called when the agentsh daemon shuts down. Providers that hold long-lived connections (Vault lease renewer, 1Password Connect HTTP client) clean up here. Per-session lifecycle is handled at a higher layer — v1 does not renew leases.
+**Lifecycle.** `Close()` is called when the agentmon daemon shuts down. Providers that hold long-lived connections (Vault lease renewer, 1Password Connect HTTP client) clean up here. Per-session lifecycle is handled at a higher layer — v1 does not renew leases.
 
 ## Section 3 — Service abstraction
 
-A "service" is a named external HTTP API that agentsh knows how to substitute credentials for. Examples: `github`, `stripe`, `anthropic`, `openai`, `datadog`, `pypi`.
+A "service" is a named external HTTP API that agentmon knows how to substitute credentials for. Examples: `github`, `stripe`, `anthropic`, `openai`, `datadog`, `pypi`.
 
 Each service declaration answers five questions:
 
@@ -330,8 +330,8 @@ providers:
     namespace: engineering
     auth:
       method: approle
-      role_id_ref: keyring://agentsh/vault_role_id
-      secret_id_ref: keyring://agentsh/vault_secret_id
+      role_id_ref: keyring://agentmon/vault_role_id
+      secret_id_ref: keyring://agentmon/vault_secret_id
   aws_sm:
     type: aws-sm
     region: us-east-1
@@ -359,7 +359,7 @@ services:
     match:
       hosts: ["api.anthropic.com"]
     secret:
-      ref: keyring://agentsh/anthropic_key
+      ref: keyring://agentmon/anthropic_key
       on_missing: fail
     fake:
       format: "sk-ant-{rand:93}"
@@ -377,7 +377,7 @@ services:
     match:
       hosts: ["*.amazonaws.com"]
     secret:
-      ref: aws-sm://prod/iam/agentsh-role#credentials
+      ref: aws-sm://prod/iam/agentmon-role#credentials
     plugin: aws_sigv4   # escape hatch
 
 process_contexts:
@@ -420,7 +420,7 @@ process_contexts:
 |---|---|
 | Agent sends known fake to unregistered host | Proxy blocks with 403. `secret_fake_leak_attempt` audit event. This is the "strict deny" we picked. |
 | Agent sends service-A fake inside a request to service B | Proxy blocks with 403. `secret_cross_service_use` audit event. |
-| Agent tries to reach the secret backend directly (e.g., Vault endpoint) to fetch secrets itself | Default policy denies all provider endpoints. Loader validates that no service matches a provider host. `agentsh policy lint` explicitly flags this. |
+| Agent tries to reach the secret backend directly (e.g., Vault endpoint) to fetch secrets itself | Default policy denies all provider endpoints. Loader validates that no service matches a provider host. `agentmon policy lint` explicitly flags this. |
 | Agent logs real credential to stdout because it got substituted by the proxy | Does not happen — real credentials never leave the proxy. Agent only ever holds fakes. |
 | Agent base64-encodes the fake and sends it out | Not caught in v1. Documented limitation. |
 | Agent splits the fake across two requests | Each request individually does not contain the full fake. Not caught in v1. |
@@ -458,7 +458,7 @@ process_contexts:
 - **Checkpoints** do not snapshot the `credsub.Table`. v1 refuses to restore a checkpoint for a session that had any `providers:` or `services:` entries in its policy — restore returns `checkpoint_has_external_secrets` and the operator must start a fresh session. This is the safest v1 default because the original fakes and real credentials are gone, and re-fetching may produce different fakes, invalidating any state the agent has written that embedded fakes.
 - **`llm_logs` rename → `proxy_logs`**. Log ingest accepts both names. Report generator reads the new name and falls back to the old.
 - **Session report generator** gains a `secrets` section: list of service names initialized at session start, count of fake→real substitutions performed, count of leak attempts blocked. No credentials in the report.
-- **`agentsh policy generate`** gains a `--with-services` flag that adds a scaffolded `providers` + `services` block for common services detected from the workspace (e.g., sees `.github/`, scaffolds a GitHub entry).
+- **`agentmon policy generate`** gains a `--with-services` flag that adds a scaffolded `providers` + `services` block for common services detected from the workspace (e.g., sees `.github/`, scaffolds a GitHub entry).
 
 ### F. Security guarantees
 
@@ -490,14 +490,14 @@ Earns its own design spec when v2 starts.
 
 Cross-platform, no kernel work. Per-session config files + a small helper binary:
 
-- `git credential.helper = !agentsh-credhelper git` via per-session `GIT_CONFIG_GLOBAL`
-- `aws credential_process = agentsh-credhelper aws` via per-session `AWS_CONFIG_FILE`
+- `git credential.helper = !agentmon-credhelper git` via per-session `GIT_CONFIG_GLOBAL`
+- `aws credential_process = agentmon-credhelper aws` via per-session `AWS_CONFIG_FILE`
 - `gh` auth token streamed via FD or env
 - `kubectl exec` auth plugin in per-session `KUBECONFIG`
-- `docker-credential-agentsh` binary registered via per-session `docker/config.json`
+- `docker-credential-agentmon` binary registered via per-session `docker/config.json`
 - `npm`/`pip` via per-session config files with fakes that flow through the proxy
 
-New binary `cmd/agentsh-credhelper` talks to the daemon over the existing UDS. Each tool gets a tiny case in the helper. Services in YAML grow an optional `tool_helpers:` section.
+New binary `cmd/agentmon-credhelper` talks to the daemon over the existing UDS. Each tool gets a tiny case in the helper. Services in YAML grow an optional `tool_helpers:` section.
 
 This mechanism is additive and incremental: v2+ ships helpers as needed. No single monolithic release required.
 
@@ -513,8 +513,8 @@ This mechanism is additive and incremental: v2+ ships helpers as needed. No sing
 - Fake format beyond simple random-char templates (no JWT, no RSA, no X.509 fakes).
 - Outbound substitution for non-HTTP protocols (SMTP, raw TCP, h2c gRPC). HTTPS gRPC works because it is HTTP/2 inside TLS.
 - Inbound response scrubbing for encoded variants (base64-wrapped, URL-encoded, etc.). Only literal byte matches.
-- Session-log scrubbing for pre-substitution debug logs inside agentsh itself. Obvious paths closed; comprehensive audit deferred.
-- `agentsh secrets ls` / `agentsh secrets status` CLI commands. Observability via audit events only.
+- Session-log scrubbing for pre-substitution debug logs inside agentmon itself. Obvious paths closed; comprehensive audit deferred.
+- `agentmon secrets ls` / `agentmon secrets status` CLI commands. Observability via audit events only.
 
 ### Threat model exclusions
 
@@ -522,7 +522,7 @@ This mechanism is additive and incremental: v2+ ships helpers as needed. No sing
 - Local root attackers reading the daemon's memory.
 - Agents running as root inside the sandbox (assumed non-root).
 - Side-channel leaks (timing, size, cache).
-- Backend compromise — if Vault is compromised and returns a malicious secret, agentsh cannot tell.
+- Backend compromise — if Vault is compromised and returns a malicious secret, agentmon cannot tell.
 
 ### Naming / migration
 
@@ -566,12 +566,12 @@ internal/
       register.go         # RegisterHooks(*proxy.Proxy)
 
 cmd/
-  agentsh-credhelper/     # (Mechanism C; stub binary in v1, wired up in v2+)
+  agentmon-credhelper/     # (Mechanism C; stub binary in v1, wired up in v2+)
 ```
 
 ## Open questions for the implementation plan
 
-1. What does `agentsh policy lint` actually check for the "agent reaches provider directly" footgun? A concrete rule set should be defined in the implementation plan.
+1. What does `agentmon policy lint` actually check for the "agent reaches provider directly" footgun? A concrete rule set should be defined in the implementation plan.
 2. SSE streaming substitution chunking — how do we handle a fake that straddles two chunks? Buffer window of N bytes at chunk boundaries where N = longest fake length. Needs validation against real Anthropic/OpenAI SSE framing.
 3. Per-provider timeout tuning — 10 s default is a guess. Revisit after first real deployments.
 4. Implementation phasing — this spec's v1 scope is large (6 providers + 2 plugins + substitution engine + rename). The writing-plans skill should decompose into incremental merges: core substitution infra first, then providers one at a time starting with keyring (simplest) and ending with plugins.

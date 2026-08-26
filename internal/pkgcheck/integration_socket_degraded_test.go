@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/pkgcheck"
-	"github.com/agentsh/agentsh/internal/pkgcheck/provider"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck/provider"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestIntegration_SocketDownDegradesToOSV(t *testing.T) {

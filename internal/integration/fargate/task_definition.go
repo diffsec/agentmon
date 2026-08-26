@@ -11,7 +11,7 @@ import (
 // TaskDefParams holds parameters for building the ECS task definition.
 type TaskDefParams struct {
 	Family           string
-	AgentshImage     string
+	AgentmonImage     string
 	WorkloadImage    string
 	ExecutionRoleARN string
 	LogGroup         string
@@ -43,8 +43,8 @@ func BuildTaskDefinition(p TaskDefParams) *ecs.RegisterTaskDefinitionInput {
 		},
 		ContainerDefinitions: []ecstypes.ContainerDefinition{
 			{
-				Name:      aws.String("agentsh"),
-				Image:     aws.String(p.AgentshImage),
+				Name:      aws.String("agentmon"),
+				Image:     aws.String(p.AgentmonImage),
 				Essential: aws.Bool(true),
 				LinuxParameters: &ecstypes.LinuxParameters{
 					Capabilities: &ecstypes.KernelCapabilities{
@@ -58,7 +58,7 @@ func BuildTaskDefinition(p TaskDefParams) *ecs.RegisterTaskDefinitionInput {
 					},
 				},
 				HealthCheck: &ecstypes.HealthCheck{
-					// Verifies the agentsh process is running. This will be replaced
+					// Verifies the agentmon process is running. This will be replaced
 					// with an HTTP /health check once server startup wiring is complete
 					// (prerequisite #1 in the Phase 4c design).
 					Command:     []string{"CMD-SHELL", "test -f /shared/tracer-ready || kill -0 1"},
@@ -69,7 +69,7 @@ func BuildTaskDefinition(p TaskDefParams) *ecs.RegisterTaskDefinitionInput {
 				},
 				LogConfiguration: &ecstypes.LogConfiguration{
 					LogDriver: ecstypes.LogDriverAwslogs,
-					Options:   logOpts("agentsh"),
+					Options:   logOpts("agentmon"),
 				},
 			},
 			{
@@ -78,7 +78,7 @@ func BuildTaskDefinition(p TaskDefParams) *ecs.RegisterTaskDefinitionInput {
 				Essential: aws.Bool(true),
 				DependsOn: []ecstypes.ContainerDependency{
 					{
-						ContainerName: aws.String("agentsh"),
+						ContainerName: aws.String("agentmon"),
 						Condition:     ecstypes.ContainerConditionHealthy,
 					},
 				},

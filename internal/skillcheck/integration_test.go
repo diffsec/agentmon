@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/trash"
+	"github.com/diffsec/agentmon/internal/trash"
 )
 
 // TestEndToEnd_QuarantineRoundTrip drops the malicious fixture into a temp

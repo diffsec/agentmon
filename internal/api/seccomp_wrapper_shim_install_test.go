@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// TestShimInstall_SiblingProcessTree starts an in-process agentsh test
+// TestShimInstall_SiblingProcessTree starts an in-process agentmon test
 // server with Landlock denying reads of a tempdir directory. It builds and
 // runs the shim from a process tree that is NOT a child of the test
 // server (mirroring the sandbox-SDK pattern from issues #267 + #268).
@@ -22,7 +22,7 @@ import (
 // We use a tempdir-based deny target instead of /etc/shadow because the
 // latter is already 0600 root:root in most test environments, so a read
 // attempt fails on Unix DAC alone — the test would pass even with no
-// agentsh enforcement (false positive).
+// agentmon enforcement (false positive).
 func TestShimInstall_SiblingProcessTree(t *testing.T) {
 	if !landlockSupported(t) {
 		t.Skip("Landlock not supported in this environment")
@@ -31,7 +31,7 @@ func TestShimInstall_SiblingProcessTree(t *testing.T) {
 		t.Skip("seccomp user-notify not supported in this environment")
 	}
 	if !cgoAvailable() {
-		t.Skip("cgo not available — cannot build agentsh-unixwrap")
+		t.Skip("cgo not available — cannot build agentmon-unixwrap")
 	}
 
 	// Build binaries first — skip early if build environment doesn't support cgo.
@@ -47,7 +47,7 @@ func TestShimInstall_SiblingProcessTree(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Sanity check: without agentsh, the test user can read the file.
+	// Sanity check: without agentmon, the test user can read the file.
 	if _, err := os.ReadFile(denyFile); err != nil {
 		t.Fatalf("environment check failed: test user cannot read %s without policy: %v",
 			denyFile, err)
@@ -72,37 +72,37 @@ func TestShimInstall_SiblingProcessTree(t *testing.T) {
 	}
 
 	// Set up a temp shim.conf root pointing the shim at shim_install=on.
-	// Using the shimtest build tag, AGENTSH_SHIM_CONF_ROOT overrides the
+	// Using the shimtest build tag, AGENTMON_SHIM_CONF_ROOT overrides the
 	// config root so we control the shim.conf content.
 	confRoot := t.TempDir()
-	confDir := filepath.Join(confRoot, "etc", "agentsh")
+	confDir := filepath.Join(confRoot, "etc", "agentmon")
 	if err := os.MkdirAll(confDir, 0o755); err != nil {
 		t.Fatalf("mkdir shim conf dir: %v", err)
 	}
-	// shim_install=on (env AGENTSH_SHIM_INSTALL=on also works and takes
+	// shim_install=on (env AGENTMON_SHIM_INSTALL=on also works and takes
 	// precedence, but we set both for defence-in-depth).
 	shimConfContent := "shim_install=on\n"
 	if err := os.WriteFile(filepath.Join(confDir, "shim.conf"), []byte(shimConfContent), 0o644); err != nil {
 		t.Fatalf("write shim.conf: %v", err)
 	}
 
-	// Build the environment for the shim subprocess.  agentsh-unixwrap must
+	// Build the environment for the shim subprocess.  agentmon-unixwrap must
 	// be on PATH so the wrap-init response (which returns its path) is resolvable.
 	wrapDir := filepath.Dir(wrapPath)
 	testPATH := wrapDir + ":" + os.Getenv("PATH")
 
 	env := append(os.Environ(),
-		"AGENTSH_SERVER="+spec.srv.URL,
-		"AGENTSH_SESSION_ID="+spec.sessionID,
-		"AGENTSH_SHIM_INSTALL=on",
-		"AGENTSH_SHIM_CONF_ROOT="+confRoot,
+		"AGENTMON_SERVER="+spec.srv.URL,
+		"AGENTMON_SESSION_ID="+spec.sessionID,
+		"AGENTMON_SHIM_INSTALL=on",
+		"AGENTMON_SHIM_CONF_ROOT="+confRoot,
 		"PATH="+testPATH,
 		// Debug output so test logs capture what the shim does.
-		"AGENTSH_SHIM_DEBUG=1",
+		"AGENTMON_SHIM_DEBUG=1",
 	)
-	// Strip AGENTSH_IN_SESSION to prevent the recursion guard from bypassing
+	// Strip AGENTMON_IN_SESSION to prevent the recursion guard from bypassing
 	// the kernelinstall branch.
-	env = filterEnv(env, "AGENTSH_IN_SESSION")
+	env = filterEnv(env, "AGENTMON_IN_SESSION")
 
 	// 30-second timeout: if the shim hangs (e.g., waiting for a handshake that
 	// never completes), the test should fail with a clear timeout rather than
@@ -141,7 +141,7 @@ func TestShimInstall_NestedInstallsCompose(t *testing.T) {
 		t.Skip("seccomp user-notify not supported in this environment")
 	}
 	if !cgoAvailable() {
-		t.Skip("cgo not available — cannot build agentsh-unixwrap")
+		t.Skip("cgo not available — cannot build agentmon-unixwrap")
 	}
 
 	// Build both binaries before allocating any test resources.
@@ -157,7 +157,7 @@ func TestShimInstall_NestedInstallsCompose(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Sanity check: without agentsh the test user can read the file.
+	// Sanity check: without agentmon the test user can read the file.
 	if _, err := os.ReadFile(denyFile); err != nil {
 		t.Fatalf("environment check failed: cannot read %s without policy: %v", denyFile, err)
 	}
@@ -191,7 +191,7 @@ func TestShimInstall_NestedInstallsCompose(t *testing.T) {
 
 	// Set up a temp shim.conf root with shim_install=on.
 	confRoot := t.TempDir()
-	confDir := filepath.Join(confRoot, "etc", "agentsh")
+	confDir := filepath.Join(confRoot, "etc", "agentmon")
 	if err := os.MkdirAll(confDir, 0o755); err != nil {
 		t.Fatalf("mkdir shim conf dir: %v", err)
 	}
@@ -201,19 +201,19 @@ func TestShimInstall_NestedInstallsCompose(t *testing.T) {
 
 	// PATH must contain both the shim directory (so the inner "bash" resolves
 	// to the shim, not the real bash) and the wrap directory (so wrap-init
-	// can find agentsh-unixwrap).
+	// can find agentmon-unixwrap).
 	testPATH := shimDir + ":" + wrapDir + ":" + os.Getenv("PATH")
 
 	env := append(os.Environ(),
-		"AGENTSH_SERVER="+spec.srv.URL,
-		"AGENTSH_SESSION_ID="+spec.sessionID,
-		"AGENTSH_SHIM_INSTALL=on",
-		"AGENTSH_SHIM_CONF_ROOT="+confRoot,
+		"AGENTMON_SERVER="+spec.srv.URL,
+		"AGENTMON_SESSION_ID="+spec.sessionID,
+		"AGENTMON_SHIM_INSTALL=on",
+		"AGENTMON_SHIM_CONF_ROOT="+confRoot,
 		"PATH="+testPATH,
-		"AGENTSH_SHIM_DEBUG=1",
+		"AGENTMON_SHIM_DEBUG=1",
 	)
-	// Strip AGENTSH_IN_SESSION so neither shim level skips the kernelinstall branch.
-	env = filterEnv(env, "AGENTSH_IN_SESSION")
+	// Strip AGENTMON_IN_SESSION so neither shim level skips the kernelinstall branch.
+	env = filterEnv(env, "AGENTMON_IN_SESSION")
 
 	// 30-second timeout: nested install involves two wrap-init round trips; if
 	// either hangs the test should fail, not run forever.

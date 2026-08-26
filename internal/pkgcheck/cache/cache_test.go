@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 func TestKeyString(t *testing.T) {

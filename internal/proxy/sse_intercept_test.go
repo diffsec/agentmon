@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/mcpinspect"
-	"github.com/agentsh/agentsh/internal/mcpregistry"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
 )
 
 // --- Test helpers ---
@@ -131,7 +131,7 @@ func TestSSEInterceptor_Anthropic_SingleBlocked(t *testing.T) {
 	}
 
 	// 3. Replacement text block with the blocked message must be present.
-	expectedMsg := "[agentsh] Tool 'get_weather' blocked by policy"
+	expectedMsg := "[agentmon] Tool 'get_weather' blocked by policy"
 	if !strings.Contains(clientOutput, expectedMsg) {
 		t.Errorf("expected replacement text %q in client output, got:\n%s", expectedMsg, clientOutput)
 	}
@@ -314,9 +314,9 @@ func TestSSEInterceptor_Anthropic_SingleAllowed(t *testing.T) {
 		t.Error("original text block delta should pass through to client")
 	}
 
-	// 3. No [agentsh] replacement message should appear.
-	if strings.Contains(clientOutput, "[agentsh]") {
-		t.Error("no [agentsh] replacement message should appear for allowed tools")
+	// 3. No [agentmon] replacement message should appear.
+	if strings.Contains(clientOutput, "[agentmon]") {
+		t.Error("no [agentmon] replacement message should appear for allowed tools")
 	}
 
 	// 4. stop_reason must remain "tool_use" (not rewritten).
@@ -423,9 +423,9 @@ func TestSSEInterceptor_Anthropic_Unregistered(t *testing.T) {
 		t.Error("unregistered tool name should appear in client output")
 	}
 
-	// 2. No [agentsh] replacement message should appear.
-	if strings.Contains(clientOutput, "[agentsh]") {
-		t.Error("no [agentsh] message should appear for unregistered (non-MCP) tools")
+	// 2. No [agentmon] replacement message should appear.
+	if strings.Contains(clientOutput, "[agentmon]") {
+		t.Error("no [agentmon] message should appear for unregistered (non-MCP) tools")
 	}
 
 	// 3. No events should have fired (tool not in registry, so no policy evaluation).
@@ -593,13 +593,13 @@ func TestSSEInterceptor_Anthropic_PartialBlock(t *testing.T) {
 	}
 
 	// 3. Replacement text block with blocked message for delete_all must be present.
-	expectedMsg := "[agentsh] Tool 'delete_all' blocked by policy"
+	expectedMsg := "[agentmon] Tool 'delete_all' blocked by policy"
 	if !strings.Contains(clientOutput, expectedMsg) {
 		t.Errorf("expected replacement text %q in client output, got:\n%s", expectedMsg, clientOutput)
 	}
 
 	// 4. No replacement message for get_weather.
-	if strings.Contains(clientOutput, "[agentsh] Tool 'get_weather'") {
+	if strings.Contains(clientOutput, "[agentmon] Tool 'get_weather'") {
 		t.Error("get_weather should not have a blocked message")
 	}
 
@@ -795,8 +795,8 @@ func TestSSEInterceptor_Anthropic_AllBlocked(t *testing.T) {
 	}
 
 	// 2. Replacement text blocks for both tools must be present.
-	expectedMsg1 := "[agentsh] Tool 'get_weather' blocked by policy"
-	expectedMsg2 := "[agentsh] Tool 'delete_all' blocked by policy"
+	expectedMsg1 := "[agentmon] Tool 'get_weather' blocked by policy"
+	expectedMsg2 := "[agentmon] Tool 'delete_all' blocked by policy"
 	if !strings.Contains(clientOutput, expectedMsg1) {
 		t.Errorf("expected replacement text %q in client output", expectedMsg1)
 	}
@@ -1003,7 +1003,7 @@ func TestSSEInterceptor_OpenAI_SingleBlocked(t *testing.T) {
 	// --- Assertions ---
 
 	// 1. tool_calls should be removed from the first chunk; content should have the blocked message.
-	expectedMsg := "[agentsh] Tool 'get_weather' blocked by policy"
+	expectedMsg := "[agentmon] Tool 'get_weather' blocked by policy"
 	if !strings.Contains(clientOutput, expectedMsg) {
 		t.Errorf("expected blocked message %q in client output, got:\n%s", expectedMsg, clientOutput)
 	}
@@ -1181,9 +1181,9 @@ func TestSSEInterceptor_MalformedJSON(t *testing.T) {
 		t.Error("message_stop event should be present in output")
 	}
 
-	// 3. No [agentsh] replacement messages — no tool calls were in the stream.
-	if strings.Contains(clientOutput, "[agentsh]") {
-		t.Error("no [agentsh] message should appear when there are no tool calls")
+	// 3. No [agentmon] replacement messages — no tool calls were in the stream.
+	if strings.Contains(clientOutput, "[agentmon]") {
+		t.Error("no [agentmon] message should appear when there are no tool calls")
 	}
 
 	// 4. No events should have fired (no MCP tool calls seen).
@@ -1291,9 +1291,9 @@ func TestSSEInterceptor_TextOnlyStream(t *testing.T) {
 		t.Error("stop_reason should be 'end_turn' in a text-only stream")
 	}
 
-	// 3. No [agentsh] messages — there were no tool calls.
-	if strings.Contains(clientOutput, "[agentsh]") {
-		t.Error("no [agentsh] message should appear in a text-only stream")
+	// 3. No [agentmon] messages — there were no tool calls.
+	if strings.Contains(clientOutput, "[agentmon]") {
+		t.Error("no [agentmon] message should appear in a text-only stream")
 	}
 
 	// 4. No event callbacks — no MCP tool calls were seen.
@@ -1545,7 +1545,7 @@ func TestSSEInterceptor_OpenAI_MultiChoice(t *testing.T) {
 	}
 
 	// 3. Blocked message for delete_all should appear.
-	if !strings.Contains(clientOutput, "[agentsh] Tool 'delete_all' blocked by policy") {
+	if !strings.Contains(clientOutput, "[agentmon] Tool 'delete_all' blocked by policy") {
 		t.Error("expected blocked message for delete_all in choice 1")
 	}
 

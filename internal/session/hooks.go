@@ -1,8 +1,8 @@
 package session
 
 import (
-	"github.com/agentsh/agentsh/internal/platform"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/platform"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // LifecycleHooks provides callbacks for session lifecycle events.

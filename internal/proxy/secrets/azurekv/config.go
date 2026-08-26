@@ -1,7 +1,7 @@
 package azurekv
 
 import (
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // Config configures the Azure Key Vault provider.

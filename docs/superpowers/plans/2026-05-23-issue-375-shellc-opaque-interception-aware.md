@@ -38,7 +38,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // newInterceptionTestEngine builds an engine whose policy has a restrictive
@@ -186,7 +186,7 @@ package api
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestExecveEnforcementActive(t *testing.T) {
@@ -345,7 +345,7 @@ git commit -m "fix(#375): pass execve-enforcement signal into command pre-check 
 
 ## Task 3b: Shim wrap-init guard (found in review)
 
-The shell-shim kernel-install path hits a separate command pre-check in `wrapInitCore` (`internal/api/wrap.go`, the `req.Mode == "shim"` branch). Left on plain `CheckCommand`, an opaque shim command is denied here → HTTP 403 → the shim falls back to `agentsh exec`, bypassing the kernel-install wrapper entirely (defeating enforcement for Daytona-style all-`bash -c` traffic). Make it interception-aware too.
+The shell-shim kernel-install path hits a separate command pre-check in `wrapInitCore` (`internal/api/wrap.go`, the `req.Mode == "shim"` branch). Left on plain `CheckCommand`, an opaque shim command is denied here → HTTP 403 → the shim falls back to `agentmon exec`, bypassing the kernel-install wrapper entirely (defeating enforcement for Daytona-style all-`bash -c` traffic). Make it interception-aware too.
 
 **Files:** Modify `internal/api/wrap.go` (one line in the shim branch); Test `internal/api/wrap_shim_opaque_test.go`.
 

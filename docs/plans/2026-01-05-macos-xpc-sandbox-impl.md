@@ -4,7 +4,7 @@
 
 **Goal:** Implement XPC/Mach IPC control for macOS using sandbox profiles for blocking and audit events for monitoring.
 
-**Architecture:** A wrapper binary (`agentsh-macwrap`) applies SBPL sandbox profiles with mach-lookup restrictions before exec. The server passes XPC configuration via environment variable. Sandbox violations are captured as audit events.
+**Architecture:** A wrapper binary (`agentmon-macwrap`) applies SBPL sandbox profiles with mach-lookup restrictions before exec. The server passes XPC configuration via environment variable. Sandbox violations are captured as audit events.
 
 **Tech Stack:** Go, cgo (darwin sandbox.h), SBPL (Sandbox Profile Language)
 
@@ -380,13 +380,13 @@ git commit -m "feat(api): add default XPC allow/block lists for macOS"
 ## Task 4: Create macwrap Config Parsing
 
 **Files:**
-- Create: `cmd/agentsh-macwrap/config.go`
-- Create: `cmd/agentsh-macwrap/config_test.go`
+- Create: `cmd/agentmon-macwrap/config.go`
+- Create: `cmd/agentmon-macwrap/config_test.go`
 
 **Step 1: Write tests for config parsing**
 
 ```go
-// cmd/agentsh-macwrap/config_test.go
+// cmd/agentmon-macwrap/config_test.go
 //go:build darwin
 
 package main
@@ -397,7 +397,7 @@ import (
 )
 
 func TestLoadConfig_FromEnv(t *testing.T) {
-	os.Setenv("AGENTSH_SANDBOX_CONFIG", `{
+	os.Setenv("AGENTMON_SANDBOX_CONFIG", `{
 		"workspace_path": "/tmp/test",
 		"allow_network": true,
 		"mach_services": {
@@ -405,7 +405,7 @@ func TestLoadConfig_FromEnv(t *testing.T) {
 			"allow": ["com.apple.system.logger"]
 		}
 	}`)
-	defer os.Unsetenv("AGENTSH_SANDBOX_CONFIG")
+	defer os.Unsetenv("AGENTMON_SANDBOX_CONFIG")
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -427,7 +427,7 @@ func TestLoadConfig_FromEnv(t *testing.T) {
 }
 
 func TestLoadConfig_Default(t *testing.T) {
-	os.Unsetenv("AGENTSH_SANDBOX_CONFIG")
+	os.Unsetenv("AGENTMON_SANDBOX_CONFIG")
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -440,8 +440,8 @@ func TestLoadConfig_Default(t *testing.T) {
 }
 
 func TestLoadConfig_InvalidJSON(t *testing.T) {
-	os.Setenv("AGENTSH_SANDBOX_CONFIG", `{invalid}`)
-	defer os.Unsetenv("AGENTSH_SANDBOX_CONFIG")
+	os.Setenv("AGENTMON_SANDBOX_CONFIG", `{invalid}`)
+	defer os.Unsetenv("AGENTMON_SANDBOX_CONFIG")
 
 	_, err := loadConfig()
 	if err == nil {
@@ -452,13 +452,13 @@ func TestLoadConfig_InvalidJSON(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `go test ./cmd/agentsh-macwrap -run TestLoadConfig -v`
+Run: `go test ./cmd/agentmon-macwrap -run TestLoadConfig -v`
 Expected: FAIL (package doesn't exist)
 
 **Step 3: Create config.go**
 
 ```go
-// cmd/agentsh-macwrap/config.go
+// cmd/agentmon-macwrap/config.go
 //go:build darwin
 
 package main
@@ -469,7 +469,7 @@ import (
 	"os"
 )
 
-// WrapperConfig is passed via AGENTSH_SANDBOX_CONFIG env var.
+// WrapperConfig is passed via AGENTMON_SANDBOX_CONFIG env var.
 type WrapperConfig struct {
 	WorkspacePath string             `json:"workspace_path"`
 	AllowedPaths  []string           `json:"allowed_paths"`
@@ -488,7 +488,7 @@ type MachServicesConfig struct {
 
 // loadConfig reads wrapper config from environment.
 func loadConfig() (*WrapperConfig, error) {
-	val := os.Getenv("AGENTSH_SANDBOX_CONFIG")
+	val := os.Getenv("AGENTMON_SANDBOX_CONFIG")
 	if val == "" {
 		return &WrapperConfig{
 			MachServices: MachServicesConfig{
@@ -499,7 +499,7 @@ func loadConfig() (*WrapperConfig, error) {
 
 	var cfg WrapperConfig
 	if err := json.Unmarshal([]byte(val), &cfg); err != nil {
-		return nil, fmt.Errorf("parse AGENTSH_SANDBOX_CONFIG: %w", err)
+		return nil, fmt.Errorf("parse AGENTMON_SANDBOX_CONFIG: %w", err)
 	}
 	return &cfg, nil
 }
@@ -507,13 +507,13 @@ func loadConfig() (*WrapperConfig, error) {
 
 **Step 4: Run tests to verify they pass**
 
-Run: `go test ./cmd/agentsh-macwrap -run TestLoadConfig -v`
+Run: `go test ./cmd/agentmon-macwrap -run TestLoadConfig -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add cmd/agentsh-macwrap/config.go cmd/agentsh-macwrap/config_test.go
+git add cmd/agentmon-macwrap/config.go cmd/agentmon-macwrap/config_test.go
 git commit -m "feat(macwrap): add config parsing from environment"
 ```
 
@@ -522,13 +522,13 @@ git commit -m "feat(macwrap): add config parsing from environment"
 ## Task 5: Create macwrap Profile Generation
 
 **Files:**
-- Create: `cmd/agentsh-macwrap/profile.go`
-- Create: `cmd/agentsh-macwrap/profile_test.go`
+- Create: `cmd/agentmon-macwrap/profile.go`
+- Create: `cmd/agentmon-macwrap/profile_test.go`
 
 **Step 1: Write tests for profile generation**
 
 ```go
-// cmd/agentsh-macwrap/profile_test.go
+// cmd/agentmon-macwrap/profile_test.go
 //go:build darwin
 
 package main
@@ -640,13 +640,13 @@ func TestGenerateProfile_NetworkAllowed(t *testing.T) {
 
 **Step 2: Run tests to verify they fail**
 
-Run: `go test ./cmd/agentsh-macwrap -run TestGenerateProfile -v`
+Run: `go test ./cmd/agentmon-macwrap -run TestGenerateProfile -v`
 Expected: FAIL (generateProfile doesn't exist)
 
 **Step 3: Create profile.go**
 
 ```go
-// cmd/agentsh-macwrap/profile.go
+// cmd/agentmon-macwrap/profile.go
 //go:build darwin
 
 package main
@@ -789,13 +789,13 @@ func escapePath(path string) string {
 
 **Step 4: Run tests to verify they pass**
 
-Run: `go test ./cmd/agentsh-macwrap -run TestGenerateProfile -v`
+Run: `go test ./cmd/agentmon-macwrap -run TestGenerateProfile -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add cmd/agentsh-macwrap/profile.go cmd/agentsh-macwrap/profile_test.go
+git add cmd/agentmon-macwrap/profile.go cmd/agentmon-macwrap/profile_test.go
 git commit -m "feat(macwrap): add SBPL profile generation with mach-lookup rules"
 ```
 
@@ -804,13 +804,13 @@ git commit -m "feat(macwrap): add SBPL profile generation with mach-lookup rules
 ## Task 6: Create macwrap Main with cgo Sandbox
 
 **Files:**
-- Create: `cmd/agentsh-macwrap/main.go`
-- Create: `cmd/agentsh-macwrap/main_test.go`
+- Create: `cmd/agentmon-macwrap/main.go`
+- Create: `cmd/agentmon-macwrap/main_test.go`
 
 **Step 1: Write test for argument validation**
 
 ```go
-// cmd/agentsh-macwrap/main_test.go
+// cmd/agentmon-macwrap/main_test.go
 //go:build darwin
 
 package main
@@ -820,7 +820,7 @@ import (
 )
 
 func TestValidateArgs_Valid(t *testing.T) {
-	args := []string{"agentsh-macwrap", "--", "echo", "hello"}
+	args := []string{"agentmon-macwrap", "--", "echo", "hello"}
 	cmd, cmdArgs, err := validateArgs(args)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -834,7 +834,7 @@ func TestValidateArgs_Valid(t *testing.T) {
 }
 
 func TestValidateArgs_MissingDash(t *testing.T) {
-	args := []string{"agentsh-macwrap", "echo", "hello"}
+	args := []string{"agentmon-macwrap", "echo", "hello"}
 	_, _, err := validateArgs(args)
 	if err == nil {
 		t.Error("expected error for missing --")
@@ -842,7 +842,7 @@ func TestValidateArgs_MissingDash(t *testing.T) {
 }
 
 func TestValidateArgs_NoCommand(t *testing.T) {
-	args := []string{"agentsh-macwrap", "--"}
+	args := []string{"agentmon-macwrap", "--"}
 	_, _, err := validateArgs(args)
 	if err == nil {
 		t.Error("expected error for missing command")
@@ -852,19 +852,19 @@ func TestValidateArgs_NoCommand(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `go test ./cmd/agentsh-macwrap -run TestValidateArgs -v`
+Run: `go test ./cmd/agentmon-macwrap -run TestValidateArgs -v`
 Expected: FAIL (validateArgs doesn't exist)
 
 **Step 3: Create main.go with cgo sandbox**
 
 ```go
-// cmd/agentsh-macwrap/main.go
+// cmd/agentmon-macwrap/main.go
 //go:build darwin
 
-// agentsh-macwrap: applies macOS sandbox profile with XPC restrictions,
+// agentmon-macwrap: applies macOS sandbox profile with XPC restrictions,
 // then execs the target command.
-// Usage: agentsh-macwrap -- <command> [args...]
-// Requires env AGENTSH_SANDBOX_CONFIG set to JSON config.
+// Usage: agentmon-macwrap -- <command> [args...]
+// Requires env AGENTMON_SANDBOX_CONFIG set to JSON config.
 
 package main
 
@@ -947,18 +947,18 @@ func applySandbox(profile string) error {
 
 **Step 4: Run tests to verify they pass**
 
-Run: `go test ./cmd/agentsh-macwrap -run TestValidateArgs -v`
+Run: `go test ./cmd/agentmon-macwrap -run TestValidateArgs -v`
 Expected: PASS
 
 **Step 5: Build the binary (darwin only)**
 
-Run: `GOOS=darwin go build -o /dev/null ./cmd/agentsh-macwrap 2>&1 || echo "Expected: build requires darwin"`
+Run: `GOOS=darwin go build -o /dev/null ./cmd/agentmon-macwrap 2>&1 || echo "Expected: build requires darwin"`
 Expected: Fails on Linux (cgo darwin headers), succeeds on macOS
 
 **Step 6: Commit**
 
 ```bash
-git add cmd/agentsh-macwrap/main.go cmd/agentsh-macwrap/main_test.go
+git add cmd/agentmon-macwrap/main.go cmd/agentmon-macwrap/main_test.go
 git commit -m "feat(macwrap): add main with cgo sandbox_init"
 ```
 
@@ -1037,8 +1037,8 @@ git commit -m "feat(events): add XPCConnectEvent and XPCSandboxViolationEvent"
 Add after `seccompWrapperConfig` (around line 30):
 
 ```go
-// macSandboxWrapperConfig is passed to agentsh-macwrap via
-// AGENTSH_SANDBOX_CONFIG environment variable.
+// macSandboxWrapperConfig is passed to agentmon-macwrap via
+// AGENTMON_SANDBOX_CONFIG environment variable.
 type macSandboxWrapperConfig struct {
 	WorkspacePath string                       `json:"workspace_path"`
 	AllowedPaths  []string                     `json:"allowed_paths"`
@@ -1058,7 +1058,7 @@ type macSandboxMachServicesConfig struct {
 Add the wrapper function (add after the unix socket wrapping block, around line 580):
 
 ```go
-// wrapWithMacSandbox wraps command with agentsh-macwrap for XPC control.
+// wrapWithMacSandbox wraps command with agentmon-macwrap for XPC control.
 func (a *App) wrapWithMacSandbox(
 	req *types.ExecRequest,
 	origCommand string,
@@ -1067,7 +1067,7 @@ func (a *App) wrapWithMacSandbox(
 ) {
 	wrapperBin := strings.TrimSpace(a.cfg.Sandbox.XPC.WrapperBin)
 	if wrapperBin == "" {
-		wrapperBin = "agentsh-macwrap"
+		wrapperBin = "agentmon-macwrap"
 	}
 
 	// Check if wrapper exists
@@ -1112,7 +1112,7 @@ func (a *App) wrapWithMacSandbox(
 	if req.Env == nil {
 		req.Env = map[string]string{}
 	}
-	req.Env["AGENTSH_SANDBOX_CONFIG"] = string(cfgJSON)
+	req.Env["AGENTMON_SANDBOX_CONFIG"] = string(cfgJSON)
 	req.Command = wrapperBin
 	req.Args = append([]string{"--", origCommand}, origArgs...)
 }
@@ -1170,15 +1170,15 @@ If using Makefile, add:
 
 ```makefile
 build-macwrap:
-	GOOS=darwin go build -o bin/agentsh-macwrap ./cmd/agentsh-macwrap
+	GOOS=darwin go build -o bin/agentmon-macwrap ./cmd/agentmon-macwrap
 ```
 
 If using goreleaser, add to builds section:
 
 ```yaml
-  - id: agentsh-macwrap
-    main: ./cmd/agentsh-macwrap
-    binary: agentsh-macwrap
+  - id: agentmon-macwrap
+    main: ./cmd/agentmon-macwrap
+    binary: agentmon-macwrap
     goos:
       - darwin
     goarch:
@@ -1192,7 +1192,7 @@ If using goreleaser, add to builds section:
 
 ```bash
 git add Makefile .goreleaser.yml
-git commit -m "build: add agentsh-macwrap build target"
+git commit -m "build: add agentmon-macwrap build target"
 ```
 
 ---
@@ -1208,11 +1208,11 @@ git commit -m "build: add agentsh-macwrap build target"
 ```markdown
 # macOS XPC Sandbox
 
-agentsh provides XPC/Mach IPC control on macOS through sandbox profiles that restrict which system services sandboxed processes can communicate with.
+agentmon provides XPC/Mach IPC control on macOS through sandbox profiles that restrict which system services sandboxed processes can communicate with.
 
 ## Overview
 
-XPC (Cross-Process Communication) is macOS's primary IPC mechanism. By default, any process can connect to any XPC service. agentsh's XPC sandbox restricts this using Apple's sandbox profile system.
+XPC (Cross-Process Communication) is macOS's primary IPC mechanism. By default, any process can connect to any XPC service. agentmon's XPC sandbox restricts this using Apple's sandbox profile system.
 
 ## Configuration
 
@@ -1236,7 +1236,7 @@ sandbox:
 
 ## How It Works
 
-1. When `agentsh exec` runs a command on macOS with XPC enabled, it wraps the command with `agentsh-macwrap`
+1. When `agentmon exec` runs a command on macOS with XPC enabled, it wraps the command with `agentmon-macwrap`
 2. The wrapper generates an SBPL (Sandbox Profile Language) profile with mach-lookup rules
 3. The sandbox is applied via `sandbox_init_with_parameters()` before exec
 4. The sandboxed process can only connect to allowed XPC services
@@ -1328,9 +1328,9 @@ git commit -m "docs: mark XPC sandbox design as implemented"
 | 1 | XPC Config Types | `internal/config/config.go` |
 | 2 | Config Defaults/Validation | `internal/config/config.go` |
 | 3 | Default XPC Lists | `internal/api/xpc_darwin.go` |
-| 4 | macwrap Config | `cmd/agentsh-macwrap/config.go` |
-| 5 | macwrap Profile Gen | `cmd/agentsh-macwrap/profile.go` |
-| 6 | macwrap Main | `cmd/agentsh-macwrap/main.go` |
+| 4 | macwrap Config | `cmd/agentmon-macwrap/config.go` |
+| 5 | macwrap Profile Gen | `cmd/agentmon-macwrap/profile.go` |
+| 6 | macwrap Main | `cmd/agentmon-macwrap/main.go` |
 | 7 | Audit Events | `internal/events/schema.go` |
 | 8 | Server Integration | `internal/api/core.go` |
 | 9 | Build Target | `Makefile`/`.goreleaser.yml` |

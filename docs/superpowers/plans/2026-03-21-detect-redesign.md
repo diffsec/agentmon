@@ -236,7 +236,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/agentsh/agentsh/internal/netmonitor/ebpf"
+	"github.com/diffsec/agentmon/internal/netmonitor/ebpf"
 )
 
 // probeEBPF checks whether the process can use cgroup-attached eBPF
@@ -685,7 +685,7 @@ func (r *DetectResult) Table() string {
 		}
 	}
 
-	sb.WriteString("\nRun 'agentsh detect config' to generate an optimized configuration.\n")
+	sb.WriteString("\nRun 'agentmon detect config' to generate an optimized configuration.\n")
 	return sb.String()
 }
 ```
@@ -822,7 +822,7 @@ Run: `go test ./...`
 
 - [ ] **Step 4: Run detect manually**
 
-Run: `go run ./cmd/agentsh detect` and verify the new grouped output.
+Run: `go run ./cmd/agentmon detect` and verify the new grouped output.
 
 - [ ] **Step 5: Commit any fixups**
 

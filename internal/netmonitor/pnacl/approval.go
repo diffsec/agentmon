@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/approval/notify"
+	"github.com/diffsec/agentmon/internal/approval/notify"
 	"github.com/google/uuid"
 )
 

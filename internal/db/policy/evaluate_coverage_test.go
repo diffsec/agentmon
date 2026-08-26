@@ -3,8 +3,8 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 )
 
 // loadRules is a tiny helper used across evaluator tests.

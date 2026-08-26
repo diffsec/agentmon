@@ -1,6 +1,6 @@
 # Windows Network Redirect Design
 
-DNS and connect-level redirect for agentsh-wrapped processes on Windows.
+DNS and connect-level redirect for agentmon-wrapped processes on Windows.
 
 ## Overview
 

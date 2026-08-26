@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	unixmon "github.com/agentsh/agentsh/internal/netmonitor/unix"
+	unixmon "github.com/diffsec/agentmon/internal/netmonitor/unix"
 )
 
 // probeSeccompBasic checks whether the seccomp() syscall supports BPF filtering

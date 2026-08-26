@@ -11,7 +11,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/agentsh/agentsh/internal/ptrace"
+	"github.com/diffsec/agentmon/internal/ptrace"
 )
 
 const capSysPtrace = 19

@@ -4,7 +4,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestPathRedirector_Redirect(t *testing.T) {
@@ -206,10 +206,10 @@ func TestCheckCommand_WithEnhancedRedirect(t *testing.T) {
 				Decision: "redirect",
 				Message:  "Network requests routed through audited fetch",
 				RedirectTo: &CommandRedirect{
-					Command:     "agentsh-fetch",
+					Command:     "agentmon-fetch",
 					Args:        []string{"--audit"},
 					ArgsAppend:  []string{"--log-session"},
-					Environment: map[string]string{"AGENTSH_AUDIT": "1"},
+					Environment: map[string]string{"AGENTMON_AUDIT": "1"},
 				},
 			},
 		},
@@ -227,8 +227,8 @@ func TestCheckCommand_WithEnhancedRedirect(t *testing.T) {
 	if dec.Redirect == nil {
 		t.Fatal("expected Redirect, got nil")
 	}
-	if dec.Redirect.Command != "agentsh-fetch" {
-		t.Errorf("Redirect.Command = %q, want agentsh-fetch", dec.Redirect.Command)
+	if dec.Redirect.Command != "agentmon-fetch" {
+		t.Errorf("Redirect.Command = %q, want agentmon-fetch", dec.Redirect.Command)
 	}
 	if len(dec.Redirect.Args) != 1 || dec.Redirect.Args[0] != "--audit" {
 		t.Errorf("Redirect.Args = %v, want [--audit]", dec.Redirect.Args)
@@ -236,8 +236,8 @@ func TestCheckCommand_WithEnhancedRedirect(t *testing.T) {
 	if len(dec.Redirect.ArgsAppend) != 1 || dec.Redirect.ArgsAppend[0] != "--log-session" {
 		t.Errorf("Redirect.ArgsAppend = %v, want [--log-session]", dec.Redirect.ArgsAppend)
 	}
-	if dec.Redirect.Environment["AGENTSH_AUDIT"] != "1" {
-		t.Errorf("Redirect.Environment = %v, want AGENTSH_AUDIT=1", dec.Redirect.Environment)
+	if dec.Redirect.Environment["AGENTMON_AUDIT"] != "1" {
+		t.Errorf("Redirect.Environment = %v, want AGENTMON_AUDIT=1", dec.Redirect.Environment)
 	}
 }
 
@@ -300,7 +300,7 @@ func TestEnforceRedirects_ShadowVsEnforced(t *testing.T) {
 				Decision: "redirect",
 				Message:  "force push redirected",
 				RedirectTo: &CommandRedirect{
-					Command: "agentsh-stub",
+					Command: "agentmon-stub",
 					Args:    []string{"--deny"},
 				},
 			},
@@ -718,7 +718,7 @@ func TestConnectRedirectRuleValidation_UnixTarget(t *testing.T) {
 			rule: ConnectRedirectRule{
 				Name:           "db-appdb-redirect",
 				Match:          "^db\\.internal:5432$",
-				RedirectToUnix: "/run/agentsh/sessions/sess-1/db/appdb.sock",
+				RedirectToUnix: "/run/agentmon/sessions/sess-1/db/appdb.sock",
 			},
 		},
 		{
@@ -727,7 +727,7 @@ func TestConnectRedirectRuleValidation_UnixTarget(t *testing.T) {
 				Name:           "db-appdb-redirect",
 				Match:          "^db\\.internal:5432$",
 				RedirectTo:     "proxy.internal:15432",
-				RedirectToUnix: "/run/agentsh/sessions/sess-1/db/appdb.sock",
+				RedirectToUnix: "/run/agentmon/sessions/sess-1/db/appdb.sock",
 			},
 			wantErr: true,
 		},
@@ -945,8 +945,8 @@ func TestEvaluateConnectRedirect_UnixTarget(t *testing.T) {
 			{
 				Name:           "db-appdb-redirect",
 				Match:          "^db\\.internal:5432$",
-				RedirectToUnix: "/run/agentsh/sessions/sess-1/db/appdb.sock",
-				Message:        "Routed through AgentSH DB proxy",
+				RedirectToUnix: "/run/agentmon/sessions/sess-1/db/appdb.sock",
+				Message:        "Routed through AgentMon DB proxy",
 			},
 		},
 	}
@@ -962,13 +962,13 @@ func TestEvaluateConnectRedirect_UnixTarget(t *testing.T) {
 	if got.RedirectTo != "" {
 		t.Fatalf("RedirectTo = %q, want empty tcp target", got.RedirectTo)
 	}
-	if got.RedirectToUnix != "/run/agentsh/sessions/sess-1/db/appdb.sock" {
+	if got.RedirectToUnix != "/run/agentmon/sessions/sess-1/db/appdb.sock" {
 		t.Fatalf("RedirectToUnix = %q", got.RedirectToUnix)
 	}
 	if got.Rule != "db-appdb-redirect" {
 		t.Fatalf("Rule = %q", got.Rule)
 	}
-	if got.Message != "Routed through AgentSH DB proxy" {
+	if got.Message != "Routed through AgentMon DB proxy" {
 		t.Fatalf("Message = %q", got.Message)
 	}
 }

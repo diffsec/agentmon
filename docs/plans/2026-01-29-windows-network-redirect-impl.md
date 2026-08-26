@@ -130,8 +130,8 @@ Add imports and fields for policy engine and correlation map:
 
 ```go
 import (
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/netmonitor/redirect"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/netmonitor/redirect"
 )
 
 // In the network interceptor struct, add:

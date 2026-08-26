@@ -6,7 +6,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // RlimitAS is the syscall constant for RLIMIT_AS (address space limit).

@@ -279,7 +279,7 @@ func TestPolicyWatcher_TriggerReload(t *testing.T) {
 }
 
 func TestIsInStagingDir(t *testing.T) {
-	policyDir := filepath.Join("etc", "agentsh", "policies")
+	policyDir := filepath.Join("etc", "agentmon", "policies")
 	tests := []struct {
 		path      string
 		policyDir string

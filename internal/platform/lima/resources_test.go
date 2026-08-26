@@ -5,7 +5,7 @@ package lima
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 func TestResourceLimiter_Available(t *testing.T) {
@@ -102,8 +102,8 @@ func TestResourceHandle_Release_NoCgPath(t *testing.T) {
 
 func TestCgroupPath(t *testing.T) {
 	// Test the cgroup path construction
-	expected := "/sys/fs/cgroup/agentsh"
-	got := cgroupBasePath + "/" + agentshCgroupDir
+	expected := "/sys/fs/cgroup/agentmon"
+	got := cgroupBasePath + "/" + agentmonCgroupDir
 	if got != expected {
 		t.Errorf("Cgroup path = %q, want %q", got, expected)
 	}

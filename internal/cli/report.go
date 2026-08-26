@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/internal/report"
-	"github.com/agentsh/agentsh/internal/store/sqlite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/internal/report"
+	"github.com/diffsec/agentmon/internal/store/sqlite"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -31,16 +31,16 @@ func newReportCmd() *cobra.Command {
 
 Examples:
   # Quick summary of latest session
-  agentsh report latest --level=summary
+  agentmon report latest --level=summary
 
   # Detailed report saved to file
-  agentsh report abc123 --level=detailed --output=report.md
+  agentmon report abc123 --level=detailed --output=report.md
 
   # Offline mode using local database
-  agentsh report latest --level=summary --direct-db
+  agentmon report latest --level=summary --direct-db
 
   # Include LLM stats from custom sessions directory
-  agentsh report abc123 --level=detailed --sessions-dir=/path/to/sessions`,
+  agentmon report abc123 --level=detailed --sessions-dir=/path/to/sessions`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate level
@@ -60,7 +60,7 @@ Examples:
 			if directDB {
 				// Direct database access (offline mode)
 				if dbPath == "" {
-					dbPath = getenvDefault("AGENTSH_DB_PATH", "./data/events.db")
+					dbPath = getenvDefault("AGENTMON_DB_PATH", "./data/events.db")
 				}
 				sess, events, err = loadReportFromDB(ctx, dbPath, sessionArg)
 				sessionID = sess.ID
@@ -81,12 +81,12 @@ Examples:
 
 			// Try to find llm-requests.jsonl for LLM stats
 			if sessionsDir == "" {
-				sessionsDir = getenvDefault("AGENTSH_SESSIONS_DIR", "")
+				sessionsDir = getenvDefault("AGENTMON_SESSIONS_DIR", "")
 			}
 			if sessionsDir == "" {
 				// Try default locations
 				if home, err := os.UserHomeDir(); err == nil {
-					defaultPath := filepath.Join(home, ".agentsh", "sessions")
+					defaultPath := filepath.Join(home, ".agentmon", "sessions")
 					if _, err := os.Stat(defaultPath); err == nil {
 						sessionsDir = defaultPath
 					}
@@ -122,7 +122,7 @@ Examples:
 	cmd.Flags().StringVar(&output, "output", "", "Output file path (default: stdout)")
 	cmd.Flags().BoolVar(&directDB, "direct-db", false, "Query local database directly (offline mode)")
 	cmd.Flags().StringVar(&dbPath, "db-path", "", "Path to events database (default: ./data/events.db)")
-	cmd.Flags().StringVar(&sessionsDir, "sessions-dir", "", "Path to sessions directory for LLM stats (default: ~/.agentsh/sessions)")
+	cmd.Flags().StringVar(&sessionsDir, "sessions-dir", "", "Path to sessions directory for LLM stats (default: ~/.agentmon/sessions)")
 	_ = cmd.MarkFlagRequired("level")
 
 	return cmd
@@ -172,7 +172,7 @@ func loadReportFromAPI(ctx context.Context, cfg *clientConfig, sessionArg string
 
 	sess, err := c.GetSession(ctx, sessionID)
 	if err != nil {
-		return types.Session{}, nil, fmt.Errorf("get session: %w (hint: run 'agentsh session list')", err)
+		return types.Session{}, nil, fmt.Errorf("get session: %w (hint: run 'agentmon session list')", err)
 	}
 
 	// Query events with ascending order

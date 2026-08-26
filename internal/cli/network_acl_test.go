@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/netmonitor/pnacl"
+	"github.com/diffsec/agentmon/internal/netmonitor/pnacl"
 )
 
 func TestNetworkACLList_NoConfig(t *testing.T) {
@@ -580,8 +580,8 @@ func TestResolveNetworkACLConfigPath(t *testing.T) {
 	}
 
 	// Test env var
-	os.Setenv("AGENTSH_NETWORK_ACL_CONFIG", "/env/path/config.yml")
-	defer os.Unsetenv("AGENTSH_NETWORK_ACL_CONFIG")
+	os.Setenv("AGENTMON_NETWORK_ACL_CONFIG", "/env/path/config.yml")
+	defer os.Unsetenv("AGENTMON_NETWORK_ACL_CONFIG")
 
 	result = resolveNetworkACLConfigPath("")
 	if result != "/env/path/config.yml" {

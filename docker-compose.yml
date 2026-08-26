@@ -1,9 +1,9 @@
-# agentsh Docker Compose Configuration
+# agentmon Docker Compose Configuration
 #
 # Usage:
-#   docker-compose up -d          # Start agentsh
+#   docker-compose up -d          # Start agentmon
 #   docker-compose logs -f        # View logs
-#   docker-compose down           # Stop agentsh
+#   docker-compose down           # Stop agentmon
 #
 # Access:
 #   HTTP API: http://localhost:18080
@@ -12,15 +12,15 @@
 version: '3.8'
 
 services:
-  agentsh:
-    image: ghcr.io/agentsh/agentsh:latest
+  agentmon:
+    image: ghcr.io/diffsec/agentmon:latest
     # Or build locally:
     # build:
     #   context: .
     #   dockerfile: Dockerfile.example
     
-    container_name: agentsh
-    hostname: agentsh
+    container_name: agentmon
+    hostname: agentmon
     
     # Required capabilities for full functionality
     cap_add:
@@ -48,23 +48,23 @@ services:
       - ./workspaces:/workspaces
       
       # Custom configuration (optional)
-      - ./config:/etc/agentsh:ro
+      - ./config:/etc/agentmon:ro
       
       # Persistent data (session history, logs)
-      - agentsh-data:/var/lib/agentsh
+      - agentmon-data:/var/lib/agentmon
       
       # Logs
-      - agentsh-logs:/var/log/agentsh
+      - agentmon-logs:/var/log/agentmon
     
     # Environment variables
     environment:
-      - AGENTSH_LOG_LEVEL=info
+      - AGENTMON_LOG_LEVEL=info
       # Policy selection (name without .yml suffix). Must be in policies.allowed or defaults to policies.default.
-      # - AGENTSH_POLICY_NAME=default
+      # - AGENTMON_POLICY_NAME=default
       # Optional env iteration block via shim for commands with env_policy.block_iteration=true
-      # - AGENTSH_ENV_BLOCK_ITERATION=0
-      # - AGENTSH_HTTP_ADDR=0.0.0.0:18080
-      # - AGENTSH_GRPC_ADDR=0.0.0.0:9090
+      # - AGENTMON_ENV_BLOCK_ITERATION=0
+      # - AGENTMON_HTTP_ADDR=0.0.0.0:18080
+      # - AGENTMON_GRPC_ADDR=0.0.0.0:9090
     
     # Resource limits
     deploy:
@@ -96,12 +96,12 @@ services:
 
 # Named volumes for persistence
 volumes:
-  agentsh-data:
+  agentmon-data:
     driver: local
-  agentsh-logs:
+  agentmon-logs:
     driver: local
 
 # Optional: custom network
 networks:
   default:
-    name: agentsh-network
+    name: agentmon-network

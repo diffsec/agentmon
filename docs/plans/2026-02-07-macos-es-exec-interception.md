@@ -2,9 +2,9 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Wire the existing ESF client's `AUTH_EXEC` handler into the full agentsh exec pipeline, adding recursion prevention (`es_mute_process`), the deny-then-respawn stub pattern for redirect/approve decisions, and macOS-specific `agentsh wrap` support.
+**Goal:** Wire the existing ESF client's `AUTH_EXEC` handler into the full agentmon exec pipeline, adding recursion prevention (`es_mute_process`), the deny-then-respawn stub pattern for redirect/approve decisions, and macOS-specific `agentmon wrap` support.
 
-**Architecture:** The ESF Swift infrastructure already exists (`macos/SysExt/ESFClient.swift`). We extend the Go-side XPC protocol to support full exec pipeline decisions (not just allow/deny), add a `wrap_darwin.go` to connect `agentsh wrap` to the ES system on macOS, modify the XPC protocol to carry exec pipeline responses (decision + action), and add `es_mute_process()` calls for recursion prevention. The stub binary (`cmd/agentsh-stub/`) is already platform-agnostic and reusable.
+**Architecture:** The ESF Swift infrastructure already exists (`macos/SysExt/ESFClient.swift`). We extend the Go-side XPC protocol to support full exec pipeline decisions (not just allow/deny), add a `wrap_darwin.go` to connect `agentmon wrap` to the ES system on macOS, modify the XPC protocol to carry exec pipeline responses (decision + action), and add `es_mute_process()` calls for recursion prevention. The stub binary (`cmd/agentmon-stub/`) is already platform-agnostic and reusable.
 
 **Tech Stack:** Go (XPC server, wrap CLI, stub), Swift (ESF client, System Extension), Unix domain sockets (XPC transport), existing stub wire protocol
 
@@ -24,7 +24,7 @@
 
 5. **`internal/stub/`** — Complete stub wire protocol and server. Platform-agnostic. **Reusable as-is.**
 
-6. **`cmd/agentsh-stub/`** — Stub binary. Reads `AGENTSH_STUB_FD` env var for socket fd. **Reusable as-is.**
+6. **`cmd/agentmon-stub/`** — Stub binary. Reads `AGENTMON_STUB_FD` env var for socket fd. **Reusable as-is.**
 
 7. **`internal/cli/wrap.go`** — Platform-independent wrap orchestration. Calls `platformSetupWrap()`. **Needs darwin variant.**
 
@@ -32,7 +32,7 @@
 
 ### Key Design Decisions
 
-- **Deny-then-respawn**: ES `AUTH_EXEC` cannot rewrite exec targets. For redirect/approve, we deny the original exec and spawn `agentsh-stub` as a new child.
+- **Deny-then-respawn**: ES `AUTH_EXEC` cannot rewrite exec targets. For redirect/approve, we deny the original exec and spawn `agentmon-stub` as a new child.
 - **Recursion guard**: `es_mute_process()` on server-spawned processes prevents re-interception.
 - **XPC protocol extension**: The `checkCommand` reply changes from `(Bool, String?)` to `(String, String?, String?)` — `(decision, rule, action)` where action is "continue", "redirect", or "deny".
 - **Session scoping**: AUTH_EXEC events are filtered by session PID ancestry via `ProcessHierarchy.isDescendant()`.
@@ -118,7 +118,7 @@ Extend the Swift-side XPC protocol and ESFClient to handle exec pipeline decisio
 
 ### What to Do
 
-**Step 1:** Add a new method to `AgentshXPCProtocol` for exec pipeline checks:
+**Step 1:** Add a new method to `AgentmonXPCProtocol` for exec pipeline checks:
 
 ```swift
 /// Check command execution through the full exec pipeline.
@@ -210,20 +210,20 @@ git commit -m "feat(esf): extend AUTH_EXEC handler for full exec pipeline routin
 
 ## Task 3: Add es_mute_process() Recursion Guard
 
-Add `es_mute_process()` calls to prevent re-interception of agentsh-spawned processes.
+Add `es_mute_process()` calls to prevent re-interception of agentmon-spawned processes.
 
 **Files:**
 - Modify: `macos/SysExt/ESFClient.swift`
 
 ### What to Do
 
-When the agentsh server spawns commands (via `stub.ServeStubConnection`), those child processes must NOT be re-intercepted by the ES client. The ES framework provides `es_mute_process()` for this — muted processes and all descendants are invisible.
+When the agentmon server spawns commands (via `stub.ServeStubConnection`), those child processes must NOT be re-intercepted by the ES client. The ES framework provides `es_mute_process()` for this — muted processes and all descendants are invisible.
 
 **Step 1:** Add a mute method to `ESFClient`:
 
 ```swift
 /// Mute a process and all its descendants so ES events are not delivered for them.
-/// Used for recursion prevention — agentsh-spawned commands must not be re-intercepted.
+/// Used for recursion prevention — agentmon-spawned commands must not be re-intercepted.
 func muteProcess(auditToken: audit_token_t) {
     guard let client = getClient() else { return }
     let result = es_mute_process(client, &auditToken, ES_MUTE_PATH_TYPE_TARGET_PREFIX)
@@ -250,7 +250,7 @@ func muteProcessByPID(_ pid: pid_t) {
 ```swift
 /// Cache of PID -> audit_token_t for muting
 private var auditTokenCache: [pid_t: audit_token_t] = [:]
-private let cacheQueue = DispatchQueue(label: "com.agentsh.audittokencache")
+private let cacheQueue = DispatchQueue(label: "com.agentmon.audittokencache")
 ```
 
 **Step 3:** Update `handleNotifyFork` to cache the child's audit token:
@@ -309,7 +309,7 @@ Create the macOS-specific `platformSetupWrap` implementation and update build ta
 
 ### What to Do
 
-On macOS with ES tier, `agentsh wrap` needs to:
+On macOS with ES tier, `agentmon wrap` needs to:
 1. Tell the server to register this session for ES interception
 2. Pass the agent PID as the taint root
 3. The ESF client (System Extension) handles interception independently
@@ -335,7 +335,7 @@ import (
     "os"
     "syscall"
 
-    "github.com/agentsh/agentsh/pkg/types"
+    "github.com/diffsec/agentmon/pkg/types"
 )
 
 // platformSetupWrap on macOS sets up ES-based interception.
@@ -348,8 +348,8 @@ func platformSetupWrap(ctx context.Context, wrapResp types.WrapInitResponse, ses
         // The agent runs directly, and the ESF client intercepts its execs.
         env := os.Environ()
         env = append(env,
-            fmt.Sprintf("AGENTSH_SESSION_ID=%s", sessID),
-            fmt.Sprintf("AGENTSH_SERVER=%s", cfg.serverAddr),
+            fmt.Sprintf("AGENTMON_SESSION_ID=%s", sessID),
+            fmt.Sprintf("AGENTMON_SERVER=%s", cfg.serverAddr),
         )
 
         return &wrapLaunchConfig{
@@ -362,12 +362,12 @@ func platformSetupWrap(ctx context.Context, wrapResp types.WrapInitResponse, ses
         }, nil
     }
 
-    // If the server returns a wrapper binary (e.g., agentsh-macwrap for sandboxing),
+    // If the server returns a wrapper binary (e.g., agentmon-macwrap for sandboxing),
     // use it as the launch command.
     env := os.Environ()
     env = append(env,
-        fmt.Sprintf("AGENTSH_SESSION_ID=%s", sessID),
-        fmt.Sprintf("AGENTSH_SERVER=%s", cfg.serverAddr),
+        fmt.Sprintf("AGENTMON_SESSION_ID=%s", sessID),
+        fmt.Sprintf("AGENTMON_SERVER=%s", cfg.serverAddr),
     )
     for k, v := range wrapResp.WrapperEnv {
         env = append(env, fmt.Sprintf("%s=%s", k, v))
@@ -403,9 +403,9 @@ if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
 **Step 4:** Update the success log message in `wrap.go` to be platform-appropriate:
 ```go
 if runtime.GOOS == "linux" {
-    fmt.Fprintf(os.Stderr, "agentsh: agent %s started with seccomp interception (pid: %d)\n", ...)
+    fmt.Fprintf(os.Stderr, "agentmon: agent %s started with seccomp interception (pid: %d)\n", ...)
 } else if runtime.GOOS == "darwin" {
-    fmt.Fprintf(os.Stderr, "agentsh: agent %s started with ES interception (pid: %d)\n", ...)
+    fmt.Fprintf(os.Stderr, "agentmon: agent %s started with ES interception (pid: %d)\n", ...)
 }
 ```
 
@@ -443,7 +443,7 @@ When the ESF client sends an `exec_check` request via XPC, the Go server needs t
 1. Evaluate the command against policy
 2. For allow/audit: return `action: "continue"` (ES allows in-place)
 3. For deny: return `action: "deny"` (ES denies with EPERM)
-4. For redirect/approve: return `action: "redirect"`, then spawn `agentsh-stub` server-side and run the original command through the full pipeline
+4. For redirect/approve: return `action: "redirect"`, then spawn `agentmon-stub` server-side and run the original command through the full pipeline
 
 **Step 1:** Create `es_exec.go` implementing the `ExecHandler` interface:
 
@@ -458,14 +458,14 @@ import (
     "net"
     "os"
 
-    "github.com/agentsh/agentsh/internal/platform/darwin/xpc"
-    "github.com/agentsh/agentsh/internal/stub"
+    "github.com/diffsec/agentmon/internal/platform/darwin/xpc"
+    "github.com/diffsec/agentmon/internal/stub"
 )
 
 // ESExecHandler handles exec pipeline checks from the ESF client.
 type ESExecHandler struct {
     policyChecker ExecPolicyChecker
-    stubBinary    string // Path to agentsh-stub
+    stubBinary    string // Path to agentmon-stub
 }
 
 // ExecPolicyChecker interface for policy evaluation.
@@ -572,7 +572,7 @@ func (h *ESExecHandler) spawnStubServer(executable string, args []string, pid in
     go h.launchStub(stubConn, executable, pid)
 }
 
-// launchStub spawns agentsh-stub with the socket fd.
+// launchStub spawns agentmon-stub with the socket fd.
 func (h *ESExecHandler) launchStub(conn net.Conn, originalCmd string, originalPID int32) {
     defer conn.Close()
 
@@ -584,11 +584,11 @@ func (h *ESExecHandler) launchStub(conn net.Conn, originalCmd string, originalPI
     }
     defer file.Close()
 
-    // Spawn agentsh-stub with the socket as fd 3
+    // Spawn agentmon-stub with the socket as fd 3
     // TODO: Use posix_spawn with the original process's context for proper parent relationship
     cmd := exec.CommandContext(context.Background(), h.stubBinary)
     cmd.Env = append(os.Environ(),
-        "AGENTSH_STUB_FD=3",
+        "AGENTMON_STUB_FD=3",
     )
     cmd.ExtraFiles = []*os.File{file}
 
@@ -911,9 +911,9 @@ In `ESFClient.swift`:
 ```swift
 /// Active wrap sessions: maps session root PID to session ID
 private var activeSessions: [pid_t: String] = [:]
-private let sessionQueue = DispatchQueue(label: "com.agentsh.sessions")
+private let sessionQueue = DispatchQueue(label: "com.agentmon.sessions")
 
-/// Register a wrap session — called when agentsh wrap starts
+/// Register a wrap session — called when agentmon wrap starts
 func registerSession(rootPID: pid_t, sessionID: String) {
     sessionQueue.sync {
         activeSessions[rootPID] = sessionID

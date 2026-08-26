@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Route `agentsh-unixwrap` diagnostics (the per-exec `seccomp: filter loaded` slog line plus stdlib `log` noise) off the wrapped command's stderr via an inherited log fd, in all three spawn paths.
+**Goal:** Route `agentmon-unixwrap` diagnostics (the per-exec `seccomp: filter loaded` slog line plus stdlib `log` noise) off the wrapped command's stderr via an inherited log fd, in all three spawn paths.
 
-**Architecture:** The wrapper reads `AGENTSH_WRAPPER_LOG_FD=<n>` at startup and points both its default slog handler and the stdlib `log` package at that fd (CLOEXEC so the wrapped command never inherits it; env var stripped before exec). The server exec path backs the fd with a pipe drained into the server log; the shim relay and `agentsh wrap` CLI paths back it with an `O_APPEND` state-dir file. Unset env var → stderr (today's behavior). The handshake protocol and `internal/netmonitor/unix` are untouched, so `TestInstallFilter_*` regression tests pass unchanged.
+**Architecture:** The wrapper reads `AGENTMON_WRAPPER_LOG_FD=<n>` at startup and points both its default slog handler and the stdlib `log` package at that fd (CLOEXEC so the wrapped command never inherits it; env var stripped before exec). The server exec path backs the fd with a pipe drained into the server log; the shim relay and `agentmon wrap` CLI paths back it with an `O_APPEND` state-dir file. Unset env var → stderr (today's behavior). The handshake protocol and `internal/netmonitor/unix` are untouched, so `TestInstallFilter_*` regression tests pass unchanged.
 
 **Tech Stack:** Go, `log/slog`, `os.Pipe`, `golang.org/x/sys/unix` (fcntl/fstat).
 
@@ -24,9 +24,9 @@
 |---|---|---|
 | `internal/wrapperlog/wrapperlog.go` | Create | Shared env-key constant + state-dir log file opener |
 | `internal/wrapperlog/wrapperlog_test.go` | Create | Tests for the above |
-| `cmd/agentsh-unixwrap/logging.go` | Create | `setupLogging()` (fd routing, CLOEXEC, env strip) + `fatalf`/`writeFatal` |
-| `cmd/agentsh-unixwrap/logging_test.go` | Create | Tests for the above |
-| `cmd/agentsh-unixwrap/main.go` | Modify | Call `setupLogging()`; replace 13 `log.Fatalf` call sites with `fatalf` |
+| `cmd/agentmon-unixwrap/logging.go` | Create | `setupLogging()` (fd routing, CLOEXEC, env strip) + `fatalf`/`writeFatal` |
+| `cmd/agentmon-unixwrap/logging_test.go` | Create | Tests for the above |
+| `cmd/agentmon-unixwrap/main.go` | Modify | Call `setupLogging()`; replace 13 `log.Fatalf` call sites with `fatalf` |
 | `internal/api/exec.go` | Modify | Two new `extraProcConfig` fields; close-write-end + start-drain in `startWrapperHandlers` |
 | `internal/api/wrapper_log.go` | Create | `startWrapperLogDrain` goroutine |
 | `internal/api/wrapper_log_test.go` | Create | Drain test |
@@ -82,7 +82,7 @@ func TestOpenStateLogFile_CreatesDirAndAppends(t *testing.T) {
 	}
 	f2.Close()
 
-	got, err := os.ReadFile(filepath.Join(stateHome, "agentsh", "logs", "unixwrap.log"))
+	got, err := os.ReadFile(filepath.Join(stateHome, "agentmon", "logs", "unixwrap.log"))
 	if err != nil {
 		t.Fatalf("read log: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestOpenStateLogFile_CreatesDirAndAppends(t *testing.T) {
 func TestEnvKey_Value(t *testing.T) {
 	// The wrapper and all three parents must agree on this string;
 	// pin it so a rename can't silently desynchronize them.
-	if EnvKey != "AGENTSH_WRAPPER_LOG_FD" {
+	if EnvKey != "AGENTMON_WRAPPER_LOG_FD" {
 		t.Fatalf("EnvKey = %q", EnvKey)
 	}
 }
@@ -109,7 +109,7 @@ Expected: FAIL — package does not exist / `OpenStateLogFile` undefined.
 
 ```go
 // Package wrapperlog defines the env contract and fallback file
-// destination for routing agentsh-unixwrap diagnostics off the wrapped
+// destination for routing agentmon-unixwrap diagnostics off the wrapped
 // command's stderr (issue #415). The wrapper execs the real command in
 // place, so anything it logs to stderr lands on the user-visible stream
 // of the wrapped command; parents pass an inherited fd via EnvKey
@@ -120,17 +120,17 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // EnvKey names the env var carrying the inherited fd number that
-// agentsh-unixwrap routes its diagnostics (slog + stdlib log) to.
+// agentmon-unixwrap routes its diagnostics (slog + stdlib log) to.
 // Unset means stderr (legacy behavior).
-const EnvKey = "AGENTSH_WRAPPER_LOG_FD"
+const EnvKey = "AGENTMON_WRAPPER_LOG_FD"
 
 // OpenStateLogFile opens <user-state-dir>/logs/unixwrap.log for append,
 // creating the directory as needed. Used by parents that have no live
-// log sink of their own (shell-shim relay, agentsh wrap CLI); O_APPEND
+// log sink of their own (shell-shim relay, agentmon wrap CLI); O_APPEND
 // keeps concurrent wrapper invocations line-atomic.
 func OpenStateLogFile() (*os.File, error) {
 	dir := filepath.Join(config.GetUserStateDir(), "logs")
@@ -159,8 +159,8 @@ git commit -m "feat(#415): add wrapperlog package — env contract + state-dir l
 ### Task 2: Wrapper-side `setupLogging` + `fatalf`
 
 **Files:**
-- Create: `cmd/agentsh-unixwrap/logging.go`
-- Test: `cmd/agentsh-unixwrap/logging_test.go`
+- Create: `cmd/agentmon-unixwrap/logging.go`
+- Test: `cmd/agentmon-unixwrap/logging_test.go`
 
 Both files need the `//go:build linux && cgo` tag — every file in this package has it; an untagged file would break non-Linux builds of `./...`.
 
@@ -181,7 +181,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/wrapperlog"
+	"github.com/diffsec/agentmon/internal/wrapperlog"
 	"golang.org/x/sys/unix"
 )
 
@@ -321,12 +321,12 @@ func TestWriteFatal_DualWritesWhenRouted(t *testing.T) {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `go test ./cmd/agentsh-unixwrap/ -run 'TestSetupLogging|TestWriteFatal' -v`
+Run: `go test ./cmd/agentmon-unixwrap/ -run 'TestSetupLogging|TestWriteFatal' -v`
 Expected: FAIL — `setupLogging`, `logDest`, `writeFatal` undefined.
 
 - [ ] **Step 3: Write the implementation**
 
-`cmd/agentsh-unixwrap/logging.go`:
+`cmd/agentmon-unixwrap/logging.go`:
 
 ```go
 //go:build linux && cgo
@@ -340,7 +340,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/agentsh/agentsh/internal/wrapperlog"
+	"github.com/diffsec/agentmon/internal/wrapperlog"
 	"golang.org/x/sys/unix"
 )
 
@@ -411,13 +411,13 @@ func writeFatal(msg string) {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `go test ./cmd/agentsh-unixwrap/ -run 'TestSetupLogging|TestWriteFatal' -v`
+Run: `go test ./cmd/agentmon-unixwrap/ -run 'TestSetupLogging|TestWriteFatal' -v`
 Expected: PASS (5 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add cmd/agentsh-unixwrap/logging.go cmd/agentsh-unixwrap/logging_test.go
+git add cmd/agentmon-unixwrap/logging.go cmd/agentmon-unixwrap/logging_test.go
 git commit -m "feat(#415): unixwrap setupLogging — route slog+stdlib log to inherited fd"
 ```
 
@@ -426,7 +426,7 @@ git commit -m "feat(#415): unixwrap setupLogging — route slog+stdlib log to in
 ### Task 3: Wire `setupLogging` into wrapper `main()`
 
 **Files:**
-- Modify: `cmd/agentsh-unixwrap/main.go`
+- Modify: `cmd/agentmon-unixwrap/main.go`
 
 - [ ] **Step 1: Call `setupLogging` first thing in `main()`**
 
@@ -459,12 +459,12 @@ func main() {
 
 Verify none remain:
 
-Run: `grep -n "log.Fatalf" cmd/agentsh-unixwrap/main.go`
+Run: `grep -n "log.Fatalf" cmd/agentmon-unixwrap/main.go`
 Expected: no output.
 
 - [ ] **Step 3: Build and run the package tests**
 
-Run: `go build ./cmd/agentsh-unixwrap/ && go test ./cmd/agentsh-unixwrap/ -v`
+Run: `go build ./cmd/agentmon-unixwrap/ && go test ./cmd/agentmon-unixwrap/ -v`
 Expected: build OK, all tests PASS.
 
 - [ ] **Step 4: Confirm the #369 regression tests still pass un-adapted**
@@ -475,7 +475,7 @@ Expected: PASS (or SKIP on hosts where seccomp can't install — both fine; the 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add cmd/agentsh-unixwrap/main.go
+git add cmd/agentmon-unixwrap/main.go
 git commit -m "feat(#415): unixwrap main — activate log routing, dual-write fatals"
 ```
 
@@ -578,7 +578,7 @@ import (
 	"os"
 )
 
-// startWrapperLogDrain forwards agentsh-unixwrap diagnostic lines from
+// startWrapperLogDrain forwards agentmon-unixwrap diagnostic lines from
 // the wrapper log pipe into the server log (issue #415). The wrapper
 // sets FD_CLOEXEC on its end, so EOF arrives when it execs the real
 // command (or exits) — the goroutine is short-lived by construction.
@@ -675,7 +675,7 @@ In `internal/api/core.go`, after the signal-filter block (ends ~line 249) and im
 	}
 ```
 
-Add the import `"github.com/agentsh/agentsh/internal/wrapperlog"` to core.go (`os`, `strconv`, `slog` are already imported).
+Add the import `"github.com/diffsec/agentmon/internal/wrapperlog"` to core.go (`os`, `strconv`, `slog` are already imported).
 
 - [ ] **Step 8: Build and test the package**
 
@@ -699,7 +699,7 @@ git commit -m "feat(#415): server exec path — pipe wrapper diagnostics into se
 
 - [ ] **Step 1: Write the failing env-hygiene tests**
 
-Append to `install_linux_test.go` (match its existing build tag and package; add imports as needed — `strings`, `github.com/agentsh/agentsh/internal/wrapperlog`):
+Append to `install_linux_test.go` (match its existing build tag and package; add imports as needed — `strings`, `github.com/diffsec/agentmon/internal/wrapperlog`):
 
 ```go
 func TestFilterShimInternalEnv_StripsWrapperLogFD(t *testing.T) {
@@ -721,7 +721,7 @@ func TestAssembleWrapperEnv_DropsWrapperLogFDFromWrapperEnv(t *testing.T) {
 		"",
 		map[string]string{
 			wrapperlog.EnvKey:        "9", // must NOT pass through — the relay sets its own
-			"AGENTSH_SECCOMP_CONFIG": "{}",
+			"AGENTMON_SECCOMP_CONFIG": "{}",
 		},
 		nil,
 	)
@@ -776,7 +776,7 @@ In `assembleWrapperEnv`'s wrapperEnv loop (line ~403), extend the skip:
 	}
 ```
 
-Add the import `"github.com/agentsh/agentsh/internal/wrapperlog"`.
+Add the import `"github.com/diffsec/agentmon/internal/wrapperlog"`.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -858,7 +858,7 @@ Append to `install_linux_test.go`, reusing the package's fake-wrapper harness (`
 ```go
 // TestInstall_PassesWrapperLogFDAndCreatesStateLogFile verifies the
 // issue #415 relay wiring end-to-end: runRelay opens the state-dir log
-// file, passes it as ExtraFiles[1], and exports AGENTSH_WRAPPER_LOG_FD=4
+// file, passes it as ExtraFiles[1], and exports AGENTMON_WRAPPER_LOG_FD=4
 // to the wrapper. XDG_STATE_HOME is redirected to a temp dir so the test
 // owns the state-dir location.
 func TestInstall_PassesWrapperLogFDAndCreatesStateLogFile(t *testing.T) {
@@ -913,7 +913,7 @@ func TestInstall_PassesWrapperLogFDAndCreatesStateLogFile(t *testing.T) {
 		t.Errorf("wrapper env missing %s=4:\n%s", wrapperlog.EnvKey, envOutput)
 	}
 
-	logPath := filepath.Join(stateHome, "agentsh", "logs", "unixwrap.log")
+	logPath := filepath.Join(stateHome, "agentmon", "logs", "unixwrap.log")
 	if _, err := os.Stat(logPath); err != nil {
 		t.Errorf("state-dir log file not created at %s: %v", logPath, err)
 	}
@@ -937,7 +937,7 @@ git commit -m "feat(#415): shim relay — wrapper diagnostics to state-dir log f
 
 ---
 
-### Task 6: `agentsh wrap` CLI path — state-dir log file
+### Task 6: `agentmon wrap` CLI path — state-dir log file
 
 **Files:**
 - Modify: `internal/cli/wrap_linux.go` (`platformSetupWrap`, extraFiles assembly ~line 160)
@@ -972,7 +972,7 @@ becomes:
 	}
 ```
 
-Add the import `"github.com/agentsh/agentsh/internal/wrapperlog"` (`fmt` is already imported).
+Add the import `"github.com/diffsec/agentmon/internal/wrapperlog"` (`fmt` is already imported).
 
 - [ ] **Step 2: Build and run the package tests**
 
@@ -983,7 +983,7 @@ Expected: build OK, tests pass.
 
 ```bash
 git add internal/cli/wrap_linux.go
-git commit -m "feat(#415): agentsh wrap CLI — wrapper diagnostics to state-dir log file"
+git commit -m "feat(#415): agentmon wrap CLI — wrapper diagnostics to state-dir log file"
 ```
 
 ---
@@ -993,7 +993,7 @@ git commit -m "feat(#415): agentsh wrap CLI — wrapper diagnostics to state-dir
 **Files:**
 - Create: `internal/integration/wrapper_log_routing_test.go`
 
-Reuses this package's existing harness: `buildSeccompBinaries`, `startWrapSeccompServerContainer`, `writeFile`, `mustMkdir`, `wrapStrongTestConfigYAML`, `wrapTestPolicyYAML`, `testAPIKeysYAML` (see `agentsh_wrap_linux_test.go`). The config already sets `logging.output: stdout`, so the server log is the container log.
+Reuses this package's existing harness: `buildSeccompBinaries`, `startWrapSeccompServerContainer`, `writeFile`, `mustMkdir`, `wrapStrongTestConfigYAML`, `wrapTestPolicyYAML`, `testAPIKeysYAML` (see `agentmon_wrap_linux_test.go`). The config already sets `logging.output: stdout`, so the server log is the container log.
 
 - [ ] **Step 1: Write the test**
 
@@ -1011,8 +1011,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // TestExecPath_WrapperLogRoutedOffCommandStderr is the end-to-end
@@ -1024,7 +1024,7 @@ func TestExecPath_WrapperLogRoutedOffCommandStderr(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	agentshBin, unixwrapBin := buildSeccompBinaries(t)
+	agentmonBin, unixwrapBin := buildSeccompBinaries(t)
 	temp := t.TempDir()
 
 	configPath := filepath.Join(temp, "config.yaml")
@@ -1039,7 +1039,7 @@ func TestExecPath_WrapperLogRoutedOffCommandStderr(t *testing.T) {
 	workspace := filepath.Join(temp, "workspace")
 	mustMkdir(t, workspace)
 
-	ctr, endpoint, cleanup := startWrapSeccompServerContainer(t, ctx, agentshBin, unixwrapBin, configPath, keysPath, policiesDir, workspace)
+	ctr, endpoint, cleanup := startWrapSeccompServerContainer(t, ctx, agentmonBin, unixwrapBin, configPath, keysPath, policiesDir, workspace)
 	t.Cleanup(cleanup)
 
 	cli := client.New(endpoint, "test-key")
@@ -1127,15 +1127,15 @@ Expected: both succeed (CLAUDE.md pre-commit requirement).
 - [ ] **Step 2: Full test suite**
 
 Run: `go test ./... 2>&1 | grep -v "^ok" | head -40`
-Expected: no FAILs beyond the known local-env failures listed in the header notes and known flake families (`TestStore_*EmitsTransportLossOnWire`). In particular `./internal/netmonitor/unix/` (the #369 regression tests) and `./cmd/agentsh-unixwrap/` must pass.
+Expected: no FAILs beyond the known local-env failures listed in the header notes and known flake families (`TestStore_*EmitsTransportLossOnWire`). In particular `./internal/netmonitor/unix/` (the #369 regression tests) and `./cmd/agentmon-unixwrap/` must pass.
 
 - [ ] **Step 3: Manual smoke test (acceptance criterion #1)**
 
 ```bash
-go build -o /tmp/agentsh ./cmd/agentsh && go build -o /tmp/agentsh-unixwrap ./cmd/agentsh-unixwrap
-# In a running session (or via agentsh wrap), confirm:
-#   agentsh detect --output json   → stderr starts with '{', no "seccomp: filter loaded" prefix
-# and the server log (or ~/.local/state/agentsh/logs/unixwrap.log for
+go build -o /tmp/agentmon ./cmd/agentmon && go build -o /tmp/agentmon-unixwrap ./cmd/agentmon-unixwrap
+# In a running session (or via agentmon wrap), confirm:
+#   agentmon detect --output json   → stderr starts with '{', no "seccomp: filter loaded" prefix
+# and the server log (or ~/.local/state/agentmon/logs/unixwrap.log for
 # shim/CLI paths) contains the wait_killable line.
 ```
 

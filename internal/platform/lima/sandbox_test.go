@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 func TestNewSandboxManager(t *testing.T) {

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make cgroup enforcement work out-of-the-box under systemd by auto-moving agentsh into a leaf cgroup when EBUSY is detected, and remove all deprecated cgroup code paths.
+**Goal:** Make cgroup enforcement work out-of-the-box under systemd by auto-moving agentmon into a leaf cgroup when EBUSY is detected, and remove all deprecated cgroup code paths.
 
 **Architecture:** Insert a leaf-move step into the existing `ProbeCgroupsV2` decision tree (between "enable fails" and "try top-level"). Remove `ApplyCgroupV2`, `LinuxLimiter`, and `platform/linux/ResourceLimiter` — all unused in production. `CgroupManager` becomes the single cgroup code path.
 
@@ -50,10 +50,10 @@ type CgroupProbeResult struct {
 	Mode        CgroupMode
 	Reason      string
 	OwnCgroup   string // absolute path to the process's own cgroup dir
-	SliceDir    string // absolute path to /sys/fs/cgroup/agentsh.slice (top-level mode only; empty otherwise)
+	SliceDir    string // absolute path to /sys/fs/cgroup/agentmon.slice (top-level mode only; empty otherwise)
 	IOAvailable bool   // true if the io controller is usable in the chosen mode
 	// OrphansReaped is populated in top-level mode when the probe removed
-	// leftover unpopulated child cgroups from a prior agentsh run.
+	// leftover unpopulated child cgroups from a prior agentmon run.
 	OrphansReaped []string
 	LeafMoved     bool // true if the probe moved the process to OwnCgroup/leaf to resolve EBUSY
 }
@@ -195,7 +195,7 @@ Add to `internal/limits/cgroupv2_probe_test.go`:
 func TestProbe_LeafMove_EBUSYSucceeds(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	// First enableControllers call fails with EBUSY (process in cgroup);
@@ -233,7 +233,7 @@ func TestProbe_LeafMove_EBUSYSucceeds(t *testing.T) {
 func TestProbe_LeafMove_MkdirFails_FallbackTopLevel(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openErrsOnce[own+"/cgroup.subtree_control:write"] = syscall.EBUSY
@@ -245,7 +245,7 @@ func TestProbe_LeafMove_MkdirFails_FallbackTopLevel(t *testing.T) {
 	// own/leaf so mkdir returns EEXIST, then block the cgroup.procs write.
 	f.seedDir(own + "/leaf")
 	f.writeErrs[own+"/leaf/cgroup.procs"] = syscall.EACCES
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 
 	res, err := ProbeCgroupsV2(context.Background(), f, own)
 	if err != nil {
@@ -266,13 +266,13 @@ func TestProbe_LeafMove_MkdirFails_FallbackTopLevel(t *testing.T) {
 func TestProbe_LeafMove_RetryEnableFails_FallbackTopLevel(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	// Use permanent openErrs — both the first and retry calls fail.
 	f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EBUSY
 	f.seedFile(own+"/cgroup.procs", "1234")
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 
 	res, err := ProbeCgroupsV2(context.Background(), f, own)
 	if err != nil {
@@ -293,11 +293,11 @@ func TestProbe_LeafMove_RetryEnableFails_FallbackTopLevel(t *testing.T) {
 func TestProbe_EACCES_NoLeafMove(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EACCES
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 
 	res, err := ProbeCgroupsV2(context.Background(), f, own)
 	if err != nil {
@@ -343,7 +343,7 @@ Add the following function to `internal/limits/cgroupv2_probe.go`, after the `Pr
 
 ```go
 // tryLeafMove handles the EBUSY case: the own cgroup has internal processes
-// (including agentsh itself), preventing subtree_control writes. We create a
+// (including agentmon itself), preventing subtree_control writes. We create a
 // "leaf" child cgroup, move the current process into it, and retry enabling
 // controllers on the parent. This is the standard pattern for systemd services
 // that need to manage child cgroups.
@@ -646,7 +646,7 @@ In `internal/limits/cgroupv2_linux_test.go`, delete the `TestApplyCgroupV2_Creat
 
 In `internal/netmonitor/ebpf/integration_test.go`, replace the two `limits.ApplyCgroupV2` calls with inline cgroup creation. These tests only need a cgroup directory — they don't need limit enforcement.
 
-Replace the import of `"github.com/agentsh/agentsh/internal/limits"` with just using `limits.DetectCgroupV2()` for the skip check, and use `os` + `strconv` for the inline cgroup creation.
+Replace the import of `"github.com/diffsec/agentmon/internal/limits"` with just using `limits.DetectCgroupV2()` for the skip check, and use `os` + `strconv` for the inline cgroup creation.
 
 Add `"strconv"` to the imports.
 
@@ -671,7 +671,7 @@ with:
 	}
 ```
 
-Apply the same replacement for the second occurrence (around line 69), adjusting the `tmp` variable name as appropriate (it uses `"agentsh-ebpf-deny-test"` instead of `"agentsh-ebpf-test"`).
+Apply the same replacement for the second occurrence (around line 69), adjusting the `tmp` variable name as appropriate (it uses `"agentmon-ebpf-deny-test"` instead of `"agentmon-ebpf-test"`).
 
 - [ ] **Step 3: Replace ApplyCgroupV2 in pnacl_integration_test.go**
 

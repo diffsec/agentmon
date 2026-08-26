@@ -12,7 +12,7 @@ Network ACL (`docs/plans/2026-01-13-process-network-acl-design.md`).
 
 ## Summary
 
-Add a top-level **`tor:` policy block** that gives agentsh a single,
+Add a top-level **`tor:` policy block** that gives agentmon a single,
 declarative, **deny-by-default** posture toward the Tor network. The
 block is a *coordinating macro*: one intent (`deny | audit | allow`)
 expands into consistent enforcement across the five distinct ways a
@@ -20,10 +20,10 @@ sandboxed process can reach Tor, and every hit emits a uniform
 `tor_control` audit event tagged with the vector that fired.
 
 The threat is evasion: an AI agent that runs `tor` (or `torsocks`, a
-bridge, a SOCKS proxy) to tunnel around agentsh's carefully-built
+bridge, a SOCKS proxy) to tunnel around agentmon's carefully-built
 network egress allowlist. Tor traffic is encrypted to relays, so once
 an agent is on the Tor network its real destinations are invisible to
-every IP/DNS/host control agentsh has. The only effective response is
+every IP/DNS/host control agentmon has. The only effective response is
 to stop the agent reaching the Tor network in the first place.
 
 **Deny-by-default.** With no `tor:` block configured at all, Tor is
@@ -41,13 +41,13 @@ permitted.
 
 ## Motivation
 
-agentsh's network controls — PNACL, `CheckNetworkIP/Ctx`, threat
+agentmon's network controls — PNACL, `CheckNetworkIP/Ctx`, threat
 feeds, the HTTP/DB proxies — all reason about a connection's
 *destination*: its host, IP, CIDR, port, SNI, or HTTP Host. Tor
 defeats all of them at once. An agent that bootstraps a Tor client
 opens an encrypted circuit to a guard relay and then reaches anything
 — including any `.onion` service and any clearnet host — with the real
-target buried inside the encrypted stream. From agentsh's vantage the
+target buried inside the encrypted stream. From agentmon's vantage the
 only thing visible is "a TLS connection to some relay IP," and the
 agent's entire egress policy is bypassed.
 
@@ -70,7 +70,7 @@ Phase 1 closes all five.
 | 1 | **Client processes** | Agent runs `tor`/`obfs4proxy`/`snowflake-client`/`lyrebird`/`meek-client`/`torsocks`/Tor Browser | `CheckExecve` → ptrace deny (**exists**) |
 | 2 | **Local SOCKS/control ports** | App speaks SOCKS to a local Tor daemon at `127.0.0.1:9050/9150`, control at `9051` | `connect()` seccomp-notify, sees loopback sockaddr (**exists, small wiring**) |
 | 3 | **`.onion` DNS** | A `.onion` name (RFC 7686) reaches the resolver | DNS interceptor name match → REFUSED (**exists**) |
-| 4 | **`.onion` HTTP** | A `.onion` Host fetched through agentsh's HTTP proxy | proxy Host match → 403 (**exists**) |
+| 4 | **`.onion` HTTP** | A `.onion` Host fetched through agentmon's HTTP proxy | proxy Host match → 403 (**exists**) |
 | 5 | **Relay IPs** | The Tor daemon dials guard / middle / exit / dir-authority IPs directly | IP/CIDR match in `CheckNetworkIP` (**net-new**) |
 
 Vectors 1–4 do not depend on any feed. Vector 5 uses a built-in
@@ -154,7 +154,7 @@ tor:
   relay_feed:
     enabled: false            # opt-in; deny-by-default does NOT require this
     sources: ["https://onionoo.torproject.org/details"]
-    local_lists: ["/etc/agentsh/tor-relays.txt"]
+    local_lists: ["/etc/agentmon/tor-relays.txt"]
     sync_interval: 6h
 ```
 
@@ -355,11 +355,11 @@ surface to one new type.
 
 ## Phase 2 (onion gateway — implemented)
 
-When `tor.mode: allow` and an `onion_rules:` list is present, agentsh
+When `tor.mode: allow` and an `onion_rules:` list is present, agentmon
 becomes a **managed Tor egress**:
 
 1. Redirect the app→`127.0.0.1:9050` connection, via the existing
-   connect-redirect machinery, into agentsh's own SOCKS5 front-end.
+   connect-redirect machinery, into agentmon's own SOCKS5 front-end.
 2. New `internal/netmonitor/socks.go` parses the SOCKS5 greeting +
    CONNECT request and extracts the target host (`.onion` or clearnet).
 3. Match the target against `onion_rules` (and clearnet-via-Tor rules)
@@ -384,13 +384,13 @@ tor:
 ```
 
 **Honest scope (Phase 2).** Per-`.onion` filtering applies to Tor SOCKS
-connections that reach agentsh's transparent-TCP interceptor (original
+connections that reach agentmon's transparent-TCP interceptor (original
 destination = a configured `socks_ports` entry). A `.onion`/clearnet target
 matching no `onion_rules` entry is denied (fail-closed); allowed targets are
 forwarded to the real Tor SOCKS daemon at `127.0.0.1:<socks_ports[0]>`. In
 sandbox modes where the app reaches a loopback Tor daemon that is *not* within
-agentsh's interception, allow-mode degrades to Phase-1 allow (Tor permitted,
-unfiltered) — the operator must route the Tor SOCKS port through agentsh's
+agentmon's interception, allow-mode degrades to Phase-1 allow (Tor permitted,
+unfiltered) — the operator must route the Tor SOCKS port through agentmon's
 transparent interception for the gateway to take effect. The gateway emits one
 `tor_control{vector: onion, decision: allow|deny}` event per CONNECT; like the
 other connection-layer vectors it reports `pid: 0` and is correlated by session

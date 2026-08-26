@@ -1,9 +1,9 @@
-# Default Policy for agentsh
+# Default Policy for agentmon
 # This policy provides a balanced security posture for typical AI agent workloads
 #
 # For a recipe-first guide to `command_rules` (how to allow a new binary,
-# how to gate it behind an approval, when to use `agentsh wrap` instead of
-# `agentsh exec`, and how to debug a denial), see:
+# how to gate it behind an approval, when to use `agentmon wrap` instead of
+# `agentmon exec`, and how to debug a denial), see:
 #   docs/cookbook/command-policies.md
 
 version: 1
@@ -617,8 +617,8 @@ command_rules:
       - sh
       - bash
       - zsh
-      - sh.real      # For agentsh shell shim integration
-      - bash.real    # For agentsh shell shim integration
+      - sh.real      # For agentmon shell shim integration
+      - bash.real    # For agentmon shell shim integration
     decision: allow
     
   - name: allow-dev-tools

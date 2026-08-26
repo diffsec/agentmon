@@ -6,11 +6,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	dbpolicy "github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres"
-	dbservice "github.com/agentsh/agentsh/internal/db/service"
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/db/events"
+	dbpolicy "github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres"
+	dbservice "github.com/diffsec/agentmon/internal/db/service"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 )
 
 // dbProxyService is the per-service input to startDBProxy. The api layer
@@ -71,7 +71,7 @@ func buildDBProxyConfig(deps dbProxyDeps) (postgres.Config, error) {
 	return cfg, nil
 }
 
-// startDBProxy constructs and starts the AgentSH PostgreSQL proxy. Returns
+// startDBProxy constructs and starts the AgentMon PostgreSQL proxy. Returns
 // the *postgres.Server so the caller can wire Shutdown into supervisor lifecycle.
 //
 // Plan 04a: under Unavoidability == off, returns a sentinel server that

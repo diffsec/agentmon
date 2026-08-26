@@ -2,7 +2,7 @@
 
 **Status:** Implemented through DB Plan 12 on 2026-05-15.
 **Owner:** Canyon Road
-**Source spec:** `docs/agentsh-db-access-spec.md`, Phase 2 row.
+**Source spec:** `docs/agentmon-db-access-spec.md`, Phase 2 row.
 
 This document decomposes DB Phase 2 into sequential implementation plans. Phase 1 and Phase 2 are now complete for the Postgres-family database support scope: the Postgres proxy, policy evaluator, CancelRequest mapping, unavoidability bundle, lifecycle events, catalog-backed resolution, policy ergonomics, redirect planner/runtime, and real-Postgres CI integration have all landed on `main`.
 
@@ -162,7 +162,7 @@ These were open when the roadmap was written and were settled or deferred in the
 - Whether the catalog snapshot refresh is time-based, invalidation-based, or both.
 - Whether redirect should support cross-service routing after same-service relation replacement is stable.
 - Whether function volatility metadata should feed the default `escalate_unknown_functions` behavior or remain opt-in.
-- Whether policy explain should live under `agentsh policy db explain` or extend `cmd/dbclassify-pg`.
+- Whether policy explain should live under `agentmon policy db explain` or extend `cmd/dbclassify-pg`.
 - Whether resolved object metadata should be stored directly on `effects.ObjectRef` or in a parallel `ResolvedObjectRef` slice during the transition.
 
 The Plan 08 implementation used the transition-friendly parallel metadata model to avoid breaking existing event JSON consumers.

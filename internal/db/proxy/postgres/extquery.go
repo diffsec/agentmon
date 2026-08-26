@@ -8,11 +8,11 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/preparedcache"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/preparedcache"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 type pendingRedirectExecute struct {
@@ -98,12 +98,12 @@ func (pc *proxyConn) tryHandleRedirectParse(ctx context.Context, parse *pgproto3
 			plan.TargetRelation = decisions[redirectIndex].Redirect.TargetRelation
 		}
 		pc.emitRedirectRejectedEvent(ctx, stmts[redirectIndex], decisions[redirectIndex], parse.Query, sha256HexBatch(parse.Query), plan)
-		return true, pc.executeActions(ctx, parse, statemachine.DenyRoute(*pc.state.smState, policy.StatementRule{}, "redirect rejected by AgentSH policy: multi-statement redirect unsupported", sqlstateRedirectRejected))
+		return true, pc.executeActions(ctx, parse, statemachine.DenyRoute(*pc.state.smState, policy.StatementRule{}, "redirect rejected by AgentMon policy: multi-statement redirect unsupported", sqlstateRedirectRejected))
 	}
 	plan, ok := pc.planRuntimeRedirect(ctx, parse.Query, stmts[0], decisions[0])
 	if !ok {
 		pc.emitRedirectRejectedEvent(ctx, stmts[0], decisions[0], parse.Query, sha256HexBatch(parse.Query), plan)
-		actions := statemachine.DenyRoute(*pc.state.smState, policy.StatementRule{}, "redirect rejected by AgentSH policy: "+plan.RejectionReason, sqlstateRedirectRejected)
+		actions := statemachine.DenyRoute(*pc.state.smState, policy.StatementRule{}, "redirect rejected by AgentMon policy: "+plan.RejectionReason, sqlstateRedirectRejected)
 		next := *pc.state.smState
 		if !containsCloseAction(actions) {
 			next.Absorbing = true

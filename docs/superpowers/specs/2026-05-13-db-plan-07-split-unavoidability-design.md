@@ -3,11 +3,11 @@
 **Status:** Implemented.
 **Date:** 2026-05-13
 **Source roadmap:** `docs/superpowers/specs/2026-05-08-db-access-phase-1-roadmap-design.md`
-**Source spec:** `docs/agentsh-db-access-spec.md` v0.8, sections 11.1, 12, 17, and 23.4 steps 10-11.
+**Source spec:** `docs/agentmon-db-access-spec.md` v0.8, sections 11.1, 12, 17, and 23.4 steps 10-11.
 
 ## Goal
 
-Close DB Access Phase 1 by making declared `db_services` unavoidable for processes inside the AgentSH-governed process tree, then prove the end-to-end behavior against a real Postgres server.
+Close DB Access Phase 1 by making declared `db_services` unavoidable for processes inside the AgentMon-governed process tree, then prove the end-to-end behavior against a real Postgres server.
 
 The original roadmap Plan 07 is intentionally split into three sequential plans so each PR is reviewable and each phase has a clear security boundary.
 
@@ -33,7 +33,7 @@ Replace Plan 04a's UID-only listener auth with SessionID-based authentication:
 
 - Accept only Unix-socket listeners in Phase 1 enforce mode.
 - On accept, read SO_PEERCRED pid/uid/gid.
-- Resolve pid to AgentSH SessionID through an injected resolver interface.
+- Resolve pid to AgentMon SessionID through an injected resolver interface.
 - Accept only when the resolved peer SessionID matches the configured agent SessionID.
 - Unknown or mismatched SessionID fails closed and emits `db_listener_auth_fail`.
 
@@ -49,7 +49,7 @@ Add integration coverage that exercises the full path:
 - Client traffic through the redirected path.
 - Direct bypass attempts.
 
-Plan 07c is the CI closeout gate: it runs `go test -v -tags=integration ./internal/integration/...` against a real `postgres:16-alpine` container, exercises the AgentSH Postgres proxy path through a governed session, and asserts `db_bypass_attempt` plus `db_listener_auth_fail` lifecycle events. Plan 07 is complete only after that suite passes in CI.
+Plan 07c is the CI closeout gate: it runs `go test -v -tags=integration ./internal/integration/...` against a real `postgres:16-alpine` container, exercises the AgentMon Postgres proxy path through a governed session, and asserts `db_bypass_attempt` plus `db_listener_auth_fail` lifecycle events. Plan 07 is complete only after that suite passes in CI.
 
 ## Architecture
 
@@ -114,7 +114,7 @@ The output policy must be directly compileable by `internal/policy.NewEngine`.
 connect_redirects:
   - name: db-appdb-redirect
     match: '^db\.internal:5432$'
-    redirect_to_unix: /run/agentsh/sessions/sess-123/db/appdb.sock
+    redirect_to_unix: /run/agentmon/sessions/sess-123/db/appdb.sock
 ```
 
 The final field spelling can be chosen during implementation planning, but the design requirement is fixed: the target type must be explicit and must not overload `redirect_to` with a Unix path.
@@ -158,7 +158,7 @@ type SessionResolver interface {
 }
 ```
 
-Production wires this to the AgentSH ptrace/session registry. Tests use a fake resolver.
+Production wires this to the AgentMon ptrace/session registry. Tests use a fake resolver.
 
 Auth behavior:
 
@@ -262,7 +262,7 @@ Fail closed where the boundary would otherwise weaken:
 - No MySQL/MariaDB unavoidability in Phase 1.
 - No TCP listener support in enforce mode.
 - No new DB-specific policy evaluator.
-- No claim for processes outside the AgentSH-governed process tree.
+- No claim for processes outside the AgentMon-governed process tree.
 - No claim when the supervisor or DB proxy is compromised.
 - No exhaustive bypass-tool command list; command rules are detection only.
 
@@ -272,4 +272,4 @@ Fail closed where the boundary would otherwise weaken:
 2. Land 07b with SessionID listener auth and bypass-event mapping.
 3. Land 07c with integration tests and documentation updates.
 
-After 07c passes in CI, Plan 07 is complete and DB Access Phase 1 recommends `policies.db.unavoidability: enforce` for declared Postgres services inside the AgentSH-governed process tree. This recommendation assumes an uncompromised AgentSH supervisor and DB proxy.
+After 07c passes in CI, Plan 07 is complete and DB Access Phase 1 recommends `policies.db.unavoidability: enforce` for declared Postgres services inside the AgentMon-governed process tree. This recommendation assumes an uncompromised AgentMon supervisor and DB proxy.

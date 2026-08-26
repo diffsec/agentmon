@@ -19,7 +19,7 @@ import (
 )
 
 func autoDisabled() bool {
-	v := strings.TrimSpace(os.Getenv("AGENTSH_NO_AUTO"))
+	v := strings.TrimSpace(os.Getenv("AGENTMON_NO_AUTO"))
 	if v == "" {
 		return false
 	}
@@ -89,11 +89,11 @@ func ensureServerRunning(ctx context.Context, serverAddr string, log io.Writer) 
 		return nil
 	}
 
-	configPath := strings.TrimSpace(os.Getenv("AGENTSH_CONFIG"))
+	configPath := strings.TrimSpace(os.Getenv("AGENTMON_CONFIG"))
 	if configPath == "" {
 		configPath = defaultConfigPath()
 	}
-	fmt.Fprintf(log, "agentsh: auto-starting server (config %s)\n", configPath)
+	fmt.Fprintf(log, "agentmon: auto-starting server (config %s)\n", configPath)
 
 	// Capture stderr to a temp file so we can report errors if the server
 	// fails to start. Stdout goes to /dev/null. The daemon must NOT inherit
@@ -105,7 +105,7 @@ func ensureServerRunning(ctx context.Context, serverAddr string, log io.Writer) 
 	}
 	defer devNull.Close()
 
-	stderrFile, err := os.CreateTemp("", "agentsh-server-*.log")
+	stderrFile, err := os.CreateTemp("", "agentmon-server-*.log")
 	if err != nil {
 		return fmt.Errorf("create stderr capture file: %w", err)
 	}

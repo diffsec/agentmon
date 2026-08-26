@@ -2,11 +2,11 @@
 
 **Status:** Draft approved in brainstorming on 2026-05-20.
 **Owner:** Canyon Road
-**Source context:** `docs/agentsh-db-access-spec.md`, DB statement policy evaluator, Postgres classifier.
+**Source context:** `docs/agentmon-db-access-spec.md`, DB statement policy evaluator, Postgres classifier.
 
 ## 1. Purpose
 
-AgentSH database policies can scope statement decisions by service, operation group, object selectors, resolution confidence, and decision verb. They cannot currently express "this mutation is allowed only when the SQL statement contains a `WHERE` clause."
+AgentMon database policies can scope statement decisions by service, operation group, object selectors, resolution confidence, and decision verb. They cannot currently express "this mutation is allowed only when the SQL statement contains a `WHERE` clause."
 
 This feature adds a small, syntactic guard for Postgres-family `UPDATE` and `DELETE` statements:
 
@@ -135,10 +135,10 @@ Regression tests should include a rule with the same object selector and `requir
 
 Update these surfaces:
 
-- `docs/agentsh-db-access-spec.md`: add `require_where` to the `database_rules` field table and statement matching semantics.
+- `docs/agentmon-db-access-spec.md`: add `require_where` to the `database_rules` field table and statement matching semantics.
 - `docs/operations/policies.md`: add an operator example for sensitive table mutations.
-- `skills/agentsh-policy-shared/schema-reference.md`: add the field and the supported operation limitation.
-- `skills/agentsh-policy-create/SKILL.md` and `skills/agentsh-policy-edit/SKILL.md`: mention the guard when authoring DB mutation policies.
+- `skills/agentmon-policy-shared/schema-reference.md`: add the field and the supported operation limitation.
+- `skills/agentmon-policy-create/SKILL.md` and `skills/agentmon-policy-edit/SKILL.md`: mention the guard when authoring DB mutation policies.
 
 ## 7. Compatibility And Risks
 

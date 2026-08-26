@@ -8,8 +8,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // chainingFakeSink simulates a second chained sink. It serializes events

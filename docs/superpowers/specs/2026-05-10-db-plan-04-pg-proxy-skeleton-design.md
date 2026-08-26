@@ -4,7 +4,7 @@ Status: design approved 2026-05-10. Implementation plan to follow via writing-pl
 
 Cross-references:
 - Roadmap: `docs/superpowers/specs/2026-05-08-db-access-phase-1-roadmap-design.md` §3 Plan 04.
-- Spec: `docs/agentsh-db-access-spec.md` v0.8 §7.1 (wire framing), §8 (DBEvent), §11 (interception architecture), §13 (TLS), §14.1 / §14.4 (Simple Query and pre-forward semantics).
+- Spec: `docs/agentmon-db-access-spec.md` v0.8 §7.1 (wire framing), §8 (DBEvent), §11 (interception architecture), §13 (TLS), §14.1 / §14.4 (Simple Query and pre-forward semantics).
 - Predecessors: Plans 01–03 already shipped (`internal/db/effects`, `internal/db/policy`, `internal/db/events` skeleton, `internal/db/service` config schema, `internal/db/classify/postgres`).
 
 This document captures the package-shape, lifecycle, and interface decisions the spec leaves to the implementer for the first plan that introduces a wire-protocol surface. The §11 architecture and §13 TLS-mode contracts are authoritative upstream and are not re-derived here.
@@ -22,7 +22,7 @@ This document captures the package-shape, lifecycle, and interface decisions the
 - `db_services` config recognition: at proxy boot, each declared service gets a Unix-socket listener bound at the configured path with `0700` perms; the proxy `accept()`s, reads `SO_PEERCRED` and verifies `peer_uid == proxy_uid`. (TCP listeners supported for tests but flagged in docs as test-only; UID match is meaningless without SO_PEERCRED on TCP.)
 - Feature flag `policies.db.unavoidability: enforce | observe | off`, default `off`. With `off`, listeners are **not** bound — package is a no-op. With `observe` or `enforce`, listeners bind and the full simple-query path runs. Plan 04 does **not** generate the unavoidability bundle (network/file rules); that is Plan 07.
 - DBEvent emission via a new `events.Sink` interface declared in the existing `internal/db/events` package, with a thin adapter to `internal/audit.SinkChain` and an in-memory test fake.
-- Self-signed AgentSH-DB CA: `internal/db/tlsleaf/`. Lazily generated and persisted under the AgentSH state dir (path injected, not hard-coded). Leaves issued at connect time per upstream hostname, cached per-process. SCRAM-SHA-256-PLUS detected at upstream auth → fail-closed with structured error.
+- Self-signed AgentMon-DB CA: `internal/db/tlsleaf/`. Lazily generated and persisted under the AgentMon state dir (path injected, not hard-coded). Leaves issued at connect time per upstream hostname, cached per-process. SCRAM-SHA-256-PLUS detected at upstream auth → fail-closed with structured error.
 - Wire `internal/db/policy.EvaluateConnection` (already shipped in Plan 02) into the proxy at handshake time, with per-TLS-mode field-visibility validation extending Plan 02's existing `validate.go`.
 
 ### Out of scope (deferred to later plans)
@@ -37,7 +37,7 @@ These decisions were settled during brainstorming and govern the rest of the des
 
 **D1. In-process library; Plan 07 lifts it.** Spec §12.4 mandates a separate-process proxy under a distinct SessionID, but the unavoidability bundle (which requires that distinct SessionID for egress denial) is explicitly Plan 07's deliverable. Plan 04 ships `internal/db/proxy/postgres` as a library with a `Server` type that the existing supervisor process (`internal/api`) instantiates and runs. Listener auth is SO_PEERCRED + UID-equality only. Plan 07 lifts the proxy into its own process and adds SessionID-aware listener auth. Public API is shaped to allow that lift without changing call sites.
 
-**D2. Self-signed CA, lazy, persisted.** A single AgentSH-DB CA at `${StateDir}/db-ca.{key,crt}` (0600 / 0644), generated on first `terminate_reissue` connection, persisted across proxy restarts. Per-hostname leaves issued at connect time and cached in-process (LRU, capacity 256). No auto-distribution: operators copy the CA cert into client `sslrootcert`. SCRAM-SHA-256-PLUS detected at upstream handshake → fail-closed per spec §13.1.
+**D2. Self-signed CA, lazy, persisted.** A single AgentMon-DB CA at `${StateDir}/db-ca.{key,crt}` (0600 / 0644), generated on first `terminate_reissue` connection, persisted across proxy restarts. Per-hostname leaves issued at connect time and cached in-process (LRU, capacity 256). No auto-distribution: operators copy the CA cert into client `sslrootcert`. SCRAM-SHA-256-PLUS detected at upstream handshake → fail-closed per spec §13.1.
 
 **D3. RFQ-byte-only transaction tracking.** Plan 04 keeps a single byte of per-connection state — the latest `ReadyForQuery` status (`I`/`T`/`E`) observed from upstream — and uses it to switch deny semantics: outside-tx (or pre-auth) denies synthesize `ErrorResponse + ReadyForQuery(I)` locally per §14.4; in-tx denies (`T`/`E`) terminate the connection per §14.3 default. No BEGIN/COMMIT parser, no Extended Query state, no `upstream_dirty_since_sync`. Plan 05 replaces this with the full state machine.
 
@@ -168,7 +168,7 @@ type CA struct { /* unexported */ }
 
 func LoadOrCreate(stateDir string, clock clock.Clock) (*CA, error)
     // ${stateDir}/db-ca.key (0600), ${stateDir}/db-ca.crt
-    // CN: "AgentSH DB Proxy CA"; 10-year validity; 4096-bit RSA
+    // CN: "AgentMon DB Proxy CA"; 10-year validity; 4096-bit RSA
     // First call generates; subsequent calls load.
 
 func (c *CA) IssueLeaf(hostname string) (*tls.Certificate, error)
@@ -183,7 +183,7 @@ The CA cert path is logged at `Server.Start` so operators can copy it into clien
 During upstream auth forwarding (`auth.go`), the proxy parses each `AuthenticationSASL` frame's mechanism list. If the list contains `SCRAM-SHA-256-PLUS`, the proxy:
 
 1. Closes upstream cleanly (does not respond).
-2. Sends `ErrorResponse(SQLSTATE 28000, message="AgentSH DB proxy cannot terminate channel-bound SCRAM (SCRAM-SHA-256-PLUS). Disable channel binding upstream or use TLS passthrough; see docs/agentsh-db-access-spec.md §13.")` to client.
+2. Sends `ErrorResponse(SQLSTATE 28000, message="AgentMon DB proxy cannot terminate channel-bound SCRAM (SCRAM-SHA-256-PLUS). Disable channel binding upstream or use TLS passthrough; see docs/agentmon-db-access-spec.md §13.")` to client.
 3. Closes client.
 4. Emits a `db_handshake_fail` DBEvent with `result.error_code: SCRAM_PLUS_FAIL_CLOSED`.
 
@@ -244,12 +244,12 @@ type connState struct {
 ### Deny synthesis (`deny.go`)
 
 - `synthesizeDeny(rendered string, code string)` writes one `ErrorResponse{Severity: "ERROR", SQLState: "28000", Message: rendered}` plus `ReadyForQuery{TxStatus: 'I'}`.
-- Rendered message comes from the rule's `deny_message` template (Plan 02 already supports templates) or a default `"denied by AgentSH policy: <rule_name>"`.
+- Rendered message comes from the rule's `deny_message` template (Plan 02 already supports templates) or a default `"denied by AgentMon policy: <rule_name>"`.
 - For terminate-on-tx case: write `ErrorResponse` only; no RFQ; close.
 
 ### Frame budget
 
-Simple Query bodies can be large (up to PG's 1 GiB protocol cap). Plan 04 caps client SQL at 1 MiB at the framer (`Server.Config.MaxQueryBytes`, default 1 MiB). Anything bigger gets a synthetic `ErrorResponse(54000, "statement too large for AgentSH proxy: NN bytes > 1 MiB cap")` and connection close. Spec does not mandate this; we adopt a generous-but-bounded cap to avoid memory griefing.
+Simple Query bodies can be large (up to PG's 1 GiB protocol cap). Plan 04 caps client SQL at 1 MiB at the framer (`Server.Config.MaxQueryBytes`, default 1 MiB). Anything bigger gets a synthetic `ErrorResponse(54000, "statement too large for AgentMon proxy: NN bytes > 1 MiB cap")` and connection close. Spec does not mandate this; we adopt a generous-but-bounded cap to avoid memory griefing.
 
 ## 7. DBEvent, redaction, and Sink
 
@@ -296,7 +296,7 @@ Plan 02's evaluator already produces `redaction_level` per-statement. Plan 04 ho
 
 ### `client_identity` in Plan 04
 
-Spec §12.4 says it is the AgentSH SessionID. Plan 07 wires SessionID resolution from SO_PEERCRED → ptrace registry. Plan 04 has SO_PEERCRED but no SessionID lookup, so `client_identity` is set to `"uid:<peer_uid>"` as a stable placeholder. The DBEvent field stays a string (no schema change); Plan 07 swaps in the real SessionID and operators reading event streams see the format flip from `uid:1000` to a session UUID. Documented in plan release notes.
+Spec §12.4 says it is the AgentMon SessionID. Plan 07 wires SessionID resolution from SO_PEERCRED → ptrace registry. Plan 04 has SO_PEERCRED but no SessionID lookup, so `client_identity` is set to `"uid:<peer_uid>"` as a stable placeholder. The DBEvent field stays a string (no schema change); Plan 07 swaps in the real SessionID and operators reading event streams see the format flip from `uid:1000` to a session UUID. Documented in plan release notes.
 
 ## 8. Testing strategy
 
@@ -305,7 +305,7 @@ Spec §12.4 says it is the AgentSH SessionID. Plan 07 wires SessionID resolution
 | File | What it tests |
 |------|---------------|
 | `handshake_test.go` | Startup-packet dispatch — handcrafted bytes for SSLRequest / GSSENCRequest / CancelRequest / StartupMessage / replication-startup. Asserts correct response and next-state. Uses `net.Pipe()` for client side; no upstream. |
-| `tls_test.go` | Each mode end-to-end with `crypto/tls` client and a fake upstream. Verifies leaf cert chains to the AgentSH CA in reissue mode; verifies plaintext-upstream refuses non-loopback at config-load. |
+| `tls_test.go` | Each mode end-to-end with `crypto/tls` client and a fake upstream. Verifies leaf cert chains to the AgentMon CA in reissue mode; verifies plaintext-upstream refuses non-loopback at config-load. |
 | `auth_test.go` | SCRAM-SHA-256-PLUS detection: synthetic upstream `AuthenticationSASL` listing `SCRAM-SHA-256-PLUS`. Asserts client gets `28000` and `db_handshake_fail` event with `SCRAM_PLUS_FAIL_CLOSED`. Mirror test with non-PLUS mech list passes through. |
 | `simplequery_test.go` | Big table of `{sql, policy_yaml, classifier_result_stub, want_forwarded, want_synthesized, want_events}`. Covers allow, audit, deny pre-forward, multi-statement deny, anyDeny→noneForwarded invariant, denied_by_sibling event tagging, `approve→deny+APPROVE_NOT_YET_SUPPORTED`. Classifier injected via `cfg.Classifier`; no real pg_query needed. |
 | `deny_test.go` | RFQ-tracker behavior: lastRFQ ∈ {0, I} → local synth; lastRFQ ∈ {T, E} → terminate. Including a sequence test that simulates `BEGIN` forwarded, `T` observed, then deny → terminate. |
@@ -320,7 +320,7 @@ One end-to-end test in `simplequery_test.go` that wires:
 
 - Real `Server` with one service in `terminate_reissue` mode.
 - Fake upstream: a goroutine speaking `pgproto3.Backend`, accepting one `Q`, replying with one `RowDescription` + `DataRow` + `CommandComplete` + `ReadyForQuery('I')`.
-- Real `pgx` client (test-only dep) connecting via Unix socket through the proxy with the AgentSH CA in its trust store.
+- Real `pgx` client (test-only dep) connecting via Unix socket through the proxy with the AgentMon CA in its trust store.
 - Asserts: query result reaches client; one `db_statement` DBEvent in `SyncSink`.
 
 This is the "does the whole shape compose" test. Everything else is a unit test against a smaller surface.
@@ -349,11 +349,11 @@ All tests use `t.TempDir()` for the StateDir; no `/tmp` collisions, no test orde
 2. **CancelRequest without mapping.** Plan 04 evaluates connection rules for `match_kind: cancel` but forwards the `CancelRequest` un-mapped (with the client's syn_pid/syn_secret). Upstream rejects these because they do not match a real backend. Broken-by-design until Plan 06; documented in release notes.
 3. **GSSENC opt-in deferred to Plan 05.** Spec §11.1 supports `allow_gss_encryption: true` per service. The config field is parsed (no error on load) but ignored in Plan 04. Every GSSENCRequest gets `'N'`.
 4. **`statement_digest` algorithm choice.** SHA-256 of the normalized form. Spec §8 does not pin an algorithm; we declare it here for cross-event joinability.
-5. **CA persistence path.** `${StateDir}/db-ca.{key,crt}`. If the host operator rotates the AgentSH state dir, the CA regenerates and clients with the old CA pinned will see hostname verification failures. Documented but not solved here.
+5. **CA persistence path.** `${StateDir}/db-ca.{key,crt}`. If the host operator rotates the AgentMon state dir, the CA regenerates and clients with the old CA pinned will see hostname verification failures. Documented but not solved here.
 
 ### Risks
 
-- **Self-signed CA distribution.** Operators install the AgentSH-DB CA into PG client trust stores manually. For agent runtimes that build short-lived containers, this is friction. Mitigation in spec docs only; no code in Plan 04.
+- **Self-signed CA distribution.** Operators install the AgentMon-DB CA into PG client trust stores manually. For agent runtimes that build short-lived containers, this is friction. Mitigation in spec docs only; no code in Plan 04.
 - **`approve→deny` surprise.** An operator pre-loading approve rules expecting them to gate may find every targeted statement failing. Loud, unambiguous error code helps but it is still surprising. Mitigation: a CONFIG-LOAD warning when any rule has `decision: approve` and `Unavoidability != off`.
 - **Connection churn.** RFQ-byte deny→terminate inside `T` can churn connections under chatty agents. Acceptable for Plan 04 rollout (flag=`off` default; `observe` for early adopters). Plan 05 fixes with proper §14.3 modes.
 - **CGO + libpg_query transitively imported by the proxy.** Plan 03 isolated this behind the `Parser` interface; Plan 04 just consumes the interface. CGO build is still required on Linux for `terminate_reissue` to be useful (since classification matters there).
@@ -370,5 +370,5 @@ Plan 04 is done when:
 
 - `internal/db/proxy/postgres` builds on Linux and stubs cleanly elsewhere; `GOOS=windows go build ./...` is green.
 - All unit tests above pass, including the spine in-process round-trip test with real `pgx` against a fake upstream.
-- A YAML config containing `policies.db.unavoidability: observe` and one `db_services` entry causes the supervisor to bind the configured Unix socket; an external `pgx` client with the AgentSH CA installed connects through it, runs a `SELECT`, and observes one `db_statement` event in the audit sink.
+- A YAML config containing `policies.db.unavoidability: observe` and one `db_services` entry causes the supervisor to bind the configured Unix socket; an external `pgx` client with the AgentMon CA installed connects through it, runs a `SELECT`, and observes one `db_statement` event in the audit sink.
 - A YAML config with `policies.db.unavoidability: off` is a no-op: no listener bound, no events emitted, no behavior change from `main`.

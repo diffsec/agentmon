@@ -166,17 +166,17 @@ func TestPrometheusCollector_Handler(t *testing.T) {
 
 	// Check for expected metrics
 	expectedMetrics := []string{
-		"agentsh_up 1",
-		"agentsh_sessions_active",
-		"agentsh_sessions_total",
-		"agentsh_operations_total",
-		"agentsh_operation_latency_seconds",
-		"agentsh_approvals_pending",
-		"agentsh_approval_latency_seconds",
-		"agentsh_policy_eval_latency_seconds",
-		"agentsh_events_total",
-		"agentsh_events_by_type_total",
-		"agentsh_net_ebpf_dropped_events_total",
+		"agentmon_up 1",
+		"agentmon_sessions_active",
+		"agentmon_sessions_total",
+		"agentmon_operations_total",
+		"agentmon_operation_latency_seconds",
+		"agentmon_approvals_pending",
+		"agentmon_approval_latency_seconds",
+		"agentmon_policy_eval_latency_seconds",
+		"agentmon_events_total",
+		"agentmon_events_by_type_total",
+		"agentmon_net_ebpf_dropped_events_total",
 	}
 
 	for _, metric := range expectedMetrics {
@@ -222,9 +222,9 @@ func TestPrometheusCollector_PtraceMetrics(t *testing.T) {
 	body := w.Body.String()
 
 	expected := []string{
-		"agentsh_ptrace_tracees_active 5",
-		"agentsh_ptrace_attach_failures_total",
-		"agentsh_ptrace_timeouts_total 1",
+		"agentmon_ptrace_tracees_active 5",
+		"agentmon_ptrace_attach_failures_total",
+		"agentmon_ptrace_timeouts_total 1",
 	}
 	for _, m := range expected {
 		if !strings.Contains(body, m) {

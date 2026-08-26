@@ -3,7 +3,7 @@ package cli
 import "testing"
 
 func TestAutoDisabled_FromEnv(t *testing.T) {
-	t.Setenv("AGENTSH_NO_AUTO", "1")
+	t.Setenv("AGENTMON_NO_AUTO", "1")
 	if !autoDisabled() {
 		t.Fatalf("expected autoDisabled true")
 	}

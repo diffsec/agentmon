@@ -22,7 +22,7 @@ type RequestContext struct {
 	// incoming request. Hooks may use it for correlation across logs.
 	RequestID string
 
-	// SessionID is the agentsh session ID that owns the spawned process
+	// SessionID is the agentmon session ID that owns the spawned process
 	// making this request.
 	SessionID string
 

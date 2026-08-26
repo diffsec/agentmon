@@ -21,7 +21,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower"
+	"github.com/diffsec/agentmon/internal/store/watchtower"
 )
 
 func TestOptions_LogGoawayMessage_WireThrough(t *testing.T) {

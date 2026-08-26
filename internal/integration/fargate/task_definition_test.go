@@ -10,11 +10,11 @@ import (
 
 func TestBuildTaskDefinition(t *testing.T) {
 	params := TaskDefParams{
-		Family:           "agentsh-e2e-test",
-		AgentshImage:     "123456789.dkr.ecr.us-east-1.amazonaws.com/agentsh-test:abc123",
-		WorkloadImage:    "123456789.dkr.ecr.us-east-1.amazonaws.com/agentsh-fargate-workload:abc123",
+		Family:           "agentmon-e2e-test",
+		AgentmonImage:     "123456789.dkr.ecr.us-east-1.amazonaws.com/agentmon-test:abc123",
+		WorkloadImage:    "123456789.dkr.ecr.us-east-1.amazonaws.com/agentmon-fargate-workload:abc123",
 		ExecutionRoleARN: "arn:aws:iam::123456789:role/ecsTaskExecutionRole",
-		LogGroup:         "/agentsh/fargate-e2e",
+		LogGroup:         "/agentmon/fargate-e2e",
 		LogStreamPrefix:  "test-run-1",
 		Region:           "us-east-1",
 	}
@@ -44,34 +44,34 @@ func TestBuildTaskDefinition(t *testing.T) {
 	}
 
 	// Find containers by name
-	var agentsh, workload *ecstypes.ContainerDefinition
+	var agentmon, workload *ecstypes.ContainerDefinition
 	for i := range input.ContainerDefinitions {
 		switch *input.ContainerDefinitions[i].Name {
-		case "agentsh":
-			agentsh = &input.ContainerDefinitions[i]
+		case "agentmon":
+			agentmon = &input.ContainerDefinitions[i]
 		case "workload":
 			workload = &input.ContainerDefinitions[i]
 		}
 	}
-	if agentsh == nil {
-		t.Fatal("agentsh container not found")
+	if agentmon == nil {
+		t.Fatal("agentmon container not found")
 	}
 	if workload == nil {
 		t.Fatal("workload container not found")
 	}
 
-	// Verify agentsh has SYS_PTRACE
-	if agentsh.LinuxParameters == nil || agentsh.LinuxParameters.Capabilities == nil {
-		t.Fatal("agentsh missing linux parameters / capabilities")
+	// Verify agentmon has SYS_PTRACE
+	if agentmon.LinuxParameters == nil || agentmon.LinuxParameters.Capabilities == nil {
+		t.Fatal("agentmon missing linux parameters / capabilities")
 	}
 	hasPtrace := false
-	for _, cap := range agentsh.LinuxParameters.Capabilities.Add {
+	for _, cap := range agentmon.LinuxParameters.Capabilities.Add {
 		if cap == "SYS_PTRACE" {
 			hasPtrace = true
 		}
 	}
 	if !hasPtrace {
-		t.Error("agentsh missing SYS_PTRACE capability")
+		t.Error("agentmon missing SYS_PTRACE capability")
 	}
 
 	// Verify shared volume
@@ -83,7 +83,7 @@ func TestBuildTaskDefinition(t *testing.T) {
 	}
 
 	// Verify both containers mount the shared volume
-	for _, c := range []*ecstypes.ContainerDefinition{agentsh, workload} {
+	for _, c := range []*ecstypes.ContainerDefinition{agentmon, workload} {
 		found := false
 		for _, mp := range c.MountPoints {
 			if *mp.SourceVolume == "shared" && *mp.ContainerPath == "/shared" {
@@ -95,18 +95,18 @@ func TestBuildTaskDefinition(t *testing.T) {
 		}
 	}
 
-	// Verify workload depends on agentsh being HEALTHY
+	// Verify workload depends on agentmon being HEALTHY
 	if len(workload.DependsOn) == 0 {
 		t.Fatal("workload has no dependsOn")
 	}
 	depFound := false
 	for _, dep := range workload.DependsOn {
-		if *dep.ContainerName == "agentsh" && dep.Condition == ecstypes.ContainerConditionHealthy {
+		if *dep.ContainerName == "agentmon" && dep.Condition == ecstypes.ContainerConditionHealthy {
 			depFound = true
 		}
 	}
 	if !depFound {
-		t.Error("workload does not depend on agentsh HEALTHY")
+		t.Error("workload does not depend on agentmon HEALTHY")
 	}
 
 	// Verify execution role
@@ -115,7 +115,7 @@ func TestBuildTaskDefinition(t *testing.T) {
 	}
 
 	// Verify both containers have CloudWatch logging
-	for _, c := range []*ecstypes.ContainerDefinition{agentsh, workload} {
+	for _, c := range []*ecstypes.ContainerDefinition{agentmon, workload} {
 		if c.LogConfiguration == nil {
 			t.Errorf("container %q missing log configuration", *c.Name)
 			continue
@@ -132,9 +132,9 @@ func TestBuildTaskDefinition(t *testing.T) {
 		}
 	}
 
-	// Verify agentsh marked essential
-	if agentsh.Essential == nil || !*agentsh.Essential {
-		t.Error("agentsh not marked essential")
+	// Verify agentmon marked essential
+	if agentmon.Essential == nil || !*agentmon.Essential {
+		t.Error("agentmon not marked essential")
 	}
 
 	// Verify Fargate compatibility

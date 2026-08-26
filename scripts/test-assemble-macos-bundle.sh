@@ -2,11 +2,11 @@
 # Smoke test for assemble-macos-bundle.sh. Runs anywhere (no Xcode, no
 # signing identity): fakes the Xcode products and Go binaries, assembles,
 # and asserts the bundle tree. Running on a case-sensitive filesystem
-# (Linux CI) also catches macos/agentsh-vs-macos/AgentSH path drift.
+# (Linux CI) also catches macos/agentmon-vs-macos/AgentMon path drift.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SYSEXT="ai.canyonroad.agentsh.SysExt.systemextension"
+SYSEXT="dev.diffsec.agentmon.SysExt.systemextension"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -18,9 +18,9 @@ mkdir -p "$TMP/products/approval-dialog.app/Contents"
 
 # Fake Go binaries
 mkdir -p "$TMP/go-bin"
-touch "$TMP/go-bin/agentsh" "$TMP/go-bin/agentsh-shell-shim" "$TMP/go-bin/agentsh-stub"
+touch "$TMP/go-bin/agentmon" "$TMP/go-bin/agentmon-shell-shim" "$TMP/go-bin/agentmon-stub"
 
-APP="$TMP/AgentSH.app"
+APP="$TMP/AgentMon.app"
 GO_BIN_DIR="$TMP/go-bin" PRODUCTS_DIR="$TMP/products" \
   scripts/assemble-macos-bundle.sh "$APP"
 
@@ -32,9 +32,9 @@ require() {
   fi
 }
 
-require "$APP/Contents/MacOS/agentsh"
-require "$APP/Contents/MacOS/agentsh-shell-shim"
-require "$APP/Contents/MacOS/agentsh-stub"
+require "$APP/Contents/MacOS/agentmon"
+require "$APP/Contents/MacOS/agentmon-shell-shim"
+require "$APP/Contents/MacOS/agentmon-stub"
 require "$APP/Contents/Info.plist"
 require "$APP/Contents/Library/SystemExtensions/$SYSEXT"
 require "$APP/Contents/Library/SystemExtensions/$SYSEXT/Contents/embedded.provisionprofile"

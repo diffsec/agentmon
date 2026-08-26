@@ -21,7 +21,7 @@ func ShimConfPath(root string) string {
 	if root == "" {
 		root = "/"
 	}
-	return filepath.Join(root, "etc", "agentsh", "shim.conf")
+	return filepath.Join(root, "etc", "agentmon", "shim.conf")
 }
 
 // ReadShimConf reads the config file at ShimConfPath(root).
@@ -79,7 +79,7 @@ func ReadShimConf(root string) (ShimConf, error) {
 }
 
 // WriteShimConf writes all keys from conf.Raw as key=value lines.
-// Creates /etc/agentsh/ directory (mode 0o755) if needed.
+// Creates /etc/agentmon/ directory (mode 0o755) if needed.
 // File is written atomically with mode 0o644.
 func WriteShimConf(root string, conf ShimConf) error {
 	keys := make([]string, 0, len(conf.Raw))
@@ -89,7 +89,7 @@ func WriteShimConf(root string, conf ShimConf) error {
 	sort.Strings(keys)
 
 	var buf strings.Builder
-	buf.WriteString("# Written by: agentsh shim install-shell\n")
+	buf.WriteString("# Written by: agentmon shim install-shell\n")
 	for _, k := range keys {
 		fmt.Fprintf(&buf, "%s=%s\n", k, conf.Raw[k])
 	}

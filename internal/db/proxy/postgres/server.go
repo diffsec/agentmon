@@ -1,7 +1,7 @@
 //go:build linux
 
-// Package postgres implements the AgentSH PostgreSQL proxy per
-// docs/agentsh-db-access-spec.md §11–§14 and the macro design at
+// Package postgres implements the AgentMon PostgreSQL proxy per
+// docs/agentmon-db-access-spec.md §11–§14 and the macro design at
 // docs/superpowers/specs/2026-05-10-db-plan-04-pg-proxy-skeleton-design.md.
 //
 // Plan 04a ships only the listener skeleton: bind Unix sockets per declared
@@ -25,11 +25,11 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/service"
-	"github.com/agentsh/agentsh/internal/db/tlsleaf"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/tlsleaf"
 )
 
 // Service is the proxy-internal flattened view of one db_service. The proxy
@@ -99,7 +99,7 @@ type Config struct {
 	catalogLoaderForTest catalogRuntimeLoader
 }
 
-// Server runs the AgentSH PostgreSQL proxy listeners.
+// Server runs the AgentMon PostgreSQL proxy listeners.
 type Server struct {
 	cfg      Config
 	logger   *slog.Logger
@@ -373,7 +373,7 @@ func (s *Server) acceptLoop(ctx context.Context, svc Service, ln *unixListener) 
 }
 
 // handleConn is the per-connection handler. Reads SO_PEERCRED from the peer,
-// resolves the peer PID to an AgentSH session, and on resolver miss/mismatch
+// resolves the peer PID to an AgentMon session, and on resolver miss/mismatch
 // silently closes the conn while emitting a db_listener_auth_fail lifecycle event.
 // Plan 04a: successful peercred is a no-op (conn closed by deferred Close in
 // acceptLoop). Plan 04b plugs in the real handshake.

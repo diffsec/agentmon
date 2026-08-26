@@ -5,8 +5,8 @@ package darwin
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/platform"
-	"github.com/agentsh/agentsh/internal/platform/fuse"
+	"github.com/diffsec/agentmon/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform/fuse"
 )
 
 // Mount creates a FUSE mount.
@@ -20,7 +20,7 @@ func (fs *Filesystem) Mount(cfg platform.FSConfig) (platform.FSMount, error) {
 
 	mount, err := fuse.Mount(fuse.Config{
 		FSConfig:   cfg,
-		VolumeName: "agentsh",
+		VolumeName: "agentmon",
 	})
 	if err != nil {
 		return nil, err

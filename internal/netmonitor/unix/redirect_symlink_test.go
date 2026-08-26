@@ -14,7 +14,7 @@ import (
 func TestCreateStubSymlink(t *testing.T) {
 	// Create a fake stub binary to point to
 	stubDir := t.TempDir()
-	stubPath := filepath.Join(stubDir, "agentsh-stub")
+	stubPath := filepath.Join(stubDir, "agentmon-stub")
 	require.NoError(t, os.WriteFile(stubPath, []byte("#!/bin/sh\n"), 0755))
 
 	symlinkPath, cleanup, err := CreateStubSymlink(stubPath)
@@ -38,7 +38,7 @@ func TestCreateStubSymlink(t *testing.T) {
 
 func TestCreateStubSymlink_Cleanup(t *testing.T) {
 	stubDir := t.TempDir()
-	stubPath := filepath.Join(stubDir, "agentsh-stub")
+	stubPath := filepath.Join(stubDir, "agentmon-stub")
 	require.NoError(t, os.WriteFile(stubPath, []byte("#!/bin/sh\n"), 0755))
 
 	symlinkPath, cleanup, err := CreateStubSymlink(stubPath)

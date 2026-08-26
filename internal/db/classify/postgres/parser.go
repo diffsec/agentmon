@@ -1,5 +1,5 @@
 // Package postgres classifies PostgreSQL-family SQL into effects.ClassifiedStatement
-// per docs/agentsh-db-access-spec.md §7. The package exposes a Parser interface
+// per docs/agentmon-db-access-spec.md §7. The package exposes a Parser interface
 // (one implementation per build-tag-selected backend) plus pure helpers for
 // session-state evolution. No I/O, no goroutines.
 package postgres
@@ -12,7 +12,7 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // Dialect dispatches between Postgres-family parsers per spec §7.7.

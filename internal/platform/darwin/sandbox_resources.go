@@ -9,14 +9,14 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // rlimitExecWrapper is the name of the wrapper binary for applying rlimits.
-const rlimitExecWrapper = "agentsh-rlimit-exec"
+const rlimitExecWrapper = "agentmon-rlimit-exec"
 
 // ExecuteWithResources runs a command with resource limiting.
-// Memory limits are applied via RLIMIT_AS using the agentsh-rlimit-exec wrapper.
+// Memory limits are applied via RLIMIT_AS using the agentmon-rlimit-exec wrapper.
 // CPU monitoring starts after the process is running.
 func (s *Sandbox) ExecuteWithResources(ctx context.Context, rh *ResourceHandle, cmd string, args ...string) (*platform.ExecResult, error) {
 	s.mu.Lock()
@@ -35,10 +35,10 @@ func (s *Sandbox) ExecuteWithResources(ctx context.Context, rh *ResourceHandle, 
 		rlimits := rh.GetRlimits()
 		for _, rl := range rlimits {
 			if rl.Resource == RlimitAS && rl.Cur > 0 {
-				// Wrap with agentsh-rlimit-exec
+				// Wrap with agentmon-rlimit-exec
 				actualCmd = rlimitExecWrapper
 				actualArgs = append([]string{cmd}, args...)
-				rlimitEnv = fmt.Sprintf("AGENTSH_RLIMIT_AS=%d", rl.Cur)
+				rlimitEnv = fmt.Sprintf("AGENTMON_RLIMIT_AS=%d", rl.Cur)
 				break
 			}
 		}

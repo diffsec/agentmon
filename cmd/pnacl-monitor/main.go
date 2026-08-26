@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/netmonitor/ebpf"
-	"github.com/agentsh/agentsh/internal/netmonitor/pnacl"
+	"github.com/diffsec/agentmon/internal/netmonitor/ebpf"
+	"github.com/diffsec/agentmon/internal/netmonitor/pnacl"
 )
 
 func main() {
@@ -22,10 +22,10 @@ func main() {
 	}
 
 	// Load PNACL config - use SUDO_USER's home if running with sudo
-	configPath := os.Getenv("HOME") + "/.config/agentsh/network-acl.yml"
+	configPath := os.Getenv("HOME") + "/.config/agentmon/network-acl.yml"
 	if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
 		// Running with sudo - use original user's config
-		configPath = "/home/" + sudoUser + "/.config/agentsh/network-acl.yml"
+		configPath = "/home/" + sudoUser + "/.config/agentmon/network-acl.yml"
 	}
 	// Allow override via command line arg
 	if len(os.Args) > 1 {

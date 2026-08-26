@@ -5,7 +5,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // Evaluator applies policy rules to findings and produces a Verdict.

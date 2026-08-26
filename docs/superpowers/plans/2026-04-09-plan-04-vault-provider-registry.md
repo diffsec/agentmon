@@ -18,13 +18,13 @@
 
 ### Import paths
 
-Module path: `github.com/agentsh/agentsh`. The secrets parent package is imported as:
+Module path: `github.com/diffsec/agentmon`. The secrets parent package is imported as:
 
 ```go
-secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 ```
 
-Vault subpackage: `github.com/agentsh/agentsh/internal/proxy/secrets/vault`.
+Vault subpackage: `github.com/diffsec/agentmon/internal/proxy/secrets/vault`.
 
 ### ProviderConfig interface evolution
 
@@ -137,7 +137,7 @@ ErrCyclicDependency,
 
 - [ ] **Step 3: Run error tests**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/proxy/secrets/ -run TestSentinel -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/proxy/secrets/ -run TestSentinel -v`
 
 Expected: PASS — all sentinel tests pass with the new error.
 
@@ -216,14 +216,14 @@ func (Config) TypeName() string { return "keyring" }
 
 - [ ] **Step 7: Build and test**
 
-Run: `cd /home/eran/work/agentsh && go build ./internal/proxy/secrets/... && go test ./internal/proxy/secrets/ -v`
+Run: `cd /home/eran/work/agentmon && go build ./internal/proxy/secrets/... && go test ./internal/proxy/secrets/ -v`
 
 Expected: PASS — everything compiles and tests pass.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-cd /home/eran/work/agentsh
+cd /home/eran/work/agentmon
 git add internal/proxy/secrets/errors.go internal/proxy/secrets/errors_test.go internal/proxy/secrets/provider.go internal/proxy/secrets/provider_test.go internal/proxy/secrets/keyring/config.go
 git commit -m "feat(secrets): add TypeName/Dependencies to ProviderConfig + ErrCyclicDependency (Plan 4)"
 ```
@@ -309,7 +309,7 @@ func TestNewRegistry_NoDependencies(t *testing.T) {
 
 func TestNewRegistry_LinearChain(t *testing.T) {
 	// vault depends on keyring via a token_ref
-	tokenRef := SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-token"}
+	tokenRef := SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-token"}
 	configs := map[string]ProviderConfig{
 		"vault-prod": testProviderConfig{
 			typeName: "vault",
@@ -571,7 +571,7 @@ func TestRegistry_Close_Idempotent(t *testing.T) {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/proxy/secrets/ -run TestNewRegistry -v 2>&1 | head -20`
+Run: `cd /home/eran/work/agentmon && go test ./internal/proxy/secrets/ -run TestNewRegistry -v 2>&1 | head -20`
 
 Expected: FAIL — `NewRegistry`, `ConstructorFunc`, `RefResolver` not defined.
 
@@ -785,14 +785,14 @@ func (r *Registry) Close() error {
 
 - [ ] **Step 4: Run registry tests**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/proxy/secrets/ -run "TestNewRegistry|TestRegistry_" -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/proxy/secrets/ -run "TestNewRegistry|TestRegistry_" -v`
 
 Expected: PASS — all registry tests pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh
+cd /home/eran/work/agentmon
 git add internal/proxy/secrets/registry.go internal/proxy/secrets/registry_test.go
 git commit -m "feat(secrets): provider registry with topo sort + auth chaining (Plan 4)"
 ```
@@ -807,22 +807,22 @@ git commit -m "feat(secrets): provider registry with topo sort + auth chaining (
 
 - [ ] **Step 1: Add the approle auth module**
 
-Run: `cd /home/eran/work/agentsh && go get github.com/hashicorp/vault/api/auth/approle@latest`
+Run: `cd /home/eran/work/agentmon && go get github.com/hashicorp/vault/api/auth/approle@latest`
 
 - [ ] **Step 2: Tidy**
 
-Run: `cd /home/eran/work/agentsh && go mod tidy`
+Run: `cd /home/eran/work/agentmon && go mod tidy`
 
 - [ ] **Step 3: Inspect go.sum delta for surprises**
 
-Run: `cd /home/eran/work/agentsh && git diff go.sum | head -40`
+Run: `cd /home/eran/work/agentmon && git diff go.sum | head -40`
 
 Verify that any new transitive dependencies are from the `hashicorp` ecosystem and not surprising third-party modules. The `auth/approle` module is small and shares transitive deps with the already-present `vault/api` and `vault/api/auth/kubernetes`.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /home/eran/work/agentsh
+cd /home/eran/work/agentmon
 git add go.mod go.sum
 git commit -m "deps: add hashicorp/vault/api/auth/approle (Plan 4)"
 ```
@@ -876,7 +876,7 @@ Create `internal/proxy/secrets/vault/config.go`:
 package vault
 
 import (
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // Config configures the Vault provider.
@@ -964,7 +964,7 @@ package vault
 import (
 	"testing"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 func TestConfig_TypeName(t *testing.T) {
@@ -982,9 +982,9 @@ func TestConfig_Dependencies_Empty(t *testing.T) {
 }
 
 func TestConfig_Dependencies_WithRefs(t *testing.T) {
-	tokenRef := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-token"}
-	roleRef := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-role"}
-	secretRef := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-secret"}
+	tokenRef := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-token"}
+	roleRef := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-role"}
+	secretRef := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-secret"}
 
 	c := Config{
 		Auth: AuthConfig{
@@ -1003,18 +1003,18 @@ func TestConfig_Dependencies_WithRefs(t *testing.T) {
 
 - [ ] **Step 4: Run config test (expect build failure for now)**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/proxy/secrets/vault/ -run TestConfig -v 2>&1 | head -10`
+Run: `cd /home/eran/work/agentmon && go test ./internal/proxy/secrets/vault/ -run TestConfig -v 2>&1 | head -10`
 
 Expected: Build failure mentioning `Provider` undefined. This is fine — the compile-time assertion in config.go references `Provider` which doesn't exist yet. Comment out the `_ secrets.SecretProvider = (*Provider)(nil)` line temporarily to verify config tests pass, then uncomment it.
 
 Alternative: just verify the doc.go and config.go compile in isolation by temporarily commenting the `Provider` assertion:
 
-Run: `cd /home/eran/work/agentsh && go vet ./internal/proxy/secrets/vault/ 2>&1 | head -10`
+Run: `cd /home/eran/work/agentmon && go vet ./internal/proxy/secrets/vault/ 2>&1 | head -10`
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh
+cd /home/eran/work/agentmon
 git add internal/proxy/secrets/vault/doc.go internal/proxy/secrets/vault/config.go internal/proxy/secrets/vault/provider_test.go
 git commit -m "feat(secrets/vault): package skeleton — doc.go, config.go, config tests (Plan 4)"
 ```
@@ -1044,8 +1044,8 @@ import (
 	"testing"
 	"time"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/secretstest"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/secretstest"
 )
 
 // mockVaultServer returns an httptest.Server that simulates Vault
@@ -1401,7 +1401,7 @@ func TestClose_Idempotent(t *testing.T) {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/proxy/secrets/vault/ -run "TestNew_TokenAuth|TestFetch_|TestClose_" -v 2>&1 | head -10`
+Run: `cd /home/eran/work/agentmon && go test ./internal/proxy/secrets/vault/ -run "TestNew_TokenAuth|TestFetch_|TestClose_" -v 2>&1 | head -10`
 
 Expected: FAIL — `Provider` type and `New` function not defined.
 
@@ -1426,7 +1426,7 @@ import (
 	approleauth "github.com/hashicorp/vault/api/auth/approle"
 	kubeauth "github.com/hashicorp/vault/api/auth/kubernetes"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // Provider is a Vault-backed secrets.SecretProvider.
@@ -1776,7 +1776,7 @@ import (
 	approleauth "github.com/hashicorp/vault/api/auth/approle"
 	kubeauth "github.com/hashicorp/vault/api/auth/kubernetes"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 ```
 
@@ -1797,8 +1797,8 @@ import (
 	"strings"
 	"testing"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/secretstest"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/secretstest"
 )
 ```
 
@@ -1806,7 +1806,7 @@ Remove the earlier `import` block that only had `testing` and `secrets`.
 
 - [ ] **Step 5: Run all vault tests**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/proxy/secrets/vault/ -v -count=1`
+Run: `cd /home/eran/work/agentmon && go test ./internal/proxy/secrets/vault/ -v -count=1`
 
 Expected: PASS — all tests pass. The Vault error checking uses `errors.As(err, &vaultapi.ResponseError{})` to match HTTP status codes from the mock server. If the KV v2 helper wraps errors differently than expected, adjust the error type assertion in `Fetch`.
 
@@ -1817,14 +1817,14 @@ Fix any compilation issues. Common ones:
 
 - [ ] **Step 6: Run full secrets test suite**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/proxy/secrets/... -v -count=1`
+Run: `cd /home/eran/work/agentmon && go test ./internal/proxy/secrets/... -v -count=1`
 
 Expected: PASS — vault tests and existing keyring/credsub tests all pass.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /home/eran/work/agentsh
+cd /home/eran/work/agentmon
 git add internal/proxy/secrets/vault/provider.go internal/proxy/secrets/vault/provider_test.go
 git commit -m "feat(secrets/vault): Vault KV v2 provider — token/approle/k8s auth, field extraction (Plan 4)"
 ```
@@ -1845,9 +1845,9 @@ func TestNew_AuthChaining_TokenFromResolver(t *testing.T) {
 	const testToken = "hvs.chained-token-67890"
 	srv := mockVaultServer(t, testToken, nil)
 
-	tokenRef := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-token"}
+	tokenRef := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-token"}
 	memProvider := secretstest.NewMemoryProvider("keyring", map[string][]byte{
-		"keyring://agentsh/vault-token": []byte(testToken),
+		"keyring://agentmon/vault-token": []byte(testToken),
 	})
 	resolver := func(ctx context.Context, ref secrets.SecretRef) (secrets.SecretValue, error) {
 		return memProvider.Fetch(ctx, ref)
@@ -1890,11 +1890,11 @@ func TestNew_AppRoleAuth_ChainedRefs(t *testing.T) {
 	const testToken = "hvs.approle-chained"
 	srv := mockVaultServer(t, testToken, nil)
 
-	roleRef := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-role"}
-	secretRef := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-secret"}
+	roleRef := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-role"}
+	secretRef := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-secret"}
 	memProvider := secretstest.NewMemoryProvider("keyring", map[string][]byte{
-		"keyring://agentsh/vault-role":   []byte("my-role-id"),
-		"keyring://agentsh/vault-secret": []byte("my-secret-id"),
+		"keyring://agentmon/vault-role":   []byte("my-role-id"),
+		"keyring://agentmon/vault-secret": []byte("my-secret-id"),
 	})
 	resolver := func(ctx context.Context, ref secrets.SecretRef) (secrets.SecretValue, error) {
 		return memProvider.Fetch(ctx, ref)
@@ -2013,14 +2013,14 @@ func TestProviderContract_AppliedToVaultProvider(t *testing.T) {
 
 - [ ] **Step 4: Run all vault tests**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/proxy/secrets/vault/ -v -count=1`
+Run: `cd /home/eran/work/agentmon && go test ./internal/proxy/secrets/vault/ -v -count=1`
 
 Expected: PASS — all tests including auth chaining, validation, and contract.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/eran/work/agentsh
+cd /home/eran/work/agentmon
 git add internal/proxy/secrets/vault/provider_test.go
 git commit -m "test(secrets/vault): auth chaining, config validation, contract tests (Plan 4)"
 ```
@@ -2037,7 +2037,7 @@ git commit -m "test(secrets/vault): auth chaining, config validation, contract t
 Replace the content of `internal/proxy/secrets/doc.go`:
 
 ```go
-// Package secrets defines the SecretProvider interface that agentsh
+// Package secrets defines the SecretProvider interface that agentmon
 // uses to fetch real credentials from external secret stores at
 // session start, plus the URI grammar, sentinel errors, and the
 // provider Registry shared by all provider implementations.
@@ -2070,25 +2070,25 @@ package secrets
 
 - [ ] **Step 2: Run full test suite**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/proxy/secrets/... -v -count=1`
+Run: `cd /home/eran/work/agentmon && go test ./internal/proxy/secrets/... -v -count=1`
 
 Expected: PASS — all packages (secrets, secrets/keyring, secrets/secretstest, secrets/vault) pass.
 
 - [ ] **Step 3: Build all**
 
-Run: `cd /home/eran/work/agentsh && go build ./...`
+Run: `cd /home/eran/work/agentmon && go build ./...`
 
 Expected: PASS.
 
 - [ ] **Step 4: Cross-compile for Windows**
 
-Run: `cd /home/eran/work/agentsh && GOOS=windows go build ./...`
+Run: `cd /home/eran/work/agentmon && GOOS=windows go build ./...`
 
 Expected: PASS. The vault/api library is pure Go. No cgo issues.
 
 - [ ] **Step 5: Verify no changes to out-of-scope files**
 
-Run: `cd /home/eran/work/agentsh && git diff --name-only HEAD~6` (or however many commits back Plan 4 started)
+Run: `cd /home/eran/work/agentmon && git diff --name-only HEAD~6` (or however many commits back Plan 4 started)
 
 Verify that ONLY these paths were modified:
 - `internal/proxy/secrets/` (errors.go, provider.go, provider_test.go, errors_test.go, doc.go, registry.go, registry_test.go)
@@ -2101,13 +2101,13 @@ No changes to: `pkg/secrets/`, `internal/session/`, `internal/api/`, `cmd/`, `in
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /home/eran/work/agentsh
+cd /home/eran/work/agentmon
 git add internal/proxy/secrets/doc.go
 git commit -m "docs(secrets): update package doc for vault provider and registry (Plan 4)"
 ```
 
 - [ ] **Step 7: Run full project tests**
 
-Run: `cd /home/eran/work/agentsh && go test ./... 2>&1 | tail -20`
+Run: `cd /home/eran/work/agentmon && go test ./... 2>&1 | tail -20`
 
 Expected: PASS for all packages. If any existing tests break, investigate — Plan 4 should not affect anything outside `internal/proxy/secrets/`.

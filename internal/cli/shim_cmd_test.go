@@ -163,7 +163,7 @@ func TestShimInstallShell_ForceWritesConfig(t *testing.T) {
 		t.Fatalf("expected success, got %v", err)
 	}
 
-	confPath := filepath.Join(rootfs, "etc", "agentsh", "shim.conf")
+	confPath := filepath.Join(rootfs, "etc", "agentmon", "shim.conf")
 	data, err := os.ReadFile(confPath)
 	if err != nil {
 		t.Fatalf("expected shim.conf to exist: %v", err)
@@ -197,7 +197,7 @@ func TestShimInstallShell_NoForceNoConfig(t *testing.T) {
 		t.Fatalf("expected success, got %v", err)
 	}
 
-	confPath := filepath.Join(rootfs, "etc", "agentsh", "shim.conf")
+	confPath := filepath.Join(rootfs, "etc", "agentmon", "shim.conf")
 	if _, err := os.Stat(confPath); err == nil {
 		t.Fatalf("expected shim.conf NOT to exist without --force")
 	}
@@ -232,7 +232,7 @@ func TestShimInstallShell_ForceDryRun(t *testing.T) {
 	}
 
 	// Dry run should NOT write the file.
-	confPath := filepath.Join(rootfs, "etc", "agentsh", "shim.conf")
+	confPath := filepath.Join(rootfs, "etc", "agentmon", "shim.conf")
 	if _, err := os.Stat(confPath); err == nil {
 		t.Fatalf("dry-run should NOT write shim.conf")
 	}
@@ -269,7 +269,7 @@ func TestShimInstallShell_ReinstallWithoutForceClearsConfig(t *testing.T) {
 		t.Fatalf("first install: %v", err)
 	}
 
-	confPath := filepath.Join(rootfs, "etc", "agentsh", "shim.conf")
+	confPath := filepath.Join(rootfs, "etc", "agentmon", "shim.conf")
 	data, _ := os.ReadFile(confPath)
 	if !strings.Contains(string(data), "force=true") {
 		t.Fatalf("expected force=true after --force install, got %q", string(data))
@@ -313,7 +313,7 @@ func TestShimInstallShell_ForcePreservesExistingKeys(t *testing.T) {
 	}
 
 	// Pre-write a config with an extra key.
-	confDir := filepath.Join(rootfs, "etc", "agentsh")
+	confDir := filepath.Join(rootfs, "etc", "agentmon")
 	if err := os.MkdirAll(confDir, 0o755); err != nil {
 		t.Fatalf("mkdir conf: %v", err)
 	}

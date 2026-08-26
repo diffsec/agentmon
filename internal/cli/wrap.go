@@ -11,14 +11,14 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/spf13/cobra"
 )
 
 // ensureServerRunningFn is the auto-start hook used by fetchSessionForWrap.
 // Defaults to the real ensureServerRunning helper from auto.go; tests
-// override it to avoid forking a real agentsh server subprocess.
+// override it to avoid forking a real agentmon server subprocess.
 var ensureServerRunningFn = ensureServerRunning
 
 func newWrapCmd() *cobra.Command {
@@ -33,16 +33,16 @@ func newWrapCmd() *cobra.Command {
 		Long: `Launch an AI agent with full exec interception.
 
 Every command spawned by the agent and its descendants is routed through the
-agentsh exec pipeline (policy check, approval workflow, audit logging).
+agentmon exec pipeline (policy check, approval workflow, audit logging).
 
 Examples:
-  agentsh wrap -- claude-code
-  agentsh wrap --policy strict -- codex
-  agentsh wrap --session my-dev -- cursor`,
+  agentmon wrap -- claude-code
+  agentmon wrap --policy strict -- codex
+  agentmon wrap --session my-dev -- cursor`,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return fmt.Errorf("command required after --\n\nUsage: agentsh wrap [flags] -- COMMAND [ARGS...]")
+				return fmt.Errorf("command required after --\n\nUsage: agentmon wrap [flags] -- COMMAND [ARGS...]")
 			}
 
 			cfg := getClientConfig(cmd)
@@ -104,14 +104,14 @@ func runWrap(ctx context.Context, cfg *clientConfig, opts wrapOptions) error {
 	networkProxyURL := sess.ProxyURL
 	llmProxyURL := sess.LLMProxyURL
 	if opts.sessionID == "" {
-		fmt.Fprintf(os.Stderr, "agentsh: session %s created (policy: %s)\n", sessID, opts.policy)
+		fmt.Fprintf(os.Stderr, "agentmon: session %s created (policy: %s)\n", sessID, opts.policy)
 	}
 
 	// If FUSE is active, the server provides a mount path that intercepts file I/O.
 	// Use it as the working directory so all file operations go through FUSE.
 	workDir := ""
 	if workspaceMount != "" {
-		fmt.Fprintf(os.Stderr, "agentsh: FUSE workspace mount: %s\n", workspaceMount)
+		fmt.Fprintf(os.Stderr, "agentmon: FUSE workspace mount: %s\n", workspaceMount)
 		workDir = workspaceMount
 	}
 
@@ -126,7 +126,7 @@ func runWrap(ctx context.Context, cfg *clientConfig, opts wrapOptions) error {
 	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
 		wrapCfg, err = setupWrapInterception(ctx, c, sessID, agentPath, opts.agentArgs, cfg)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "agentsh: interception setup failed, running without interception: %v\n", err)
+			fmt.Fprintf(os.Stderr, "agentmon: interception setup failed, running without interception: %v\n", err)
 			// Fall through to direct launch
 		}
 	}
@@ -157,14 +157,14 @@ func runWrap(ctx context.Context, cfg *clientConfig, opts wrapOptions) error {
 	// directory so the child process starts inside the mount. This ensures even
 	// non-shell agents that don't cd themselves will operate through FUSE.
 	if workDir != "" {
-		agentProc.Env = append(agentProc.Env, fmt.Sprintf("AGENTSH_WORKSPACE_MOUNT=%s", workDir))
+		agentProc.Env = append(agentProc.Env, fmt.Sprintf("AGENTMON_WORKSPACE_MOUNT=%s", workDir))
 		agentProc.Dir = workDir
 	}
 
 	// If the LLM proxy is active, route agent API calls through it so
 	// requests/responses are logged and DLP-scanned.
 	if llmProxyURL != "" {
-		fmt.Fprintf(os.Stderr, "agentsh: LLM proxy: %s\n", llmProxyURL)
+		fmt.Fprintf(os.Stderr, "agentmon: LLM proxy: %s\n", llmProxyURL)
 		agentProc.Env = append(agentProc.Env,
 			fmt.Sprintf("ANTHROPIC_BASE_URL=%s", llmProxyURL),
 			fmt.Sprintf("OPENAI_BASE_URL=%s", llmProxyURL),
@@ -230,13 +230,13 @@ func runWrap(ctx context.Context, cfg *clientConfig, opts wrapOptions) error {
 		if wrapCfg.ptracePostStart != nil {
 			mechanism = "ptrace"
 		}
-		fmt.Fprintf(os.Stderr, "agentsh: agent %s started with %s interception (pid: %d)\n", opts.agentCmd, mechanism, agentProc.Process.Pid)
+		fmt.Fprintf(os.Stderr, "agentmon: agent %s started with %s interception (pid: %d)\n", opts.agentCmd, mechanism, agentProc.Process.Pid)
 		// Forward the notify fd to the server in the background
 		if wrapCfg.postStart != nil {
 			go wrapCfg.postStart(agentProc.Process.Pid)
 		}
 	} else {
-		fmt.Fprintf(os.Stderr, "agentsh: agent %s started (pid: %d)\n", opts.agentCmd, agentProc.Process.Pid)
+		fmt.Fprintf(os.Stderr, "agentmon: agent %s started (pid: %d)\n", opts.agentCmd, agentProc.Process.Pid)
 	}
 
 	// 5. Wait for agent to exit
@@ -265,7 +265,7 @@ func runWrap(ctx context.Context, cfg *clientConfig, opts wrapOptions) error {
 
 	// 6. Generate report
 	if opts.report {
-		fmt.Fprintf(os.Stderr, "\nagentsh: session %s complete (agent exit code: %d)\n", sessID, exitCode)
+		fmt.Fprintf(os.Stderr, "\nagentmon: session %s complete (agent exit code: %d)\n", sessID, exitCode)
 	}
 
 	if exitCode != 0 {
@@ -324,22 +324,22 @@ func buildWrapEnv(base []string, sessionID string, serverAddr string, bypassShel
 			continue
 		}
 		switch {
-		case strings.EqualFold(key, "AGENTSH_SESSION_ID"):
+		case strings.EqualFold(key, "AGENTMON_SESSION_ID"):
 			continue
-		case strings.EqualFold(key, "AGENTSH_SERVER"):
+		case strings.EqualFold(key, "AGENTMON_SERVER"):
 			continue
-		case strings.EqualFold(key, "AGENTSH_IN_SESSION"):
+		case strings.EqualFold(key, "AGENTMON_IN_SESSION"):
 			continue
 		default:
 			env = append(env, e)
 		}
 	}
 	env = append(env,
-		fmt.Sprintf("AGENTSH_SESSION_ID=%s", sessionID),
-		fmt.Sprintf("AGENTSH_SERVER=%s", serverAddr),
+		fmt.Sprintf("AGENTMON_SESSION_ID=%s", sessionID),
+		fmt.Sprintf("AGENTMON_SERVER=%s", serverAddr),
 	)
 	if bypassShellShim {
-		env = append(env, "AGENTSH_IN_SESSION=1")
+		env = append(env, "AGENTMON_IN_SESSION=1")
 	}
 	return env
 }
@@ -418,7 +418,7 @@ func appendWrapNetworkProxyEnv(base []string, proxyURL string) []string {
 // fetchSessionForWrap resolves the session for runWrap, either by reusing
 // opts.sessionID (GetSession) or by creating a new session
 // (CreateSessionWithRequest). If the first server call fails with a
-// connection error and auto-start is enabled, it forks the local agentsh
+// connection error and auto-start is enabled, it forks the local agentmon
 // server via ensureServerRunningFn and retries once. The behaviour mirrors
 // the auto-start blocks already present in exec.go and exec_pty.go.
 func fetchSessionForWrap(

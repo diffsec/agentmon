@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/limits"
+	"github.com/diffsec/agentmon/internal/limits"
 )
 
 // resetCgroupProbeCache clears the package-level cache between tests.

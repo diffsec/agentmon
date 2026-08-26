@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/platform/darwin/policysock"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/platform/darwin/policysock"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // startPolicySocket creates and starts the policy socket server for macOS

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add catalog-resolved DB policy selectors, policy explanation data, and `agentsh policy db explain` without weakening strict coverage.
+**Goal:** Add catalog-resolved DB policy selectors, policy explanation data, and `agentmon policy db explain` without weakening strict coverage.
 
-**Architecture:** Keep enforcement in `internal/db/policy` pure and platform-neutral. Add canonical selector matching against Plan 09 `effects.ResolvedObjectRef`, then build a separate `internal/db/policyexplain` package for offline classification, catalog fixture resolution, and CLI output shaping. Wire the operator command under the existing `agentsh policy` tree.
+**Architecture:** Keep enforcement in `internal/db/policy` pure and platform-neutral. Add canonical selector matching against Plan 09 `effects.ResolvedObjectRef`, then build a separate `internal/db/policyexplain` package for offline classification, catalog fixture resolution, and CLI output shaping. Wire the operator command under the existing `agentmon policy` tree.
 
 **Tech Stack:** Go, `gopkg.in/yaml.v3`, `github.com/gobwas/glob`, Cobra CLI, existing Postgres classifier/catalog/effects/policy packages.
 
@@ -26,7 +26,7 @@
 - Modify `internal/cli/policy_cmd.go`: add `policy db explain` and make `policy validate` surface DB warnings.
 - Create `internal/cli/policy_db_explain_test.go`.
 - Modify `internal/db/policy/testdata/sample-policy.yaml`: add canonical selector examples.
-- Modify `docs/agentsh-db-access-spec.md`: document `relations`, `functions`, resolved `schemas`, and offline explain.
+- Modify `docs/agentmon-db-access-spec.md`: document `relations`, `functions`, resolved `schemas`, and offline explain.
 
 ---
 
@@ -500,7 +500,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func TestEvaluate_RelationSelectorCoversResolvedRelation(t *testing.T) {
@@ -922,7 +922,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func TestExplainStatement_ReturnsCoverageAndDecision(t *testing.T) {
@@ -1009,7 +1009,7 @@ Create `internal/db/policy/explain.go`.
 ```go
 package policy
 
-import "github.com/agentsh/agentsh/internal/db/effects"
+import "github.com/diffsec/agentmon/internal/db/effects"
 
 type StatementExplanation struct {
 	Decision        Decision
@@ -1228,8 +1228,8 @@ Create `internal/db/policyexplain/types.go`.
 package policyexplain
 
 import (
-	dbpolicy "github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/effects"
+	dbpolicy "github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 type Options struct {
@@ -1309,7 +1309,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/agentsh/agentsh/internal/db/catalog"
+	"github.com/diffsec/agentmon/internal/db/catalog"
 	"gopkg.in/yaml.v3"
 )
 
@@ -1446,8 +1446,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	dbpolicy "github.com/agentsh/agentsh/internal/db/policy"
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	dbpolicy "github.com/diffsec/agentmon/internal/db/policy"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestRun_WithCatalogFixtureAllowsCanonicalRelation(t *testing.T) {
@@ -1522,8 +1522,8 @@ Create `internal/db/policyexplain/resolve.go`.
 package policyexplain
 
 import (
-	"github.com/agentsh/agentsh/internal/db/catalog"
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/catalog"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func resolveStatements(stmts []effects.ClassifiedStatement, fixture CatalogFixture) []effects.ClassifiedStatement {
@@ -1651,9 +1651,9 @@ import (
 	"fmt"
 	"strings"
 
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
-	"github.com/agentsh/agentsh/internal/db/effects"
-	dbpolicy "github.com/agentsh/agentsh/internal/db/policy"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	dbpolicy "github.com/diffsec/agentmon/internal/db/policy"
 )
 
 func Run(rs *dbpolicy.RuleSet, warns []dbpolicy.Warning, opts Options) (Report, error) {
@@ -1820,7 +1820,7 @@ git commit -m "db/policyexplain: add offline explain runner"
 
 ---
 
-## Task 5: Wire `agentsh policy db explain` And DB Warnings
+## Task 5: Wire `agentmon policy db explain` And DB Warnings
 
 **Files:**
 - Modify: `internal/cli/policy_cmd.go`
@@ -1952,12 +1952,12 @@ import (
 	"sort"
 	"strings"
 
-	dbpolicy "github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/policyexplain"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/policygen"
-	"github.com/agentsh/agentsh/internal/policy/signing"
-	"github.com/agentsh/agentsh/pkg/types"
+	dbpolicy "github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policyexplain"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/policygen"
+	"github.com/diffsec/agentmon/internal/policy/signing"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/spf13/cobra"
 )
 ```
@@ -2202,7 +2202,7 @@ git commit -m "cli: add db policy explain"
 **Files:**
 - Modify: `internal/db/policy/testdata/sample-policy.yaml`
 - Modify: `internal/db/policy/sample_test.go`
-- Modify: `docs/agentsh-db-access-spec.md`
+- Modify: `docs/agentmon-db-access-spec.md`
 - Modify: `docs/superpowers/specs/2026-05-14-db-phase-2-roadmap-design.md`
 
 - [ ] **Step 1: Add sample canonical policies**
@@ -2240,7 +2240,7 @@ Expected: PASS.
 
 - [ ] **Step 3: Document new rule fields in the DB access spec**
 
-In `docs/agentsh-db-access-spec.md`, update the statement-rule field table with these rows near `objects` and `schemas`:
+In `docs/agentmon-db-access-spec.md`, update the statement-rule field table with these rows near `objects` and `schemas`:
 
 ```markdown
 | `relations` | no | Glob list. Matches catalog-resolved relation canonical names formatted as `schema.name`. A selector only matches when the effect contains a successful catalog `resolved_objects[]` relation. Recommended with `match_object_resolution: catalog_resolved`. |
@@ -2261,7 +2261,7 @@ Add this paragraph after the field table:
 
 - [ ] **Step 4: Document offline explain command**
 
-Add this subsection near the DB policy authoring documentation in `docs/agentsh-db-access-spec.md`.
+Add this subsection near the DB policy authoring documentation in `docs/agentmon-db-access-spec.md`.
 
 ````markdown
 ### DB policy explain
@@ -2269,7 +2269,7 @@ Add this subsection near the DB policy authoring documentation in `docs/agentsh-
 Operators can inspect DB policy behavior offline:
 
 ```bash
-agentsh policy db explain ./policy.yaml --service appdb --sql 'SELECT * FROM users'
+agentmon policy db explain ./policy.yaml --service appdb --sql 'SELECT * FROM users'
 ```
 
 The command reports classifier effects, syntactic objects, catalog-resolved objects when a fixture is supplied, per-object coverage, policy warnings, and the final decision. Catalog fixtures are YAML snapshots used for local debugging; they are not live DB connections and are not used by the proxy runtime.
@@ -2326,7 +2326,7 @@ Expected: no output and exit code 0.
 Run:
 
 ```bash
-git add internal/db/policy/testdata/sample-policy.yaml internal/db/policy/sample_test.go docs/agentsh-db-access-spec.md docs/superpowers/specs/2026-05-14-db-phase-2-roadmap-design.md
+git add internal/db/policy/testdata/sample-policy.yaml internal/db/policy/sample_test.go docs/agentmon-db-access-spec.md docs/superpowers/specs/2026-05-14-db-phase-2-roadmap-design.md
 git commit -m "docs: explain db policy ergonomics"
 ```
 
@@ -2341,7 +2341,7 @@ local modifications.
 - [ ] `go test ./...` passes.
 - [ ] `GOOS=windows go build ./...` passes.
 - [ ] `git diff --check` passes.
-- [ ] `agentsh policy db explain` works with `--sql` and stdin.
+- [ ] `agentmon policy db explain` works with `--sql` and stdin.
 - [ ] Canonical selectors only match successful catalog-resolved objects.
 - [ ] Existing syntactic policies keep the same decisions.
 - [ ] DB warning codes are visible in `policy validate`.

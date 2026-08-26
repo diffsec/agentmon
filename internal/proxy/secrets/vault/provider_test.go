@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
-	secretstest "github.com/agentsh/agentsh/internal/proxy/secrets/secretstest"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
+	secretstest "github.com/diffsec/agentmon/internal/proxy/secrets/secretstest"
 )
 
 func TestConfig_TypeName(t *testing.T) {
@@ -31,7 +31,7 @@ func TestConfig_Dependencies_TokenLiteral(t *testing.T) {
 }
 
 func TestConfig_Dependencies_TokenRef(t *testing.T) {
-	tokenRef := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-token"}
+	tokenRef := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-token"}
 	c := Config{Auth: AuthConfig{Method: "token", TokenRef: &tokenRef}}
 	deps := c.Dependencies()
 	if len(deps) != 1 {
@@ -45,8 +45,8 @@ func TestConfig_Dependencies_TokenRef(t *testing.T) {
 }
 
 func TestConfig_Dependencies_AppRole(t *testing.T) {
-	roleRef := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-role"}
-	secretRef := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-secret"}
+	roleRef := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-role"}
+	secretRef := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-secret"}
 
 	c := Config{
 		Auth: AuthConfig{
@@ -63,8 +63,8 @@ func TestConfig_Dependencies_AppRole(t *testing.T) {
 
 func TestConfig_Dependencies_AppRoleIgnoresTokenRef(t *testing.T) {
 	// TokenRef should be ignored for approle method.
-	tokenRef := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-token"}
-	roleRef := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-role"}
+	tokenRef := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-token"}
+	roleRef := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-role"}
 
 	c := Config{
 		Auth: AuthConfig{
@@ -90,7 +90,7 @@ func TestConfig_Dependencies_Kubernetes(t *testing.T) {
 func TestConfig_Dependencies_LiteralOverridesRef(t *testing.T) {
 	// When both literal and ref are set, the ref is not declared as a
 	// dependency. The constructor will reject the config later.
-	tokenRef := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-token"}
+	tokenRef := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-token"}
 	c := Config{
 		Auth: AuthConfig{
 			Method:   "token",
@@ -245,9 +245,9 @@ func TestNew_AuthChaining_TokenFromResolver(t *testing.T) {
 	srv := mockVaultServer(t, testToken, nil)
 	defer srv.Close()
 
-	tokenRef := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-token"}
+	tokenRef := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-token"}
 	memProvider := secretstest.NewMemoryProvider("keyring", map[string][]byte{
-		"keyring://agentsh/vault-token": []byte(testToken),
+		"keyring://agentmon/vault-token": []byte(testToken),
 	})
 	resolver := func(ctx context.Context, ref secrets.SecretRef) (secrets.SecretValue, error) {
 		return memProvider.Fetch(ctx, ref)
@@ -295,11 +295,11 @@ func TestNew_AppRoleAuth_ChainedRefs(t *testing.T) {
 	srv := mockVaultServer(t, testToken, nil)
 	defer srv.Close()
 
-	roleRef := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-role"}
-	secretRef := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault-secret"}
+	roleRef := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-role"}
+	secretRef := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault-secret"}
 	memProvider := secretstest.NewMemoryProvider("keyring", map[string][]byte{
-		"keyring://agentsh/vault-role":   []byte("my-role-id"),
-		"keyring://agentsh/vault-secret": []byte("my-secret-id"),
+		"keyring://agentmon/vault-role":   []byte("my-role-id"),
+		"keyring://agentmon/vault-secret": []byte("my-secret-id"),
 	})
 	resolver := func(ctx context.Context, ref secrets.SecretRef) (secrets.SecretValue, error) {
 		return memProvider.Fetch(ctx, ref)

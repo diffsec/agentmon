@@ -13,7 +13,7 @@ import (
 func TestManagerApply_NestedWritesLimits(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "cpu memory pids")
 
@@ -25,7 +25,7 @@ func TestManagerApply_NestedWritesLimits(t *testing.T) {
 		t.Fatalf("mode: %q", m.Probe().Mode)
 	}
 
-	cg, err := m.Apply("agentsh-sess-cmd", 4242, CgroupV2Limits{MaxMemoryBytes: 16 << 20, PidsMax: 64})
+	cg, err := m.Apply("agentmon-sess-cmd", 4242, CgroupV2Limits{MaxMemoryBytes: 16 << 20, PidsMax: 64})
 	if err != nil {
 		t.Fatalf("apply: %v", err)
 	}
@@ -49,11 +49,11 @@ func TestManagerApply_NestedWritesLimits(t *testing.T) {
 func TestManagerApply_TopLevelWritesUnderSlice(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EBUSY
-	f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+	f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 
 	m, err := newCgroupManagerFS(context.Background(), f, own, false)
 	if err != nil {
@@ -63,7 +63,7 @@ func TestManagerApply_TopLevelWritesUnderSlice(t *testing.T) {
 		t.Fatalf("mode: %q", m.Probe().Mode)
 	}
 
-	cg, err := m.Apply("agentsh-sess-cmd", 1234, CgroupV2Limits{MaxMemoryBytes: 8 << 20})
+	cg, err := m.Apply("agentmon-sess-cmd", 1234, CgroupV2Limits{MaxMemoryBytes: 8 << 20})
 	if err != nil {
 		t.Fatalf("apply: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestManagerApply_TopLevelWritesUnderSlice(t *testing.T) {
 func TestManagerApply_UnavailableNoLimitsAllows(t *testing.T) {
 	f := newFakeCgroupFS()
 	f.seedFile("/sys/fs/cgroup/cgroup.controllers", "cpu pids") // no memory
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu pids")
 
 	m, err := newCgroupManagerFS(context.Background(), f, own, false)
@@ -86,7 +86,7 @@ func TestManagerApply_UnavailableNoLimitsAllows(t *testing.T) {
 		t.Fatalf("mode: %q", m.Probe().Mode)
 	}
 
-	cg, err := m.Apply("agentsh-sess-cmd", 1234, CgroupV2Limits{})
+	cg, err := m.Apply("agentmon-sess-cmd", 1234, CgroupV2Limits{})
 	if err != nil {
 		t.Fatalf("apply with empty limits should succeed, got %v", err)
 	}
@@ -98,7 +98,7 @@ func TestManagerApply_UnavailableNoLimitsAllows(t *testing.T) {
 func TestManagerApply_UnavailableWithLimitsRefuses(t *testing.T) {
 	f := newFakeCgroupFS()
 	f.seedFile("/sys/fs/cgroup/cgroup.controllers", "cpu pids")
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu pids")
 
 	m, err := newCgroupManagerFS(context.Background(), f, own, false)
@@ -106,7 +106,7 @@ func TestManagerApply_UnavailableWithLimitsRefuses(t *testing.T) {
 		t.Fatalf("new manager: %v", err)
 	}
 
-	_, err = m.Apply("agentsh-sess-cmd", 1234, CgroupV2Limits{MaxMemoryBytes: 8 << 20})
+	_, err = m.Apply("agentmon-sess-cmd", 1234, CgroupV2Limits{MaxMemoryBytes: 8 << 20})
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -122,7 +122,7 @@ func TestManagerApply_UnavailableWithLimitsRefuses(t *testing.T) {
 func TestManagerApply_AttachOnly_EmptyLimits_Succeeds(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.failSubtreeWrite(own+"/cgroup.subtree_control", "+memory", syscall.ENOTSUP)
@@ -136,7 +136,7 @@ func TestManagerApply_AttachOnly_EmptyLimits_Succeeds(t *testing.T) {
 		t.Fatalf("mode: %q", m.Probe().Mode)
 	}
 
-	cg, err := m.Apply("agentsh-sess-cmd", 4242, CgroupV2Limits{})
+	cg, err := m.Apply("agentmon-sess-cmd", 4242, CgroupV2Limits{})
 	if err != nil {
 		t.Fatalf("apply: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestManagerApply_AttachOnly_EmptyLimits_Succeeds(t *testing.T) {
 func TestManagerApply_TopLevelMemoryMaxWriteEPERM_ReturnsTypedErrorAndCleansUp(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EBUSY
@@ -178,10 +178,10 @@ func TestManagerApply_TopLevelMemoryMaxWriteEPERM_ReturnsTypedErrorAndCleansUp(t
 	}
 
 	// Make the per-command child memory.max write fail (deterministic path from the name arg).
-	childMemMax := DefaultSliceDir + "/agentsh-sess-cmd/memory.max"
+	childMemMax := DefaultSliceDir + "/agentmon-sess-cmd/memory.max"
 	f.writeErrs[childMemMax] = syscall.EPERM
 
-	_, err = m.Apply("agentsh-sess-cmd", 1234, CgroupV2Limits{MaxMemoryBytes: 8 << 20})
+	_, err = m.Apply("agentmon-sess-cmd", 1234, CgroupV2Limits{MaxMemoryBytes: 8 << 20})
 	var rlErr *CgroupResourceLimitsUnavailableError
 	if !errors.As(err, &rlErr) {
 		t.Fatalf("error type: got %T (%v), want *CgroupResourceLimitsUnavailableError", err, err)
@@ -189,7 +189,7 @@ func TestManagerApply_TopLevelMemoryMaxWriteEPERM_ReturnsTypedErrorAndCleansUp(t
 	if rlErr.Limits.MaxMemoryBytes != 8<<20 {
 		t.Errorf("typed error Limits: got %+v, want MaxMemoryBytes=%d", rlErr.Limits, 8<<20)
 	}
-	if _, statErr := f.Stat(DefaultSliceDir + "/agentsh-sess-cmd"); statErr == nil {
+	if _, statErr := f.Stat(DefaultSliceDir + "/agentmon-sess-cmd"); statErr == nil {
 		t.Errorf("orphan child cgroup dir left behind after EPERM write")
 	}
 }
@@ -197,7 +197,7 @@ func TestManagerApply_TopLevelMemoryMaxWriteEPERM_ReturnsTypedErrorAndCleansUp(t
 func TestManagerApply_NestedMemoryMaxWriteEPERM_ReturnsTypedErrorAndCleansUp(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "cpu memory pids")
 
@@ -212,10 +212,10 @@ func TestManagerApply_NestedMemoryMaxWriteEPERM_ReturnsTypedErrorAndCleansUp(t *
 	// parentDir() for ModeNested returns OwnCgroup; inject EPERM only on the
 	// deterministic per-command child path so the probe's random-name child
 	// write succeeds and the precondition above holds.
-	childMemMax := own + "/agentsh-sess-cmd/memory.max"
+	childMemMax := own + "/agentmon-sess-cmd/memory.max"
 	f.writeErrs[childMemMax] = syscall.EPERM
 
-	_, err = m.Apply("agentsh-sess-cmd", 1234, CgroupV2Limits{MaxMemoryBytes: 8 << 20})
+	_, err = m.Apply("agentmon-sess-cmd", 1234, CgroupV2Limits{MaxMemoryBytes: 8 << 20})
 	var rlErr *CgroupResourceLimitsUnavailableError
 	if !errors.As(err, &rlErr) {
 		t.Fatalf("error type: got %T (%v), want *CgroupResourceLimitsUnavailableError", err, err)
@@ -223,7 +223,7 @@ func TestManagerApply_NestedMemoryMaxWriteEPERM_ReturnsTypedErrorAndCleansUp(t *
 	if rlErr.Limits.MaxMemoryBytes != 8<<20 {
 		t.Errorf("typed error Limits: got %+v, want MaxMemoryBytes=%d", rlErr.Limits, 8<<20)
 	}
-	if _, statErr := f.Stat(own + "/agentsh-sess-cmd"); statErr == nil {
+	if _, statErr := f.Stat(own + "/agentmon-sess-cmd"); statErr == nil {
 		t.Errorf("orphan child cgroup dir left behind after EPERM write")
 	}
 }
@@ -231,7 +231,7 @@ func TestManagerApply_NestedMemoryMaxWriteEPERM_ReturnsTypedErrorAndCleansUp(t *
 func TestManagerApply_TopLevelMultiLimitPartialWriteEPERM_CleansUp(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EBUSY
@@ -247,9 +247,9 @@ func TestManagerApply_TopLevelMultiLimitPartialWriteEPERM_CleansUp(t *testing.T)
 
 	// Inject EPERM on pids.max only — memory.max must succeed first so the
 	// child dir is non-empty when pids.max fails, exercising partial-write cleanup.
-	f.writeErrs[DefaultSliceDir+"/agentsh-sess-cmd/pids.max"] = syscall.EPERM
+	f.writeErrs[DefaultSliceDir+"/agentmon-sess-cmd/pids.max"] = syscall.EPERM
 
-	_, err = m.Apply("agentsh-sess-cmd", 1234, CgroupV2Limits{MaxMemoryBytes: 8 << 20, PidsMax: 64})
+	_, err = m.Apply("agentmon-sess-cmd", 1234, CgroupV2Limits{MaxMemoryBytes: 8 << 20, PidsMax: 64})
 	var rlErr *CgroupResourceLimitsUnavailableError
 	if !errors.As(err, &rlErr) {
 		t.Fatalf("error type: got %T (%v), want *CgroupResourceLimitsUnavailableError", err, err)
@@ -258,7 +258,7 @@ func TestManagerApply_TopLevelMultiLimitPartialWriteEPERM_CleansUp(t *testing.T)
 	// written (adding the child file key) and pids.max EPERM triggered Remove(dir),
 	// the dir entry itself is gone — Stat of the dir returns ENOENT even though
 	// the child file key may remain as an orphan in the flat map.
-	if _, statErr := f.Stat(DefaultSliceDir + "/agentsh-sess-cmd"); statErr == nil {
+	if _, statErr := f.Stat(DefaultSliceDir + "/agentmon-sess-cmd"); statErr == nil {
 		t.Errorf("orphan child cgroup dir left behind after partial-write EPERM")
 	}
 }
@@ -266,7 +266,7 @@ func TestManagerApply_TopLevelMultiLimitPartialWriteEPERM_CleansUp(t *testing.T)
 func TestManagerApply_AttachOnly_WithLimits_Refuses(t *testing.T) {
 	f := newFakeCgroupFS()
 	seedHealthyRoot(f)
-	own := "/sys/fs/cgroup/system.slice/agentsh.service"
+	own := "/sys/fs/cgroup/system.slice/agentmon.service"
 	f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
 	f.seedFile(own+"/cgroup.subtree_control", "")
 	f.failSubtreeWrite(own+"/cgroup.subtree_control", "+memory", syscall.ENOTSUP)
@@ -277,7 +277,7 @@ func TestManagerApply_AttachOnly_WithLimits_Refuses(t *testing.T) {
 		t.Fatalf("new manager: %v", err)
 	}
 
-	cg, err := m.Apply("agentsh-sess-cmd", 4242, CgroupV2Limits{MaxMemoryBytes: 16 << 20})
+	cg, err := m.Apply("agentmon-sess-cmd", 4242, CgroupV2Limits{MaxMemoryBytes: 16 << 20})
 	if err == nil {
 		t.Fatalf("expected error, got cg=%v", cg)
 	}
@@ -289,7 +289,7 @@ func TestManagerApply_AttachOnly_WithLimits_Refuses(t *testing.T) {
 		t.Errorf("error carries limits: got %+v", rlErr.Limits)
 	}
 	// No cgroup directory was created.
-	if _, err := f.ReadFile(own + "/agentsh-sess-cmd/cgroup.procs"); err == nil {
+	if _, err := f.ReadFile(own + "/agentmon-sess-cmd/cgroup.procs"); err == nil {
 		t.Errorf("AttachOnly+limits refusal should not create the cgroup")
 	}
 }

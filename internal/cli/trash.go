@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/trash"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/trash"
 	"github.com/spf13/cobra"
 )
 
@@ -19,13 +19,13 @@ func newTrashCmd() *cobra.Command {
 }
 
 func addTrashPathFlag(cmd *cobra.Command) {
-	cmd.Flags().String("trash-path", ".agentsh_trash", "trash directory (default relative to CWD)")
+	cmd.Flags().String("trash-path", ".agentmon_trash", "trash directory (default relative to CWD)")
 }
 
 func getTrashPath(cmd *cobra.Command) string {
 	p, _ := cmd.Flags().GetString("trash-path")
 	if p == "" {
-		return ".agentsh_trash"
+		return ".agentmon_trash"
 	}
 	return p
 }

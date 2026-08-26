@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // TestFUSE_TruncateUnderSoftDelete is a regression test for the bug where
@@ -70,7 +70,7 @@ func TestFUSE_TruncateUnderSoftDelete(t *testing.T) {
 			Config: config.FUSEAuditConfig{
 				Enabled:   &enabled,
 				Mode:      "soft_delete",
-				TrashPath: ".agentsh_trash",
+				TrashPath: ".agentmon_trash",
 			},
 		},
 	}

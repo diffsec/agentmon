@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/seccomp"
 	"golang.org/x/sys/unix"
 )
 

@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/agentsh/agentsh/internal/capabilities"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/landlock"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/landlock"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // MakeLandlockPostStartHook creates a postStartHook that prepares Landlock restrictions.
@@ -98,8 +98,8 @@ func GetLandlockEnvVars(cfg *config.LandlockConfig, workspace string, abi int) m
 	}
 
 	return map[string]string{
-		"AGENTSH_LANDLOCK_ENABLED":   "1",
-		"AGENTSH_LANDLOCK_WORKSPACE": workspace,
-		"AGENTSH_LANDLOCK_ABI":       fmt.Sprintf("%d", abi),
+		"AGENTMON_LANDLOCK_ENABLED":   "1",
+		"AGENTMON_LANDLOCK_WORKSPACE": workspace,
+		"AGENTMON_LANDLOCK_ABI":       fmt.Sprintf("%d", abi),
 	}
 }

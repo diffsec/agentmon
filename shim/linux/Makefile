@@ -20,12 +20,12 @@ clean:
 
 # Install to system directory (requires root)
 install: $(TARGET)
-	install -D -m 755 $(TARGET) /usr/lib/agentsh/$(TARGET)
+	install -D -m 755 $(TARGET) /usr/lib/agentmon/$(TARGET)
 
 # Install to user directory
 install-user: $(TARGET)
-	mkdir -p $(HOME)/.agentsh/lib
-	install -m 755 $(TARGET) $(HOME)/.agentsh/lib/$(TARGET)
+	mkdir -p $(HOME)/.agentmon/lib
+	install -m 755 $(TARGET) $(HOME)/.agentmon/lib/$(TARGET)
 
 # Test the shim
 test: $(TARGET)
@@ -43,7 +43,7 @@ test: $(TARGET)
 	@echo "sensitive=SECRET,TOKEN,KEY,PASSWORD,CREDENTIAL" >> /tmp/test-env-policy.conf
 	@echo "log_access=false" >> /tmp/test-env-policy.conf
 	@SECRET_VAR=hidden NORMAL_VAR=visible \
-		AGENTSH_ENV_POLICY_FILE=/tmp/test-env-policy.conf \
+		AGENTMON_ENV_POLICY_FILE=/tmp/test-env-policy.conf \
 		LD_PRELOAD=./$(TARGET) \
 		/tmp/test_getenv && echo "PASS: SECRET_VAR blocked correctly" || echo "FAIL"
 	@rm -f /tmp/test-env-policy.conf /tmp/test_getenv /tmp/test_getenv.c

@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // waitKillableDeps wraps the inputs to decideWaitKillable so tests can

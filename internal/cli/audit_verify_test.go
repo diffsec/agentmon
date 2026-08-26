@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	auditstore "github.com/agentsh/agentsh/internal/store"
-	"github.com/agentsh/agentsh/internal/store/jsonl"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	auditstore "github.com/diffsec/agentmon/internal/store"
+	"github.com/diffsec/agentmon/internal/store/jsonl"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func writeAuditVerifyConfig(t *testing.T, path, logPath string) {
@@ -30,7 +30,7 @@ audit:
   integrity:
     enabled: true
     key_source: env
-    key_env: AGENTSH_AUDIT_TEST_KEY
+    key_env: AGENTMON_AUDIT_TEST_KEY
 `, logPath)
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
@@ -46,7 +46,7 @@ audit:
   integrity:
     enabled: %t
     key_source: env
-    key_env: AGENTSH_AUDIT_TEST_KEY
+    key_env: AGENTMON_AUDIT_TEST_KEY
 `, logPath, enabled)
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
@@ -62,7 +62,7 @@ audit:
   integrity:
     enabled: true
     key_source: env
-    key_env: AGENTSH_AUDIT_TEST_KEY
+    key_env: AGENTMON_AUDIT_TEST_KEY
     algorithm: %s
 `, logPath, algorithm)
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
@@ -108,7 +108,7 @@ func TestAuditVerifyCmd_StrictRejectsUnsignedLines(t *testing.T) {
 		t.Fatalf("os.WriteFile(%q) error = %v", logPath, err)
 	}
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	cmd := newAuditVerifyCmd()
 	cmd.SetArgs([]string{"--config", cfgPath, logPath})
@@ -126,7 +126,7 @@ func TestAuditVerifyCmd_WalksRotationSetOldestFirst(t *testing.T) {
 	dir := t.TempDir()
 	base := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
 	if err != nil {
@@ -172,7 +172,7 @@ func TestAuditVerifyCmd_DoesNotSkipExplicitLogWhenConfigDisabled(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
 	if err != nil {
@@ -363,7 +363,7 @@ func TestAuditVerifyCmd_VerifiesRealRotatedIntegrityStore(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	inner, err := jsonl.New(logPath, 1, 3)
 	if err != nil {
@@ -427,7 +427,7 @@ func TestAuditVerifyCmd_RejectsFutureFormatEntry(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	line := mustWrapFutureFormatVerifyEntry(t, testAuditKey, `{"type":"future_format"}`)
 	if err := os.WriteFile(logPath, append(line, '\n'), 0o600); err != nil {
@@ -497,7 +497,7 @@ func TestAuditVerifyCmd_AllowsBackupOnlyRetainedWindow(t *testing.T) {
 	dir := t.TempDir()
 	base := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
 	if err != nil {
@@ -539,7 +539,7 @@ func TestAuditVerifyCmd_AllowsBackupOnlyHighSuffixWindow(t *testing.T) {
 	dir := t.TempDir()
 	base := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
 	if err != nil {
@@ -630,7 +630,7 @@ func TestAuditVerifyCmd_RejectsLegacyFormatEntry(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	legacy := `{"type":"legacy","integrity":{"format_version":1,"sequence":0,"prev_hash":"","entry_hash":"deadbeef"}}`
 	if err := os.WriteFile(logPath, []byte(legacy+"\n"), 0o600); err != nil {
@@ -649,7 +649,7 @@ func TestAuditVerifyCmd_RejectsMidHistoryRotationWithoutMatchingPriorSummary(t *
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 	writeAuditVerifyConfig(t, cfgPath, logPath)
 
 	chainA, err := audit.NewIntegrityChain(testAuditKey)
@@ -695,7 +695,7 @@ func TestAuditVerifyCmd_AcceptsMidHistoryRotationWithMatchingPriorSummary(t *tes
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 	writeAuditVerifyConfig(t, cfgPath, logPath)
 
 	chainA, err := audit.NewIntegrityChain(testAuditKey)
@@ -743,7 +743,7 @@ func TestAuditVerifyCmd_AcceptsRotationAsFirstVisibleEntry(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 	writeAuditVerifyConfig(t, cfgPath, logPath)
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
@@ -778,7 +778,7 @@ func TestAuditVerifyCmd_RejectsBaseVisibleRotationBoundaryWithPriorHistory(t *te
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 	writeAuditVerifyConfig(t, cfgPath, logPath)
 
 	previousChain, err := audit.NewIntegrityChain(testAuditKey)
@@ -821,7 +821,7 @@ func TestAuditVerifyCmd_TolerateTruncationDoesNotHideMalformedEarlierLine(t *tes
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 	writeAuditVerifyConfig(t, cfgPath, logPath)
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
@@ -858,7 +858,7 @@ func TestAuditVerifyCmd_TolerateTruncationAcceptsIncompleteFinalLine(t *testing.
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 	writeAuditVerifyConfig(t, cfgPath, logPath)
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
@@ -888,7 +888,7 @@ func TestAuditVerifyCmd_TolerateTruncationRejectsMalformedFinalLineWithoutNewlin
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 	writeAuditVerifyConfig(t, cfgPath, logPath)
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
@@ -918,7 +918,7 @@ func TestAuditVerifyCmd_TolerateTruncationRejectsMalformedFinalLineWithTrailingN
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 	writeAuditVerifyConfig(t, cfgPath, logPath)
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
@@ -949,7 +949,7 @@ func TestAuditVerifyCmd_FromSequenceSkipsEarlierMalformedLines(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 	writeAuditVerifyConfig(t, cfgPath, logPath)
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
@@ -994,7 +994,7 @@ func TestAuditVerifyCmd_FromSequenceSkipsMalformedPrefixBeforeSignedEntries(t *t
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 	writeAuditVerifyConfig(t, cfgPath, logPath)
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
@@ -1039,7 +1039,7 @@ func TestAuditVerifyCmd_FromSequenceMissingStartIgnoresMalformedPrefix(t *testin
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 	writeAuditVerifyConfig(t, cfgPath, logPath)
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
@@ -1081,7 +1081,7 @@ func TestAuditVerifyCmd_FromSequenceMissingStartRejectsMalformedSuffix(t *testin
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 	writeAuditVerifyConfig(t, cfgPath, logPath)
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
@@ -1123,7 +1123,7 @@ func TestAuditVerifyCmd_FromSequenceMissingStartRejectsMalformedMidLogLine(t *te
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 	writeAuditVerifyConfig(t, cfgPath, logPath)
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
@@ -1165,7 +1165,7 @@ func TestAuditVerifyCmd_FromSequenceMissingStartRejectsUnsignedSuffix(t *testing
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 	writeAuditVerifyConfig(t, cfgPath, logPath)
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
@@ -1207,7 +1207,7 @@ func TestAuditVerifyCmd_FromSequenceMissingStartToleratesUnsignedSuffix(t *testi
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 	writeAuditVerifyConfig(t, cfgPath, logPath)
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
@@ -1249,7 +1249,7 @@ func TestAuditVerifyCmd_FromSequenceMissingStartRejectsUnsignedMidLogLine(t *tes
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 	writeAuditVerifyConfig(t, cfgPath, logPath)
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)

@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/agentsh/agentsh/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/seccomp"
 	"gopkg.in/yaml.v3"
 )
 

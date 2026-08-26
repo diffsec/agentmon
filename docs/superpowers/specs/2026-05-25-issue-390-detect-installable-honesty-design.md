@@ -4,11 +4,11 @@ Issue: #390 (follow-up to #388)
 
 ## Summary
 
-After #388, `agentsh detect` distinguishes "kernel supports user-notify"
+After #388, `agentmon detect` distinguishes "kernel supports user-notify"
 (`seccomp_user_notify_kernel`) from "a real `NEW_LISTENER` filter installs here"
 (`SeccompInstallable`). The per-backend `✓/-` marks now read correctly. But the
 **domain scoring and the active-backend label still overstate** protection where
-the install probe fails (e.g. Daytona, `EBUSY`): `agentsh detect` reports
+the install probe fails (e.g. Daytona, `EBUSY`): `agentmon detect` reports
 `COMMAND CONTROL 25/25` with `active backend: seccomp-execve` while the
 `seccomp-execve` backend itself shows `-`, and the overall Protection Score does
 not drop.
@@ -33,7 +33,7 @@ darwin/windows domain builders are **not touched**.
 ## Goals
 
 - On a host where the seccomp `NEW_LISTENER` install fails but the kernel
-  supports user-notify (Daytona/`EBUSY`): `agentsh detect` reports
+  supports user-notify (Daytona/`EBUSY`): `agentmon detect` reports
   `COMMAND CONTROL 0/25`, no `active backend` line for Command Control, and the
   overall Protection Score drops accordingly.
 - The `✓/-` marks, the `active backend` label, and the domain score **agree**:
@@ -66,13 +66,13 @@ darwin/windows domain builders are **not touched**.
 ## Background
 
 - `SelectMode()` (`internal/capabilities/security_caps.go:109`) is shared by
-  **both** `agentsh detect` (`detect_linux.go:65,305`) and the server runtime
+  **both** `agentmon detect` (`detect_linux.go:65,305`) and the server runtime
   (`internal/server/security.go:22`, via `DetectAndValidateSecurityMode`). It
   feeds: the reported mode, `WarnDegraded` (`security.go:40`, warns when
   `mode != ModeFull`), and `ValidateStrictMode`/`ValidateMinimumMode`
   (`security.go:26-37`). It does **not** gate the seccomp install — a grep for
   `ModeFull` / `mode == "full"` shows no install gate keys off it.
-- `buildLinuxDomains` (`detect_linux.go:48`) is used **only** by `agentsh
+- `buildLinuxDomains` (`detect_linux.go:48`) is used **only** by `agentmon
   detect`. The server uses `DetectSecurityCapabilities` + `SelectMode` directly,
   not the domain builder. So the ptrace-backend and `commandActive` edits affect
   detect output only.
@@ -86,9 +86,9 @@ darwin/windows domain builders are **not touched**.
 - `applyWrapperAvailability` (`detect_linux.go:165`) already re-derives Command
   Control's `Active` as `"ptrace"` only when `mode == ModePtrace`
   (`detect_linux.go:212`), consistent with the `commandActive` change below.
-- In `agentsh detect`, `DetectSecurityCapabilities` never sets `PtraceEnabled`
+- In `agentmon detect`, `DetectSecurityCapabilities` never sets `PtraceEnabled`
   (it is a config-derived flag set in the server flow), so it is `false` in
-  detect. The ptrace domain backend therefore shows `-` in `agentsh detect` on
+  detect. The ptrace domain backend therefore shows `-` in `agentmon detect` on
   every host; the actionable detail explains this.
 
 ## Design
@@ -210,7 +210,7 @@ empty/`none`). Overall Protection Score drops by the Command Control weight
 - `Security.Strict` (or `MinimumMode`) requiring a level seccomp can't provide
   now fails at **startup** rather than surfacing as per-command seccomp install
   failures later. This is the intended fail-fast.
-- `agentsh detect` shows the ptrace Command Control backend as `-` with the
+- `agentmon detect` shows the ptrace Command Control backend as `-` with the
   detail `available, not active (enable ptrace mode)` (it is opt-in and detect
   is config-agnostic).
 

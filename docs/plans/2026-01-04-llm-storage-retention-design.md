@@ -5,7 +5,7 @@
 
 ## 1. Problem Statement
 
-The embedded LLM proxy stores request/response logs in `~/.agentsh/sessions/<session-id>/llm-requests.jsonl`. Without cleanup, these logs accumulate indefinitely, consuming disk space. The existing config defines retention settings (`max_age_days`, `max_size_mb`, `eviction`) but no code enforces them.
+The embedded LLM proxy stores request/response logs in `~/.agentmon/sessions/<session-id>/llm-requests.jsonl`. Without cleanup, these logs accumulate indefinitely, consuming disk space. The existing config defines retention settings (`max_age_days`, `max_size_mb`, `eviction`) but no code enforces them.
 
 ## 2. Goals
 
@@ -151,7 +151,7 @@ storage:
 Eviction events logged at INFO level:
 
 ```
-INFO retention cleanup started sessions_dir=/home/user/.agentsh/sessions
+INFO retention cleanup started sessions_dir=/home/user/.agentmon/sessions
 INFO session evicted session_id=session-abc123 reason=age age_days=45
 INFO session evicted session_id=session-def456 reason=size size_mb=120
 INFO retention cleanup complete removed=2 reclaimed_mb=180

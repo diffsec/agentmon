@@ -6,7 +6,7 @@ package fuse
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // Mount returns an error when CGO is disabled.

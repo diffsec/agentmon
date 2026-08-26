@@ -6,7 +6,7 @@
 
 ## Background
 
-The current `agentsh detect` output has several weaknesses:
+The current `agentmon detect` output has several weaknesses:
 
 1. **Stub detections**: eBPF (always true), cgroups v2 (always true), PID namespace (always false), capability drop (always true) — these report hardcoded values instead of probing the actual system.
 2. **Mode-based score**: The protection score is a fixed lookup from the mode name (full=100, ptrace=90, etc.) — it doesn't reflect which individual features are actually working.
@@ -291,6 +291,6 @@ The `Domains` field is the new structured representation.
 
 ## Out of Scope
 
-- Changing the `agentsh detect config` subcommand (it still generates config based on mode)
+- Changing the `agentmon detect config` subcommand (it still generates config based on mode)
 - Changing how modes are selected at runtime (SelectMode stays the same)
 - Per-feature scoring within domains (domain is all-or-nothing based on any backend)

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // maxWindowEntries is the hard cap on the sliding window size. This bounds

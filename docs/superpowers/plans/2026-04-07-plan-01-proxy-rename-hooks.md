@@ -165,7 +165,7 @@ grep -rn 'internal/llmproxy' --include='*.go' internal/proxy/
 ```
 Expected: **no output**.
 
-Note: the comment in `internal/proxy/proxy.go:84` (`// storagePath is like ~/.agentsh/sessions/<session-id>/llm-logs`) is fine and should be left alone — the directory is still called `llm-logs` on disk, and this comment is not about the Go package name.
+Note: the comment in `internal/proxy/proxy.go:84` (`// storagePath is like ~/.agentmon/sessions/<session-id>/llm-logs`) is fine and should be left alone — the directory is still called `llm-logs` on disk, and this comment is not about the Go package name.
 
 - [ ] **Step 6: Verify all package declarations are updated**
 
@@ -198,12 +198,12 @@ Expected: compile errors in `internal/api/app.go` and `internal/session/llmproxy
 
 Open `internal/api/app.go`. Line 21 currently reads:
 ```go
-	"github.com/agentsh/agentsh/internal/llmproxy"
+	"github.com/diffsec/agentmon/internal/llmproxy"
 ```
 
 Change to:
 ```go
-	"github.com/agentsh/agentsh/internal/proxy"
+	"github.com/diffsec/agentmon/internal/proxy"
 ```
 
 - [ ] **Step 2: Update `internal/api/app.go` type references**
@@ -277,12 +277,12 @@ Expected: **no output**.
 
 Open `internal/session/llmproxy.go`. Line 12 currently reads:
 ```go
-	"github.com/agentsh/agentsh/internal/llmproxy"
+	"github.com/diffsec/agentmon/internal/llmproxy"
 ```
 
 Change to:
 ```go
-	"github.com/agentsh/agentsh/internal/proxy"
+	"github.com/diffsec/agentmon/internal/proxy"
 ```
 
 - [ ] **Step 4: Update `internal/session/llmproxy.go` type references**
@@ -609,7 +609,7 @@ type RequestContext struct {
 	// incoming request. Hooks may use it for correlation across logs.
 	RequestID string
 
-	// SessionID is the agentsh session ID that owns the spawned process
+	// SessionID is the agentmon session ID that owns the spawned process
 	// making this request.
 	SessionID string
 
@@ -755,7 +755,7 @@ Expected output (abbreviated):
 === RUN   TestRegistry_PostHookErrorsCollected
 --- PASS: TestRegistry_PostHookErrorsCollected
 PASS
-ok  	github.com/agentsh/agentsh/internal/proxy
+ok  	github.com/diffsec/agentmon/internal/proxy
 ```
 
 Five passes. If any fail, read the failure and fix the implementation in `hooks.go`.
@@ -834,7 +834,7 @@ If the grep finds any non-doc hit, fix it and amend the most recent commit.
 ## Self-review checklist (for the implementer, before marking this plan done)
 
 - [ ] Every `.go` file in `internal/proxy/` starts with `package proxy` (25 files)
-- [ ] No `.go` file anywhere imports `github.com/agentsh/agentsh/internal/llmproxy`
+- [ ] No `.go` file anywhere imports `github.com/diffsec/agentmon/internal/llmproxy`
 - [ ] `go build ./...` passes
 - [ ] `go test ./...` passes (same pre-existing tests + 5 new registry tests)
 - [ ] `GOOS=windows go build ./...` passes

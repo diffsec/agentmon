@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 // Key identifies a cached entry by provider, ecosystem, package, and version.

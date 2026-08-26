@@ -1,12 +1,12 @@
-# agentsh Project Structure
+# agentmon Project Structure
 
 This document describes the *current* repository layout (not an aspirational structure).
 
 ## High-level layout
 
 ```
-agentsh/
-├── cmd/agentsh/                 # main() for the agentsh binary
+agentmon/
+├── cmd/agentmon/                 # main() for the agentmon binary
 ├── internal/                    # implementation (not exported)
 ├── pkg/types/                   # API/CLI types shared across packages
 ├── proto/                       # gRPC proto definitions (Struct-based)
@@ -21,7 +21,7 @@ agentsh/
 
 - `internal/server/` — Wires configuration into HTTP + unix-socket servers and session lifecycle.
 - `internal/api/` — HTTP routing + handlers (`/sessions`, `/exec`, `/events`, `/metrics`), exec responses (`include_events`, `guidance`). Ptrace wiring: `ptrace_handlers.go` (policy adapter routing syscall events to session-level engines), `app_ptrace_linux.go` (tracer lifecycle), `exec_ptrace_linux.go` (attach helper for exec path).
-- `internal/cli/` — Cobra CLI commands (`agentsh exec`, `agentsh session …`, `agentsh events …`).
+- `internal/cli/` — Cobra CLI commands (`agentmon exec`, `agentmon session …`, `agentmon events …`).
 - `internal/client/` — HTTP + gRPC clients used by the CLI (and tests) to call the server API.
 - `internal/config/` — Config structs, load/validate helpers.
 - `internal/policy/` — Policy parsing + evaluation and derived limits/timeouts. New in this release: `http_service.go` (YAML types, validation, host canonicalization for declared HTTP services), `http_service_check.go` (the `CheckHTTPService` evaluator with traversal guard and `DeclaredHTTPServiceHost`/`DeclaredHTTPServiceAllowsDirect` helpers used by the netmonitor fail-closed path), `http_service_compile.go` (`compileHTTPServices` builds the name and host lookup tables consumed by the engine), and `http_service_fuzz_test.go` (fuzz targets for the evaluator). Database policy blocks are accepted here as opaque YAML nodes and decoded by `internal/db/policy`.
@@ -47,9 +47,9 @@ agentsh/
 - `internal/proxy/proxy.go` dispatches `/svc/<name>/` requests to declared `http_services` entries. It reuses the existing session storage helpers (`StoreRequestBody`, `StoreResponseBody`) and per-service hook plumbing (header injection, credential substitution, URL rewrites) that the LLM proxy path uses, so logging and hook behavior are consistent across both kinds of proxy traffic.
 
 For gRPC:
-- `proto/agentsh/v1/agentsh.proto` defines the service (Struct-based, no codegen required).
+- `proto/agentmon/v1/agentmon.proto` defines the service (Struct-based, no codegen required).
 - `internal/api/grpc.go` implements the gRPC server (including `ExecStream` and `EventsTail`).
-- `internal/client/grpc_client.go` provides a small gRPC client used by the CLI when `AGENTSH_TRANSPORT=grpc`.
+- `internal/client/grpc_client.go` provides a small gRPC client used by the CLI when `AGENTMON_TRANSPORT=grpc`.
 
 ## `macos/` directory (ESF+NE enterprise mode)
 
@@ -70,7 +70,7 @@ macos/
 │   └── PolicyBridge.swift       # Unix socket bridge to Go policy server
 ├── Shared/                      # Shared Swift types
 │   └── XPCProtocol.swift        # XPC protocol definition
-└── AgentSH.xcodeproj/           # Xcode project (build with Xcode 15+)
+└── AgentMon.xcodeproj/           # Xcode project (build with Xcode 15+)
 ```
 
 Related Go packages:
@@ -86,7 +86,7 @@ The `drivers/` directory contains Windows kernel-mode driver code:
 ```
 drivers/
 └── windows/
-    └── agentsh-minifilter/       # Windows Mini Filter driver
+    └── agentmon-minifilter/       # Windows Mini Filter driver
         ├── inc/                   # Header files
         │   ├── protocol.h         # User-mode ↔ kernel protocol
         │   └── ...

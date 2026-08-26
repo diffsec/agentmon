@@ -7,10 +7,10 @@ import (
 	"os"
 	"sort"
 
-	"github.com/agentsh/agentsh/internal/trash"
+	"github.com/diffsec/agentmon/internal/trash"
 )
 
-// CLI implements the `agentsh skillcheck` subcommand.
+// CLI implements the `agentmon skillcheck` subcommand.
 type CLI struct {
 	Stdout     io.Writer
 	Providers  map[string]ProviderEntry
@@ -23,7 +23,7 @@ type CLI struct {
 // (scan, doctor, list-quarantined, restore, cache).
 func (c *CLI) Run(ctx context.Context, argv []string) int {
 	if len(argv) == 0 {
-		fmt.Fprintln(c.stdout(), "usage: agentsh skillcheck <scan|doctor|list-quarantined|restore|cache>")
+		fmt.Fprintln(c.stdout(), "usage: agentmon skillcheck <scan|doctor|list-quarantined|restore|cache>")
 		return 2
 	}
 	switch argv[0] {
@@ -52,7 +52,7 @@ func (c *CLI) stdout() io.Writer {
 
 func (c *CLI) runScan(ctx context.Context, args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(c.stdout(), "usage: agentsh skillcheck scan <path>")
+		fmt.Fprintln(c.stdout(), "usage: agentmon skillcheck scan <path>")
 		return 2
 	}
 	limits := resolveLimits(c.Limits)
@@ -124,7 +124,7 @@ func (c *CLI) runList() int {
 
 func (c *CLI) runRestore(args []string) int {
 	if c.TrashDir == "" || len(args) < 1 || len(args) > 2 {
-		fmt.Fprintln(c.stdout(), "usage: agentsh skillcheck restore <token> [dest]")
+		fmt.Fprintln(c.stdout(), "usage: agentmon skillcheck restore <token> [dest]")
 		return 2
 	}
 	dest := ""
@@ -142,7 +142,7 @@ func (c *CLI) runRestore(args []string) int {
 
 func (c *CLI) runCache(args []string) int {
 	if len(args) == 0 || args[0] != "prune" {
-		fmt.Fprintln(c.stdout(), "usage: agentsh skillcheck cache prune")
+		fmt.Fprintln(c.stdout(), "usage: agentmon skillcheck cache prune")
 		return 2
 	}
 	// Cache pruning requires daemon-level coordination; deferred.

@@ -7,9 +7,9 @@ import (
 
 	"pgregory.net/rapid"
 
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 // cachedRules is built once for property tests; rebuilding per iteration is slow.

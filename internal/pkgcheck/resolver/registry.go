@@ -1,7 +1,7 @@
 package resolver
 
 import (
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 // Registry holds a set of resolvers and finds the appropriate one for a command.

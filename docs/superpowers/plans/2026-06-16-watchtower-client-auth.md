@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make agentsh/Beacon present a per-instance API key (`<kid>.<secret>`) to Watchtower over the existing bearer-in-metadata WTP path, with a per-Dial credential seam, secret redaction, a warn-only TLS coupling, and an auth-reject backoff clamp so a bad/revoked key cannot reconnect-storm Watchtower.
+**Goal:** Make agentmon/Beacon present a per-instance API key (`<kid>.<secret>`) to Watchtower over the existing bearer-in-metadata WTP path, with a per-Dial credential seam, secret redaction, a warn-only TLS coupling, and an auth-reject backoff clamp so a bad/revoked key cannot reconnect-storm Watchtower.
 
 **Architecture:** The credential is fetched per-Dial through a new `CredentialSource` (v1 = a static source built from the already-resolved `token_env`/`token_file` value) and attached as `authorization: Bearer <kid>.<secret>` gRPC metadata by the production dialer. The transport classifies a gRPC `Unauthenticated`/`PermissionDenied` at stream open/handshake as a distinct `ErrAuthRejected`, increments a new `auth_rejected` session-init-failure metric, and clamps reconnect backoff to its max instead of fast-retrying. All Watchtower-side validation (key registry, principal→policy binding, DecisionContext narrowing) is out of scope — separate WT-repo spec.
 
@@ -115,7 +115,7 @@ import (
 	"strings"
 )
 
-// CredentialSource yields the bearer credential agentsh presents on each
+// CredentialSource yields the bearer credential agentmon presents on each
 // WTP Dial. Returning "" means "present no credential" (anonymous; for
 // local/test servers). It is called once per Dial so a future rotating or
 // attested source (Phase 2) can return fresh values on reconnect with no
@@ -147,7 +147,7 @@ func credLogID(token string) string {
 	if i := strings.IndexByte(token, '.'); i > 0 {
 		return token[:i]
 	}
-	sum := sha256.Sum256([]byte("agentsh-wt-cred\x00" + token))
+	sum := sha256.Sum256([]byte("agentmon-wt-cred\x00" + token))
 	return "sha256:" + hex.EncodeToString(sum[:4])
 }
 ```
@@ -233,7 +233,7 @@ func baseValidOptionsForAuthTest(t *testing.T) Options {
 }
 ```
 
-Add the imports the helper needs to the test file: `"github.com/agentsh/agentsh/internal/audit"` and `"github.com/agentsh/agentsh/internal/store/watchtower/compact"`.
+Add the imports the helper needs to the test file: `"github.com/diffsec/agentmon/internal/audit"` and `"github.com/diffsec/agentmon/internal/store/watchtower/compact"`.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -638,7 +638,7 @@ func containsReason(rs []metricsReason, want string) bool {
 }
 ```
 
-Note: `fakeMetrics.sessionInitFailureReasons` is `[]metrics.WTPSessionFailureReason`. Replace `metricsReason` with that type and add the import `"github.com/agentsh/agentsh/internal/metrics"` — written here as `metricsReason` only to keep the helper readable; use the real type:
+Note: `fakeMetrics.sessionInitFailureReasons` is `[]metrics.WTPSessionFailureReason`. Replace `metricsReason` with that type and add the import `"github.com/diffsec/agentmon/internal/metrics"` — written here as `metricsReason` only to keep the helper readable; use the real type:
 
 ```go
 func containsReason(rs []metrics.WTPSessionFailureReason, want string) bool {
@@ -1067,8 +1067,8 @@ import (
 
 	"google.golang.org/grpc/metadata"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/testserver"
-	"github.com/agentsh/agentsh/internal/store/watchtower/transport"
+	"github.com/diffsec/agentmon/internal/store/watchtower/testserver"
+	"github.com/diffsec/agentmon/internal/store/watchtower/transport"
 )
 
 func TestServer_CapturesAuthorizationMetadata(t *testing.T) {

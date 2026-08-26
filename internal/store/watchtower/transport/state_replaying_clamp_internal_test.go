@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
 )
 
 // ===== Test #9 =====

@@ -7,7 +7,7 @@ package postgres
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func TestClassifyCreateSubscription(t *testing.T) {

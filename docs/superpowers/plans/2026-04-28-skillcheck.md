@@ -4,9 +4,9 @@
 
 **Goal:** Build `internal/skillcheck/` — pluggable scanning of AI agent skill installations under `~/.claude/skills/` and `~/.claude/plugins/*/skills/`, with three v1 providers (local rules, Snyk subprocess, skills.sh provenance) and quarantine-on-block via `internal/trash`.
 
-**Architecture:** Mirrors `internal/pkgcheck/` shape: `CheckProvider` interface → `Orchestrator` (parallel fan-out, per-provider `OnFailure`) → `Evaluator` (severity → action) → four-state `Verdict` (`allow|warn|approve|block`). Triggered by an fsnotify-based watcher (covers all install paths) and an `agentsh skillcheck` CLI (for hooks and manual runs). `block` quarantines via existing `internal/trash`. Spec: `docs/superpowers/specs/2026-04-28-skillcheck-design.md`.
+**Architecture:** Mirrors `internal/pkgcheck/` shape: `CheckProvider` interface → `Orchestrator` (parallel fan-out, per-provider `OnFailure`) → `Evaluator` (severity → action) → four-state `Verdict` (`allow|warn|approve|block`). Triggered by an fsnotify-based watcher (covers all install paths) and an `agentmon skillcheck` CLI (for hooks and manual runs). `block` quarantines via existing `internal/trash`. Spec: `docs/superpowers/specs/2026-04-28-skillcheck-design.md`.
 
-**Tech Stack:** Go 1.x, stdlib + `github.com/fsnotify/fsnotify` (already a project dep), `github.com/agentsh/agentsh/internal/{trash,approval,audit,pkgcheck/cache as reference}`. Subprocess `uvx`/`snyk-agent-scan` for the Snyk provider; HTTP for skills.sh.
+**Tech Stack:** Go 1.x, stdlib + `github.com/fsnotify/fsnotify` (already a project dep), `github.com/diffsec/agentmon/internal/{trash,approval,audit,pkgcheck/cache as reference}`. Subprocess `uvx`/`snyk-agent-scan` for the Snyk provider; HTTP for skills.sh.
 
 ---
 
@@ -36,7 +36,7 @@ Created under `internal/skillcheck/`:
 | `cache/cache.go` | Skill-keyed verdict cache (mirrors `pkgcheck/cache`) |
 | `watcher.go` | fsnotify-backed watcher over watch roots |
 | `daemon.go` | Long-running goroutine wiring watcher → orchestrator → action |
-| `cli.go` | `agentsh skillcheck {scan, list-quarantined, restore, doctor, cache prune}` |
+| `cli.go` | `agentmon skillcheck {scan, list-quarantined, restore, doctor, cache prune}` |
 | `provider/local.go` | Built-in offline rule engine |
 | `provider/snyk.go` | Subprocess wrapper for `snyk-agent-scan` |
 | `provider/skills_sh.go` | HTTP HEAD/GET against skills.sh |
@@ -49,7 +49,7 @@ Modified:
 |---|---|
 | `internal/server/server.go` | Wire skillcheck daemon (mirrors pkgcheck wiring at line ~512–531) |
 | `internal/config/<config-file>` | Add `Skillcheck` config struct |
-| `cmd/agentsh/main.go` (or wherever subcommands register) | Register `skillcheck` subcommand |
+| `cmd/agentmon/main.go` (or wherever subcommands register) | Register `skillcheck` subcommand |
 | `internal/audit/<event-file>` | Register `skillcheck.*` event names if a registry exists; otherwise events are emitted by string at action sites |
 
 ---
@@ -152,7 +152,7 @@ Expected: build failure (package doesn't exist).
 // and an action layer that quarantines on block via internal/trash.
 //
 // Triggers: an fsnotify-based watcher over ~/.claude/skills and
-// ~/.claude/plugins/*/skills, plus an `agentsh skillcheck` CLI.
+// ~/.claude/plugins/*/skills, plus an `agentmon skillcheck` CLI.
 package skillcheck
 ```
 
@@ -873,7 +873,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 func loadFixture(t *testing.T, name string) skillcheck.ScanRequest {
@@ -962,7 +962,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 type localProvider struct{}
@@ -1179,7 +1179,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 func TestSnyk_BinaryPath_HappyPath(t *testing.T) {
@@ -1255,7 +1255,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 // SnykConfig configures the Snyk subprocess provider.
@@ -1449,7 +1449,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 func TestSkillsSh_NoOriginNoSignal(t *testing.T) {
@@ -1544,7 +1544,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 // SkillsShConfig configures the skills.sh provenance provider.
@@ -1738,7 +1738,7 @@ package provider
 import (
 	"context"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 type chainguardStub struct{}
@@ -1769,7 +1769,7 @@ package provider
 import (
 	"context"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 type repelloStub struct{}
@@ -2255,7 +2255,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 func TestPutThenGet(t *testing.T) {
@@ -2330,7 +2330,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 // Config controls cache behavior.
@@ -2560,7 +2560,7 @@ import (
 )
 
 // Quarantiner moves a quarantined skill into safe storage and returns a
-// restore token. The agentsh implementation wraps internal/trash; tests
+// restore token. The agentmon implementation wraps internal/trash; tests
 // inject a fake.
 type Quarantiner interface {
 	Quarantine(skill SkillRef, reason string) (token string, err error)
@@ -2721,7 +2721,7 @@ go test ./internal/skillcheck/ -run TestTrashQuarantine -v
 package skillcheck
 
 import (
-	"github.com/agentsh/agentsh/internal/trash"
+	"github.com/diffsec/agentmon/internal/trash"
 )
 
 // trashQuarantiner adapts internal/trash to the Quarantiner interface.
@@ -2730,7 +2730,7 @@ type trashQuarantiner struct {
 }
 
 // NewTrashQuarantiner returns a Quarantiner backed by internal/trash. The
-// trashDir is the soft-delete store (typically ~/.agentsh/skillcheck/trash).
+// trashDir is the soft-delete store (typically ~/.agentmon/skillcheck/trash).
 func NewTrashQuarantiner(trashDir string) Quarantiner {
 	return &trashQuarantiner{trashDir: trashDir}
 }
@@ -3125,7 +3125,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/skillcheck/cache"
+	"github.com/diffsec/agentmon/internal/skillcheck/cache"
 )
 
 // DaemonConfig wires every skillcheck component together.
@@ -3315,7 +3315,7 @@ import (
 )
 
 // ApprovalBackend is the function signature the adapter delegates to. The
-// real wiring (in cmd/agentsh) passes a closure that calls into
+// real wiring (in cmd/agentmon) passes a closure that calls into
 // internal/approval/dialog. Tests inject a stub.
 type ApprovalBackend func(ctx context.Context, prompt string) (bool, error)
 
@@ -3351,17 +3351,17 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 
 ---
 
-## Task 15: CLI subcommand (`agentsh skillcheck`)
+## Task 15: CLI subcommand (`agentmon skillcheck`)
 
 **Files:**
 - Create: `internal/skillcheck/cli.go`
 - Create: `internal/skillcheck/cli_test.go`
-- Modify: `cmd/agentsh/main.go` (or wherever subcommands register)
+- Modify: `cmd/agentmon/main.go` (or wherever subcommands register)
 
 - [ ] **Step 1: Find where existing subcommands register**
 
 ```bash
-grep -rn "agentsh.*Command\|subcommand\|RegisterCommand" cmd/agentsh/*.go | head
+grep -rn "agentmon.*Command\|subcommand\|RegisterCommand" cmd/agentmon/*.go | head
 ```
 
 - [ ] **Step 2: Write failing test**
@@ -3458,7 +3458,7 @@ import (
 	"sort"
 )
 
-// CLI implements the `agentsh skillcheck` subcommand.
+// CLI implements the `agentmon skillcheck` subcommand.
 type CLI struct {
 	Stdout     io.Writer
 	Providers  map[string]ProviderEntry
@@ -3470,7 +3470,7 @@ type CLI struct {
 // (scan, doctor, list-quarantined, restore, cache).
 func (c *CLI) Run(ctx context.Context, argv []string) int {
 	if len(argv) == 0 {
-		fmt.Fprintln(c.Stdout, "usage: agentsh skillcheck <scan|doctor|list-quarantined|restore|cache>")
+		fmt.Fprintln(c.Stdout, "usage: agentmon skillcheck <scan|doctor|list-quarantined|restore|cache>")
 		return 2
 	}
 	switch argv[0] {
@@ -3489,7 +3489,7 @@ func (c *CLI) Run(ctx context.Context, argv []string) int {
 
 func (c *CLI) runScan(ctx context.Context, args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(c.Stdout, "usage: agentsh skillcheck scan <path>")
+		fmt.Fprintln(c.Stdout, "usage: agentmon skillcheck scan <path>")
 		return 2
 	}
 	limits := c.Limits
@@ -3533,7 +3533,7 @@ var _ io.Writer = os.Stdout
 go test ./internal/skillcheck/ -run TestCLI -v
 ```
 
-- [ ] **Step 6: Wire into cmd/agentsh**
+- [ ] **Step 6: Wire into cmd/agentmon**
 
 Add a registration matching the pattern found in Step 1. Concretely, locate the subcommand dispatch table (e.g., `switch os.Args[1]` or a `cli.Command` struct slice) and add:
 
@@ -3552,7 +3552,7 @@ If the codebase uses a real CLI library (cobra, urfave/cli), follow that pattern
 
 ```
 go build ./...
-./agentsh skillcheck doctor   # smoke test
+./agentmon skillcheck doctor   # smoke test
 ```
 
 Expected: prints provider list with `ok`.
@@ -3560,7 +3560,7 @@ Expected: prints provider list with `ok`.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add internal/skillcheck/cli.go internal/skillcheck/cli_test.go cmd/agentsh/main.go
+git add internal/skillcheck/cli.go internal/skillcheck/cli_test.go cmd/agentmon/main.go
 git commit -m "feat(skillcheck): CLI subcommand — scan and doctor
 
 Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
@@ -3656,7 +3656,7 @@ func (c *CLI) runList() int {
 
 func (c *CLI) runRestore(args []string) int {
 	if c.TrashDir == "" || len(args) < 1 {
-		fmt.Fprintln(c.Stdout, "usage: agentsh skillcheck restore <token> [dest]")
+		fmt.Fprintln(c.Stdout, "usage: agentmon skillcheck restore <token> [dest]")
 		return 2
 	}
 	dest := ""
@@ -3674,7 +3674,7 @@ func (c *CLI) runRestore(args []string) int {
 
 func (c *CLI) runCache(args []string) int {
 	if len(args) == 0 || args[0] != "prune" {
-		fmt.Fprintln(c.Stdout, "usage: agentsh skillcheck cache prune")
+		fmt.Fprintln(c.Stdout, "usage: agentmon skillcheck cache prune")
 		return 2
 	}
 	// Cache pruning is a one-line removal of skillcache.json.
@@ -3686,7 +3686,7 @@ func (c *CLI) runCache(args []string) int {
 Add the import:
 
 ```go
-import "github.com/agentsh/agentsh/internal/trash"
+import "github.com/diffsec/agentmon/internal/trash"
 ```
 
 If `trash.Entry` field names differ from `Token`/`OriginalPath`/`Reason`, edit the format string accordingly. Do not modify `internal/trash`.
@@ -3881,7 +3881,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/skillcheck/provider"
+	"github.com/diffsec/agentmon/internal/skillcheck/provider"
 )
 
 // TestEndToEnd_QuarantineRoundTrip drops the malicious fixture into a temp
@@ -4005,5 +4005,5 @@ Address any race conditions surfaced by `-race` (the watcher and orchestrator bo
 - Real Chainguard catalog sync (`chainguard.go` stays a stub; future work tracks beta access)
 - Real Repello adapter (`repello.go` stays a stub; future work tracks REST API publication)
 - skills.sh `__NEXT_DATA__` audit-badge parsing (`probe_audits: true` mode); flag exists in config but Task 5 implements only HEAD-mode
-- `agentsh skillcheck cache prune` (CLI exists but is a no-op; daemon-level cache management is a follow-up)
+- `agentmon skillcheck cache prune` (CLI exists but is a no-op; daemon-level cache management is a follow-up)
 - Unifying with `internal/mcpinspect/` (separate spec)

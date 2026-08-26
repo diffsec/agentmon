@@ -18,7 +18,7 @@
 **Cross-references:**
 - Macro design: `docs/superpowers/specs/2026-05-10-db-plan-04-pg-proxy-skeleton-design.md`
 - Roadmap: `docs/superpowers/specs/2026-05-08-db-access-phase-1-roadmap-design.md` §3 Plan 04
-- Spec: `docs/agentsh-db-access-spec.md` v0.8 §7.1, §11.1, §11.3 (steps 3–8), §13.1, §13.2, §13.3
+- Spec: `docs/agentmon-db-access-spec.md` v0.8 §7.1, §11.1, §11.3 (steps 3–8), §13.1, §13.2, §13.3
 - Predecessor: `docs/superpowers/plans/2026-05-10-db-plan-04a-listener-skeleton.md`
 
 ---
@@ -27,7 +27,7 @@
 
 **Created:**
 
-- `internal/db/tlsleaf/ca.go` — Lazy load-or-create AgentSH-DB CA persisted under `${StateDir}/db-ca.{key,crt}`.
+- `internal/db/tlsleaf/ca.go` — Lazy load-or-create AgentMon-DB CA persisted under `${StateDir}/db-ca.{key,crt}`.
 - `internal/db/tlsleaf/ca_test.go` — Round-trip persistence + perms.
 - `internal/db/tlsleaf/leaf.go` — Per-hostname leaf issuer with in-process LRU (cap 256).
 - `internal/db/tlsleaf/leaf_test.go` — SAN content + cache-hit semantics.
@@ -254,8 +254,8 @@ func TestLoadOrCreate_FirstCallGenerates(t *testing.T) {
 	if crtFI.Mode()&0o777 != 0o644 {
 		t.Errorf("crt perms = %#o, want 0644", crtFI.Mode()&0o777)
 	}
-	if ca.Cert().Subject.CommonName != "AgentSH DB Proxy CA" {
-		t.Errorf("CN = %q, want \"AgentSH DB Proxy CA\"", ca.Cert().Subject.CommonName)
+	if ca.Cert().Subject.CommonName != "AgentMon DB Proxy CA" {
+		t.Errorf("CN = %q, want \"AgentMon DB Proxy CA\"", ca.Cert().Subject.CommonName)
 	}
 	if !ca.Cert().IsCA {
 		t.Error("CA cert IsCA = false; want true")
@@ -311,7 +311,7 @@ Expected: FAIL with `no Go files`.
 
 ```go
 // Package tlsleaf provides a lazily-generated self-signed CA and per-hostname
-// leaf issuer for the AgentSH DB proxy's TLS termination path. The CA is
+// leaf issuer for the AgentMon DB proxy's TLS termination path. The CA is
 // persisted under a caller-provided StateDir; leaves are issued on demand and
 // cached in-process. Operators copy the CA cert into client trust stores
 // (sslrootcert) so downstream PostgreSQL clients accept proxied connections.
@@ -337,12 +337,12 @@ import (
 const (
 	caKeyFile  = "db-ca.key"
 	caCertFile = "db-ca.crt"
-	caCN       = "AgentSH DB Proxy CA"
+	caCN       = "AgentMon DB Proxy CA"
 	caKeyBits  = 4096
 	caValidFor = 10 * 365 * 24 * time.Hour
 )
 
-// CA is the AgentSH-DB self-signed certificate authority. Construct via
+// CA is the AgentMon-DB self-signed certificate authority. Construct via
 // LoadOrCreate. Methods are safe for concurrent use.
 type CA struct {
 	mu   sync.Mutex
@@ -738,9 +738,9 @@ git add internal/db/tlsleaf/
 git commit -m "$(cat <<'EOF'
 db/tlsleaf: lazy self-signed CA + per-hostname leaf issuer
 
-Plan 04b Task 2. internal/db/tlsleaf is the AgentSH DB proxy's TLS
+Plan 04b Task 2. internal/db/tlsleaf is the AgentMon DB proxy's TLS
 termination primitive. LoadOrCreate persists the CA under StateDir
-(key 0600 / cert 0644, CN "AgentSH DB Proxy CA", 10-year RSA-4096).
+(key 0600 / cert 0644, CN "AgentMon DB Proxy CA", 10-year RSA-4096).
 IssueLeaf returns a P-256 leaf for a given upstream hostname, signed
 by the CA and cached LRU (cap 256) per process.
 
@@ -849,7 +849,7 @@ Expected: FAIL — `srv.ca undefined`; passthrough not rejected.
 Add the import:
 
 ```go
-"github.com/agentsh/agentsh/internal/db/tlsleaf"
+"github.com/diffsec/agentmon/internal/db/tlsleaf"
 ```
 
 Add a CA field and accessor on `Server`:
@@ -926,7 +926,7 @@ git add internal/db/proxy/postgres/server.go internal/db/proxy/postgres/server_t
 git commit -m "$(cat <<'EOF'
 db/proxy/postgres: lazy CA load + reject passthrough until 04b₂
 
-Plan 04b Task 3. Server.ca() lazy-loads (or generates) the AgentSH-DB
+Plan 04b Task 3. Server.ca() lazy-loads (or generates) the AgentMon-DB
 CA from cfg.StateDir on first call. Passthrough-mode services now
 fail Server.New with a clear error pointing to Plan 04b₂, since
 passthrough requires upstream wiring that is out of 04b's scope.
@@ -965,9 +965,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/service"
 )
 
 func TestProxyConn_StubReturnsClean(t *testing.T) {
@@ -1218,9 +1218,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/service"
 )
 
 func newTestProxyConn(t *testing.T, conn net.Conn) *proxyConn {
@@ -1468,9 +1468,9 @@ func (pc *proxyConn) synthesizeError(sqlstate, message string) error {
 // reuse where relevant.
 const (
 	replicationDenyErrorCode     = "28000"
-	replicationDenyMessage       = "AgentSH DB proxy: replication mode denied by default; declare an opt-in connection rule (Plan 04b₂)"
+	replicationDenyMessage       = "AgentMon DB proxy: replication mode denied by default; declare an opt-in connection rule (Plan 04b₂)"
 	upstreamNotYetWiredErrorCode = "0A000"
-	upstreamNotYetWiredMessage   = "AgentSH DB proxy: upstream wiring not yet shipped (Plan 04b is inbound-only; Plan 04b₂ adds upstream)"
+	upstreamNotYetWiredMessage   = "AgentMon DB proxy: upstream wiring not yet shipped (Plan 04b is inbound-only; Plan 04b₂ adds upstream)"
 	connectionDenyErrorCode      = "28000"
 )
 
@@ -1553,9 +1553,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/service"
 )
 
 func TestTLS_TerminateReissue_RoundTrip(t *testing.T) {
@@ -1978,7 +1978,7 @@ package postgres
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 // loadRuleSet decodes a YAML policy via the same path supervisor uses.
@@ -2055,8 +2055,8 @@ Add the imports:
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 )
 ```
 
@@ -2075,7 +2075,7 @@ package postgres
 import (
 	"context"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 // evaluateConnect runs Plan 02's connection-rule evaluator with match_kind=
@@ -2132,7 +2132,7 @@ func (pc *proxyConn) handleStartupMessage(ctx context.Context, m *pgproto3.Start
 		// connection here.
 		msg := d.Reason
 		if msg == "" {
-			msg = "AgentSH DB proxy: connection denied by policy"
+			msg = "AgentMon DB proxy: connection denied by policy"
 		}
 		return pc.synthesizeError(connectionDenyErrorCode, msg)
 	}
@@ -2141,7 +2141,7 @@ func (pc *proxyConn) handleStartupMessage(ctx context.Context, m *pgproto3.Start
 }
 ```
 
-Add the import: `"github.com/agentsh/agentsh/internal/db/policy"`.
+Add the import: `"github.com/diffsec/agentmon/internal/db/policy"`.
 
 - [ ] **Step 5: Plumb the policy snapshot into `Config` from the supervisor**
 
@@ -2259,7 +2259,7 @@ PGSSLROOTCERT=$STATE_DIR/db-ca.crt \
   psql "host=$SOCKET_DIR sslmode=verify-full user=anyone dbname=anything"
 ```
 
-Expected: TLS handshake succeeds; psql receives FATAL 0A000 "AgentSH DB proxy: upstream wiring not yet shipped (Plan 04b is inbound-only; Plan 04b₂ adds upstream)" and disconnects cleanly.
+Expected: TLS handshake succeeds; psql receives FATAL 0A000 "AgentMon DB proxy: upstream wiring not yet shipped (Plan 04b is inbound-only; Plan 04b₂ adds upstream)" and disconnects cleanly.
 
 - [ ] **Step 4: Roborev final pass**
 

@@ -2,11 +2,11 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Extend the existing Linux seccomp-based exec interception from simple allow/deny to full pipeline routing (approve, redirect, audit), add the `agentsh wrap` CLI command, build the `agentsh-stub` I/O proxy binary, and ship default agent policies.
+**Goal:** Extend the existing Linux seccomp-based exec interception from simple allow/deny to full pipeline routing (approve, redirect, audit), add the `agentmon wrap` CLI command, build the `agentmon-stub` I/O proxy binary, and ship default agent policies.
 
-**Architecture:** The existing `agentsh-unixwrap` binary installs seccomp filters and passes the notify fd to the server. The `ExecveHandler` currently returns allow/deny. We extend it to support approve/redirect decisions by: (1) adding a new `ExecveResult.Action` field that can be `continue`, `redirect`, or `deny`, (2) implementing `SECCOMP_IOCTL_NOTIF_ADDFD` to inject a socket fd into the target process, (3) redirecting the execve to `agentsh-stub` which proxies I/O from the server-spawned command, and (4) adding the `agentsh wrap` CLI command that orchestrates session + interceptor + agent lifecycle.
+**Architecture:** The existing `agentmon-unixwrap` binary installs seccomp filters and passes the notify fd to the server. The `ExecveHandler` currently returns allow/deny. We extend it to support approve/redirect decisions by: (1) adding a new `ExecveResult.Action` field that can be `continue`, `redirect`, or `deny`, (2) implementing `SECCOMP_IOCTL_NOTIF_ADDFD` to inject a socket fd into the target process, (3) redirecting the execve to `agentmon-stub` which proxies I/O from the server-spawned command, and (4) adding the `agentmon wrap` CLI command that orchestrates session + interceptor + agent lifecycle.
 
-**Tech Stack:** Go 1.25, libseccomp-golang, seccomp user-notify (`SECCOMP_ADDFD`), Unix sockets, Cobra CLI, existing agentsh server API
+**Tech Stack:** Go 1.25, libseccomp-golang, seccomp user-notify (`SECCOMP_ADDFD`), Unix sockets, Cobra CLI, existing agentmon server API
 
 **Design Spec:** `docs/plans/2026-02-07-agent-wrap-exec-interception-design.md`
 
@@ -152,7 +152,7 @@ Add the `Action` constants and field to `ExecveResult`, and update `Handle()` to
 // Action constants for ExecveResult
 const (
 	ActionContinue = "continue" // Allow execve in-place (zero overhead)
-	ActionRedirect = "redirect" // Redirect execve to agentsh-stub
+	ActionRedirect = "redirect" // Redirect execve to agentmon-stub
 	ActionDeny     = "deny"     // Fail execve with errno
 )
 
@@ -315,19 +315,19 @@ git add internal/netmonitor/unix/addfd_linux.go internal/netmonitor/unix/addfd_l
 git commit -m "feat(seccomp): add SECCOMP_IOCTL_NOTIF_ADDFD wrapper
 
 Exposes the Linux 5.9+ seccomp addfd ioctl for injecting file descriptors
-into trapped processes. Needed for redirecting execve to agentsh-stub
+into trapped processes. Needed for redirecting execve to agentmon-stub
 while injecting a Unix socket fd for I/O proxying."
 ```
 
 ---
 
-## Task 3: Build `agentsh-stub` binary — the I/O proxy
+## Task 3: Build `agentmon-stub` binary — the I/O proxy
 
-The stub is exec'd in place of the original command. It connects to the agentsh server over a pre-injected Unix socket fd, receives proxied stdout/stderr, and exits with the proxied exit code.
+The stub is exec'd in place of the original command. It connects to the agentmon server over a pre-injected Unix socket fd, receives proxied stdout/stderr, and exits with the proxied exit code.
 
 **Files:**
-- Create: `cmd/agentsh-stub/main.go`
-- Create: `cmd/agentsh-stub/main_test.go`
+- Create: `cmd/agentmon-stub/main.go`
+- Create: `cmd/agentmon-stub/main_test.go`
 - Create: `internal/stub/proxy.go`
 - Create: `internal/stub/proxy_test.go`
 - Create: `internal/stub/protocol.go`
@@ -480,7 +480,7 @@ import (
 	"net"
 )
 
-// RunProxy connects to the agentsh server over conn, proxies stdin/stdout/stderr,
+// RunProxy connects to the agentmon server over conn, proxies stdin/stdout/stderr,
 // and returns the exit code from the server-spawned command.
 func RunProxy(conn net.Conn, stdin io.Reader, stdout, stderr io.Writer) (int, error) {
 	// Send ready message
@@ -567,7 +567,7 @@ Expected: PASS
 **Step 5: Write the stub binary**
 
 ```go
-// cmd/agentsh-stub/main.go
+// cmd/agentmon-stub/main.go
 package main
 
 import (
@@ -576,39 +576,39 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/agentsh/agentsh/internal/stub"
+	"github.com/diffsec/agentmon/internal/stub"
 )
 
 func main() {
 	// The Unix socket fd is injected by the seccomp supervisor via SECCOMP_ADDFD.
-	// It's passed as env var AGENTSH_STUB_FD.
-	fdStr := os.Getenv("AGENTSH_STUB_FD")
+	// It's passed as env var AGENTMON_STUB_FD.
+	fdStr := os.Getenv("AGENTMON_STUB_FD")
 	if fdStr == "" {
-		fmt.Fprintf(os.Stderr, "agentsh-stub: AGENTSH_STUB_FD not set\n")
+		fmt.Fprintf(os.Stderr, "agentmon-stub: AGENTMON_STUB_FD not set\n")
 		os.Exit(126)
 	}
 	fd, err := strconv.Atoi(fdStr)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "agentsh-stub: invalid AGENTSH_STUB_FD: %v\n", err)
+		fmt.Fprintf(os.Stderr, "agentmon-stub: invalid AGENTMON_STUB_FD: %v\n", err)
 		os.Exit(126)
 	}
 
-	file := os.NewFile(uintptr(fd), "agentsh-stub-sock")
+	file := os.NewFile(uintptr(fd), "agentmon-stub-sock")
 	if file == nil {
-		fmt.Fprintf(os.Stderr, "agentsh-stub: bad fd %d\n", fd)
+		fmt.Fprintf(os.Stderr, "agentmon-stub: bad fd %d\n", fd)
 		os.Exit(126)
 	}
 
 	conn, err := net.FileConn(file)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "agentsh-stub: FileConn: %v\n", err)
+		fmt.Fprintf(os.Stderr, "agentmon-stub: FileConn: %v\n", err)
 		os.Exit(126)
 	}
 	file.Close()
 
 	exitCode, err := stub.RunProxy(conn, os.Stdin, os.Stdout, os.Stderr)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "agentsh-stub: %v\n", err)
+		fmt.Fprintf(os.Stderr, "agentmon-stub: %v\n", err)
 		os.Exit(126)
 	}
 	os.Exit(exitCode)
@@ -617,17 +617,17 @@ func main() {
 
 **Step 6: Run tests and build**
 
-Run: `go test ./internal/stub/ -v && go build ./cmd/agentsh-stub/`
+Run: `go test ./internal/stub/ -v && go build ./cmd/agentmon-stub/`
 Expected: PASS + binary built
 
 **Step 7: Commit**
 
 ```bash
-git add internal/stub/ cmd/agentsh-stub/
-git commit -m "feat: add agentsh-stub binary for I/O proxy
+git add internal/stub/ cmd/agentmon-stub/
+git commit -m "feat: add agentmon-stub binary for I/O proxy
 
 The stub is exec'd in place of intercepted commands. It connects to the
-agentsh server over a pre-injected Unix socket fd, proxies stdin/stdout/stderr
+agentmon server over a pre-injected Unix socket fd, proxies stdin/stdout/stderr
 using a simple frame protocol, and exits with the server-reported exit code."
 ```
 
@@ -901,7 +901,7 @@ Exit code is propagated faithfully."
 When `ExecveResult.Action == ActionRedirect`, the notify handler must:
 1. Create a Unix socketpair
 2. Inject one end into the trapped process via `SECCOMP_ADDFD`
-3. Respond to the notification (which redirects the execve to `agentsh-stub`)
+3. Respond to the notification (which redirects the execve to `agentmon-stub`)
 4. Start `ServeStubConnection` on the server end to run the original command
 
 **Files:**
@@ -924,7 +924,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/stub"
+	"github.com/diffsec/agentmon/internal/stub"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -966,16 +966,16 @@ import (
 	"net"
 	"os"
 
-	"github.com/agentsh/agentsh/internal/stub"
+	"github.com/diffsec/agentmon/internal/stub"
 	seccomp "github.com/seccomp/libseccomp-golang"
 	sysunix "golang.org/x/sys/unix"
 )
 
-// stubBinaryPath is the path to the agentsh-stub binary.
-// Set at startup by the server or discovered from the agentsh binary directory.
+// stubBinaryPath is the path to the agentmon-stub binary.
+// Set at startup by the server or discovered from the agentmon binary directory.
 var stubBinaryPath string
 
-// SetStubBinaryPath sets the path to the agentsh-stub binary.
+// SetStubBinaryPath sets the path to the agentmon-stub binary.
 func SetStubBinaryPath(path string) {
 	stubBinaryPath = path
 }
@@ -1041,7 +1041,7 @@ func handleRedirect(notifFD seccomp.ScmpFd, reqID uint64, ctx ExecveContext, ses
 
 	// Inject stub fd into tracee
 	// Use SECCOMP_ADDFD_FLAG_SETFD to place at a known fd number
-	// The stub binary reads AGENTSH_STUB_FD env var to find it
+	// The stub binary reads AGENTMON_STUB_FD env var to find it
 	targetFD := 100 // Use high fd to avoid conflicts
 	_, err = NotifAddFD(int(notifFD), reqID, stubRawFD, targetFD, SECCOMP_ADDFD_FLAG_SETFD)
 	sysunix.Close(stubRawFD) // Close our copy
@@ -1051,7 +1051,7 @@ func handleRedirect(notifFD seccomp.ScmpFd, reqID uint64, ctx ExecveContext, ses
 	}
 
 	// Respond to notification — allow the execve to continue
-	// The process will now exec agentsh-stub instead of the original command
+	// The process will now exec agentmon-stub instead of the original command
 	// (The caller must have already set up the redirect by modifying /proc/<pid>/mem
 	// or using SECCOMP_ADDFD_FLAG_SEND — see Task 6 for the full integration)
 	resp := seccomp.ScmpNotifResp{ID: reqID, Flags: seccomp.NotifRespFlagContinue}
@@ -1123,9 +1123,9 @@ ServeStubConnection to run the original command and proxy I/O."
 
 ---
 
-## Task 6: Add `agentsh wrap` CLI command
+## Task 6: Add `agentmon wrap` CLI command
 
-The `agentsh wrap` command orchestrates the full lifecycle: create/reuse session, start interceptor, launch agent, generate report on exit.
+The `agentmon wrap` command orchestrates the full lifecycle: create/reuse session, start interceptor, launch agent, generate report on exit.
 
 **Files:**
 - Create: `internal/cli/wrap.go`
@@ -1193,8 +1193,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -1210,19 +1210,19 @@ func newWrapCmd() *cobra.Command {
 		Long: `Launch an AI agent with full exec interception.
 
 Every command spawned by the agent and its descendants is routed through the
-agentsh exec pipeline (policy check, approval workflow, audit logging).
+agentmon exec pipeline (policy check, approval workflow, audit logging).
 
 Examples:
-  agentsh wrap -- claude-code
-  agentsh wrap --policy strict -- codex
-  agentsh wrap --session my-dev -- cursor`,
+  agentmon wrap -- claude-code
+  agentmon wrap --policy strict -- codex
+  agentmon wrap --session my-dev -- cursor`,
 		Args:               cobra.ArbitraryArgs,
 		DisableFlagParsing: false,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Find everything after --
 			agentArgs := findArgsAfterDash(os.Args)
 			if len(agentArgs) == 0 {
-				return fmt.Errorf("command required after --\n\nUsage: agentsh wrap [flags] -- COMMAND [ARGS...]")
+				return fmt.Errorf("command required after --\n\nUsage: agentmon wrap [flags] -- COMMAND [ARGS...]")
 			}
 
 			cfg := getClientConfig(cmd)
@@ -1282,7 +1282,7 @@ func runWrap(ctx context.Context, cfg *clientConfig, opts wrapOptions) error {
 		if err != nil {
 			return fmt.Errorf("create session: %w", err)
 		}
-		fmt.Fprintf(os.Stderr, "agentsh: session %s created (policy: %s)\n", sess.ID, opts.policy)
+		fmt.Fprintf(os.Stderr, "agentmon: session %s created (policy: %s)\n", sess.ID, opts.policy)
 	}
 
 	// 2. Launch the agent process
@@ -1297,8 +1297,8 @@ func runWrap(ctx context.Context, cfg *clientConfig, opts wrapOptions) error {
 	agentProc.Stdout = os.Stdout
 	agentProc.Stderr = os.Stderr
 	agentProc.Env = append(os.Environ(),
-		fmt.Sprintf("AGENTSH_SESSION_ID=%s", sess.ID),
-		fmt.Sprintf("AGENTSH_SERVER=%s", cfg.serverAddr),
+		fmt.Sprintf("AGENTMON_SESSION_ID=%s", sess.ID),
+		fmt.Sprintf("AGENTMON_SERVER=%s", cfg.serverAddr),
 	)
 
 	// Set up signal forwarding
@@ -1316,7 +1316,7 @@ func runWrap(ctx context.Context, cfg *clientConfig, opts wrapOptions) error {
 		return fmt.Errorf("start agent: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "agentsh: agent %s started (pid: %d)\n", opts.agentCmd, agentProc.Process.Pid)
+	fmt.Fprintf(os.Stderr, "agentmon: agent %s started (pid: %d)\n", opts.agentCmd, agentProc.Process.Pid)
 
 	// 3. Wait for agent to exit
 	waitErr := agentProc.Wait()
@@ -1335,7 +1335,7 @@ func runWrap(ctx context.Context, cfg *clientConfig, opts wrapOptions) error {
 
 	// 4. Generate report
 	if opts.report {
-		fmt.Fprintf(os.Stderr, "\nagentsh: session %s complete (agent exit code: %d)\n", sess.ID, exitCode)
+		fmt.Fprintf(os.Stderr, "\nagentmon: session %s complete (agent exit code: %d)\n", sess.ID, exitCode)
 	}
 
 	if exitCode != 0 {
@@ -1368,10 +1368,10 @@ Expected: PASS
 
 ```bash
 git add internal/cli/wrap.go internal/cli/wrap_test.go internal/cli/root.go
-git commit -m "feat: add 'agentsh wrap' CLI command
+git commit -m "feat: add 'agentmon wrap' CLI command
 
 Orchestrates session creation, agent launch, signal forwarding, and
-session report generation. Usage: agentsh wrap [--policy P] -- AGENT [ARGS...]"
+session report generation. Usage: agentmon wrap [--policy P] -- AGENT [ARGS...]"
 ```
 
 ---
@@ -1605,7 +1605,7 @@ name: agent-observe
 description: |
   Audit-only mode for initial profiling.
   Everything allowed, everything logged.
-  Use with 'agentsh policy generate' to create a custom policy
+  Use with 'agentmon policy generate' to create a custom policy
   from observed behavior (profile-then-lock workflow).
 
 command_rules:
@@ -1677,7 +1677,7 @@ Expected: PASS
 git add configs/policies/agent-default.yaml configs/policies/agent-strict.yaml configs/policies/agent-observe.yaml internal/policy/agent_policies_test.go
 git commit -m "feat: ship agent-default, agent-strict, agent-observe policies
 
-Three default policies for agentsh wrap:
+Three default policies for agentmon wrap:
 - agent-default: balanced supervision for typical dev work
 - agent-strict: high-security with approval for most commands
 - agent-observe: audit-only for profiling (profile-then-lock workflow)"
@@ -1708,7 +1708,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/stub"
+	"github.com/diffsec/agentmon/internal/stub"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1832,7 +1832,7 @@ large output (1MB), and timeout handling through the stub proxy."
 
 ## Task 9: Wire wrap command to seccomp wrapper
 
-Connect the `agentsh wrap` command to the existing seccomp wrapper infrastructure so the agent process tree is actually intercepted.
+Connect the `agentmon wrap` command to the existing seccomp wrapper infrastructure so the agent process tree is actually intercepted.
 
 **Files:**
 - Modify: `internal/cli/wrap.go` (add seccomp setup)
@@ -1851,10 +1851,10 @@ Add to the HTTP API:
 POST /sessions/{sid}/wrap
 Request: { "agent_command": "claude-code", "agent_args": ["--model", "opus"] }
 Response: {
-  "wrapper_binary": "/usr/local/bin/agentsh-unixwrap",
-  "wrapper_env": { "AGENTSH_SECCOMP_CONFIG": "...", "AGENTSH_NOTIFY_SOCK_FD": "3" },
+  "wrapper_binary": "/usr/local/bin/agentmon-unixwrap",
+  "wrapper_env": { "AGENTMON_SECCOMP_CONFIG": "...", "AGENTMON_NOTIFY_SOCK_FD": "3" },
   "extra_fds": [...fd numbers...],
-  "stub_binary": "/usr/local/bin/agentsh-stub"
+  "stub_binary": "/usr/local/bin/agentmon-stub"
 }
 ```
 
@@ -1863,8 +1863,8 @@ This is a larger task — implement the API endpoint, update the wrap CLI to cal
 **Step 2: Test the wrap integration**
 
 Write an integration test that:
-1. Starts an agentsh server
-2. Calls `agentsh wrap -- /bin/sh -c "echo hello"`
+1. Starts an agentmon server
+2. Calls `agentmon wrap -- /bin/sh -c "echo hello"`
 3. Verifies the command ran and output was captured
 4. Verifies an execve event was recorded
 
@@ -1898,7 +1898,7 @@ Expected: SUCCESS
 
 **Step 3: Build all new binaries**
 
-Run: `go build ./cmd/agentsh-stub/ && go build ./cmd/agentsh/`
+Run: `go build ./cmd/agentmon-stub/ && go build ./cmd/agentmon/`
 Expected: Both build successfully
 
 **Step 4: Commit any fixes**
@@ -1914,11 +1914,11 @@ Task 1 (ExecveResult Action field)
     ↓
 Task 2 (SECCOMP_ADDFD)
     ↓
-Task 3 (agentsh-stub binary) ←─── Task 4 (server-side handler)
+Task 3 (agentmon-stub binary) ←─── Task 4 (server-side handler)
     ↓                                ↓
 Task 5 (wire redirect into handler) ←┘
     ↓
-Task 6 (agentsh wrap CLI) ←─── Task 7 (agent policies)
+Task 6 (agentmon wrap CLI) ←─── Task 7 (agent policies)
     ↓
 Task 8 (integration tests)
     ↓
@@ -1938,7 +1938,7 @@ Task 10 (cross-compile + final check)
 
 - macOS Endpoint Security implementation
 - Windows kernel driver
-- `agentsh wrap --detect` auto-detection
+- `agentmon wrap --detect` auto-detection
 - VS Code / Cursor extension
 - Web dashboard
 - WHQL certification

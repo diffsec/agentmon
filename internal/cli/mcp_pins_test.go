@@ -10,8 +10,8 @@ import (
 func TestMCPPinsListCmd(t *testing.T) {
 	tmpDir := t.TempDir()
 	pinPath := filepath.Join(tmpDir, "pins.db")
-	os.Setenv("AGENTSH_PINS_PATH", pinPath)
-	defer os.Unsetenv("AGENTSH_PINS_PATH")
+	os.Setenv("AGENTMON_PINS_PATH", pinPath)
+	defer os.Unsetenv("AGENTMON_PINS_PATH")
 
 	cmd := newMCPPinsCmd()
 	cmd.SetArgs([]string{"list"})
@@ -30,8 +30,8 @@ func TestMCPPinsListCmd(t *testing.T) {
 func TestMCPPinsTrustCmd(t *testing.T) {
 	tmpDir := t.TempDir()
 	pinPath := filepath.Join(tmpDir, "pins.db")
-	os.Setenv("AGENTSH_PINS_PATH", pinPath)
-	defer os.Unsetenv("AGENTSH_PINS_PATH")
+	os.Setenv("AGENTMON_PINS_PATH", pinPath)
+	defer os.Unsetenv("AGENTMON_PINS_PATH")
 
 	cmd := newMCPPinsCmd()
 	cmd.SetArgs([]string{"trust", "--server", "filesystem", "--tool", "read_file", "--hash", "abc123def456"})
@@ -67,8 +67,8 @@ func TestMCPPinsTrustCmd(t *testing.T) {
 func TestMCPPinsResetCmd(t *testing.T) {
 	tmpDir := t.TempDir()
 	pinPath := filepath.Join(tmpDir, "pins.db")
-	os.Setenv("AGENTSH_PINS_PATH", pinPath)
-	defer os.Unsetenv("AGENTSH_PINS_PATH")
+	os.Setenv("AGENTMON_PINS_PATH", pinPath)
+	defer os.Unsetenv("AGENTMON_PINS_PATH")
 
 	// First trust a tool
 	cmd := newMCPPinsCmd()
@@ -111,8 +111,8 @@ func TestMCPPinsResetCmd(t *testing.T) {
 func TestMCPPinsDiffCmd(t *testing.T) {
 	tmpDir := t.TempDir()
 	pinPath := filepath.Join(tmpDir, "pins.db")
-	os.Setenv("AGENTSH_PINS_PATH", pinPath)
-	defer os.Unsetenv("AGENTSH_PINS_PATH")
+	os.Setenv("AGENTMON_PINS_PATH", pinPath)
+	defer os.Unsetenv("AGENTMON_PINS_PATH")
 
 	// First trust a tool
 	cmd := newMCPPinsCmd()
@@ -141,8 +141,8 @@ func TestMCPPinsDiffCmd(t *testing.T) {
 func TestMCPPinsListCmd_WithServerFilter(t *testing.T) {
 	tmpDir := t.TempDir()
 	pinPath := filepath.Join(tmpDir, "pins.db")
-	os.Setenv("AGENTSH_PINS_PATH", pinPath)
-	defer os.Unsetenv("AGENTSH_PINS_PATH")
+	os.Setenv("AGENTMON_PINS_PATH", pinPath)
+	defer os.Unsetenv("AGENTMON_PINS_PATH")
 
 	// Trust tools on different servers
 	cmd := newMCPPinsCmd()
@@ -183,8 +183,8 @@ func TestMCPPinsListCmd_WithServerFilter(t *testing.T) {
 func TestMCPPinsResetCmd_All(t *testing.T) {
 	tmpDir := t.TempDir()
 	pinPath := filepath.Join(tmpDir, "pins.db")
-	os.Setenv("AGENTSH_PINS_PATH", pinPath)
-	defer os.Unsetenv("AGENTSH_PINS_PATH")
+	os.Setenv("AGENTMON_PINS_PATH", pinPath)
+	defer os.Unsetenv("AGENTMON_PINS_PATH")
 
 	// Trust multiple tools
 	for _, args := range [][]string{

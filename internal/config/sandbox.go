@@ -27,8 +27,8 @@ func DefaultExecveConfig() ExecveConfig {
 		ApprovalTimeout:       10 * time.Second,
 		ApprovalTimeoutAction: "deny",
 		InternalBypass: []string{
-			"/usr/local/bin/agentsh",
-			"/usr/local/bin/agentsh-unixwrap",
+			"/usr/local/bin/agentmon",
+			"/usr/local/bin/agentmon-unixwrap",
 		},
 	}
 }

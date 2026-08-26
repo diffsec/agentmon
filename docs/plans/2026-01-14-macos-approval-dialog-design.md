@@ -17,7 +17,7 @@ Standalone SwiftUI app that shows modal approval dialogs when PNACL network acce
 ```
 Notification (15s timeout)
     ↓ ignored
-ApprovalManager: NSWorkspace.shared.open("agentsh-approval://approve?id=xxx")
+ApprovalManager: NSWorkspace.shared.open("agentmon-approval://approve?id=xxx")
     ↓
 ApprovalDialog.app launches
     ↓
@@ -39,13 +39,13 @@ macos/ApprovalDialog/
 ├── ApprovalDialogApp.swift    # @main entry, URL handling
 ├── ApprovalView.swift         # SwiftUI dialog UI
 ├── ServerClient.swift         # Go server communication
-├── Info.plist                 # URL scheme: agentsh-approval://
+├── Info.plist                 # URL scheme: agentmon-approval://
 └── ApprovalDialog.entitlements
 ```
 
 ## URL Scheme
 
-**Scheme:** `agentsh-approval://approve?id=<requestID>`
+**Scheme:** `agentmon-approval://approve?id=<requestID>`
 
 Registered in Info.plist:
 ```xml
@@ -53,9 +53,9 @@ Registered in Info.plist:
 <array>
   <dict>
     <key>CFBundleURLSchemes</key>
-    <array><string>agentsh-approval</string></array>
+    <array><string>agentmon-approval</string></array>
     <key>CFBundleURLName</key>
-    <string>com.agentsh.approval</string>
+    <string>com.agentmon.approval</string>
   </dict>
 </array>
 ```
@@ -83,7 +83,7 @@ Window behavior:
 
 ## Server Communication
 
-Uses Unix socket at `/var/run/agentsh/policy.sock`:
+Uses Unix socket at `/var/run/agentmon/policy.sock`:
 
 1. **Fetch approval:** `GET get_pending_approvals` → find by requestID
 2. **Submit decision:** `POST submit_approval` with requestID, decision, permanent flag
@@ -106,7 +106,7 @@ private let escalationDelay: TimeInterval = 15.0
 
 - Add ApprovalDialog scheme to Xcode project
 - Build via xcodebuild in Makefile
-- Copy ApprovalDialog.app to AgentSH.app/Contents/Resources/
+- Copy ApprovalDialog.app to AgentMon.app/Contents/Resources/
 - Code sign with appropriate entitlements
 
 ## Files to Modify

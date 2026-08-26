@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy/signing"
+	"github.com/diffsec/agentmon/internal/policy/signing"
 )
 
 func TestManager_SelectsAllowedEnv(t *testing.T) {

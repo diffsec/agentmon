@@ -59,7 +59,7 @@ const (
 	FindingActivityClose   uint32 = 3
 )
 
-// Application Activity standard + agentsh-internal extensions.
+// Application Activity standard + agentmon-internal extensions.
 const (
 	AppActivityUnknown uint32 = 0
 	AppActivityOpen    uint32 = 1
@@ -67,7 +67,7 @@ const (
 	AppActivityUpdate  uint32 = 3
 	AppActivityOther   uint32 = 6
 
-	// agentsh-internal — values >= 100 to stay clear of OCSF reservations.
+	// agentmon-internal — values >= 100 to stay clear of OCSF reservations.
 	AppActivityEBPFAttached             uint32 = 100
 	AppActivityFUSEMounted              uint32 = 101
 	AppActivityCgroupApplied            uint32 = 102

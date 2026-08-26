@@ -1,12 +1,12 @@
 # Daemon install: generated units invoke a nonexistent `--daemon` flag
 
-**Issue:** [#437](https://github.com/canyonroad/agentsh/issues/437)
+**Issue:** [#437](https://github.com/diffsec/agentmon/issues/437)
 **Also tracked as:** audit finding H20 (`AUDIT-FINDINGS.md`)
 **Date:** 2026-08-05
 
 ## Problem
 
-`agentsh daemon install` writes a service unit that starts the server with a
+`agentmon daemon install` writes a service unit that starts the server with a
 `--daemon` argument:
 
 - `internal/cli/daemon.go:208` — `ExecStart=%s server --daemon`
@@ -16,22 +16,22 @@
 argument and the process exits non-zero before doing any work:
 
 ```
-$ agentsh server --daemon
+$ agentmon server --daemon
 unknown flag: --daemon
 ```
 
 Both service managers then restart it forever — systemd via `Restart=on-failure`,
-launchd via `KeepAlive`. The reporter's `agentsh.err` is three identical
+launchd via `KeepAlive`. The reporter's `agentmon.err` is three identical
 `unknown flag: --daemon` lines and `launchctl list` shows `last exit 1`.
 
-`agentsh daemon install` is broken end-to-end on both Linux and macOS.
+`agentmon daemon install` is broken end-to-end on both Linux and macOS.
 
 ## Constraint that shapes the fix
 
 Correcting the templates does not repair an existing installation. The unit
 file already on disk still carries `--daemon`, and upgrading the binary does not
-rewrite it. Every user who has already run `agentsh daemon install` stays in the
-restart loop until they manually re-run `agentsh daemon install --force`.
+rewrite it. Every user who has already run `agentmon daemon install` stays in the
+restart loop until they manually re-run `agentmon daemon install --force`.
 
 The fix therefore has to work from both directions: stop emitting the argument,
 and tolerate it where it has already been written.
@@ -45,7 +45,7 @@ In `newServerCmd` (`internal/cli/server.go`):
 ```go
 cmd.Flags().Bool("daemon", false, "Deprecated: accepted for compatibility, ignored")
 _ = cmd.Flags().MarkDeprecated("daemon",
-    "the server always runs in the foreground under systemd/launchd; remove it or re-run `agentsh daemon install --force`")
+    "the server always runs in the foreground under systemd/launchd; remove it or re-run `agentmon daemon install --force`")
 ```
 
 A no-op is the semantically correct shim, not a placeholder for unimplemented
@@ -56,7 +56,7 @@ being stubbed out.
 
 `pflag.MarkDeprecated` also sets `Hidden`, keeping the flag out of `--help`, and
 prints a one-line notice to stderr on each start. Under launchd that notice
-lands in `~/Library/Logs/agentsh/agentsh.err`, where it tells an operator
+lands in `~/Library/Logs/diffsec/agentmon.err`, where it tells an operator
 exactly how to clean up a stale unit.
 
 ### 2. Drop `--daemon` from both templates
@@ -103,7 +103,7 @@ cannot silently drop it.
 
 - `go test ./internal/cli/...` and full `go test ./...`
 - `GOOS=windows go build ./...` (per `AGENTS.md`)
-- `go run ./cmd/agentsh server --daemon` reaches config loading rather than
+- `go run ./cmd/agentmon server --daemon` reaches config loading rather than
   failing at flag parsing
 
 ## Out of scope
@@ -114,7 +114,7 @@ Examined and deliberately left alone:
   can prevent the unix socket listener from binding. The server already degrades
   gracefully here, logging `unix socket disabled` and continuing, so it does not
   block startup.
-- **Auto-repairing stale unit files** on `agentsh daemon install`. Unnecessary
+- **Auto-repairing stale unit files** on `agentmon daemon install`. Unnecessary
   once the no-op flag exists — stale units simply work.
 - **`AUDIT-FINDINGS.md`** is a point-in-time report with no status tracking, so
   the H20 entry is not edited.

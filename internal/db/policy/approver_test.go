@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func TestNopApprover_Timeout_ReturnsFalseNoError(t *testing.T) {

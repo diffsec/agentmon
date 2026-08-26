@@ -2,7 +2,7 @@
 
 package api
 
-import "github.com/agentsh/agentsh/internal/platform/darwin"
+import "github.com/diffsec/agentmon/internal/platform/darwin"
 
 func notifySessionRegistered() {
 	darwin.NotifySessionRegistered()

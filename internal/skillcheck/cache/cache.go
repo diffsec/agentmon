@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 // Config controls cache behavior.

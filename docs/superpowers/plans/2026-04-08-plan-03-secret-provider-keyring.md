@@ -6,7 +6,7 @@
 
 **Architecture:** A new package `internal/proxy/secrets/` holds the interface, types, URI parser, and sentinel errors. Per-backend providers live in subpackages (`internal/proxy/secrets/keyring/` for this plan). A sibling `internal/proxy/secrets/secretstest/` package carries the `MemoryProvider` test double and the shared `ProviderContract` helper. Nothing in `internal/session/`, `internal/api/`, `cmd/`, `pkg/`, or the existing dormant `pkg/secrets/` is touched.
 
-**Tech Stack:** Go stdlib (`context`, `errors`, `fmt`, `net/url`, `strings`, `sync`, `time`, `testing`) plus one new direct dependency: `github.com/zalando/go-keyring` (Apache 2.0, wraps Keychain / Secret Service / Credential Manager). Module path: `github.com/agentsh/agentsh/internal/proxy/secrets`.
+**Tech Stack:** Go stdlib (`context`, `errors`, `fmt`, `net/url`, `strings`, `sync`, `time`, `testing`) plus one new direct dependency: `github.com/zalando/go-keyring` (Apache 2.0, wraps Keychain / Secret Service / Credential Manager). Module path: `github.com/diffsec/agentmon/internal/proxy/secrets`.
 
 **Scope boundary:** This plan lands pure infrastructure. No registry, no YAML loader, no auth chaining, no connection to `credsub.Table`, no session wiring. Later plans consume this API:
 - Plan 4 (Vault provider) is the first non-keyring provider and the point where a registry becomes necessary.
@@ -45,7 +45,7 @@ Plan 10 will pull a `SecretValue` from a provider, hand its bytes to `credsub.Ta
 
 ### Keyring construction probe
 
-`keyring.New` issues one `keyringlib.Get("agentsh-probe", "agentsh-keyring-availability-probe")` call. We accept either `nil` or `keyringlib.ErrNotFound` and treat anything else as `ErrKeyringUnavailable`. This catches headless Linux (no running Secret Service), macOS Keychain access denied, and Windows Credential Manager unavailable, at construction time. Fail loud at `New`, not during `Fetch`.
+`keyring.New` issues one `keyringlib.Get("agentmon-probe", "agentmon-keyring-availability-probe")` call. We accept either `nil` or `keyringlib.ErrNotFound` and treat anything else as `ErrKeyringUnavailable`. This catches headless Linux (no running Secret Service), macOS Keychain access denied, and Windows Credential Manager unavailable, at construction time. Fail loud at `New`, not during `Fetch`.
 
 ### No context honoring inside zalando calls
 
@@ -110,7 +110,7 @@ Task 4 adds `github.com/zalando/go-keyring`. The implementer MUST inspect the `g
 Write to `internal/proxy/secrets/doc.go`:
 
 ```go
-// Package secrets defines the SecretProvider interface that agentsh
+// Package secrets defines the SecretProvider interface that agentmon
 // uses to fetch real credentials from external secret stores at
 // session start, plus the URI grammar and sentinel errors shared by
 // all provider implementations.
@@ -530,8 +530,8 @@ func TestParseRef_HappyPath_AllSchemes(t *testing.T) {
 	}{
 		{
 			name: "keyring",
-			uri:  "keyring://agentsh/vault_token",
-			want: SecretRef{Scheme: "keyring", Host: "agentsh", Path: "vault_token"},
+			uri:  "keyring://agentmon/vault_token",
+			want: SecretRef{Scheme: "keyring", Host: "agentmon", Path: "vault_token"},
 		},
 		{
 			name: "vault with field",
@@ -612,7 +612,7 @@ func TestParseRef_NoHost(t *testing.T) {
 }
 
 func TestParseRef_QueryStringRejected(t *testing.T) {
-	_, err := ParseRef("keyring://agentsh/token?version=2")
+	_, err := ParseRef("keyring://agentmon/token?version=2")
 	if !errors.Is(err, ErrInvalidURI) {
 		t.Errorf("ParseRef with query = %v, want wrapping ErrInvalidURI", err)
 	}
@@ -657,7 +657,7 @@ func TestParseRef_PathWithEncodedChars(t *testing.T) {
 
 func TestSecretRef_String_RoundTrip(t *testing.T) {
 	cases := []string{
-		"keyring://agentsh/vault_token",
+		"keyring://agentmon/vault_token",
 		"vault://kv/data/github#token",
 		"aws-sm://prod/api-keys/anthropic",
 		"op://Personal/Stripe/credential",
@@ -690,9 +690,9 @@ func TestSecretRef_String_RoundTrip(t *testing.T) {
 }
 
 func TestSecretRef_String_NoPath(t *testing.T) {
-	ref := SecretRef{Scheme: "keyring", Host: "agentsh"}
-	if got := ref.String(); got != "keyring://agentsh" {
-		t.Errorf("String() = %q, want %q", got, "keyring://agentsh")
+	ref := SecretRef{Scheme: "keyring", Host: "agentmon"}
+	if got := ref.String(); got != "keyring://agentmon" {
+		t.Errorf("String() = %q, want %q", got, "keyring://agentmon")
 	}
 }
 
@@ -941,7 +941,7 @@ Write to `internal/proxy/secrets/keyring/config.go`:
 ```go
 package keyring
 
-import secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+import secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 
 // Config configures the keyring provider.
 //
@@ -981,7 +981,7 @@ import (
 	"errors"
 	"testing"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // skipIfUnavailable constructs a Provider and skips the test if
@@ -1038,7 +1038,7 @@ import (
 
 	keyringlib "github.com/zalando/go-keyring"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // Provider is an OS-keyring-backed secrets.SecretProvider.
@@ -1058,8 +1058,8 @@ type Provider struct {
 // keyring — it exists only to verify that keyring.Get can reach
 // the backend at all.
 const (
-	probeService = "agentsh-probe"
-	probeAccount = "agentsh-keyring-availability-probe"
+	probeService = "agentmon-probe"
+	probeAccount = "agentmon-keyring-availability-probe"
 )
 
 // New constructs a keyring Provider.
@@ -1166,7 +1166,7 @@ func TestFetch_MissingHost(t *testing.T) {
 
 func TestFetch_MissingPath(t *testing.T) {
 	p := &Provider{}
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: ""}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: ""}
 	_, err := p.Fetch(context.Background(), ref)
 	if !errors.Is(err, secrets.ErrInvalidURI) {
 		t.Errorf("Fetch with empty path = %v, want wrapping ErrInvalidURI", err)
@@ -1175,7 +1175,7 @@ func TestFetch_MissingPath(t *testing.T) {
 
 func TestFetch_WithField(t *testing.T) {
 	p := &Provider{}
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "x", Field: "token"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "x", Field: "token"}
 	_, err := p.Fetch(context.Background(), ref)
 	if !errors.Is(err, secrets.ErrFieldNotSupported) {
 		t.Errorf("Fetch with field = %v, want wrapping ErrFieldNotSupported", err)
@@ -1186,7 +1186,7 @@ func TestFetch_ContextCanceled(t *testing.T) {
 	p := &Provider{}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel before calling Fetch
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "x"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "x"}
 	_, err := p.Fetch(ctx, ref)
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("Fetch with canceled ctx = %v, want context.Canceled", err)
@@ -1196,11 +1196,11 @@ func TestFetch_ContextCanceled(t *testing.T) {
 // testServiceName returns a unique keyring service name per test
 // run. Using a unique name per run prevents any one test from
 // polluting a developer's real keyring or leaking entries between
-// runs. The "agentsh-test" prefix makes the intent obvious if an
+// runs. The "agentmon-test" prefix makes the intent obvious if an
 // entry does survive a crash.
 func testServiceName(t *testing.T) string {
 	t.Helper()
-	return fmt.Sprintf("agentsh-test-%s-%d", t.Name(), time.Now().UnixNano())
+	return fmt.Sprintf("agentmon-test-%s-%d", t.Name(), time.Now().UnixNano())
 }
 
 func TestFetch_RoundTrip(t *testing.T) {
@@ -1291,7 +1291,7 @@ import (
 
 	keyringlib "github.com/zalando/go-keyring"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // Provider is an OS-keyring-backed secrets.SecretProvider.
@@ -1307,8 +1307,8 @@ type Provider struct {
 }
 
 const (
-	probeService = "agentsh-probe"
-	probeAccount = "agentsh-keyring-availability-probe"
+	probeService = "agentmon-probe"
+	probeAccount = "agentmon-keyring-availability-probe"
 )
 
 // New constructs a keyring Provider and verifies the OS keyring
@@ -1449,7 +1449,7 @@ func TestFetch_AfterClose(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "x"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "x"}
 	_, err := p.Fetch(context.Background(), ref)
 	if err == nil {
 		t.Fatal("Fetch after Close returned nil error")
@@ -1556,20 +1556,20 @@ import (
 	"sync"
 	"testing"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 func TestNewMemoryProvider_CopiesSeed(t *testing.T) {
 	seed := map[string][]byte{
-		"keyring://agentsh/token": []byte("original"),
+		"keyring://agentmon/token": []byte("original"),
 	}
 	mp := NewMemoryProvider("test", seed)
 
 	// Mutate the caller's seed map after construction.
-	seed["keyring://agentsh/token"] = []byte("mutated")
+	seed["keyring://agentmon/token"] = []byte("mutated")
 
 	sv, err := mp.Fetch(context.Background(), secrets.SecretRef{
-		Scheme: "keyring", Host: "agentsh", Path: "token",
+		Scheme: "keyring", Host: "agentmon", Path: "token",
 	})
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
@@ -1581,9 +1581,9 @@ func TestNewMemoryProvider_CopiesSeed(t *testing.T) {
 
 func TestFetch_HappyPath(t *testing.T) {
 	mp := NewMemoryProvider("test", map[string][]byte{
-		"keyring://agentsh/token": []byte("foo"),
+		"keyring://agentmon/token": []byte("foo"),
 	})
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "token"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "token"}
 	sv, err := mp.Fetch(context.Background(), ref)
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
@@ -1598,7 +1598,7 @@ func TestFetch_HappyPath(t *testing.T) {
 
 func TestFetch_NotFound(t *testing.T) {
 	mp := NewMemoryProvider("test", nil)
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "missing"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "missing"}
 	_, err := mp.Fetch(context.Background(), ref)
 	if !errors.Is(err, secrets.ErrNotFound) {
 		t.Errorf("Fetch of missing = %v, want wrapping ErrNotFound", err)
@@ -1607,9 +1607,9 @@ func TestFetch_NotFound(t *testing.T) {
 
 func TestFetch_ReturnsCopy(t *testing.T) {
 	mp := NewMemoryProvider("test", map[string][]byte{
-		"keyring://agentsh/token": []byte("immutable"),
+		"keyring://agentmon/token": []byte("immutable"),
 	})
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "token"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "token"}
 
 	sv1, err := mp.Fetch(context.Background(), ref)
 	if err != nil {
@@ -1642,11 +1642,11 @@ func TestFetch_AfterClose(t *testing.T) {
 
 func TestAdd_ThenFetch(t *testing.T) {
 	mp := NewMemoryProvider("test", nil)
-	if err := mp.Add("keyring://agentsh/added", []byte("value")); err != nil {
+	if err := mp.Add("keyring://agentmon/added", []byte("value")); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	sv, err := mp.Fetch(context.Background(), secrets.SecretRef{
-		Scheme: "keyring", Host: "agentsh", Path: "added",
+		Scheme: "keyring", Host: "agentmon", Path: "added",
 	})
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
@@ -1666,7 +1666,7 @@ func TestAdd_InvalidURI(t *testing.T) {
 
 func TestAdd_Replace(t *testing.T) {
 	mp := NewMemoryProvider("test", nil)
-	const uri = "keyring://agentsh/replaceable"
+	const uri = "keyring://agentmon/replaceable"
 	if err := mp.Add(uri, []byte("first")); err != nil {
 		t.Fatalf("first Add: %v", err)
 	}
@@ -1674,7 +1674,7 @@ func TestAdd_Replace(t *testing.T) {
 		t.Fatalf("second Add: %v", err)
 	}
 	sv, err := mp.Fetch(context.Background(), secrets.SecretRef{
-		Scheme: "keyring", Host: "agentsh", Path: "replaceable",
+		Scheme: "keyring", Host: "agentmon", Path: "replaceable",
 	})
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
@@ -1686,11 +1686,11 @@ func TestAdd_Replace(t *testing.T) {
 
 func TestRemove(t *testing.T) {
 	mp := NewMemoryProvider("test", map[string][]byte{
-		"keyring://agentsh/removeme": []byte("present"),
+		"keyring://agentmon/removeme": []byte("present"),
 	})
-	mp.Remove("keyring://agentsh/removeme")
+	mp.Remove("keyring://agentmon/removeme")
 	_, err := mp.Fetch(context.Background(), secrets.SecretRef{
-		Scheme: "keyring", Host: "agentsh", Path: "removeme",
+		Scheme: "keyring", Host: "agentmon", Path: "removeme",
 	})
 	if !errors.Is(err, secrets.ErrNotFound) {
 		t.Errorf("Fetch after Remove = %v, want wrapping ErrNotFound", err)
@@ -1716,7 +1716,7 @@ func TestClose_Idempotent(t *testing.T) {
 
 func TestConcurrentAccess_NoRaces(t *testing.T) {
 	mp := NewMemoryProvider("test", map[string][]byte{
-		"keyring://agentsh/seed": []byte("initial"),
+		"keyring://agentmon/seed": []byte("initial"),
 	})
 
 	var wg sync.WaitGroup
@@ -1728,13 +1728,13 @@ func TestConcurrentAccess_NoRaces(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < iterations; i++ {
-			_ = mp.Add("keyring://agentsh/writer", []byte("w"))
-			mp.Remove("keyring://agentsh/writer")
+			_ = mp.Add("keyring://agentmon/writer", []byte("w"))
+			mp.Remove("keyring://agentmon/writer")
 		}
 	}()
 
 	// Readers: fetch the seeded URI.
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "seed"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "seed"}
 	for i := 0; i < readers; i++ {
 		wg.Add(1)
 		go func() {
@@ -1769,7 +1769,7 @@ import (
 	"sync"
 	"time"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // MemoryProvider is an in-memory secrets.SecretProvider for use in
@@ -1943,7 +1943,7 @@ import (
 	"errors"
 	"testing"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // ProviderContract runs a baseline set of behavioral assertions
@@ -1958,7 +1958,7 @@ import (
 //
 // The URI used to exercise Fetch (a well-known "never-exists"
 // keyring URI) is chosen to be valid per ParseRef but extremely
-// unlikely to hit any real secret: `keyring://agentsh-contract-probe/unset`.
+// unlikely to hit any real secret: `keyring://agentmon-contract-probe/unset`.
 // A real keyring provider that happened to have this entry set
 // would fail the NotFound assertion — which is acceptable because
 // the service name is obviously test-only. The keyring provider's
@@ -1978,7 +1978,7 @@ func ProviderContract(t *testing.T, name string, p secrets.SecretProvider) {
 	t.Run(name+"/FetchNotFound", func(t *testing.T) {
 		ref := secrets.SecretRef{
 			Scheme: "keyring",
-			Host:   "agentsh-contract-probe",
+			Host:   "agentmon-contract-probe",
 			Path:   "unset",
 		}
 		_, err := p.Fetch(context.Background(), ref)
@@ -2004,7 +2004,7 @@ func ProviderContract(t *testing.T, name string, p secrets.SecretProvider) {
 		// state here because t.Run subtests run sequentially.
 		ref := secrets.SecretRef{
 			Scheme: "keyring",
-			Host:   "agentsh-contract-probe",
+			Host:   "agentmon-contract-probe",
 			Path:   "unset",
 		}
 		_, err := p.Fetch(context.Background(), ref)
@@ -2022,7 +2022,7 @@ Expected: PASS. Four subtests under `TestProviderContract_AppliedToMemoryProvide
 
 - [ ] **Step 5: Apply the contract to the keyring provider**
 
-Open `internal/proxy/secrets/keyring/provider_test.go`. Add this test (and add `"github.com/agentsh/agentsh/internal/proxy/secrets/secretstest"` to the import block):
+Open `internal/proxy/secrets/keyring/provider_test.go`. Add this test (and add `"github.com/diffsec/agentmon/internal/proxy/secrets/secretstest"` to the import block):
 
 ```go
 func TestProviderContract_AppliedToKeyringProvider(t *testing.T) {
@@ -2038,7 +2038,7 @@ func TestProviderContract_AppliedToKeyringProvider(t *testing.T) {
 Also import:
 
 ```go
-"github.com/agentsh/agentsh/internal/proxy/secrets/secretstest"
+"github.com/diffsec/agentmon/internal/proxy/secrets/secretstest"
 ```
 
 - [ ] **Step 6: Run the keyring contract test**
@@ -2097,12 +2097,12 @@ Expected: empty output. Plan 3 explicitly does not touch the dormant `pkg/secret
 
 - [ ] **Step 6: Verify zero imports of the new package from outside `internal/proxy/secrets/`**
 
-Run: `grep -r "agentsh/internal/proxy/secrets" --include="*.go" . | grep -v "^./internal/proxy/secrets/" | grep -v "^./.claude/" || echo "clean"`
+Run: `grep -r "agentmon/internal/proxy/secrets" --include="*.go" . | grep -v "^./internal/proxy/secrets/" | grep -v "^./.claude/" || echo "clean"`
 Expected: output is exactly `clean`. If any file outside `internal/proxy/secrets/` imports from it, that is a scope violation — investigate and remove before merging.
 
 - [ ] **Step 7: Verify zero imports of the `secretstest` package from non-test files**
 
-Run: `grep -rn "agentsh/internal/proxy/secrets/secretstest" --include="*.go" . | grep -v "_test.go" | grep -v "^./.claude/" || echo "clean"`
+Run: `grep -rn "agentmon/internal/proxy/secrets/secretstest" --include="*.go" . | grep -v "_test.go" | grep -v "^./.claude/" || echo "clean"`
 Expected: output is exactly `clean`. If any `.go` file (not `_test.go`) imports `secretstest`, that is a production-code-imports-test-helpers violation — fix before merging.
 
 - [ ] **Step 8: Inspect the full `go.sum` delta one more time**
@@ -2162,7 +2162,7 @@ Run through this list after Task 10 completes:
 
 1. **`go-keyring` does not accept a `context.Context`.** Do not wrap the library call in a goroutine and `select` on `ctx.Done()` — that creates an orphan goroutine on cancel. Check `ctx.Err()` once before the call and be done with it.
 
-2. **macOS Keychain prompts on first write.** On a developer machine, running the round-trip tests for the first time may show "agentsh wants to access your Keychain — Always Allow / Allow Once / Deny." Click Always Allow for test runs. CI macOS runners have a pre-unlocked Keychain so this does not apply there. Tests use per-run unique service names so one prompt does not carry across runs.
+2. **macOS Keychain prompts on first write.** On a developer machine, running the round-trip tests for the first time may show "agentmon wants to access your Keychain — Always Allow / Allow Once / Deny." Click Always Allow for test runs. CI macOS runners have a pre-unlocked Keychain so this does not apply there. Tests use per-run unique service names so one prompt does not carry across runs.
 
 3. **Linux Secret Service availability is brittle.** `dbus-launch` may or may not be running. The construction probe is the right gate. Do NOT try to start D-Bus yourself — that is the operator's job. The error message for `ErrKeyringUnavailable` should be actionable enough that an operator knows to run `dbus-daemon --session` or pick a different backend, but Plan 3's scope ends at returning the error.
 
@@ -2170,7 +2170,7 @@ Run through this list after Task 10 completes:
 
 5. **`secrets.ProviderConfig` is satisfied via `secrets.ProviderConfigMarker` embedding, not by declaring a local `providerConfig()` method.** Go qualifies unexported method identities by their declaring package, so `func (keyring.Config) providerConfig() {}` creates a method whose identity lives in package `keyring`, not `secrets` — it will NOT satisfy `secrets.ProviderConfig`. The correct pattern is to embed `secrets.ProviderConfigMarker` inside your Config struct; method promotion gives you a `providerConfig()` method anchored in package `secrets`. If a linter flags `ProviderConfigMarker`'s embedded zero-size field as "unused", do NOT remove it — the embedding IS what satisfies the interface.
 
-6. **The URI parser rejects query strings by design.** `keyring://agentsh/token?version=2` returns `ErrInvalidURI`. A future version may accept a query string for some providers — that change is non-breaking. Accepting them now and removing support later WOULD be breaking.
+6. **The URI parser rejects query strings by design.** `keyring://agentmon/token?version=2` returns `ErrInvalidURI`. A future version may accept a query string for some providers — that change is non-breaking. Accepting them now and removing support later WOULD be breaking.
 
 7. **Every test file in every provider subpackage must use `skipIfUnavailable`-style skips for anything that touches the real OS keyring.** A developer running `go test ./...` on a headless CI box should see skips, not failures. `TestName_ReturnsKeyring` is explicitly the pattern for tests that do NOT touch the OS — do NOT use `skipIfUnavailable` for it.
 

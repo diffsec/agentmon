@@ -103,7 +103,7 @@ end-to-end (pointer-distinct, value-equal, mutation-isolated).
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-cd /home/eran/work/agentsh
+cd /home/eran/work/agentmon
 go test ./pkg/types/ -run TestEvent_ChainField -v
 ```
 
@@ -1959,10 +1959,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/store"
-	"github.com/agentsh/agentsh/internal/store/sqlite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/store"
+	"github.com/diffsec/agentmon/internal/store/sqlite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 ```
 
@@ -2178,8 +2178,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // chainingFakeSink simulates a second chained sink. It serializes events

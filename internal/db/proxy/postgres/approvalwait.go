@@ -8,9 +8,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 type approvalOutcome struct {
@@ -79,7 +79,7 @@ func (pc *proxyConn) runApprovalWait(ctx context.Context, origFrame pgproto3.Fro
 		return pc.state.upstreamFE.Flush()
 	}
 	pc.emitApprovalFrameEvent(ctx, origFrame, a, approvalDenyDecision(a.Rule, approvalReason(out.denyAction)), out.denyAction)
-	actions := statemachine.DenyRoute(*pc.state.smState, a.Rule, "denied by AgentSH policy: "+approvalReason(out.denyAction), sqlstateInsufficientPrivilege)
+	actions := statemachine.DenyRoute(*pc.state.smState, a.Rule, "denied by AgentMon policy: "+approvalReason(out.denyAction), sqlstateInsufficientPrivilege)
 	return pc.executeActions(ctx, origFrame, actions)
 }
 
@@ -117,7 +117,7 @@ func (pc *proxyConn) runSimpleQueryApproval(
 
 	denyDecisions := decisionsWithApprovalDeny(decisions, approveIndex, approvalReason(out.denyAction))
 	pc.emitDenyEvents(ctx, stmts, denyDecisions, q.String, batchSHA, out.denyAction)
-	actions := statemachine.DenyRoute(*pc.state.smState, rule, "denied by AgentSH policy: "+approvalReason(out.denyAction), sqlstateInsufficientPrivilege)
+	actions := statemachine.DenyRoute(*pc.state.smState, rule, "denied by AgentMon policy: "+approvalReason(out.denyAction), sqlstateInsufficientPrivilege)
 	return pc.executeActions(ctx, q, actions)
 }
 

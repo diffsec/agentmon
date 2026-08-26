@@ -798,7 +798,7 @@ Expected: FAIL — package doesn't exist
 // internal/ptrace/doc.go
 //go:build linux
 
-// Package ptrace implements a ptrace-based syscall tracer backend for agentsh.
+// Package ptrace implements a ptrace-based syscall tracer backend for agentmon.
 // It provides syscall-level interception for environments where seccomp user-notify
 // and eBPF are unavailable (e.g., AWS Fargate with SYS_PTRACE).
 //

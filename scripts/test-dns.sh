@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# DNS integration test for agentsh
+# DNS integration test for agentmon
 # Tests that DNS resolution works correctly through the ptrace DNS proxy:
 #   - Allowed domains resolve successfully
 #   - Denied domains are blocked
@@ -134,19 +134,19 @@ file_rules:
 YAML
 
 # --- Start server ---
-echo "Starting agentsh server..."
-export AGENTSH_SERVER="http://127.0.0.1:9876"
-agentsh server --config "$tmp/config.yml" >"$tmp/server.log" 2>&1 &
+echo "Starting agentmon server..."
+export AGENTMON_SERVER="http://127.0.0.1:9876"
+agentmon server --config "$tmp/config.yml" >"$tmp/server.log" 2>&1 &
 SERVER_PID="$!"
 
 # Wait for health
 for _ in $(seq 1 200); do
-  if curl -fsS "${AGENTSH_SERVER}/health" >/dev/null 2>&1; then
+  if curl -fsS "${AGENTMON_SERVER}/health" >/dev/null 2>&1; then
     break
   fi
   sleep 0.05
 done
-if ! curl -fsS "${AGENTSH_SERVER}/health" >/dev/null 2>&1; then
+if ! curl -fsS "${AGENTMON_SERVER}/health" >/dev/null 2>&1; then
   echo "FATAL: server failed to become ready"
   cat "$tmp/server.log" >&2 || true
   exit 1
@@ -154,7 +154,7 @@ fi
 echo "Server ready."
 
 # --- Create session ---
-sid_json="$(agentsh session create --workspace /root --policy dns-test --json)"
+sid_json="$(agentmon session create --workspace /root --policy dns-test --json)"
 sid="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["id"])' <<<"$sid_json")"
 if [[ -z "$sid" ]]; then
   echo "FATAL: failed to parse session id"
@@ -168,7 +168,7 @@ echo ""
 # This test requires upstream DNS connectivity; skip gracefully if unavailable.
 echo "Test 1: DNS resolution for allowed domain (github.com)"
 set +e
-dns_allow_out="$(agentsh exec "$sid" -- python3 -c "
+dns_allow_out="$(agentmon exec "$sid" -- python3 -c "
 import socket
 try:
     result = socket.getaddrinfo('github.com', 443)
@@ -191,7 +191,7 @@ fi
 # --- Test 2: DNS resolution for denied domain ---
 echo "Test 2: DNS resolution for denied domain (evil.com)"
 set +e
-dns_deny_out="$(agentsh exec "$sid" -- python3 -c "
+dns_deny_out="$(agentmon exec "$sid" -- python3 -c "
 import socket
 try:
     result = socket.getaddrinfo('evil.com', 443)
@@ -216,7 +216,7 @@ fi
 echo "Test 3: Symlink escape (/tmp/escape -> /etc/passwd should be denied)"
 set +e
 ln -sf /etc/passwd /tmp/escape 2>/dev/null || true
-symlink_out="$(agentsh exec "$sid" -- cat /tmp/escape 2>&1)"
+symlink_out="$(agentmon exec "$sid" -- cat /tmp/escape 2>&1)"
 symlink_rc=$?
 rm -f /tmp/escape
 set -e
@@ -232,7 +232,7 @@ fi
 # --- Test 4: Python subprocess sudo ---
 echo "Test 4: Python subprocess running sudo (should not hang)"
 set +e
-sudo_out="$(timeout 60 agentsh exec "$sid" -- python3 -c "
+sudo_out="$(timeout 60 agentmon exec "$sid" -- python3 -c "
 import subprocess
 r = subprocess.run(['sudo','echo','hi'], capture_output=True, timeout=30)
 print('RC:'+str(r.returncode))
@@ -251,7 +251,7 @@ fi
 # --- Test 5: Python subprocess ls ---
 echo "Test 5: Python subprocess running ls (should not hang)"
 set +e
-ls_out="$(timeout 60 agentsh exec "$sid" -- python3 -c "
+ls_out="$(timeout 60 agentmon exec "$sid" -- python3 -c "
 import subprocess
 r = subprocess.run(['ls','/tmp'], capture_output=True, timeout=30)
 print('OK:'+r.stdout.decode()[:20])

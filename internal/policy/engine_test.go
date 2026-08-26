@@ -4,7 +4,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -260,7 +260,7 @@ func TestEngine_GetEnvInject(t *testing.T) {
 		Version: 1,
 		Name:    "test-env-inject",
 		EnvInject: map[string]string{
-			"BASH_ENV":      "/usr/lib/agentsh/bash_startup.sh",
+			"BASH_ENV":      "/usr/lib/agentmon/bash_startup.sh",
 			"MY_CUSTOM_VAR": "custom_value",
 		},
 	}
@@ -269,7 +269,7 @@ func TestEngine_GetEnvInject(t *testing.T) {
 
 	env := e.GetEnvInject()
 	require.Len(t, env, 2)
-	require.Equal(t, "/usr/lib/agentsh/bash_startup.sh", env["BASH_ENV"])
+	require.Equal(t, "/usr/lib/agentmon/bash_startup.sh", env["BASH_ENV"])
 	require.Equal(t, "custom_value", env["MY_CUSTOM_VAR"])
 }
 

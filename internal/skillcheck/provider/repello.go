@@ -3,7 +3,7 @@ package provider
 import (
 	"context"
 
-	"github.com/agentsh/agentsh/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck"
 )
 
 type repelloStub struct{}

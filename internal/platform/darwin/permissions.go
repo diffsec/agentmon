@@ -14,7 +14,7 @@ import (
 type PermissionTier int
 
 const (
-	// TierEnterprise requires the agentsh system extension (ESF + Network Extension).
+	// TierEnterprise requires the agentmon system extension (ESF + Network Extension).
 	TierEnterprise PermissionTier = iota
 	// TierStandard uses root + pf, no system extension.
 	TierStandard
@@ -155,18 +155,18 @@ func (p *Permissions) computeMissingPermissions() {
 			Name:        "System Extension",
 			Description: "ESF-based file/process monitoring and Network Extension filtering",
 			Impact:      "Cannot intercept or block file operations. File monitoring unavailable.",
-			HowToEnable: "Install the agentsh macOS app bundle which includes the system extension.\n" +
+			HowToEnable: "Install the agentmon macOS app bundle which includes the system extension.\n" +
 				"After installation, approve it in System Settings > Privacy & Security.",
 			Required: false,
 		}
 		switch {
 		case p.SysExtProbeFailed:
 			mp.Impact = "System extension liveness could not be verified. ESF enforcement cannot be confirmed."
-			mp.HowToEnable = "Diagnose with: launchctl print system/<TeamID>.ai.canyonroad.agentsh.SysExt (TeamID: systemextensionsctl list)\n" +
+			mp.HowToEnable = "Diagnose with: launchctl print system/<TeamID>.dev.diffsec.agentmon.SysExt (TeamID: systemextensionsctl list)\n" +
 				"Detected: " + p.SysExtDetail
 		case p.SysExtActivated:
 			mp.Impact = "System extension is activated but its process is not running. ESF enforcement is absent."
-			mp.HowToEnable = "Diagnose with: launchctl print system/<TeamID>.ai.canyonroad.agentsh.SysExt (TeamID: systemextensionsctl list)\n" +
+			mp.HowToEnable = "Diagnose with: launchctl print system/<TeamID>.dev.diffsec.agentmon.SysExt (TeamID: systemextensionsctl list)\n" +
 				"Detected: " + p.SysExtDetail
 		}
 		p.MissingPermissions = append(p.MissingPermissions, mp)
@@ -177,7 +177,7 @@ func (p *Permissions) computeMissingPermissions() {
 			Name:        "Root Access",
 			Description: "Administrator privileges for pf network interception",
 			Impact:      "Cannot use pf for network interception. Network policy enforcement disabled.",
-			HowToEnable: "Run agentsh with sudo:\n  sudo agentsh server",
+			HowToEnable: "Run agentmon with sudo:\n  sudo agentmon server",
 			Required:    false,
 		})
 	}
@@ -188,8 +188,8 @@ func (p *Permissions) computeMissingPermissions() {
 			Description: "Access to protected directories (Mail, Messages, Safari, etc.)",
 			Impact:      "Cannot monitor file operations in protected system directories.",
 			HowToEnable: "1. Open System Settings > Privacy & Security > Full Disk Access\n" +
-				"2. Click '+' and add Terminal.app or the agentsh binary\n" +
-				"3. Restart agentsh",
+				"2. Click '+' and add Terminal.app or the agentmon binary\n" +
+				"3. Restart agentmon",
 			Required: false,
 		})
 	}

@@ -5,7 +5,7 @@ package capabilities
 import (
 	"os/exec"
 
-	"github.com/agentsh/agentsh/internal/platform/darwin"
+	"github.com/diffsec/agentmon/internal/platform/darwin"
 )
 
 func buildDarwinDomains(caps map[string]any, esfDetail string) []ProtectionDomain {
@@ -131,7 +131,7 @@ func checkLima() bool {
 }
 
 func checkMacwrap() bool {
-	_, err := exec.LookPath("agentsh-macwrap")
+	_, err := exec.LookPath("agentmon-macwrap")
 	return err == nil
 }
 

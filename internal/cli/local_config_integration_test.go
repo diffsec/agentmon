@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestUserLocalConfigIntegration(t *testing.T) {
@@ -15,7 +15,7 @@ func TestUserLocalConfigIntegration(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create user config
-	userConfigDir := filepath.Join(tmpDir, "user", ".config", "agentsh")
+	userConfigDir := filepath.Join(tmpDir, "user", ".config", "agentmon")
 	os.MkdirAll(userConfigDir, 0755)
 	userConfigFile := filepath.Join(userConfigDir, "config.yaml")
 	userPoliciesDir := filepath.Join(userConfigDir, "policies")
@@ -38,10 +38,10 @@ commands:
 `
 	os.WriteFile(filepath.Join(userPoliciesDir, "user-policy.yaml"), []byte(userPolicy), 0644)
 
-	// Test: Load config from user location via AGENTSH_CONFIG env var
+	// Test: Load config from user location via AGENTMON_CONFIG env var
 	// (Since we can't easily mock GetUserConfigDir, we use the env var approach)
-	os.Setenv("AGENTSH_CONFIG", userConfigFile)
-	defer os.Unsetenv("AGENTSH_CONFIG")
+	os.Setenv("AGENTMON_CONFIG", userConfigFile)
+	defer os.Unsetenv("AGENTMON_CONFIG")
 
 	cfg, source, err := loadLocalConfig("")
 	if err != nil {

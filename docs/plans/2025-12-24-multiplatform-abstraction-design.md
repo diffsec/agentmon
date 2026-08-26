@@ -6,7 +6,7 @@
 
 ## Summary
 
-Create a platform abstraction layer that enables cross-platform support for agentsh. Start by refactoring the existing Linux implementation to use the new abstractions, validating the interface design with working code, then add macOS and Windows implementations.
+Create a platform abstraction layer that enables cross-platform support for agentmon. Start by refactoring the existing Linux implementation to use the new abstractions, validating the interface design with working code, then add macOS and Windows implementations.
 
 ## Key Decisions
 
@@ -93,13 +93,13 @@ type InterceptionManager interface {
 
 **Before (current):**
 ```go
-import "agentsh/internal/fsmonitor"
+import "agentmon/internal/fsmonitor"
 mount, err := fsmonitor.Mount(workspace, policy, eventChan)
 ```
 
 **After (new):**
 ```go
-import "agentsh/internal/platform"
+import "agentmon/internal/platform"
 plat, err := platform.New()
 mount, err := plat.Filesystem().Mount(platform.FSConfig{...})
 ```

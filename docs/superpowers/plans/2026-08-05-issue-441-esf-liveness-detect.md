@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** `agentsh detect` (and the tier/status surfaces) report `esf` available only when the system extension *process is provably running*, not merely activated — with diagnostics explaining why when it isn't.
+**Goal:** `agentmon detect` (and the tier/status surfaces) report `esf` available only when the system extension *process is provably running*, not merely activated — with diagnostics explaining why when it isn't.
 
-**Architecture:** One new liveness helper in `internal/platform/darwin` (`CheckSysExtLiveness`) parses `systemextensionsctl list` (activation + team ID) and `launchctl print system/<TeamID>.ai.canyonroad.agentsh.SysExt` (service state), failing closed on any probe failure. The three existing activation-only call sites (`capabilities/detect_darwin.go`, `platform/darwin/permissions.go`, `platform/darwin/sysext.go`) collapse onto it. Reason-sensitive tips in `capabilities/tips.go` turn the liveness `Detail` string into actionable guidance (e.g. `OS_REASON_EXEC` → AMFI/provisioning-profile hint).
+**Architecture:** One new liveness helper in `internal/platform/darwin` (`CheckSysExtLiveness`) parses `systemextensionsctl list` (activation + team ID) and `launchctl print system/<TeamID>.dev.diffsec.agentmon.SysExt` (service state), failing closed on any probe failure. The three existing activation-only call sites (`capabilities/detect_darwin.go`, `platform/darwin/permissions.go`, `platform/darwin/sysext.go`) collapse onto it. Reason-sensitive tips in `capabilities/tips.go` turn the liveness `Detail` string into actionable guidance (e.g. `OS_REASON_EXEC` → AMFI/provisioning-profile hint).
 
 **Tech Stack:** Go stdlib only (`os/exec` with `CommandContext` timeouts, pure string parsing). Tests: std `testing` in `platform/darwin` and `detect_darwin_test.go`; `testify/assert` in `tips_test.go` (existing per-file conventions).
 
@@ -12,11 +12,11 @@
 
 **Branch:** work on `issue-441-esf-liveness-detect` (already exists, contains the spec commit).
 
-**Module path:** `github.com/agentsh/agentsh`
+**Module path:** `github.com/diffsec/agentmon`
 
 **Verified environment facts** (from design session, on a machine exhibiting the bug):
 - `systemextensionsctl list` row format (tab-separated, bundle ID appears TWICE — as identifier and display name):
-  `*	*	WCKWMMKJ35	ai.canyonroad.agentsh.SysExt (1.0/14)	ai.canyonroad.agentsh.SysExt	[activated enabled]`
+  `*	*	LWSYS6YTUZ	dev.diffsec.agentmon.SysExt (1.0/14)	dev.diffsec.agentmon.SysExt	[activated enabled]`
 - `launchctl print system/<TeamID>.<bundleID>` works unprivileged; service-level `state = …` is the FIRST `state =` line; nested sub-sections contain their own `state = active` lines.
 - `platform/darwin` builds without CGO (`sysext_activate_nocgo.go` fallback), and nothing in `platform/darwin` imports `internal/capabilities` — the new `capabilities → platform/darwin` edge is verified acyclic, so no build-graph risk.
 - `DetectResult.Table()` already renders `DetectedBackend.Detail` — no rendering changes needed.
@@ -43,35 +43,35 @@ package darwin
 
 import "testing"
 
-// Real output captured 2026-08-05 from a machine where the agentsh sysext is
+// Real output captured 2026-08-05 from a machine where the agentmon sysext is
 // activated but AMFI/launchd keeps it from running (the #441 specimen). Note
 // the co-installed beacon extension: whole-output substring matching would
 // false-positive on it.
 const sysextListBoth = `2 extension(s)
 --- com.apple.system_extension.endpoint_security (Go to 'System Settings > General > Login Items & Extensions > Endpoint Security Extensions' to modify these system extension(s))
 enabled	active	teamID	bundleID (version)	name	[state]
-*	*	WCKWMMKJ35	ai.canyonroad.agentsh.SysExt (1.0/14)	ai.canyonroad.agentsh.SysExt	[activated enabled]
-*	*	WCKWMMKJ35	ai.canyonroad.beacon.sysext (0.1.0/1781653639)	Beacon System Extension	[activated enabled]
+*	*	LWSYS6YTUZ	dev.diffsec.agentmon.SysExt (1.0/14)	dev.diffsec.agentmon.SysExt	[activated enabled]
+*	*	LWSYS6YTUZ	ai.canyonroad.beacon.sysext (0.1.0/1781653639)	Beacon System Extension	[activated enabled]
 `
 
 const sysextListBeaconOnly = `1 extension(s)
 --- com.apple.system_extension.endpoint_security
 enabled	active	teamID	bundleID (version)	name	[state]
-*	*	WCKWMMKJ35	ai.canyonroad.beacon.sysext (0.1.0/1781653639)	Beacon System Extension	[activated enabled]
+*	*	LWSYS6YTUZ	ai.canyonroad.beacon.sysext (0.1.0/1781653639)	Beacon System Extension	[activated enabled]
 `
 
 const sysextListWaiting = `1 extension(s)
 --- com.apple.system_extension.endpoint_security
 enabled	active	teamID	bundleID (version)	name	[state]
-		WCKWMMKJ35	ai.canyonroad.agentsh.SysExt (1.0/14)	ai.canyonroad.agentsh.SysExt	[activated waiting for user]
+		LWSYS6YTUZ	dev.diffsec.agentmon.SysExt (1.0/14)	dev.diffsec.agentmon.SysExt	[activated waiting for user]
 `
 
 // Upgrade transient: old version terminating, new one activated enabled.
 const sysextListUpgrade = `2 extension(s)
 --- com.apple.system_extension.endpoint_security
 enabled	active	teamID	bundleID (version)	name	[state]
-		WCKWMMKJ35	ai.canyonroad.agentsh.SysExt (1.0/13)	ai.canyonroad.agentsh.SysExt	[terminated waiting to uninstall on reboot]
-*	*	WCKWMMKJ35	ai.canyonroad.agentsh.SysExt (1.0/14)	ai.canyonroad.agentsh.SysExt	[activated enabled]
+		LWSYS6YTUZ	dev.diffsec.agentmon.SysExt (1.0/13)	dev.diffsec.agentmon.SysExt	[terminated waiting to uninstall on reboot]
+*	*	LWSYS6YTUZ	dev.diffsec.agentmon.SysExt (1.0/14)	dev.diffsec.agentmon.SysExt	[activated enabled]
 `
 
 func TestParseSysExtList(t *testing.T) {
@@ -81,10 +81,10 @@ func TestParseSysExtList(t *testing.T) {
 		wantActivated bool
 		wantTeamID    string
 	}{
-		{"activated with neighbor extension", sysextListBoth, true, "WCKWMMKJ35"},
+		{"activated with neighbor extension", sysextListBoth, true, "LWSYS6YTUZ"},
 		{"neighbor only must not match", sysextListBeaconOnly, false, ""},
 		{"waiting for user is not activated", sysextListWaiting, false, ""},
-		{"upgrade transient finds enabled row", sysextListUpgrade, true, "WCKWMMKJ35"},
+		{"upgrade transient finds enabled row", sysextListUpgrade, true, "LWSYS6YTUZ"},
 		{"empty output", "", false, ""},
 		{"garbage output", "no extensions here\njust noise\n", false, ""},
 	}
@@ -112,7 +112,7 @@ Expected: FAIL to build with `undefined: parseSysExtList`
 First, delete line 115 of `internal/platform/darwin/sysext_activate_cgo.go`:
 
 ```go
-const sysExtBundleID = "ai.canyonroad.agentsh.SysExt"
+const sysExtBundleID = "dev.diffsec.agentmon.SysExt"
 ```
 
 That file is `//go:build darwin && cgo`, so with CGO enabled (the default on macOS) it compiles into the same package and would collide with the const below. `sysext_liveness.go` (plain `//go:build darwin`) becomes the owner — it is built on darwin both with and without cgo, so the remaining use at `sysext_activate_cgo.go:120` keeps compiling in every build mode.
@@ -132,7 +132,7 @@ import (
 )
 
 const (
-	sysExtBundleID     = "ai.canyonroad.agentsh.SysExt"
+	sysExtBundleID     = "dev.diffsec.agentmon.SysExt"
 	livenessCmdTimeout = 5 * time.Second
 )
 
@@ -215,13 +215,13 @@ Append to `internal/platform/darwin/sysext_liveness_test.go`:
 // Trimmed real output (2026-08-05) from the #441 specimen machine. The
 // nested "state = active" lines below the top-level state are real — the
 // parser must take only the FIRST "state =" line.
-const launchdSpawnScheduled = `system/WCKWMMKJ35.ai.canyonroad.agentsh.SysExt = {
+const launchdSpawnScheduled = `system/LWSYS6YTUZ.dev.diffsec.agentmon.SysExt = {
 	active count = 0
 	path = (submitted by smd[532])
 	type = Submitted
 	state = spawn scheduled
 
-	program = /Library/SystemExtensions/0FED1DDB-30D3-4AAD-A31C-8E7F1229868E/ai.canyonroad.agentsh.SysExt.systemextension/Contents/MacOS/ai.canyonroad.agentsh.SysExt
+	program = /Library/SystemExtensions/0FED1DDB-30D3-4AAD-A31C-8E7F1229868E/dev.diffsec.agentmon.SysExt.systemextension/Contents/MacOS/dev.diffsec.agentmon.SysExt
 	domain = system
 	minimum runtime = 10
 	exit timeout = 5
@@ -229,23 +229,23 @@ const launchdSpawnScheduled = `system/WCKWMMKJ35.ai.canyonroad.agentsh.SysExt = 
 	last exit code = 1
 
 	event triggers = {
-		ai.canyonroad.agentsh.SysExt => {
+		dev.diffsec.agentmon.SysExt => {
 			state = active
 		}
-		ai.canyonroad.agentsh.SysExt.esf => {
+		dev.diffsec.agentmon.SysExt.esf => {
 			state = active
 		}
 	}
 }
 `
 
-const launchdRunning = `system/WCKWMMKJ35.ai.canyonroad.agentsh.SysExt = {
+const launchdRunning = `system/LWSYS6YTUZ.dev.diffsec.agentmon.SysExt = {
 	active count = 1
 	path = (submitted by smd[532])
 	type = Submitted
 	state = running
 
-	program = /Library/SystemExtensions/0FED1DDB-30D3-4AAD-A31C-8E7F1229868E/ai.canyonroad.agentsh.SysExt.systemextension/Contents/MacOS/ai.canyonroad.agentsh.SysExt
+	program = /Library/SystemExtensions/0FED1DDB-30D3-4AAD-A31C-8E7F1229868E/dev.diffsec.agentmon.SysExt.systemextension/Contents/MacOS/dev.diffsec.agentmon.SysExt
 	pid = 4242
 	domain = system
 	runs = 1
@@ -254,7 +254,7 @@ const launchdRunning = `system/WCKWMMKJ35.ai.canyonroad.agentsh.SysExt = {
 `
 
 // Synthesized from the #436 report (AMFI rejects the binary at exec).
-const launchdAMFIBlocked = `system/WCKWMMKJ35.ai.canyonroad.agentsh.SysExt = {
+const launchdAMFIBlocked = `system/LWSYS6YTUZ.dev.diffsec.agentmon.SysExt = {
 	active count = 0
 	state = spawn scheduled
 	runs = 324
@@ -465,7 +465,7 @@ func TestCheckSysExtLiveness_DecisionTable(t *testing.T) {
 				t.Errorf("Detail = %q, want substring %q", got.Detail, tt.wantDetailSub)
 			}
 			if tt.wantActivated && tt.launchctlErr == nil && tt.launchctlOut != "" {
-				want := "system/WCKWMMKJ35." + sysExtBundleID
+				want := "system/LWSYS6YTUZ." + sysExtBundleID
 				if launchctlLabel != want {
 					t.Errorf("launchctl label = %q, want %q", launchctlLabel, want)
 				}
@@ -485,7 +485,7 @@ Expected: FAIL to build with `undefined: CheckSysExtLiveness`
 Append to `internal/platform/darwin/sysext_liveness.go`:
 
 ```go
-// CheckSysExtLiveness probes whether the agentsh system extension is
+// CheckSysExtLiveness probes whether the agentmon system extension is
 // activated AND its process is actually running. Decision table (fail
 // closed — Running requires positive proof of state = running):
 //
@@ -619,7 +619,7 @@ In `internal/capabilities/detect_darwin.go`:
 import (
 	"os/exec"
 
-	"github.com/agentsh/agentsh/internal/platform/darwin"
+	"github.com/diffsec/agentmon/internal/platform/darwin"
 )
 ```
 
@@ -699,7 +699,7 @@ func TestLookupTip_ESFReasonSensitive(t *testing.T) {
 	// Not installed at all: fallback install tip unchanged.
 	fallback := lookupTip("esf", "not activated")
 	assert.NotNil(t, fallback)
-	assert.Contains(t, fallback.Action, "Install the agentsh macOS app bundle")
+	assert.Contains(t, fallback.Action, "Install the agentmon macOS app bundle")
 }
 ```
 
@@ -714,10 +714,10 @@ In `tips.go`, replace the `"esf"` entry in `tipsByBackend`:
 
 ```go
 	"esf": {
-		{Contains: "OS_REASON_EXEC", Tip: Tip{Feature: "esf", Impact: "Endpoint Security enforcement absent (extension binary rejected at exec)", Action: "macOS refuses to launch the activated extension — likely AMFI/code-signing (e.g. missing embedded.provisionprofile, see #436). Verify the profile inside the .systemextension bundle and reinstall, then check `launchctl print system/<TeamID>.ai.canyonroad.agentsh.SysExt`."}},
-		{Contains: "not running", Tip: Tip{Feature: "esf", Impact: "Endpoint Security enforcement absent (extension activated but not running)", Action: "Inspect `launchctl print system/<TeamID>.ai.canyonroad.agentsh.SysExt` for state and last exit reason."}},
-		{Contains: "could not be verified", Tip: Tip{Feature: "esf", Impact: "Endpoint Security liveness unverifiable", Action: "Could not verify the extension process is running. Check it manually: `launchctl print system/<TeamID>.ai.canyonroad.agentsh.SysExt`."}},
-		{Tip: Tip{Feature: "esf", Impact: "Endpoint Security Framework unavailable", Action: "Install the agentsh macOS app bundle with system extension"}},
+		{Contains: "OS_REASON_EXEC", Tip: Tip{Feature: "esf", Impact: "Endpoint Security enforcement absent (extension binary rejected at exec)", Action: "macOS refuses to launch the activated extension — likely AMFI/code-signing (e.g. missing embedded.provisionprofile, see #436). Verify the profile inside the .systemextension bundle and reinstall, then check `launchctl print system/<TeamID>.dev.diffsec.agentmon.SysExt`."}},
+		{Contains: "not running", Tip: Tip{Feature: "esf", Impact: "Endpoint Security enforcement absent (extension activated but not running)", Action: "Inspect `launchctl print system/<TeamID>.dev.diffsec.agentmon.SysExt` for state and last exit reason."}},
+		{Contains: "could not be verified", Tip: Tip{Feature: "esf", Impact: "Endpoint Security liveness unverifiable", Action: "Could not verify the extension process is running. Check it manually: `launchctl print system/<TeamID>.dev.diffsec.agentmon.SysExt`."}},
+		{Tip: Tip{Feature: "esf", Impact: "Endpoint Security Framework unavailable", Action: "Install the agentmon macOS app bundle with system extension"}},
 	},
 ```
 
@@ -730,7 +730,7 @@ Also refresh the legacy `darwinTips` esf entry (consumed only by `GenerateTips`,
 		Feature:  "esf",
 		CheckKey: "esf",
 		Impact:   "ESF enforcement unavailable (extension not installed or not running)",
-		Action:   "Install the agentsh macOS app bundle and ensure the system extension is approved and running (see `agentsh detect` detail).",
+		Action:   "Install the agentmon macOS app bundle and ensure the system extension is approved and running (see `agentmon detect` detail).",
 	},
 ```
 
@@ -781,7 +781,7 @@ func TestComputeMissingPermissions_SysExtBranches(t *testing.T) {
 	p := &Permissions{}
 	p.computeMissingPermissions()
 	mp := findMissing(t, p, "System Extension")
-	if !strings.Contains(mp.HowToEnable, "Install the agentsh macOS app bundle") {
+	if !strings.Contains(mp.HowToEnable, "Install the agentmon macOS app bundle") {
 		t.Errorf("HowToEnable = %q, want install guidance", mp.HowToEnable)
 	}
 
@@ -851,13 +851,13 @@ In `permissions.go`:
 			Name:        "System Extension",
 			Description: "ESF-based file/process monitoring and Network Extension filtering",
 			Impact:      "Cannot intercept or block file operations. File monitoring unavailable.",
-			HowToEnable: "Install the agentsh macOS app bundle which includes the system extension.\n" +
+			HowToEnable: "Install the agentmon macOS app bundle which includes the system extension.\n" +
 				"After installation, approve it in System Settings > Privacy & Security.",
 			Required: false,
 		}
 		if p.SysExtActivated {
 			mp.Impact = "System extension is activated but its process is not running. ESF enforcement is absent."
-			mp.HowToEnable = "Diagnose with: launchctl print system/<TeamID>.ai.canyonroad.agentsh.SysExt\n" +
+			mp.HowToEnable = "Diagnose with: launchctl print system/<TeamID>.dev.diffsec.agentmon.SysExt\n" +
 				"Detected: " + p.SysExtDetail
 		}
 		p.MissingPermissions = append(p.MissingPermissions, mp)
@@ -901,7 +901,7 @@ In `sysext_test.go`:
 		State:       "running",
 		LastExit:    "",
 		Version:     "1.0.0",
-		BundleID:    "ai.canyonroad.agentsh.SysExt",
+		BundleID:    "dev.diffsec.agentmon.SysExt",
 		ExtensionID: "ext-123",
 		Error:       "",
 	}
@@ -990,9 +990,9 @@ Expected: clean builds (the new file is `//go:build darwin`; stub parity covers 
 
 - [ ] **Step 3: Live acceptance on the dev machine**
 
-Run: `go run ./cmd/agentsh detect -o json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['security_mode'], d['capabilities']['esf'], d['capabilities']['esf_activated'])"`
+Run: `go run ./cmd/agentmon detect -o json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['security_mode'], d['capabilities']['esf'], d['capabilities']['esf_activated'])"`
 
-Expected on the design machine (sysext activated, `spawn scheduled`): security mode is NOT `esf` (falls back to `lima`/`dynamic-seatbelt`/`sandbox-exec`), `esf` is `false`, `esf_activated` is `true`. Also run `go run ./cmd/agentsh detect` (table) and confirm the esf rows show the liveness detail and a tip block mentions `launchctl print`. If the machine's sysext has been repaired since the design session (`launchctl print system/WCKWMMKJ35.ai.canyonroad.agentsh.SysExt` shows `state = running`), expect `esf true` instead — verify against actual launchd state, and use the unit fixtures as the source of truth for the broken path.
+Expected on the design machine (sysext activated, `spawn scheduled`): security mode is NOT `esf` (falls back to `lima`/`dynamic-seatbelt`/`sandbox-exec`), `esf` is `false`, `esf_activated` is `true`. Also run `go run ./cmd/agentmon detect` (table) and confirm the esf rows show the liveness detail and a tip block mentions `launchctl print`. If the machine's sysext has been repaired since the design session (`launchctl print system/LWSYS6YTUZ.dev.diffsec.agentmon.SysExt` shows `state = running`), expect `esf true` instead — verify against actual launchd state, and use the unit fixtures as the source of truth for the broken path.
 
 - [ ] **Step 4: Push branch and open PR**
 
@@ -1003,7 +1003,7 @@ Fixes #441.
 
 `detect` (and the tier/status surfaces) reported `esf ✓` from `systemextensionsctl list` "activated enabled" alone, so an activated-but-not-running extension (AMFI-blocked #436, launchd-throttled, crash-looping) scored 90 while enforcing nothing.
 
-- New `darwin.CheckSysExtLiveness()`: activation via per-line `systemextensionsctl` parse (+ team ID), liveness via `launchctl print system/<TeamID>.ai.canyonroad.agentsh.SysExt` requiring `state = running`; fail-closed on probe failure.
+- New `darwin.CheckSysExtLiveness()`: activation via per-line `systemextensionsctl` parse (+ team ID), liveness via `launchctl print system/<TeamID>.dev.diffsec.agentmon.SysExt` requiring `state = running`; fail-closed on probe failure.
 - `caps["esf"]` = running (honest mode selection + score), new `caps["esf_activated"]` preserves the distinction; esf backends carry the liveness detail.
 - Reason-sensitive tips: `OS_REASON_EXEC` → AMFI/provisionprofile guidance; not-running / unverifiable → launchctl diagnostics.
 - `TierEnterprise` and `SysExtStatus.Running` now require real liveness; `SysExtStatus` gains `State`/`LastExit`.

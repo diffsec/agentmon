@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func parseExecInput(args []string, jsonStr string, timeoutFlag string, stream bool) (sessionID string, req types.ExecRequest, err error) {
@@ -16,8 +16,8 @@ func parseExecInput(args []string, jsonStr string, timeoutFlag string, stream bo
 // Formats supported:
 //   - SESSION_ID -- COMMAND [ARGS...]
 //   - SESSION_ID COMMAND [ARGS...]       (no -- separator)
-//   - -- COMMAND [ARGS...]               (with AGENTSH_SESSION_ID env var)
-//   - COMMAND [ARGS...]                  (with AGENTSH_SESSION_ID env var, no --)
+//   - -- COMMAND [ARGS...]               (with AGENTMON_SESSION_ID env var)
+//   - COMMAND [ARGS...]                  (with AGENTMON_SESSION_ID env var, no --)
 func parseExecInputWithEnv(args []string, jsonStr string, timeoutFlag string, stream bool, envSessionID string) (sessionID string, req types.ExecRequest, err error) {
 	timeoutFlag = strings.TrimSpace(timeoutFlag)
 
@@ -30,7 +30,7 @@ func parseExecInputWithEnv(args []string, jsonStr string, timeoutFlag string, st
 			sessionID = envSessionID
 		}
 		if sessionID == "" {
-			return "", types.ExecRequest{}, fmt.Errorf("session id is required (provide as argument or set AGENTSH_SESSION_ID)")
+			return "", types.ExecRequest{}, fmt.Errorf("session id is required (provide as argument or set AGENTMON_SESSION_ID)")
 		}
 		if err := json.Unmarshal([]byte(jsonStr), &req); err != nil {
 			return "", types.ExecRequest{}, fmt.Errorf("invalid --json: %w", err)
@@ -99,7 +99,7 @@ func parseExecInputWithEnv(args []string, jsonStr string, timeoutFlag string, st
 	}
 
 	if sessionID == "" {
-		return "", types.ExecRequest{}, fmt.Errorf("session id is required (provide as argument or set AGENTSH_SESSION_ID)")
+		return "", types.ExecRequest{}, fmt.Errorf("session id is required (provide as argument or set AGENTMON_SESSION_ID)")
 	}
 
 	if cmdStart >= len(args) {

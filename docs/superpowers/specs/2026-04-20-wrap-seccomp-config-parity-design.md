@@ -21,10 +21,10 @@ The `exec` path sets these file-monitor-related fields:
 
 The `wrap-init` path omits them.
 
-That omission is not cosmetic. `cmd/agentsh-unixwrap` copies those JSON fields
+That omission is not cosmetic. `cmd/agentmon-unixwrap` copies those JSON fields
 directly into `unixmon.FilterConfig`, and the seccomp filter only traps file and
 metadata syscalls when the corresponding booleans are set. As a result,
-`agentsh wrap` can create a server-side file handler from config, but the
+`agentmon wrap` can create a server-side file handler from config, but the
 wrapper never installs the notify rules needed to send those syscalls to the
 handler.
 
@@ -186,8 +186,8 @@ behavior. The bugfix should eliminate config drift without broadening scope.
 config + session + runtime booleans
   → buildSeccompWrapperConfig(...)
   → json.Marshal
-  → AGENTSH_SECCOMP_CONFIG
-  → agentsh-unixwrap
+  → AGENTMON_SECCOMP_CONFIG
+  → agentmon-unixwrap
   → unixmon.FilterConfig
 ```
 
@@ -198,7 +198,7 @@ config + session + runtime booleans
   → buildSeccompWrapperConfig(...)
   → json.Marshal
   → WrapInitResponse.SeccompConfig / WrapperEnv
-  → agentsh-unixwrap
+  → agentmon-unixwrap
   → unixmon.FilterConfig
 ```
 
@@ -277,8 +277,8 @@ The integration tests above are the required boundary.
 
 ## Success Criteria
 
-- `agentsh wrap` sets `file_monitor_enabled` the same way as the `exec` path.
-- `agentsh wrap` sets `intercept_metadata` and `block_io_uring` the same way as
+- `agentmon wrap` sets `file_monitor_enabled` the same way as the `exec` path.
+- `agentmon wrap` sets `intercept_metadata` and `block_io_uring` the same way as
   the `exec` path.
 - Fine-grained `file_rules` enforcement is restored on the `wrap` path.
 - Future `seccompWrapperConfig` fields have one shared derivation path instead

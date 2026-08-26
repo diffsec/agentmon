@@ -167,7 +167,7 @@ package postgres
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func TestNew_ReturnsParserPerDialect(t *testing.T) {
@@ -221,7 +221,7 @@ Create `internal/db/classify/postgres/parser.go`:
 
 ```go
 // Package postgres classifies PostgreSQL-family SQL into effects.ClassifiedStatement
-// per docs/agentsh-db-access-spec.md §7. The package exposes a Parser interface
+// per docs/agentmon-db-access-spec.md §7. The package exposes a Parser interface
 // (one implementation per build-tag-selected backend) plus pure helpers for
 // session-state evolution. No I/O, no goroutines.
 package postgres
@@ -229,7 +229,7 @@ package postgres
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // Dialect dispatches between Postgres-family parsers per spec §7.7.
@@ -480,7 +480,7 @@ package postgres
 import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func newParser(d Dialect) Parser {
@@ -513,7 +513,7 @@ import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	pgquery_wasm "github.com/wasilibs/go-pgquery"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func newParser(d Dialect) Parser {
@@ -786,9 +786,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/classify/postgres/corpus"
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/classify/postgres/corpus"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 func TestCorpus(t *testing.T) {
@@ -1013,7 +1013,7 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func TestExtractRelation_QualifiedAndUnqualified(t *testing.T) {
@@ -1072,7 +1072,7 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // extractRelation maps a pg_query RangeVar to an ObjectRef + Resolution per §6.
@@ -1130,7 +1130,7 @@ package postgres
 import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // classifyRawStmt dispatches a single RawStmt to the per-family handler.
@@ -1300,7 +1300,7 @@ package postgres
 import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // Stubs replaced in Tasks 5–13. Each writes an unknown effect with a
@@ -1333,7 +1333,7 @@ package postgres
 import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func classifySelect(cs *effects.ClassifiedStatement, s *pg_query.SelectStmt, sess SessionState, opts Options) {
@@ -1789,7 +1789,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func TestApplyStatement_SetSearchPath(t *testing.T) {
@@ -1855,7 +1855,7 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // classifySet maps SET / SET LOCAL / SET SESSION AUTHORIZATION / SET ROLE.
@@ -2495,7 +2495,7 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 var unsafeIOFunctions = map[string]effects.Subtype{
@@ -2699,7 +2699,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 var unloadRE = regexp.MustCompile(`(?is)^\s*UNLOAD\s*\(`)
@@ -2803,9 +2803,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/db/classify/postgres"
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/classify/postgres"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 func main() {
@@ -2952,7 +2952,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/classify/postgres/corpus"
+	"github.com/diffsec/agentmon/internal/db/classify/postgres/corpus"
 )
 
 // TestBackendParity runs the corpus under the active build (CGO when this

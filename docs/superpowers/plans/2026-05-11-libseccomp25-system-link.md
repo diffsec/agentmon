@@ -22,7 +22,7 @@
 - Modify: `.goreleaser.yml` — drop static CGO_LDFLAGS for amd64/arm64 Linux unixwrap entries.
 - Modify: `docs/superpowers/specs/2026-04-14-libseccomp-2.6-defense-in-depth-design.md` — add superseded-by header.
 - Delete: `internal/netmonitor/unix/seccomp_version_check.go`.
-- Delete: `cmd/agentsh-unixwrap/seccomp_version_check.go`.
+- Delete: `cmd/agentmon-unixwrap/seccomp_version_check.go`.
 - Delete: `internal/netmonitor/unix/seccomp_waitkill_test.go` (functionality replaced by sigurg_probe_test.go + load_linux_test.go).
 - Delete: `scripts/build-libseccomp.sh`.
 - Delete: `scripts/libseccomp-signing-key.asc`.
@@ -158,7 +158,7 @@ func TestExportBPFViaPipe(t *testing.T) {
 - [ ] **Step 3: Run the test**
 
 ```bash
-cd /home/eran/work/agentsh && go test ./internal/netmonitor/unix/ -run TestExportBPFViaPipe -v
+cd /home/eran/work/agentmon && go test ./internal/netmonitor/unix/ -run TestExportBPFViaPipe -v
 ```
 
 Expected: PASS. (The implementation in step 1 should already make it pass — TDD here is "write the test alongside" because the function is small enough that test-first writes itself in one step.)
@@ -388,7 +388,7 @@ func TestLoadRawFilter_PropagatesEINVAL(t *testing.T) {
 - [ ] **Step 3: Run the tests**
 
 ```bash
-cd /home/eran/work/agentsh && go test ./internal/netmonitor/unix/ -run "TestLoadRawFilter|TestExportBPF" -v
+cd /home/eran/work/agentmon && go test ./internal/netmonitor/unix/ -run "TestLoadRawFilter|TestExportBPF" -v
 ```
 
 Expected: all PASS.
@@ -556,7 +556,7 @@ func TestLoadFilterWithRetry_BothAttemptsFail(t *testing.T) {
 - [ ] **Step 3: Run the new tests**
 
 ```bash
-cd /home/eran/work/agentsh && go test ./internal/netmonitor/unix/ -run TestLoadFilterWithRetry -v
+cd /home/eran/work/agentmon && go test ./internal/netmonitor/unix/ -run TestLoadFilterWithRetry -v
 ```
 
 Expected: all PASS.
@@ -586,7 +586,7 @@ Replace the SetWaitKill+Load+GetNotifFd block. Emit the new structured startup l
 - [ ] **Step 1: Read the current block to confirm exact line range**
 
 ```bash
-cd /home/eran/work/agentsh && sed -n '295,335p;510,535p' internal/netmonitor/unix/seccomp_linux.go
+cd /home/eran/work/agentmon && sed -n '295,335p;510,535p' internal/netmonitor/unix/seccomp_linux.go
 ```
 
 Expected: surfaces the `waitKillSet := false` block at 297–315 and the `loadWithRetryOnWaitKillFailure` + `GetNotifFd` block at 520–534.
@@ -708,7 +708,7 @@ func libseccompRuntimeVersion() string {
 - [ ] **Step 4: Cross-compile check**
 
 ```bash
-cd /home/eran/work/agentsh && go build ./...
+cd /home/eran/work/agentmon && go build ./...
 ```
 
 Expected: clean build. Any error means a missing import or signature mismatch — fix before proceeding.
@@ -716,7 +716,7 @@ Expected: clean build. Any error means a missing import or signature mismatch �
 - [ ] **Step 5: Run the package tests**
 
 ```bash
-cd /home/eran/work/agentsh && go test ./internal/netmonitor/unix/ -run "TestLoadRawFilter|TestExportBPF|TestLoadFilterWithRetry" -v
+cd /home/eran/work/agentmon && go test ./internal/netmonitor/unix/ -run "TestLoadRawFilter|TestExportBPF|TestLoadFilterWithRetry" -v
 ```
 
 Expected: all PASS. (The retry tests in the old `seccomp_retry_test.go` may now fail because they call the legacy `loadWithRetryOnWaitKillFailure` directly — that's fine, Task 5 deals with them.)
@@ -744,7 +744,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 **Files:**
 - Delete: `internal/netmonitor/unix/seccomp_version_check.go`
-- Delete: `cmd/agentsh-unixwrap/seccomp_version_check.go`
+- Delete: `cmd/agentmon-unixwrap/seccomp_version_check.go`
 - Delete: `internal/netmonitor/unix/seccomp_waitkill_test.go`
 - Modify: `internal/netmonitor/unix/seccomp_linux.go` (remove dead `loadWithRetryOnWaitKillFailure`)
 - Modify: `internal/netmonitor/unix/seccomp_retry_test.go` (rewrite against `loadFilterWithRetry`)
@@ -755,21 +755,21 @@ The dead `loadWithRetryOnWaitKillFailure` and the version-check files are remove
 - [ ] **Step 1: Delete the version-check files**
 
 ```bash
-cd /home/eran/work/agentsh && \
+cd /home/eran/work/agentmon && \
   rm internal/netmonitor/unix/seccomp_version_check.go \
-     cmd/agentsh-unixwrap/seccomp_version_check.go
+     cmd/agentmon-unixwrap/seccomp_version_check.go
 ```
 
 - [ ] **Step 2: Delete seccomp_waitkill_test.go**
 
 ```bash
-cd /home/eran/work/agentsh && rm internal/netmonitor/unix/seccomp_waitkill_test.go
+cd /home/eran/work/agentmon && rm internal/netmonitor/unix/seccomp_waitkill_test.go
 ```
 
 - [ ] **Step 3: Remove dead `loadWithRetryOnWaitKillFailure` from seccomp_linux.go**
 
 ```bash
-cd /home/eran/work/agentsh && grep -n "^func loadWithRetryOnWaitKillFailure\b\|^// loadWithRetryOnWaitKillFailure" internal/netmonitor/unix/seccomp_linux.go
+cd /home/eran/work/agentmon && grep -n "^func loadWithRetryOnWaitKillFailure\b\|^// loadWithRetryOnWaitKillFailure" internal/netmonitor/unix/seccomp_linux.go
 ```
 
 Identify the comment-block start and the closing `}` of the function (around lines 675–743 in current main; verify with the grep). Delete the whole block including its leading comment.
@@ -837,7 +837,7 @@ func TestLoadFilterWithRetry_PropagatesOriginalErrno(t *testing.T) {
 - [ ] **Step 5: Audit `seccomp_wrapper_shim_install_test.go`**
 
 ```bash
-cd /home/eran/work/agentsh && grep -n "seccomp_version_check\|SetWaitKill\|GetWaitKill" internal/api/seccomp_wrapper_shim_install_test.go
+cd /home/eran/work/agentmon && grep -n "seccomp_version_check\|SetWaitKill\|GetWaitKill" internal/api/seccomp_wrapper_shim_install_test.go
 ```
 
 Expected: zero matches. If any reference exists, remove the line(s) — the file is testing shim installation, not seccomp version constants. If you find a reference, follow up by reading the surrounding test to confirm it's the obsolete check before deleting.
@@ -845,7 +845,7 @@ Expected: zero matches. If any reference exists, remove the line(s) — the file
 - [ ] **Step 6: Build and test**
 
 ```bash
-cd /home/eran/work/agentsh && go build ./... && go test ./internal/netmonitor/unix/ -v
+cd /home/eran/work/agentmon && go build ./... && go test ./internal/netmonitor/unix/ -v
 ```
 
 Expected: clean build; all tests in `internal/netmonitor/unix/` pass.
@@ -853,12 +853,12 @@ Expected: clean build; all tests in `internal/netmonitor/unix/` pass.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add -A internal/netmonitor/unix/ cmd/agentsh-unixwrap/ internal/api/seccomp_wrapper_shim_install_test.go
+git add -A internal/netmonitor/unix/ cmd/agentmon-unixwrap/ internal/api/seccomp_wrapper_shim_install_test.go
 git commit -m "seccomp: remove libseccomp 2.6 build guards and legacy load path
 
 Deletes:
   - internal/netmonitor/unix/seccomp_version_check.go (#error guard)
-  - cmd/agentsh-unixwrap/seccomp_version_check.go (duplicate)
+  - cmd/agentmon-unixwrap/seccomp_version_check.go (duplicate)
   - internal/netmonitor/unix/seccomp_waitkill_test.go (relied on
     libseccomp attribute readback that the new load path no longer
     uses)
@@ -958,13 +958,13 @@ func TestInstallFilter_EmitsWaitKillEngagedOnSupportedKernel(t *testing.T) {
 // sigurgProbeHelperEnv gates the re-exec body of the test. Setting it
 // outside this test's parent->child dispatch is unsupported; the child
 // will install a seccomp filter in whatever process reads the env var.
-const sigurgProbeHelperEnv = "AGENTSH_TEST_SIGURG_PROBE_HELPER"
+const sigurgProbeHelperEnv = "AGENTMON_TEST_SIGURG_PROBE_HELPER"
 ```
 
 - [ ] **Step 2: Run the test**
 
 ```bash
-cd /home/eran/work/agentsh && go test ./internal/netmonitor/unix/ -run TestInstallFilter_EmitsWaitKillEngagedOnSupportedKernel -v
+cd /home/eran/work/agentmon && go test ./internal/netmonitor/unix/ -run TestInstallFilter_EmitsWaitKillEngagedOnSupportedKernel -v
 ```
 
 Expected: PASS on Linux with kernel ≥6.0; SKIP on older kernels or environments without permission to install seccomp filters.
@@ -1101,7 +1101,7 @@ Build and run:
 - [ ] **Step 3: Sanity-build and run the probe locally (no unixwrap wrap)**
 
 ```bash
-cd /home/eran/work/agentsh && go build -o /tmp/sigurg_probe scripts/docker-test/sigurg_probe.go && /tmp/sigurg_probe
+cd /home/eran/work/agentmon && go build -o /tmp/sigurg_probe scripts/docker-test/sigurg_probe.go && /tmp/sigurg_probe
 ```
 
 Expected: `sigurg_probe: ok (... iterations)` on stdout, exit 0.
@@ -1129,7 +1129,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1: Read the current relevant sections**
 
 ```bash
-cd /home/eran/work/agentsh && grep -n "build-libseccomp\|libseccomp\|CGO_LDFLAGS\|docker-test\|PKG_CONFIG_LIBDIR\|PKG_CONFIG_PATH" .github/workflows/release.yml | head -60
+cd /home/eran/work/agentmon && grep -n "build-libseccomp\|libseccomp\|CGO_LDFLAGS\|docker-test\|PKG_CONFIG_LIBDIR\|PKG_CONFIG_PATH" .github/workflows/release.yml | head -60
 ```
 
 This pins the exact line numbers for the next edits. Note them — the steps below describe what to edit, but use grep output to find the line in current main.
@@ -1155,7 +1155,7 @@ Leave the Alpine build steps (`unixwrap-alpine-*`) untouched — they keep `-sta
 - [ ] **Step 4: Update apt installation if needed**
 
 ```bash
-cd /home/eran/work/agentsh && grep -n "apt-get install\|apt install" .github/workflows/release.yml | head -10
+cd /home/eran/work/agentmon && grep -n "apt-get install\|apt install" .github/workflows/release.yml | head -10
 ```
 
 Confirm `libseccomp-dev` is already in the apt install line for the amd64/arm64 jobs. If not, add it. (It should be — the source build also requires the dev package for headers during the initial install on the runner.)
@@ -1241,7 +1241,7 @@ echo "$out" | grep -q 'wait_killable=true' || { echo "FAIL: wait_killable not en
 - [ ] **Step 8: Verify YAML parses**
 
 ```bash
-cd /home/eran/work/agentsh && python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"
+cd /home/eran/work/agentmon && python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"
 ```
 
 Expected: no output, exit 0. Any error means a syntax slip — fix before committing.
@@ -1273,7 +1273,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1: Find the relevant entries**
 
 ```bash
-cd /home/eran/work/agentsh && grep -n "CGO_LDFLAGS\|PKG_CONFIG_LIBDIR\|libseccomp\|unixwrap" .goreleaser.yml
+cd /home/eran/work/agentmon && grep -n "CGO_LDFLAGS\|PKG_CONFIG_LIBDIR\|libseccomp\|unixwrap" .goreleaser.yml
 ```
 
 - [ ] **Step 2: Drop static CGO_LDFLAGS for amd64/arm64 Linux unixwrap entries**
@@ -1292,7 +1292,7 @@ Remove the `CGO_LDFLAGS=-static -lseccomp` and `PKG_CONFIG_LIBDIR=...` lines. Ke
 - [ ] **Step 3: Validate goreleaser config**
 
 ```bash
-cd /home/eran/work/agentsh && command -v goreleaser >/dev/null && goreleaser check || echo "goreleaser not installed locally; YAML-syntax check only"
+cd /home/eran/work/agentmon && command -v goreleaser >/dev/null && goreleaser check || echo "goreleaser not installed locally; YAML-syntax check only"
 python3 -c "import yaml; yaml.safe_load(open('.goreleaser.yml'))"
 ```
 
@@ -1322,7 +1322,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1: Delete the script and key**
 
 ```bash
-cd /home/eran/work/agentsh && rm scripts/build-libseccomp.sh scripts/libseccomp-signing-key.asc
+cd /home/eran/work/agentmon && rm scripts/build-libseccomp.sh scripts/libseccomp-signing-key.asc
 ```
 
 - [ ] **Step 2: Add a superseded-by header to the 2026-04-14 spec**
@@ -1336,7 +1336,7 @@ Insert the following lines immediately after the existing `# libseccomp 2.6 Defe
 - [ ] **Step 3: Verify the superseded link works**
 
 ```bash
-cd /home/eran/work/agentsh && ls docs/superpowers/specs/2026-05-11-libseccomp25-system-link-design.md
+cd /home/eran/work/agentmon && ls docs/superpowers/specs/2026-05-11-libseccomp25-system-link-design.md
 ```
 
 Expected: file exists.
@@ -1365,7 +1365,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1: Full build**
 
 ```bash
-cd /home/eran/work/agentsh && go build ./...
+cd /home/eran/work/agentmon && go build ./...
 ```
 
 Expected: clean.
@@ -1373,7 +1373,7 @@ Expected: clean.
 - [ ] **Step 2: Full test suite for the affected package**
 
 ```bash
-cd /home/eran/work/agentsh && go test ./internal/netmonitor/unix/ ./internal/api/ -v
+cd /home/eran/work/agentmon && go test ./internal/netmonitor/unix/ ./internal/api/ -v
 ```
 
 Expected: all PASS or SKIP. Any FAIL means a regression — investigate before continuing.
@@ -1381,7 +1381,7 @@ Expected: all PASS or SKIP. Any FAIL means a regression — investigate before c
 - [ ] **Step 3: Cross-compile sanity (Windows build is the CLAUDE.md gate)**
 
 ```bash
-cd /home/eran/work/agentsh && GOOS=windows go build ./...
+cd /home/eran/work/agentmon && GOOS=windows go build ./...
 ```
 
 Expected: clean. (No seccomp code is compiled on Windows; the build tags handle this.)
@@ -1389,7 +1389,7 @@ Expected: clean. (No seccomp code is compiled on Windows; the build tags handle 
 - [ ] **Step 4: Confirm `#error` guards are gone**
 
 ```bash
-cd /home/eran/work/agentsh && grep -rn "SCMP_VER_MAJOR\|SCMP_VER_MINOR\|seccomp_version_check" --include="*.go" .
+cd /home/eran/work/agentmon && grep -rn "SCMP_VER_MAJOR\|SCMP_VER_MINOR\|seccomp_version_check" --include="*.go" .
 ```
 
 Expected: zero matches.
@@ -1397,7 +1397,7 @@ Expected: zero matches.
 - [ ] **Step 5: Confirm libseccomp source-build artifacts are gone**
 
 ```bash
-cd /home/eran/work/agentsh && grep -rn "build-libseccomp.sh\|/opt/libseccomp\|libseccomp-signing-key" .
+cd /home/eran/work/agentmon && grep -rn "build-libseccomp.sh\|/opt/libseccomp\|libseccomp-signing-key" .
 ```
 
 Expected: zero matches.
@@ -1405,7 +1405,7 @@ Expected: zero matches.
 - [ ] **Step 6: Confirm `loadWithRetryOnWaitKillFailure` is gone (replaced by `loadFilterWithRetry`)**
 
 ```bash
-cd /home/eran/work/agentsh && grep -rn "loadWithRetryOnWaitKillFailure" --include="*.go" .
+cd /home/eran/work/agentmon && grep -rn "loadWithRetryOnWaitKillFailure" --include="*.go" .
 ```
 
 Expected: zero matches.
@@ -1413,7 +1413,7 @@ Expected: zero matches.
 - [ ] **Step 7: Confirm new startup log line is wired in**
 
 ```bash
-cd /home/eran/work/agentsh && grep -n "wait_killable" internal/netmonitor/unix/seccomp_linux.go
+cd /home/eran/work/agentmon && grep -n "wait_killable" internal/netmonitor/unix/seccomp_linux.go
 ```
 
 Expected: one match in the new Info log call.
@@ -1421,7 +1421,7 @@ Expected: one match in the new Info log call.
 - [ ] **Step 8: Final commit (if any uncommitted housekeeping)**
 
 ```bash
-cd /home/eran/work/agentsh && git status
+cd /home/eran/work/agentmon && git status
 ```
 
 If clean, nothing to commit. Otherwise stage and commit any straggler files.

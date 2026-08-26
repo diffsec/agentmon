@@ -3,7 +3,7 @@
 # Requires Microsoft Detours: https://github.com/microsoft/Detours
 
 cmake_minimum_required(VERSION 3.16)
-project(agentsh-envshim VERSION 1.0.0 LANGUAGES CXX)
+project(agentmon-envshim VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

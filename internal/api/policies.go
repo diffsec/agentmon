@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )

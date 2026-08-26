@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestAddSoftDeleteHints_AppendsStderrAndSuggestions(t *testing.T) {
@@ -16,7 +16,7 @@ func TestAddSoftDeleteHints_AppendsStderrAndSuggestions(t *testing.T) {
 
 	newStderr, newTotal, suggestions := addSoftDeleteHints(fileOps, stderr, stderrTotal)
 
-	if !strings.Contains(string(newStderr), "restore with: agentsh trash restore tok123") {
+	if !strings.Contains(string(newStderr), "restore with: agentmon trash restore tok123") {
 		t.Fatalf("stderr hint missing restore command: %s", string(newStderr))
 	}
 	if newTotal <= stderrTotal {
@@ -25,7 +25,7 @@ func TestAddSoftDeleteHints_AppendsStderrAndSuggestions(t *testing.T) {
 	if len(suggestions) != 1 {
 		t.Fatalf("expected 1 suggestion, got %d", len(suggestions))
 	}
-	if suggestions[0].Command != "agentsh trash restore tok123" {
+	if suggestions[0].Command != "agentmon trash restore tok123" {
 		t.Fatalf("unexpected suggestion command: %s", suggestions[0].Command)
 	}
 }

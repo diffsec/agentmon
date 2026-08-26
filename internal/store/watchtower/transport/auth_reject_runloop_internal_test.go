@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

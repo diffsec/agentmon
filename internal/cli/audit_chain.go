@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/store/jsonl"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/store/jsonl"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -57,7 +57,7 @@ func newAuditChainStatusCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&configPath, "config", "", "Path to agentsh config YAML (default: auto-discover)")
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to agentmon config YAML (default: auto-discover)")
 	return cmd
 }
 
@@ -129,7 +129,7 @@ func newAuditChainResetCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&configPath, "config", "", "Path to agentsh config YAML (default: auto-discover)")
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to agentmon config YAML (default: auto-discover)")
 	cmd.Flags().StringVar(&reason, "reason", "", "Required free-form reason stored in the integrity_chain_rotated event")
 	cmd.Flags().StringVar(&reasonCode, "reason-code", "", "Structured reset reason code (sidecar_missing, sidecar_corrupt, key_rotated, legacy_archived, manual_reset, post_tamper_recovery)")
 	cmd.Flags().BoolVar(&legacyArchive, "legacy-archive", false, "Rename the current log to audit.jsonl.legacy.<timestamp> before starting fresh")

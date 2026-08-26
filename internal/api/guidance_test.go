@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestGuidance_NetworkBlocked_HTTPToHTTPSSubstitution(t *testing.T) {

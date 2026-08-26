@@ -14,7 +14,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     agentsh Session Process                      │
+│                     agentmon Session Process                      │
 │                                                                  │
 │   App makes connection to api.github.com:443                    │
 │                           │                                      │
@@ -31,7 +31,7 @@
 │                   WinDivert Capture Goroutine                    │
 │                                                                  │
 │   1. Receive packet from WinDivert                              │
-│   2. Check if PID belongs to agentsh session (user-mode filter) │
+│   2. Check if PID belongs to agentmon session (user-mode filter) │
 │   3. Non-session traffic: reinject unchanged                    │
 │   4. Session traffic:                                            │
 │      - TCP SYN → Store in NAT table, rewrite dst to proxy       │
@@ -373,16 +373,16 @@ func TestWinDivert_FailMode(t *testing.T)
 ### Deployment requirements
 
 ```
-agentsh/
-├── agentsh.exe           # Main binary
+agentmon/
+├── agentmon.exe           # Main binary
 ├── WinDivert.dll         # WinDivert user-mode library (x64)
 ├── WinDivert64.sys       # WinDivert kernel driver (x64)
-└── agentsh.sys           # Mini filter driver (existing)
+└── agentmon.sys           # Mini filter driver (existing)
 ```
 
 ### Installation steps
 
-1. Copy `WinDivert.dll` and `WinDivert64.sys` alongside `agentsh.exe`
+1. Copy `WinDivert.dll` and `WinDivert64.sys` alongside `agentmon.exe`
 2. WinDivert auto-installs driver on first use (requires admin)
 3. Mini filter driver installed separately (existing process)
 4. No persistent driver installation needed - WinDivert loads on demand
@@ -404,12 +404,12 @@ WinDivert requires administrator privileges to:
 - Capture network packets
 - Modify packet contents
 
-This aligns with existing agentsh requirements (mini filter driver also needs admin).
+This aligns with existing agentmon requirements (mini filter driver also needs admin).
 
 ### Attack surface
 
 - WinDivert driver is signed by Microsoft (WHQL certified)
-- User-mode code runs as admin but in agentsh process
+- User-mode code runs as admin but in agentmon process
 - NAT table is internal, not exposed via API
 - Fail modes prevent traffic leakage on errors
 

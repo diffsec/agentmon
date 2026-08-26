@@ -1,6 +1,6 @@
 package policy
 
-import "github.com/agentsh/agentsh/internal/db/effects"
+import "github.com/diffsec/agentmon/internal/db/effects"
 
 // EvaluateConnection applies connection-rule policy to a candidate connection.
 // Returns implicit deny if no rule matches.

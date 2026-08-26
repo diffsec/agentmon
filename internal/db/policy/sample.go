@@ -5,7 +5,7 @@ import (
 	_ "embed"
 	"fmt"
 
-	rootpolicy "github.com/agentsh/agentsh/internal/policy"
+	rootpolicy "github.com/diffsec/agentmon/internal/policy"
 )
 
 //go:embed testdata/sample-policy.yaml

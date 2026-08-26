@@ -7,12 +7,12 @@
 
 ## 1. Overview
 
-Wire the existing `ptrace.Tracer` into the agentsh server so that when `sandbox.ptrace.enabled: true`, all processes spawned via `exec` and `wrap` are traced via ptrace instead of seccomp user-notify.
+Wire the existing `ptrace.Tracer` into the agentmon server so that when `sandbox.ptrace.enabled: true`, all processes spawned via `exec` and `wrap` are traced via ptrace instead of seccomp user-notify.
 
 **Architecture**: One `ptrace.Tracer` per server process, started at boot, runs for the server's lifetime. Processes are attached via `tracer.AttachPID(pid)` as they're spawned. The tracer dispatches syscall events to the session's policy engine through thin adapter handlers that reuse the existing policy evaluation and audit emission code.
 
 **Key decisions**:
-- Ptrace mode and seccomp mode are mutually exclusive — when ptrace is on, `agentsh-unixwrap` is not used. Enforced by config validation.
+- Ptrace mode and seccomp mode are mutually exclusive — when ptrace is on, `agentmon-unixwrap` is not used. Enforced by config validation.
 - The tracer owns the process pause/resume lifecycle, replacing the existing `getSysProcAttrStopped()` / `resumeTracedProcess()` mechanism. Processes start normally (no `PTRACE_TRACEME`); the tracer's `PTRACE_SEIZE` + `PTRACE_INTERRUPT` stops them.
 - For `wrap`, the CLI skips the seccomp wrapper and reports the shell PID to the server for attachment
 - Cleanup follows the server context — tracer stops when the server shuts down, individual tracee cleanup happens through natural exit events
@@ -396,7 +396,7 @@ if tracer != nil {
 
 ## 7. Wrap Path — Ptrace Mode Handshake
 
-When ptrace is active, the server tells the CLI to skip `agentsh-unixwrap` entirely.
+When ptrace is active, the server tells the CLI to skip `agentmon-unixwrap` entirely.
 
 **Types change** — in `pkg/types/sessions.go`, add field to `WrapInitResponse`:
 

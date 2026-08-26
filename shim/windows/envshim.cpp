@@ -16,9 +16,9 @@
 // Configuration
 #define MAX_PATTERNS 256
 #define MAX_PATTERN_LEN 256
-#define POLICY_FILE_ENV L"AGENTSH_ENV_POLICY_FILE"
-#define DEFAULT_POLICY_FILE L"C:\\ProgramData\\agentsh\\env-policy.conf"
-#define PIPE_NAME L"\\\\.\\pipe\\agentsh-env"
+#define POLICY_FILE_ENV L"AGENTMON_ENV_POLICY_FILE"
+#define DEFAULT_POLICY_FILE L"C:\\ProgramData\\agentmon\\env-policy.conf"
+#define PIPE_NAME L"\\\\.\\pipe\\agentmon-env"
 
 // Pattern list
 typedef struct {
@@ -149,7 +149,7 @@ static void init_logging(void) {
     );
 }
 
-// Emit event to agentsh daemon
+// Emit event to agentmon daemon
 static void emit_event_w(const wchar_t* var, const wchar_t* op, int allowed, int sensitive) {
     if (log_pipe == INVALID_HANDLE_VALUE || !log_access) return;
 

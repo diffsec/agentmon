@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	watchtower "github.com/agentsh/agentsh/internal/store/watchtower"
+	watchtower "github.com/diffsec/agentmon/internal/store/watchtower"
 	wtpv1 "github.com/canyonroad/wtp-protos/gen/go/canyonroad/wtp/v1"
 )
 

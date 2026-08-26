@@ -3,7 +3,7 @@ package netmonitor
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestDomainRateLimiter_PerDomainLimits(t *testing.T) {

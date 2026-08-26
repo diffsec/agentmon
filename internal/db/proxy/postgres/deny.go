@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 const (
@@ -60,15 +60,15 @@ func pickDenySynth(decisions []policy.Decision) (string, string) {
 		return renderDenyMessage(d), sqlstate
 	}
 	// Defensive: caller is supposed to ensure anyDeny.
-	return "denied by AgentSH policy", sqlstateInsufficientPrivilege
+	return "denied by AgentMon policy", sqlstateInsufficientPrivilege
 }
 
 func renderDenyMessage(d policy.Decision) string {
 	if d.RuleName != "" {
-		return fmt.Sprintf("denied by AgentSH policy: %s", d.RuleName)
+		return fmt.Sprintf("denied by AgentMon policy: %s", d.RuleName)
 	}
 	if d.Reason != "" {
-		return fmt.Sprintf("denied by AgentSH policy: %s", d.Reason)
+		return fmt.Sprintf("denied by AgentMon policy: %s", d.Reason)
 	}
-	return "denied by AgentSH policy"
+	return "denied by AgentMon policy"
 }

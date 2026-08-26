@@ -1,4 +1,4 @@
-# Fix agentsh-unixwrap EBADF Implementation Plan
+# Fix agentmon-unixwrap EBADF Implementation Plan
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -316,7 +316,7 @@ Expected: All tests pass, no race conditions.
 
 - [ ] **Step 4: Runloop integration test (external, manual)**
 
-The end-to-end validation is at `/home/eran/work/canyonroad/agentsh-runloop`. After building and deploying the updated agentsh binary, run:
+The end-to-end validation is at `/home/eran/work/diffsec/agentmon-runloop`. After building and deploying the updated agentmon binary, run:
 
 ```yaml
 # config.yaml

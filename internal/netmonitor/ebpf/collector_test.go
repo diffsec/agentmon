@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/netmonitor/redirect"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/netmonitor/redirect"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestCopyToEventBounds(t *testing.T) {

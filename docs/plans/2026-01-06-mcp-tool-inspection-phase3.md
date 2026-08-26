@@ -512,7 +512,7 @@ package shim
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
 )
 
 func TestMCPBridge_ProcessToolsListResponse(t *testing.T) {
@@ -586,7 +586,7 @@ Expected: FAIL - NewMCPBridge undefined
 package shim
 
 import (
-	"github.com/agentsh/agentsh/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
 )
 
 // MCPBridge connects the shim's stdio wrapper to the mcpinspect package.
@@ -644,13 +644,13 @@ git commit -m "feat(shim): add MCP bridge connecting wrapper to inspector"
 ## Task 5: Add MCP Wrapper to Shell Shim
 
 **Files:**
-- Modify: `cmd/agentsh-shell-shim/main.go`
-- Test: `cmd/agentsh-shell-shim/main_test.go`
+- Modify: `cmd/agentmon-shell-shim/main.go`
+- Test: `cmd/agentmon-shell-shim/main_test.go`
 
 **Step 1: Write the failing test**
 
 ```go
-// Add to cmd/agentsh-shell-shim/main_test.go
+// Add to cmd/agentmon-shell-shim/main_test.go
 
 func TestIsMCPCommand(t *testing.T) {
 	tests := []struct {
@@ -692,17 +692,17 @@ func TestIsMCPCommand(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `go test ./cmd/agentsh-shell-shim/... -v -run TestIsMCPCommand`
+Run: `go test ./cmd/agentmon-shell-shim/... -v -run TestIsMCPCommand`
 Expected: FAIL - isMCPCommand undefined
 
 **Step 3: Add MCP detection to shell shim**
 
-Add to `cmd/agentsh-shell-shim/main.go`:
+Add to `cmd/agentmon-shell-shim/main.go`:
 
 ```go
 import (
 	// ... existing imports
-	"github.com/agentsh/agentsh/internal/shim"
+	"github.com/diffsec/agentmon/internal/shim"
 )
 
 // isMCPCommand checks if the command being executed is an MCP server.
@@ -723,13 +723,13 @@ func isMCPCommand(argv0 string, args []string) bool {
 
 **Step 4: Run test to verify it passes**
 
-Run: `go test ./cmd/agentsh-shell-shim/... -v -run TestIsMCPCommand`
+Run: `go test ./cmd/agentmon-shell-shim/... -v -run TestIsMCPCommand`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add cmd/agentsh-shell-shim/main.go cmd/agentsh-shell-shim/main_test.go
+git add cmd/agentmon-shell-shim/main.go cmd/agentmon-shell-shim/main_test.go
 git commit -m "feat(shell-shim): add MCP command detection"
 ```
 
@@ -898,7 +898,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
 )
 
 func TestMCPEventForwarder(t *testing.T) {
@@ -960,7 +960,7 @@ import (
 	"sync"
 )
 
-// MCPEventForwarder sends MCP events to the agentsh server via Unix socket.
+// MCPEventForwarder sends MCP events to the agentmon server via Unix socket.
 type MCPEventForwarder struct {
 	conn net.Conn
 	mu   sync.Mutex
@@ -989,7 +989,7 @@ func (f *MCPEventForwarder) Close() error {
 	return nil
 }
 
-// Emit sends an event to the agentsh server.
+// Emit sends an event to the agentmon server.
 func (f *MCPEventForwarder) Emit(event interface{}) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -1056,7 +1056,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
 )
 
 func TestMCPIntegration_FullPipeline(t *testing.T) {
@@ -1200,10 +1200,10 @@ Expected: Success
 Add to `internal/shim/doc.go` (create if needed):
 
 ```go
-// Package shim provides the shell shim infrastructure for agentsh.
+// Package shim provides the shell shim infrastructure for agentmon.
 //
 // The shell shim intercepts shell commands (/bin/sh, /bin/bash) and routes
-// them through agentsh for policy enforcement and auditing.
+// them through agentmon for policy enforcement and auditing.
 //
 // # MCP Server Detection
 //
@@ -1251,7 +1251,7 @@ Phase 3 adds shell shim integration for MCP server detection and inspection:
 | stdio Wrapper | `mcp_wrapper.go` | Forward data while inspecting JSON-RPC messages |
 | Inspector Bridge | `mcp_bridge.go` | Connect wrapper to mcpinspect package |
 | Exec Wrapper | `mcp_exec.go` | Wrap exec.Cmd stdio for MCP inspection |
-| Event Forwarder | `mcp_events.go` | Send events to agentsh server |
+| Event Forwarder | `mcp_events.go` | Send events to agentmon server |
 | Integration Tests | `mcp_integration_test.go` | End-to-end pipeline tests |
 
 **Next Phase (Phase 4):** CLI commands for registry viewing and event querying.

@@ -10,7 +10,7 @@
 
 The following must be functional before Fargate E2E tests can pass (Phase E). Phases A-D can proceed without them.
 
-1. **ptrace runtime wiring** — The server startup path must wire `TracerConfig` from `sandbox.ptrace` config into the ptrace `Tracer.Run()` loop. The tracer itself (`internal/ptrace/tracer.go`) is implemented and integration-tested, but the server entrypoint (`internal/server/server.go`) does not yet start the tracer. **Blocker for Phase E.** Merge criteria: `agentsh serve` with `sandbox.ptrace.enabled: true` starts the ptrace event loop.
+1. **ptrace runtime wiring** — The server startup path must wire `TracerConfig` from `sandbox.ptrace` config into the ptrace `Tracer.Run()` loop. The tracer itself (`internal/ptrace/tracer.go`) is implemented and integration-tested, but the server entrypoint (`internal/server/server.go`) does not yet start the tracer. **Blocker for Phase E.** Merge criteria: `agentmon serve` with `sandbox.ptrace.enabled: true` starts the ptrace event loop.
 2. **PID-file attach path** — `pid` mode with `target_pid_file` must poll for a PID file, read PID, and call `attachProcess()`. This attach-by-PID logic needs to be implemented in the tracer's `Run()` method. **Blocker for Phase E.** Merge criteria: integration test demonstrating attach via PID file.
 3. **Policy handler interfaces** — `ExecHandler`, `FileHandler`, `NetworkHandler` must be wired from the server's policy engine to the tracer config. Currently exercised in `children` mode integration tests but not in server startup. **Blocker for Phase E.** Merge criteria: server passes policy handlers to `TracerConfig`.
 4. **Tracer-ready sentinel** — After successful attach, the tracer must write a sentinel file (path from config, e.g., `/shared/tracer-ready`) so the workload knows tracing is active. **New work, implemented in Phase A** (see §8). Merge criteria: integration test verifying sentinel file creation after attach.
@@ -21,7 +21,7 @@ The following must be functional before Fargate E2E tests can pass (Phase E). Ph
 
 ### What's In
 
-1. **Fargate E2E test infrastructure** — ECS task definition, CI plumbing, test harness that launches agentsh + workload as a multi-container Fargate task and verifies policy enforcement end-to-end.
+1. **Fargate E2E test infrastructure** — ECS task definition, CI plumbing, test harness that launches agentmon + workload as a multi-container Fargate task and verifies policy enforcement end-to-end.
 
 2. **Seccomp availability probe** — A test that runs inside Fargate and reports whether `seccomp(SECCOMP_SET_MODE_FILTER)` with `SECCOMP_RET_TRACE` is available to containers. This determines whether prefilter injection is feasible on Fargate.
 
@@ -31,7 +31,7 @@ The following must be functional before Fargate E2E tests can pass (Phase E). Ph
 
 **Decision:** Skip the `sidecar` attach mode. Use `pid` mode with a PID file instead.
 
-**Why:** The current Fargate deployment has multiple sidecars. Auto-discovery requires heuristics to distinguish the workload process from all the sidecar processes (agentsh, Datadog, log routers, etc.). These heuristics are fragile — they break every time a sidecar is added or renamed. `pid` mode with a PID file is deterministic: the workload writes its PID, agentsh reads it. Works regardless of how many sidecars are in the task.
+**Why:** The current Fargate deployment has multiple sidecars. Auto-discovery requires heuristics to distinguish the workload process from all the sidecar processes (agentmon, Datadog, log routers, etc.). These heuristics are fragile — they break every time a sidecar is added or renamed. `pid` mode with a PID file is deterministic: the workload writes its PID, agentmon reads it. Works regardless of how many sidecars are in the task.
 
 **Revisit when:** Someone has a deployment where modifying the workload entrypoint is not possible.
 
@@ -59,10 +59,10 @@ The Firecracker microVM applies its own seccomp filters to the VMM, and the cont
 
 The Fargate E2E test harness:
 
-1. **Build and push** agentsh + test workload images to ECR (done in CI before the test)
-2. **Register** an ECS task definition with two containers (agentsh sidecar + workload) sharing a PID namespace via `pidMode: "task"`
+1. **Build and push** agentmon + test workload images to ECR (done in CI before the test)
+2. **Register** an ECS task definition with two containers (agentmon sidecar + workload) sharing a PID namespace via `pidMode: "task"`
 3. **Run** the task on Fargate, wait for completion
-4. **Pull** CloudWatch logs and assert policy enforcement via both agentsh audit events and workload exit codes
+4. **Pull** CloudWatch logs and assert policy enforcement via both agentmon audit events and workload exit codes
 5. **Clean up** (stop task on timeout/failure, deregister task def)
 
 ### Assertion Strategy
@@ -71,7 +71,7 @@ Tests use **positive and negative controls** to distinguish policy enforcement f
 
 - **Positive control (known-allowed):** Run a command that the test policy explicitly allows (e.g., `ls /tmp`). If this fails, the test environment is broken, not policy.
 - **Negative control (known-denied):** Run a command that the test policy explicitly denies (e.g., `wget`). If this succeeds, enforcement is broken.
-- **Agentsh audit events:** The test harness also checks agentsh container logs for structured audit events (`action=deny`, `command=wget`, etc.) to confirm the tracer made the decision, not a missing binary or filesystem permission.
+- **Agentmon audit events:** The test harness also checks agentmon container logs for structured audit events (`action=deny`, `command=wget`, etc.) to confirm the tracer made the decision, not a missing binary or filesystem permission.
 
 This prevents false positives from `wget` not being installed, filesystem permission errors, or network unreachability being misinterpreted as policy enforcement.
 
@@ -88,8 +88,8 @@ CI integration: a new workflow job `fargate-e2e` gated on `vars.AWS_ECS_CLUSTER`
 
 ### Containers
 
-**`agentsh` (sidecar):**
-- Image: `${ECR_REGISTRY}/agentsh-test:${SHA}`
+**`agentmon` (sidecar):**
+- Image: `${ECR_REGISTRY}/agentmon-test:${SHA}`
 - `SYS_PTRACE` capability added
 - Config: `attach_mode: "pid"`, `target_pid_file: "/shared/workload.pid"`, test policy baked in
 - Health check: HTTP `/health` on API port
@@ -97,8 +97,8 @@ CI integration: a new workflow job `fargate-e2e` gated on `vars.AWS_ECS_CLUSTER`
 - Essential: true
 
 **`workload`:**
-- Image: `${ECR_REGISTRY}/agentsh-fargate-workload:${SHA}`
-- Depends on agentsh container being `HEALTHY`
+- Image: `${ECR_REGISTRY}/agentmon-fargate-workload:${SHA}`
+- Depends on agentmon container being `HEALTHY`
 - Entrypoint: writes PID to `/shared/workload.pid`, polls for `/shared/tracer-ready` (up to 30s), then runs test script
 - Essential: true
 
@@ -109,12 +109,12 @@ CI integration: a new workflow job `fargate-e2e` gated on `vars.AWS_ECS_CLUSTER`
 
 **Logging:**
 - CloudWatch Logs driver for both containers
-- Log group: `/agentsh/fargate-e2e`
+- Log group: `/agentmon/fargate-e2e`
 - Stream prefix: `test-${RUN_ID}`
 
 ### Container Ordering and Startup Synchronization
 
-The workload container depends on agentsh being `HEALTHY` (ECS `dependsOn` with `HEALTHY` condition). After writing its PID, the workload polls for the `/shared/tracer-ready` sentinel file that agentsh writes after successfully attaching to the workload process:
+The workload container depends on agentmon being `HEALTHY` (ECS `dependsOn` with `HEALTHY` condition). After writing its PID, the workload polls for the `/shared/tracer-ready` sentinel file that agentmon writes after successfully attaching to the workload process:
 
 ```sh
 # Wait for tracer to attach (condition-based, not time-based)
@@ -196,11 +196,11 @@ echo "=== DONE ==="
 
 ### Assertion Rules
 
-The test harness scans **both** workload and agentsh CloudWatch logs:
+The test harness scans **both** workload and agentmon CloudWatch logs:
 
 1. **Workload logs:** `SETUP:PASS`, `CONTROL:PASS`, `FILECONTROL:PASS`, `EXEC:PASS`, `FILE:PASS`, `NET:PASS` must all be present. Any `FAIL` line fails the test. `NET:WARN` is treated as non-pass (needs investigation). `SECCOMP` result is reported but informational.
 
-2. **Agentsh logs:** Must contain audit events for each denied action (`action=deny` for wget, file write, IMDS connect). This confirms the tracer made the decision, not environmental happenstance. Log parsing uses quote-aware field extraction to avoid false positives from `key=value` pairs inside quoted logfmt values.
+2. **Agentmon logs:** Must contain audit events for each denied action (`action=deny` for wget, file write, IMDS connect). This confirms the tracer made the decision, not environmental happenstance. Log parsing uses quote-aware field extraction to avoid false positives from `key=value` pairs inside quoted logfmt values.
 
 3. **Positive controls:** `CONTROL:PASS` (exec works) and `FILECONTROL:PASS` (writes work) must be present. If missing, the test environment is broken (not a policy issue) and the test is marked as an infrastructure failure, not a policy failure.
 
@@ -241,7 +241,7 @@ Uses `aws-sdk-go-v2/service/ecs` and `aws-sdk-go-v2/service/cloudwatchlogs`.
 
 4. **Wait:** Poll `DescribeTasks` with status-based progress logging until task reaches `STOPPED` (timeout: 300s). On each poll, log current task status (`PROVISIONING` → `PENDING` → `RUNNING` → `STOPPED`). On timeout, call `StopTask` with reason `"E2E test timeout"` before failing.
 
-5. **Assert:** Retry CloudWatch `GetLogEvents` with up to 30s backoff to handle eventual consistency lag. Scan workload logs for `PASS`/`FAIL` markers. Scan agentsh logs for audit events. Report seccomp probe result separately.
+5. **Assert:** Retry CloudWatch `GetLogEvents` with up to 30s backoff to handle eventual consistency lag. Scan workload logs for `PASS`/`FAIL` markers. Scan agentmon logs for audit events. Report seccomp probe result separately.
 
 6. **Cleanup (always runs, even on failure):**
    - Call `StopTask` if task is still running
@@ -262,7 +262,7 @@ Uses `aws-sdk-go-v2/service/ecs` and `aws-sdk-go-v2/service/cloudwatchlogs`.
 |----------|---------|
 | `AWS_REGION` | AWS region |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Credentials (or use OIDC) |
-| `AGENTSH_TEST_IMAGE` | ECR URI for agentsh image |
+| `AGENTMON_TEST_IMAGE` | ECR URI for agentmon image |
 | `WORKLOAD_TEST_IMAGE` | ECR URI for workload image |
 | `AWS_ECS_CLUSTER` | ECS cluster name |
 | `AWS_ECS_SUBNET` | Public subnet ID |
@@ -290,7 +290,7 @@ fargate-e2e:
     - setup Go
     - configure AWS credentials (from secrets)
     - login to ECR
-    - build + push agentsh test image
+    - build + push agentmon test image
     - build + push workload test image (with seccomp probe binary)
     - go test -v -tags=fargate -timeout 5m ./internal/integration/fargate/...
 ```
@@ -308,11 +308,11 @@ fargate-e2e:
 These must exist before the test runs. Documented in `docs/fargate-e2e-setup.md` (deliverable of this phase):
 
 - **ECS cluster** (Fargate-only, no EC2 capacity providers)
-- **ECR repositories** (two: `agentsh-test` + `agentsh-fargate-workload`, with lifecycle policy to keep last 5 images)
+- **ECR repositories** (two: `agentmon-test` + `agentmon-fargate-workload`, with lifecycle policy to keep last 5 images)
 - **VPC** with public subnet + internet gateway
 - **Security group** allowing all egress, no ingress
 - **IAM task execution role** with `AmazonECSTaskExecutionRolePolicy` + CloudWatch Logs permissions
-- **CloudWatch log group** `/agentsh/fargate-e2e` (7-day retention)
+- **CloudWatch log group** `/agentmon/fargate-e2e` (7-day retention)
 - **GitHub Actions:** `vars.AWS_ECS_CLUSTER` variable + credential secrets (OIDC preferred)
 
 ---

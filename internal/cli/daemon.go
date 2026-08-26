@@ -26,15 +26,15 @@ type PNACLSession struct {
 	UserID       string    `json:"user_id"`       // UID
 	Status       string    `json:"status"`        // running, paused, stopped
 	EventCount   int64     `json:"event_count"`   // connections tracked
-	Version      string    `json:"version"`       // agentsh version
+	Version      string    `json:"version"`       // agentmon version
 	Platform     string    `json:"platform"`      // OS platform
 }
 
 func newDaemonCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "daemon",
-		Short: "Manage the agentsh daemon",
-		Long: `Manage the agentsh daemon for background network monitoring.
+		Short: "Manage the agentmon daemon",
+		Long: `Manage the agentmon daemon for background network monitoring.
 
 The daemon runs as a systemd user service on Linux, providing persistent
 network monitoring and policy enforcement. On macOS, it uses launchd.`,
@@ -54,12 +54,12 @@ func newDaemonInstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "install",
 		Short: "Install startup integration for current OS",
-		Long: `Install the agentsh daemon as a system service.
+		Long: `Install the agentmon daemon as a system service.
 
-On Linux, this creates a systemd user service at ~/.config/systemd/user/agentsh.service
+On Linux, this creates a systemd user service at ~/.config/systemd/user/agentmon.service
 that starts automatically on user login.
 
-On macOS, this creates a launchd plist at ~/Library/LaunchAgents/ai.canyonroad.agentsh.daemon.plist.`,
+On macOS, this creates a launchd plist at ~/Library/LaunchAgents/dev.diffsec.agentmon.daemon.plist.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			w := cmd.OutOrStdout()
 
@@ -70,7 +70,7 @@ On macOS, this creates a launchd plist at ~/Library/LaunchAgents/ai.canyonroad.a
 				return installLaunchdService(cmd, force)
 			default:
 				fmt.Fprintf(w, "Daemon installation not supported on %s\n", runtime.GOOS)
-				fmt.Fprintln(w, "Run 'agentsh server' manually instead")
+				fmt.Fprintln(w, "Run 'agentmon server' manually instead")
 				return nil
 			}
 		},
@@ -85,7 +85,7 @@ func newDaemonUninstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "uninstall",
 		Short: "Remove startup integration",
-		Long: `Remove the agentsh daemon system service.
+		Long: `Remove the agentmon daemon system service.
 
 This stops the running daemon and removes the service configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -168,15 +168,15 @@ This stops the current daemon, clears session state, and starts a new session.`,
 
 			switch runtime.GOOS {
 			case "linux":
-				fmt.Fprintln(w, "Restarting agentsh daemon...")
-				if err := runSystemctl("restart", "agentsh"); err != nil {
+				fmt.Fprintln(w, "Restarting agentmon daemon...")
+				if err := runSystemctl("restart", "agentmon"); err != nil {
 					return fmt.Errorf("restart failed: %w", err)
 				}
 				fmt.Fprintln(w, "Daemon restarted successfully")
 				return nil
 
 			case "darwin":
-				fmt.Fprintln(w, "Restarting agentsh daemon...")
+				fmt.Fprintln(w, "Restarting agentmon daemon...")
 				if err := reloadLaunchdService(getLaunchdPlistPath()); err != nil {
 					return fmt.Errorf("restart failed: %w", err)
 				}
@@ -196,8 +196,8 @@ This stops the current daemon, clears session state, and starts a new session.`,
 // systemd service generation
 
 const systemdServiceTemplate = `[Unit]
-Description=agentsh daemon - Agent shell security monitoring
-Documentation=https://github.com/agentsh/agentsh
+Description=agentmon daemon - Agent shell security monitoring
+Documentation=https://github.com/diffsec/agentmon
 After=network.target
 
 [Service]
@@ -229,7 +229,7 @@ func installSystemdService(cmd *cobra.Command, force bool) error {
 	}
 	home := userHomeDir()
 
-	// Get agentsh binary path
+	// Get agentmon binary path
 	exePath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("get executable path: %w", err)
@@ -245,7 +245,7 @@ func installSystemdService(cmd *cobra.Command, force bool) error {
 		return fmt.Errorf("create systemd directory: %w", err)
 	}
 
-	servicePath := filepath.Join(systemdDir, "agentsh.service")
+	servicePath := filepath.Join(systemdDir, "agentmon.service")
 
 	// Check if service already exists
 	if _, err := os.Stat(servicePath); err == nil && !force {
@@ -255,7 +255,7 @@ func installSystemdService(cmd *cobra.Command, force bool) error {
 	}
 
 	// Data directory for read-write access
-	dataDir := filepath.Join(home, ".local", "share", "agentsh")
+	dataDir := filepath.Join(home, ".local", "share", "agentmon")
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		return fmt.Errorf("create data directory: %w", err)
 	}
@@ -282,7 +282,7 @@ func installSystemdService(cmd *cobra.Command, force bool) error {
 	}
 
 	// Enable service
-	if err := runSystemctl("enable", "agentsh"); err != nil {
+	if err := runSystemctl("enable", "agentmon"); err != nil {
 		fmt.Fprintf(w, "Warning: failed to enable service: %v\n", err)
 	} else {
 		fmt.Fprintln(w, "Service enabled for automatic start on login")
@@ -292,7 +292,7 @@ func installSystemdService(cmd *cobra.Command, force bool) error {
 	// ExecStart until bounced; restart so the new unit takes effect (#439).
 	restarted, err := restartSystemdIfActive()
 	if err != nil {
-		return fmt.Errorf("restart service: %w (unit written to %s; restart manually with: systemctl --user restart agentsh)", err, servicePath)
+		return fmt.Errorf("restart service: %w (unit written to %s; restart manually with: systemctl --user restart agentmon)", err, servicePath)
 	}
 	if restarted {
 		fmt.Fprintln(w, "Service restarted with updated configuration")
@@ -301,12 +301,12 @@ func installSystemdService(cmd *cobra.Command, force bool) error {
 	fmt.Fprintln(w)
 	if !restarted {
 		fmt.Fprintln(w, "To start the daemon now:")
-		fmt.Fprintln(w, "  systemctl --user start agentsh")
+		fmt.Fprintln(w, "  systemctl --user start agentmon")
 		fmt.Fprintln(w)
 	}
 	fmt.Fprintln(w, "To check status:")
-	fmt.Fprintln(w, "  systemctl --user status agentsh")
-	fmt.Fprintln(w, "  agentsh daemon status")
+	fmt.Fprintln(w, "  systemctl --user status agentmon")
+	fmt.Fprintln(w, "  agentmon daemon status")
 
 	return nil
 }
@@ -314,13 +314,13 @@ func installSystemdService(cmd *cobra.Command, force bool) error {
 func uninstallSystemdService(cmd *cobra.Command) error {
 	w := cmd.OutOrStdout()
 
-	servicePath := filepath.Join(userHomeDir(), ".config", "systemd", "user", "agentsh.service")
+	servicePath := filepath.Join(userHomeDir(), ".config", "systemd", "user", "agentmon.service")
 
 	// Stop service if running
-	_ = runSystemctl("stop", "agentsh")
+	_ = runSystemctl("stop", "agentmon")
 
 	// Disable service
-	_ = runSystemctl("disable", "agentsh")
+	_ = runSystemctl("disable", "agentmon")
 
 	// Remove service file
 	if err := os.Remove(servicePath); err != nil {
@@ -338,18 +338,18 @@ func uninstallSystemdService(cmd *cobra.Command) error {
 	return nil
 }
 
-// restartSystemdIfActive restarts the agentsh user unit only when it is
+// restartSystemdIfActive restarts the agentmon user unit only when it is
 // currently active, so install is never the thing that first starts the
 // daemon on Linux. The bool reports whether a restart occurred. is-active is
 // queried via Output() rather than runSystemctl so "inactive" does not leak
 // to the terminal. Any query error (including a broken systemctl, which
 // already produced warnings above) is treated as not-active.
 func restartSystemdIfActive() (bool, error) {
-	out, err := exec.Command("systemctl", "--user", "is-active", "agentsh").Output()
+	out, err := exec.Command("systemctl", "--user", "is-active", "agentmon").Output()
 	if err != nil || strings.TrimSpace(string(out)) != "active" {
 		return false, nil
 	}
-	if err := runSystemctl("restart", "agentsh"); err != nil {
+	if err := runSystemctl("restart", "agentmon"); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -376,7 +376,7 @@ const launchdPlistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>ai.canyonroad.agentsh.daemon</string>
+    <string>dev.diffsec.agentmon.daemon</string>
     <key>ProgramArguments</key>
     <array>
         <string>%s</string>
@@ -390,9 +390,9 @@ const launchdPlistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
         <false/>
     </dict>
     <key>StandardOutPath</key>
-    <string>%s/agentsh.log</string>
+    <string>%s/agentmon.log</string>
     <key>StandardErrorPath</key>
-    <string>%s/agentsh.err</string>
+    <string>%s/agentmon.err</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>HOME</key>
@@ -403,7 +403,7 @@ const launchdPlistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 `
 
 func getLaunchdPlistPath() string {
-	return filepath.Join(userHomeDir(), "Library", "LaunchAgents", "ai.canyonroad.agentsh.daemon.plist")
+	return filepath.Join(userHomeDir(), "Library", "LaunchAgents", "dev.diffsec.agentmon.daemon.plist")
 }
 
 // reloadLaunchdService replaces whatever job definition launchd currently
@@ -450,7 +450,7 @@ func installLaunchdService(cmd *cobra.Command, force bool) error {
 	}
 
 	// Log directory
-	logDir := filepath.Join(home, "Library", "Logs", "agentsh")
+	logDir := filepath.Join(home, "Library", "Logs", "agentmon")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return fmt.Errorf("create log directory: %w", err)
 	}
@@ -478,8 +478,8 @@ func installLaunchdService(cmd *cobra.Command, force bool) error {
 
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "To check status:")
-	fmt.Fprintln(w, "  launchctl list | grep agentsh")
-	fmt.Fprintln(w, "  agentsh daemon status")
+	fmt.Fprintln(w, "  launchctl list | grep agentmon")
+	fmt.Fprintln(w, "  agentmon daemon status")
 
 	return nil
 }
@@ -540,7 +540,7 @@ func getCurrentSession(cmd *cobra.Command) (*PNACLSession, error) {
 	// Check if daemon is running
 	switch runtime.GOOS {
 	case "linux":
-		output, err := exec.Command("systemctl", "--user", "is-active", "agentsh").Output()
+		output, err := exec.Command("systemctl", "--user", "is-active", "agentmon").Output()
 		if err == nil {
 			status := strings.TrimSpace(string(output))
 			if status == "active" {
@@ -553,7 +553,7 @@ func getCurrentSession(cmd *cobra.Command) (*PNACLSession, error) {
 		}
 	case "darwin":
 		output, err := exec.Command("launchctl", "list").Output()
-		if err == nil && strings.Contains(string(output), "ai.canyonroad.agentsh.daemon") {
+		if err == nil && strings.Contains(string(output), "dev.diffsec.agentmon.daemon") {
 			session.Status = "running"
 		} else {
 			session.Status = "stopped"

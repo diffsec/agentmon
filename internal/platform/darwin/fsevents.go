@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/platform"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/platform"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -103,7 +103,7 @@ func (m *FSEventsMonitor) Stop() error {
 	return m.watcher.Close()
 }
 
-// eventLoop processes fsnotify events and converts them to agentsh events.
+// eventLoop processes fsnotify events and converts them to agentmon events.
 func (m *FSEventsMonitor) eventLoop(ctx context.Context) {
 	for {
 		select {
@@ -126,7 +126,7 @@ func (m *FSEventsMonitor) eventLoop(ctx context.Context) {
 	}
 }
 
-// handleEvent converts an fsnotify event to an agentsh event.
+// handleEvent converts an fsnotify event to an agentmon event.
 func (m *FSEventsMonitor) handleEvent(event fsnotify.Event) {
 	ev := types.Event{
 		Timestamp: time.Now().UTC(),
@@ -137,7 +137,7 @@ func (m *FSEventsMonitor) handleEvent(event fsnotify.Event) {
 		},
 	}
 
-	// Map fsnotify operations to agentsh event types
+	// Map fsnotify operations to agentmon event types
 	switch {
 	case event.Op&fsnotify.Create != 0:
 		ev.Type = "file_created"

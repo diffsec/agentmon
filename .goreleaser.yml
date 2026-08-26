@@ -1,5 +1,5 @@
 version: 2
-project_name: agentsh
+project_name: agentmon
 
 before:
   hooks:
@@ -12,9 +12,9 @@ builds:
   # Links dynamically against system libseccomp (>=2.5). The kernel
   # flag SECCOMP_FILTER_FLAG_WAIT_KILLABLE_RECV is set via the raw
   # seccomp(2) syscall path; see internal/platform/linux/seccomp/.
-  - id: agentsh-linux-amd64
-    main: ./cmd/agentsh
-    binary: agentsh
+  - id: agentmon-linux-amd64
+    main: ./cmd/agentmon
+    binary: agentmon
     env:
       - CGO_ENABLED=1
     goos:
@@ -29,9 +29,9 @@ builds:
   # (libseccomp-dev:arm64). PKG_CONFIG_LIBDIR points at the arm64
   # pkgconfig path so the amd64 host's pkg-config doesn't pick up
   # x86_64 libseccomp.
-  - id: agentsh-linux-arm64
-    main: ./cmd/agentsh
-    binary: agentsh
+  - id: agentmon-linux-arm64
+    main: ./cmd/agentmon
+    binary: agentmon
     env:
       - CGO_ENABLED=1
       - CC=aarch64-linux-gnu-gcc
@@ -43,9 +43,9 @@ builds:
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}}
 
-  - id: agentsh-darwin
-    main: ./cmd/agentsh
-    binary: agentsh
+  - id: agentmon-darwin
+    main: ./cmd/agentmon
+    binary: agentmon
     env:
       - CGO_ENABLED=0
     goos:
@@ -57,8 +57,8 @@ builds:
       - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}}
 
   - id: shim-linux
-    main: ./cmd/agentsh-shell-shim
-    binary: agentsh-shell-shim
+    main: ./cmd/agentmon-shell-shim
+    binary: agentmon-shell-shim
     env:
       - CGO_ENABLED=0
     goos:
@@ -70,8 +70,8 @@ builds:
       - -s -w
 
   - id: shim-darwin
-    main: ./cmd/agentsh-shell-shim
-    binary: agentsh-shell-shim
+    main: ./cmd/agentmon-shell-shim
+    binary: agentmon-shell-shim
     env:
       - CGO_ENABLED=0
     goos:
@@ -85,8 +85,8 @@ builds:
   # unixwrap: seccomp wrapper for Linux amd64. CGO enabled; links
   # dynamically against system libseccomp (>=2.5).
   - id: unixwrap-linux-amd64
-    main: ./cmd/agentsh-unixwrap
-    binary: agentsh-unixwrap
+    main: ./cmd/agentmon-unixwrap
+    binary: agentmon-unixwrap
     env:
       - CGO_ENABLED=1
     goos:
@@ -102,8 +102,8 @@ builds:
   # multiarch pkgconfig path (fail-closed: replaces default search
   # path so the amd64 host pkg-config can't pick up x86_64 .pc files).
   - id: unixwrap-linux-arm64
-    main: ./cmd/agentsh-unixwrap
-    binary: agentsh-unixwrap
+    main: ./cmd/agentmon-unixwrap
+    binary: agentmon-unixwrap
     env:
       - CGO_ENABLED=1
       - CC=aarch64-linux-gnu-gcc
@@ -117,8 +117,8 @@ builds:
 
   # stub: exec redirect proxy for FUSE/seccomp interception
   - id: stub-linux
-    main: ./cmd/agentsh-stub
-    binary: agentsh-stub
+    main: ./cmd/agentmon-stub
+    binary: agentmon-stub
     env:
       - CGO_ENABLED=0
     goos:
@@ -130,8 +130,8 @@ builds:
       - -s -w
 
   - id: stub-darwin
-    main: ./cmd/agentsh-stub
-    binary: agentsh-stub
+    main: ./cmd/agentmon-stub
+    binary: agentmon-stub
     env:
       - CGO_ENABLED=0
     goos:
@@ -144,10 +144,10 @@ builds:
 
   # macwrap: XPC sandbox wrapper for macOS (requires CGO)
   # NOTE: This build requires macOS with Xcode to compile - SKIPPED in CI
-  # Build locally with: CGO_ENABLED=1 go build -o bin/agentsh-macwrap ./cmd/agentsh-macwrap
+  # Build locally with: CGO_ENABLED=1 go build -o bin/agentmon-macwrap ./cmd/agentmon-macwrap
   # - id: macwrap-darwin
-  #   main: ./cmd/agentsh-macwrap
-  #   binary: agentsh-macwrap
+  #   main: ./cmd/agentmon-macwrap
+  #   binary: agentmon-macwrap
   #   env:
   #     - CGO_ENABLED=1
   #   goos:
@@ -159,10 +159,10 @@ builds:
   #     - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}}
 
 archives:
-  - id: agentsh-linux
+  - id: agentmon-linux
     ids:
-      - agentsh-linux-amd64
-      - agentsh-linux-arm64
+      - agentmon-linux-amd64
+      - agentmon-linux-arm64
       - shim-linux
       - unixwrap-linux-amd64
       - unixwrap-linux-arm64
@@ -189,9 +189,9 @@ archives:
       group: root
       owner: root
 
-  - id: agentsh-darwin
+  - id: agentmon-darwin
     ids:
-      - agentsh-darwin
+      - agentmon-darwin
       - shim-darwin
       - stub-darwin
       # macwrap-darwin excluded - requires native macOS build
@@ -210,11 +210,11 @@ checksum:
   name_template: "checksums.txt"
 
 nfpms:
-  - id: agentsh
-    package_name: agentsh
+  - id: agentmon
+    package_name: agentmon
     ids:
-      - agentsh-linux-amd64
-      - agentsh-linux-arm64
+      - agentmon-linux-amd64
+      - agentmon-linux-arm64
       - shim-linux
       - unixwrap-linux-amd64
       - unixwrap-linux-arm64
@@ -224,9 +224,9 @@ nfpms:
       - rpm
       - archlinux
     bindir: /usr/bin
-    vendor: AgentSH
-    homepage: https://github.com/agentsh/agentsh
-    maintainer: AgentSH Team <team@agentsh.dev>
+    vendor: AgentMon
+    homepage: https://github.com/diffsec/agentmon
+    maintainer: AgentMon Team <team@agentmon.dev>
     description: |
       Secure sandboxed shell for AI agents.
       Provides policy-based access control for file, network, and command operations.
@@ -236,66 +236,66 @@ nfpms:
     contents:
       # Configuration
       - src: packaging/config.yaml
-        dst: /etc/agentsh/config.yaml
+        dst: /etc/agentmon/config.yaml
         type: config|noreplace
         file_info:
           mode: 0644
       # Shell completions
-      - src: packaging/completions/agentsh.bash
-        dst: /usr/share/bash-completion/completions/agentsh
+      - src: packaging/completions/agentmon.bash
+        dst: /usr/share/bash-completion/completions/agentmon
         file_info:
           mode: 0644
-      - src: packaging/completions/agentsh.zsh
-        dst: /usr/share/zsh/site-functions/_agentsh
+      - src: packaging/completions/agentmon.zsh
+        dst: /usr/share/zsh/site-functions/_agentmon
         file_info:
           mode: 0644
-      - src: packaging/completions/agentsh.fish
-        dst: /usr/share/fish/vendor_completions.d/agentsh.fish
+      - src: packaging/completions/agentmon.fish
+        dst: /usr/share/fish/vendor_completions.d/agentmon.fish
         file_info:
           mode: 0644
       # Documentation
       - src: README.md
-        dst: /usr/share/doc/agentsh/README.md
+        dst: /usr/share/doc/agentmon/README.md
         file_info:
           mode: 0644
       - src: LICENSE
-        dst: /usr/share/doc/agentsh/LICENSE
+        dst: /usr/share/doc/agentmon/LICENSE
         file_info:
           mode: 0644
       # Envshim library (Linux only) - uses glob to skip if not built
       - src: build/envshim/linux_{{ .Arch }}/*.so
-        dst: /usr/lib/agentsh/
+        dst: /usr/lib/agentmon/
       # Ptracer LD_PRELOAD library (Linux only) - Yama ptrace_scope workaround
       - src: build/ptracer/linux_{{ .Arch }}/*.so
-        dst: /usr/lib/agentsh/
+        dst: /usr/lib/agentmon/
       # Bash startup script for environment injection
       - src: packaging/bash_startup.sh
-        dst: /usr/lib/agentsh/bash_startup.sh
+        dst: /usr/lib/agentmon/bash_startup.sh
         file_info:
           mode: 0755
       # Policy files
       - src: configs/policies/*.yaml
-        dst: /etc/agentsh/policies/
+        dst: /etc/agentmon/policies/
         type: config|noreplace
         file_info:
           mode: 0644
       # Create directories
-      - dst: /etc/agentsh
+      - dst: /etc/agentmon
         type: dir
         file_info:
           mode: 0755
-      - dst: /etc/agentsh/policies
+      - dst: /etc/agentmon/policies
         type: dir
         file_info:
           mode: 0755
-      - dst: /usr/lib/agentsh
+      - dst: /usr/lib/agentmon
         type: dir
         file_info:
           mode: 0755
     rpm:
       group: Applications/System
     archlinux:
-      pkgbase: agentsh
+      pkgbase: agentmon
 
 release:
   draft: false

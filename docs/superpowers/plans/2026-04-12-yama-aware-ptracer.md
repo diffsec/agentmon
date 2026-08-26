@@ -15,12 +15,12 @@
 ### Task 1: Yama Detection — Test + Implementation
 
 **Files:**
-- Create: `cmd/agentsh-unixwrap/yama_linux.go`
-- Create: `cmd/agentsh-unixwrap/yama_linux_test.go`
+- Create: `cmd/agentmon-unixwrap/yama_linux.go`
+- Create: `cmd/agentmon-unixwrap/yama_linux_test.go`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `cmd/agentsh-unixwrap/yama_linux_test.go`:
+Create `cmd/agentmon-unixwrap/yama_linux_test.go`:
 
 ```go
 //go:build linux && cgo
@@ -60,13 +60,13 @@ func TestIsYamaActive_WhenAbsent(t *testing.T) {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /home/eran/work/agentsh && go test ./cmd/agentsh-unixwrap/ -run TestIsYamaActive -v`
+Run: `cd /home/eran/work/agentmon && go test ./cmd/agentmon-unixwrap/ -run TestIsYamaActive -v`
 
 Expected: compilation error — `yamaPtraceScopePath` and `isYamaActive` are not defined.
 
 - [ ] **Step 3: Write minimal implementation**
 
-Create `cmd/agentsh-unixwrap/yama_linux.go`:
+Create `cmd/agentmon-unixwrap/yama_linux.go`:
 
 ```go
 //go:build linux && cgo
@@ -90,14 +90,14 @@ func isYamaActive() bool {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /home/eran/work/agentsh && go test ./cmd/agentsh-unixwrap/ -run TestIsYamaActive -v`
+Run: `cd /home/eran/work/agentmon && go test ./cmd/agentmon-unixwrap/ -run TestIsYamaActive -v`
 
 Expected: both tests PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add cmd/agentsh-unixwrap/yama_linux.go cmd/agentsh-unixwrap/yama_linux_test.go
+git add cmd/agentmon-unixwrap/yama_linux.go cmd/agentmon-unixwrap/yama_linux_test.go
 git commit -m "feat(seccomp): add Yama LSM detection for PR_SET_PTRACER (#218)"
 ```
 
@@ -106,11 +106,11 @@ git commit -m "feat(seccomp): add Yama LSM detection for PR_SET_PTRACER (#218)"
 ### Task 2: Yama-Aware PR_SET_PTRACER in Wrapper
 
 **Files:**
-- Modify: `cmd/agentsh-unixwrap/main.go:45-54`
+- Modify: `cmd/agentmon-unixwrap/main.go:45-54`
 
 - [ ] **Step 1: Replace the unconditional PR_SET_PTRACER call**
 
-In `cmd/agentsh-unixwrap/main.go`, replace lines 45-54 (the comment block and the `if cfg.ServerPID > 0` block):
+In `cmd/agentmon-unixwrap/main.go`, replace lines 45-54 (the comment block and the `if cfg.ServerPID > 0` block):
 
 Old code:
 ```go
@@ -147,20 +147,20 @@ New code:
 
 - [ ] **Step 2: Verify build and existing tests pass**
 
-Run: `cd /home/eran/work/agentsh && go build ./cmd/agentsh-unixwrap/ && go test ./cmd/agentsh-unixwrap/ -v`
+Run: `cd /home/eran/work/agentmon && go build ./cmd/agentmon-unixwrap/ && go test ./cmd/agentmon-unixwrap/ -v`
 
 Expected: build succeeds, all existing tests pass.
 
 - [ ] **Step 3: Verify cross-compilation**
 
-Run: `cd /home/eran/work/agentsh && GOOS=windows go build ./...`
+Run: `cd /home/eran/work/agentmon && GOOS=windows go build ./...`
 
 Expected: build succeeds (the new file has `_linux.go` suffix, excluded from Windows builds).
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add cmd/agentsh-unixwrap/main.go
+git add cmd/agentmon-unixwrap/main.go
 git commit -m "fix(seccomp): skip PR_SET_PTRACER when Yama LSM not loaded (#218)"
 ```
 
@@ -232,7 +232,7 @@ func TestFindReadableAddr_InvalidPID(t *testing.T) {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -run "TestFindReadableAddr|TestProbeProcessVMReadvAt|TestProbeProcMemAt|TestProbeMemoryAccess" -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -run "TestFindReadableAddr|TestProbeProcessVMReadvAt|TestProbeProcMemAt|TestProbeMemoryAccess" -v`
 
 Expected: compilation error — functions not defined.
 
@@ -330,7 +330,7 @@ func findReadableAddr(pid int) (uint64, error) {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -run "TestFindReadableAddr|TestProbeProcessVMReadvAt|TestProbeProcMemAt|TestProbeMemoryAccess" -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -run "TestFindReadableAddr|TestProbeProcessVMReadvAt|TestProbeProcMemAt|TestProbeMemoryAccess" -v`
 
 Expected: all 6 tests PASS.
 
@@ -397,13 +397,13 @@ New code:
 
 - [ ] **Step 2: Verify build succeeds**
 
-Run: `cd /home/eran/work/agentsh && go build ./internal/api/`
+Run: `cd /home/eran/work/agentmon && go build ./internal/api/`
 
 Expected: build succeeds with no errors.
 
 - [ ] **Step 3: Run existing tests to check for regressions**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -v -count=1 2>&1 | tail -20`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -v -count=1 2>&1 | tail -20`
 
 Expected: all existing tests pass. The probe runs against self PID in test contexts and should succeed.
 
@@ -472,19 +472,19 @@ New code:
 
 - [ ] **Step 2: Verify build succeeds**
 
-Run: `cd /home/eran/work/agentsh && go build ./internal/api/`
+Run: `cd /home/eran/work/agentmon && go build ./internal/api/`
 
 Expected: build succeeds with no errors.
 
 - [ ] **Step 3: Run existing tests**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -v -count=1 2>&1 | tail -20`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -v -count=1 2>&1 | tail -20`
 
 Expected: all existing tests pass.
 
 - [ ] **Step 4: Verify cross-compilation**
 
-Run: `cd /home/eran/work/agentsh && GOOS=windows go build ./...`
+Run: `cd /home/eran/work/agentmon && GOOS=windows go build ./...`
 
 Expected: build succeeds. `pvr_probe_linux.go` and the modified `wrap_linux.go` are excluded from Windows builds by filename suffix.
 
@@ -542,7 +542,7 @@ import (
 
 - [ ] **Step 2: Run the test**
 
-Run: `cd /home/eran/work/agentsh && go test ./internal/api/ -run TestProbeMemoryAccess_CrossProcess -v`
+Run: `cd /home/eran/work/agentmon && go test ./internal/api/ -run TestProbeMemoryAccess_CrossProcess -v`
 
 Expected: PASS. Parent can read from child process (same UID, standard ptrace access).
 
@@ -559,18 +559,18 @@ git commit -m "test(seccomp): add cross-process ProcessVMReadv integration test 
 
 - [ ] **Step 1: Run full test suite**
 
-Run: `cd /home/eran/work/agentsh && go test ./... 2>&1 | tail -30`
+Run: `cd /home/eran/work/agentmon && go test ./... 2>&1 | tail -30`
 
 Expected: all tests pass.
 
 - [ ] **Step 2: Verify Windows cross-compilation**
 
-Run: `cd /home/eran/work/agentsh && GOOS=windows go build ./...`
+Run: `cd /home/eran/work/agentmon && GOOS=windows go build ./...`
 
 Expected: build succeeds. All new files have `_linux` suffix.
 
 - [ ] **Step 3: Verify Linux build**
 
-Run: `cd /home/eran/work/agentsh && go build ./...`
+Run: `cd /home/eran/work/agentmon && go build ./...`
 
 Expected: build succeeds.

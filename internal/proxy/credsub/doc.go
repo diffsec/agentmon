@@ -7,7 +7,7 @@
 // substitution in both directions:
 //
 //   - ReplaceFakeToReal is used on outbound request bodies, headers,
-//     query strings, and URL paths before they leave agentsh.
+//     query strings, and URL paths before they leave agentmon.
 //   - ReplaceRealToFake is used on inbound response bodies before they
 //     reach the agent (when the matched service has scrub_response: true).
 //

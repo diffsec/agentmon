@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace silent-failure in cgroup v2 resource-limit enforcement with a probe → mode-selection → fail-closed flow. Covers issue [#197](https://github.com/erans/agentsh/issues/197).
+**Goal:** Replace silent-failure in cgroup v2 resource-limit enforcement with a probe → mode-selection → fail-closed flow. Covers issue [#197](https://github.com/erans/agentmon/issues/197).
 
-**Architecture:** Introduce a thin `cgroupFS` filesystem abstraction, a `ProbeCgroupsV2` function implementing the nested → top-level → unavailable decision tree, and a `CgroupManager` that routes per-command cgroup creation based on the probed mode. `enableControllers()` is fixed to surface errors instead of swallowing them. The native Linux API handler is migrated to use the manager; `agentsh detect` gains a structured cgroup block. Lima and WSL2 are **out of scope** and tracked as a follow-up.
+**Architecture:** Introduce a thin `cgroupFS` filesystem abstraction, a `ProbeCgroupsV2` function implementing the nested → top-level → unavailable decision tree, and a `CgroupManager` that routes per-command cgroup creation based on the probed mode. `enableControllers()` is fixed to surface errors instead of swallowing them. The native Linux API handler is migrated to use the manager; `agentmon detect` gains a structured cgroup block. Lima and WSL2 are **out of scope** and tracked as a follow-up.
 
 **Tech Stack:** Go, Linux cgroup v2, standard library (`os`, `errors`, `syscall`, `path/filepath`), existing `internal/events` broker and store for audit emission.
 
@@ -117,7 +117,7 @@ import (
 
 // cgroupFS is a narrow abstraction over the /sys/fs/cgroup filesystem used by
 // the probe and manager, so they can be unit-tested with an in-memory fake.
-// All paths are absolute (e.g. "/sys/fs/cgroup/agentsh.slice/cgroup.controllers").
+// All paths are absolute (e.g. "/sys/fs/cgroup/agentmon.slice/cgroup.controllers").
 type cgroupFS interface {
     ReadFile(path string) ([]byte, error)
     WriteFile(path string, data []byte, perm os.FileMode) error
@@ -425,7 +425,7 @@ func TestFakeCgroupFS_Smoke(t *testing.T) {
         t.Fatalf("unexpected content: %q", data)
     }
 
-    if err := f.Mkdir("/sys/fs/cgroup/agentsh.slice", 0o755); err != nil {
+    if err := f.Mkdir("/sys/fs/cgroup/agentmon.slice", 0o755); err != nil {
         t.Fatalf("Mkdir: %v", err)
     }
     entries, err := f.ReadDir("/sys/fs/cgroup")
@@ -434,12 +434,12 @@ func TestFakeCgroupFS_Smoke(t *testing.T) {
     }
     found := false
     for _, e := range entries {
-        if e.Name() == "agentsh.slice" && e.IsDir() {
+        if e.Name() == "agentmon.slice" && e.IsDir() {
             found = true
         }
     }
     if !found {
-        t.Fatalf("expected agentsh.slice in readdir, got %v", entries)
+        t.Fatalf("expected agentmon.slice in readdir, got %v", entries)
     }
 }
 ```
@@ -574,10 +574,10 @@ import "syscall"
 func TestEnableControllers_ReturnsError(t *testing.T) {
     // Create a fake FS where subtree_control exists but WriteString injects EBUSY.
     f := newFakeCgroupFS()
-    f.seedFile("/sys/fs/cgroup/system.slice/agentsh.service/cgroup.subtree_control", "")
-    f.openErrs["/sys/fs/cgroup/system.slice/agentsh.service/cgroup.subtree_control:write"] = syscall.EBUSY
+    f.seedFile("/sys/fs/cgroup/system.slice/agentmon.service/cgroup.subtree_control", "")
+    f.openErrs["/sys/fs/cgroup/system.slice/agentmon.service/cgroup.subtree_control:write"] = syscall.EBUSY
 
-    err := enableControllersFS(f, "/sys/fs/cgroup/system.slice/agentsh.service", []string{"cpu", "memory", "pids"})
+    err := enableControllersFS(f, "/sys/fs/cgroup/system.slice/agentmon.service", []string{"cpu", "memory", "pids"})
     if err == nil {
         t.Fatalf("expected error, got nil")
     }
@@ -707,16 +707,16 @@ type CgroupProbeResult struct {
     Mode        CgroupMode
     Reason      string
     OwnCgroup   string // absolute path to the process's own cgroup dir
-    SliceDir    string // absolute path to /sys/fs/cgroup/agentsh.slice (top-level mode only; empty otherwise)
+    SliceDir    string // absolute path to /sys/fs/cgroup/agentmon.slice (top-level mode only; empty otherwise)
     IOAvailable bool   // true if the io controller is usable in the chosen mode
     // OrphansReaped is populated in top-level mode when the probe removed
-    // leftover unpopulated child cgroups from a prior agentsh run.
+    // leftover unpopulated child cgroups from a prior agentmon run.
     OrphansReaped []string
 }
 
 // DefaultSliceDir is the stable top-level parent used when nested enforcement
 // is not reachable. Exported so tests and the detect command can reference it.
-const DefaultSliceDir = "/sys/fs/cgroup/agentsh.slice"
+const DefaultSliceDir = "/sys/fs/cgroup/agentmon.slice"
 
 // ProbeCgroupsV2 runs the decision tree described in the design spec:
 //
@@ -841,7 +841,7 @@ func tryTopLevel(ctx context.Context, fs cgroupFS, own, nestedFailureReason stri
         }, nil
     }
 
-    // Reap orphans left behind by a prior agentsh crash.
+    // Reap orphans left behind by a prior agentmon crash.
     reaped := reapOrphansFS(fs, DefaultSliceDir)
 
     return &CgroupProbeResult{
@@ -877,7 +877,7 @@ func reapOrphansFS(fs cgroupFS, sliceDir string) []string {
             continue
         }
         if err := fs.Remove(child); err != nil {
-            fmt.Fprintf(os.Stderr, "agentsh: reap orphan %s: %v\n", child, err)
+            fmt.Fprintf(os.Stderr, "agentmon: reap orphan %s: %v\n", child, err)
             continue
         }
         reaped = append(reaped, e.Name())
@@ -976,7 +976,7 @@ func seedHealthyRoot(f *fakeCgroupFS) {
 func TestProbe_NestedAlreadyDelegated(t *testing.T) {
     f := newFakeCgroupFS()
     seedHealthyRoot(f)
-    own := "/sys/fs/cgroup/system.slice/agentsh.service"
+    own := "/sys/fs/cgroup/system.slice/agentmon.service"
     f.seedFile(own+"/cgroup.controllers", "cpu io memory pids")
     f.seedFile(own+"/cgroup.subtree_control", "cpu io memory pids")
 
@@ -998,7 +998,7 @@ func TestProbe_NestedAlreadyDelegated(t *testing.T) {
 func TestProbe_NestedEnableSucceeds(t *testing.T) {
     f := newFakeCgroupFS()
     seedHealthyRoot(f)
-    own := "/sys/fs/cgroup/system.slice/agentsh.service"
+    own := "/sys/fs/cgroup/system.slice/agentmon.service"
     f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
     f.seedFile(own+"/cgroup.subtree_control", "")
 
@@ -1017,7 +1017,7 @@ func TestProbe_NestedEnableSucceeds(t *testing.T) {
 func TestProbe_EnableEBUSY_FallbackToTopLevel(t *testing.T) {
     f := newFakeCgroupFS()
     seedHealthyRoot(f)
-    own := "/sys/fs/cgroup/system.slice/agentsh.service"
+    own := "/sys/fs/cgroup/system.slice/agentmon.service"
     f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
     f.seedFile(own+"/cgroup.subtree_control", "")
     // Injected: the enable write fails with EBUSY.
@@ -1025,7 +1025,7 @@ func TestProbe_EnableEBUSY_FallbackToTopLevel(t *testing.T) {
     // Top-level needs to be ready: slice dir will be created by probe, but we
     // must seed memory.max to appear after mkdir (our fake doesn't auto-create
     // controller files, so we prepopulate the file at the expected path).
-    f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+    f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 
     res, err := ProbeCgroupsV2(context.Background(), f, own)
     if err != nil {
@@ -1045,11 +1045,11 @@ func TestProbe_EnableEBUSY_FallbackToTopLevel(t *testing.T) {
 func TestProbe_EnableEACCES_FallbackToTopLevel(t *testing.T) {
     f := newFakeCgroupFS()
     seedHealthyRoot(f)
-    own := "/sys/fs/cgroup/system.slice/agentsh.service"
+    own := "/sys/fs/cgroup/system.slice/agentmon.service"
     f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
     f.seedFile(own+"/cgroup.subtree_control", "")
     f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EACCES
-    f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+    f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 
     res, err := ProbeCgroupsV2(context.Background(), f, own)
     if err != nil {
@@ -1068,7 +1068,7 @@ func TestProbe_TopLevelMissingMemoryController(t *testing.T) {
     // Root is missing memory.
     f.seedFile("/sys/fs/cgroup/cgroup.controllers", "cpu pids")
     f.seedFile("/sys/fs/cgroup/cgroup.subtree_control", "")
-    own := "/sys/fs/cgroup/system.slice/agentsh.service"
+    own := "/sys/fs/cgroup/system.slice/agentmon.service"
     f.seedFile(own+"/cgroup.controllers", "cpu pids")
     f.seedFile(own+"/cgroup.subtree_control", "")
 
@@ -1087,11 +1087,11 @@ func TestProbe_TopLevelMissingMemoryController(t *testing.T) {
 func TestProbe_TopLevelSliceMissingControllerFiles(t *testing.T) {
     f := newFakeCgroupFS()
     seedHealthyRoot(f)
-    own := "/sys/fs/cgroup/system.slice/agentsh.service"
+    own := "/sys/fs/cgroup/system.slice/agentmon.service"
     f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
     f.seedFile(own+"/cgroup.subtree_control", "")
     f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EBUSY
-    // Do NOT seed agentsh.slice/memory.max — our fake mkdir won't auto-create it.
+    // Do NOT seed agentmon.slice/memory.max — our fake mkdir won't auto-create it.
 
     res, err := ProbeCgroupsV2(context.Background(), f, own)
     if err != nil {
@@ -1108,15 +1108,15 @@ func TestProbe_TopLevelSliceMissingControllerFiles(t *testing.T) {
 func TestProbe_TopLevelOrphanReap(t *testing.T) {
     f := newFakeCgroupFS()
     seedHealthyRoot(f)
-    own := "/sys/fs/cgroup/system.slice/agentsh.service"
+    own := "/sys/fs/cgroup/system.slice/agentmon.service"
     f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
     f.seedFile(own+"/cgroup.subtree_control", "")
     f.openErrs[own+"/cgroup.subtree_control:write"] = syscall.EBUSY
-    f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+    f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
     // Orphan A is unpopulated → should be reaped.
-    f.seedFile("/sys/fs/cgroup/agentsh.slice/orphan-A/cgroup.events", "populated 0\nfrozen 0\n")
+    f.seedFile("/sys/fs/cgroup/agentmon.slice/orphan-A/cgroup.events", "populated 0\nfrozen 0\n")
     // Orphan B is populated → should be left alone.
-    f.seedFile("/sys/fs/cgroup/agentsh.slice/orphan-B/cgroup.events", "populated 1\nfrozen 0\n")
+    f.seedFile("/sys/fs/cgroup/agentmon.slice/orphan-B/cgroup.events", "populated 1\nfrozen 0\n")
 
     res, err := ProbeCgroupsV2(context.Background(), f, own)
     if err != nil {
@@ -1128,10 +1128,10 @@ func TestProbe_TopLevelOrphanReap(t *testing.T) {
     if len(res.OrphansReaped) != 1 || res.OrphansReaped[0] != "orphan-A" {
         t.Fatalf("expected orphan-A reaped, got %v", res.OrphansReaped)
     }
-    if _, err := f.Stat("/sys/fs/cgroup/agentsh.slice/orphan-A"); err == nil {
+    if _, err := f.Stat("/sys/fs/cgroup/agentmon.slice/orphan-A"); err == nil {
         t.Fatalf("orphan-A should have been removed")
     }
-    if _, err := f.Stat("/sys/fs/cgroup/agentsh.slice/orphan-B"); err != nil {
+    if _, err := f.Stat("/sys/fs/cgroup/agentmon.slice/orphan-B"); err != nil {
         t.Fatalf("orphan-B should still exist: %v", err)
     }
 }
@@ -1141,7 +1141,7 @@ func TestProbe_IOControllerOptional(t *testing.T) {
     // Root has everything except io.
     f.seedFile("/sys/fs/cgroup/cgroup.controllers", "cpu memory pids")
     f.seedFile("/sys/fs/cgroup/cgroup.subtree_control", "cpu memory pids")
-    own := "/sys/fs/cgroup/system.slice/agentsh.service"
+    own := "/sys/fs/cgroup/system.slice/agentmon.service"
     f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
     f.seedFile(own+"/cgroup.subtree_control", "cpu memory pids")
 
@@ -1206,7 +1206,7 @@ import (
 // Construct one at server startup via NewCgroupManager; all per-exec calls go through Apply.
 //
 // The manager captures an immutable probe result at construction time. If the
-// environment changes mid-run, restart agentsh.
+// environment changes mid-run, restart agentmon.
 type CgroupManager struct {
     fs     cgroupFS
     probe  *CgroupProbeResult
@@ -1319,7 +1319,7 @@ import (
 func TestManagerApply_NestedWritesLimits(t *testing.T) {
     f := newFakeCgroupFS()
     seedHealthyRoot(f)
-    own := "/sys/fs/cgroup/system.slice/agentsh.service"
+    own := "/sys/fs/cgroup/system.slice/agentmon.service"
     f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
     f.seedFile(own+"/cgroup.subtree_control", "cpu memory pids")
 
@@ -1331,7 +1331,7 @@ func TestManagerApply_NestedWritesLimits(t *testing.T) {
         t.Fatalf("mode: %q", m.Probe().Mode)
     }
 
-    cg, err := m.Apply("agentsh-sess-cmd", 4242, CgroupV2Limits{MaxMemoryBytes: 16 << 20, PidsMax: 64})
+    cg, err := m.Apply("agentmon-sess-cmd", 4242, CgroupV2Limits{MaxMemoryBytes: 16 << 20, PidsMax: 64})
     if err != nil {
         t.Fatalf("apply: %v", err)
     }
@@ -1355,11 +1355,11 @@ func TestManagerApply_NestedWritesLimits(t *testing.T) {
 func TestManagerApply_TopLevelWritesUnderSlice(t *testing.T) {
     f := newFakeCgroupFS()
     seedHealthyRoot(f)
-    own := "/sys/fs/cgroup/system.slice/agentsh.service"
+    own := "/sys/fs/cgroup/system.slice/agentmon.service"
     f.seedFile(own+"/cgroup.controllers", "cpu memory pids")
     f.seedFile(own+"/cgroup.subtree_control", "")
     f.openErrs[own+"/cgroup.subtree_control:write"] = syscallEBUSY()
-    f.seedFile("/sys/fs/cgroup/agentsh.slice/memory.max", "max")
+    f.seedFile("/sys/fs/cgroup/agentmon.slice/memory.max", "max")
 
     m, err := newCgroupManagerFS(context.Background(), f, own)
     if err != nil {
@@ -1369,7 +1369,7 @@ func TestManagerApply_TopLevelWritesUnderSlice(t *testing.T) {
         t.Fatalf("mode: %q", m.Probe().Mode)
     }
 
-    cg, err := m.Apply("agentsh-sess-cmd", 1234, CgroupV2Limits{MaxMemoryBytes: 8 << 20})
+    cg, err := m.Apply("agentmon-sess-cmd", 1234, CgroupV2Limits{MaxMemoryBytes: 8 << 20})
     if err != nil {
         t.Fatalf("apply: %v", err)
     }
@@ -1381,7 +1381,7 @@ func TestManagerApply_TopLevelWritesUnderSlice(t *testing.T) {
 func TestManagerApply_UnavailableNoLimitsAllows(t *testing.T) {
     f := newFakeCgroupFS()
     f.seedFile("/sys/fs/cgroup/cgroup.controllers", "cpu pids") // no memory
-    own := "/sys/fs/cgroup/system.slice/agentsh.service"
+    own := "/sys/fs/cgroup/system.slice/agentmon.service"
     f.seedFile(own+"/cgroup.controllers", "cpu pids")
 
     m, err := newCgroupManagerFS(context.Background(), f, own)
@@ -1392,7 +1392,7 @@ func TestManagerApply_UnavailableNoLimitsAllows(t *testing.T) {
         t.Fatalf("mode: %q", m.Probe().Mode)
     }
 
-    cg, err := m.Apply("agentsh-sess-cmd", 1234, CgroupV2Limits{})
+    cg, err := m.Apply("agentmon-sess-cmd", 1234, CgroupV2Limits{})
     if err != nil {
         t.Fatalf("apply with empty limits should succeed, got %v", err)
     }
@@ -1404,7 +1404,7 @@ func TestManagerApply_UnavailableNoLimitsAllows(t *testing.T) {
 func TestManagerApply_UnavailableWithLimitsRefuses(t *testing.T) {
     f := newFakeCgroupFS()
     f.seedFile("/sys/fs/cgroup/cgroup.controllers", "cpu pids")
-    own := "/sys/fs/cgroup/system.slice/agentsh.service"
+    own := "/sys/fs/cgroup/system.slice/agentmon.service"
     f.seedFile(own+"/cgroup.controllers", "cpu pids")
 
     m, err := newCgroupManagerFS(context.Background(), f, own)
@@ -1412,7 +1412,7 @@ func TestManagerApply_UnavailableWithLimitsRefuses(t *testing.T) {
         t.Fatalf("new manager: %v", err)
     }
 
-    _, err = m.Apply("agentsh-sess-cmd", 1234, CgroupV2Limits{MaxMemoryBytes: 8 << 20})
+    _, err = m.Apply("agentmon-sess-cmd", 1234, CgroupV2Limits{MaxMemoryBytes: 8 << 20})
     if err == nil {
         t.Fatalf("expected error, got nil")
     }
@@ -1524,7 +1524,7 @@ func TestIntegration_TopLevelApplyAndEnforce(t *testing.T) {
     }
     defer func() { _ = cmd.Process.Kill() }()
 
-    cg, err := m.Apply("agentsh-integ-top-level", cmd.Process.Pid, CgroupV2Limits{
+    cg, err := m.Apply("agentmon-integ-top-level", cmd.Process.Pid, CgroupV2Limits{
         MaxMemoryBytes: 8 << 20,
     })
     if err != nil {
@@ -1641,7 +1641,7 @@ func applyCgroupV2(ctx context.Context, emit storeEmitter, app *App, sessionID, 
         return nil, fmt.Errorf("cgroup manager not initialized")
     }
 
-    cg, err := app.cgroupMgr.Apply("agentsh-"+sanitizeCgroupTag(sessionID)+"-"+sanitizeCgroupTag(cmdID), pid, cgLimits)
+    cg, err := app.cgroupMgr.Apply("agentmon-"+sanitizeCgroupTag(sessionID)+"-"+sanitizeCgroupTag(cmdID), pid, cgLimits)
     if err != nil {
         var ue *limits.CgroupUnavailableError
         if errors.As(err, &ue) {
@@ -1734,13 +1734,13 @@ import (
 
     "github.com/cilium/ebpf"
 
-    "github.com/agentsh/agentsh/internal/config"
-    "github.com/agentsh/agentsh/internal/events"
-    "github.com/agentsh/agentsh/internal/limits"
-    "github.com/agentsh/agentsh/internal/metrics"
-    ebpftrace "github.com/agentsh/agentsh/internal/netmonitor/ebpf"
-    "github.com/agentsh/agentsh/internal/policy"
-    "github.com/agentsh/agentsh/pkg/types"
+    "github.com/diffsec/agentmon/internal/config"
+    "github.com/diffsec/agentmon/internal/events"
+    "github.com/diffsec/agentmon/internal/limits"
+    "github.com/diffsec/agentmon/internal/metrics"
+    ebpftrace "github.com/diffsec/agentmon/internal/netmonitor/ebpf"
+    "github.com/diffsec/agentmon/internal/policy"
+    "github.com/diffsec/agentmon/pkg/types"
     "github.com/google/uuid"
 )
 ```
@@ -1783,7 +1783,7 @@ type App struct {
 }
 ```
 
-Ensure `"github.com/agentsh/agentsh/internal/limits"` is in the imports (it may already be).
+Ensure `"github.com/diffsec/agentmon/internal/limits"` is in the imports (it may already be).
 
 - [ ] **Step 3: Extend `NewApp` signature to accept the manager**
 
@@ -1870,9 +1870,9 @@ Add to `internal/server/server.go` imports (if missing):
 ```go
 "runtime"
 "time"
-"github.com/agentsh/agentsh/internal/events"
-"github.com/agentsh/agentsh/internal/limits"
-"github.com/agentsh/agentsh/pkg/types"
+"github.com/diffsec/agentmon/internal/events"
+"github.com/diffsec/agentmon/internal/limits"
+"github.com/diffsec/agentmon/pkg/types"
 "github.com/google/uuid"
 ```
 
@@ -1972,7 +1972,7 @@ func TestManagerApply_CreatesAndCleansUp_Integration(t *testing.T) {
         t.Skipf("cgroup enforcement unavailable: %s", m.Probe().Reason)
     }
 
-    cg, err := m.Apply("agentsh-test-"+strings.ReplaceAll(t.Name(), "/", "_"), cmd.Process.Pid, CgroupV2Limits{
+    cg, err := m.Apply("agentmon-test-"+strings.ReplaceAll(t.Name(), "/", "_"), cmd.Process.Pid, CgroupV2Limits{
         PidsMax: 100,
     })
     if err != nil {
@@ -2092,7 +2092,7 @@ Imports needed in `check_cgroups_linux.go`:
 import (
     "context"
 
-    "github.com/agentsh/agentsh/internal/limits"
+    "github.com/diffsec/agentmon/internal/limits"
 )
 ```
 
@@ -2216,9 +2216,9 @@ Expected: no warnings.
 Run: `git log --oneline origin/main..HEAD`
 Expected: a commit per task (Task 9 and 10 combined), the spec commit from brainstorming at the bottom, and this plan file itself if committed separately.
 
-- [ ] **Step 6: Sanity-check `agentsh detect` on the dev host**
+- [ ] **Step 6: Sanity-check `agentmon detect` on the dev host**
 
-Run: `go run ./cmd/agentsh detect`
+Run: `go run ./cmd/agentmon detect`
 Expected: output contains a `cgroups_v2` key plus the new `cgroups_v2_mode` / `cgroups_v2_reason` fields. The mode will be whatever applies to the dev host (`nested`, `top-level`, or `unavailable`).
 
 - [ ] **Step 7: File the Lima/WSL2 follow-up issue**
@@ -2265,8 +2265,8 @@ EOF
 - Error message hygiene (`write memory.max (mode=%s, dir=%s)`) → Task 7 (`CgroupManager.Apply` error wrapping).
 - Boundaries — new files at `internal/limits/` and manager field on `api.App` → Task 2 (interface), Task 7 (manager), Task 10 (wiring).
 - Audit events `cgroup_mode`, `cgroup_orphans_reaped`, `cgroup_unavailable_refusal` → Task 1 (constants), Task 9 (refusal emission), Task 10 (startup emission).
-- `agentsh detect` structured block → Task 12 (`cgroupProbeCache`, `backwardCompatCaps` extension).
-- Lifecycle of `agentsh.slice/` (eager creation, orphan reaping, stable dir) → Task 6 (`tryTopLevel`, `reapOrphansFS`) + Task 10 (startup reap event emission).
+- `agentmon detect` structured block → Task 12 (`cgroupProbeCache`, `backwardCompatCaps` extension).
+- Lifecycle of `agentmon.slice/` (eager creation, orphan reaping, stable dir) → Task 6 (`tryTopLevel`, `reapOrphansFS`) + Task 10 (startup reap event emission).
 - Policy schema unchanged → no task needed; reconfirmed by not touching `internal/policy/model.go`.
 - Behaviour-change release-notes guidance → Task 13 step 7 (follow-up issue body) + spec already committed.
 - Unit tests (all 14 tests listed in spec) → Tasks 5 / 6 / 7.

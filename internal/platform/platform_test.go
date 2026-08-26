@@ -5,9 +5,9 @@ package platform_test
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 	// Import linux package to trigger init() registration
-	_ "github.com/agentsh/agentsh/internal/platform/linux"
+	_ "github.com/diffsec/agentmon/internal/platform/linux"
 )
 
 func TestNew_ReturnsLinuxOnLinux(t *testing.T) {

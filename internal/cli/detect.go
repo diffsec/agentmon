@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/agentsh/agentsh/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/capabilities"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +20,7 @@ This command probes the system for available security primitives like
 seccomp, Landlock, eBPF, FUSE, and capabilities. It helps you understand
 what security features are available in your environment.
 
-Use 'agentsh detect config' to generate an optimized configuration.`,
+Use 'agentmon detect config' to generate an optimized configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result, err := capabilities.Detect()
 			if err != nil {
@@ -44,7 +44,7 @@ Use 'agentsh detect config' to generate an optimized configuration.`,
 			}
 
 			// Route the formatted document to stdout, not stderr — callers
-			// pipe `agentsh detect --output json | jq` and expect the
+			// pipe `agentmon detect --output json | jq` and expect the
 			// document on stdout. cobra's cmd.Println uses OutOrStderr
 			// (defaults to os.Stderr), which broke that contract for #281
 			// on v0.19.2-rc1 (stdout empty, JSON on stderr).
@@ -71,9 +71,9 @@ func newDetectConfigCmd() *cobra.Command {
 By default, outputs to stdout. Use --output to write to a file.
 
 Example:
-  agentsh detect config                    # Print to stdout
-  agentsh detect config --output config.yaml  # Write to file
-  agentsh detect config > security.yaml    # Redirect to file`,
+  agentmon detect config                    # Print to stdout
+  agentmon detect config --output config.yaml  # Write to file
+  agentmon detect config > security.yaml    # Redirect to file`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result, err := capabilities.Detect()
 			if err != nil {
@@ -95,7 +95,7 @@ Example:
 
 			// Same routing fix as the parent detect command — when the
 			// generated config goes to stdout (no --output file), it must
-			// land on os.Stdout so `agentsh detect config > security.yaml`
+			// land on os.Stdout so `agentmon detect config > security.yaml`
 			// works as documented.
 			fmt.Fprint(cmd.OutOrStdout(), string(config))
 			return nil

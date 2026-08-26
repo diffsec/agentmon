@@ -6,7 +6,7 @@ Add a `real-paths` option that uses the actual host directory path as the sessio
 
 ## Problem Statement
 
-agentsh virtualizes all workspace access under `/workspace`. This confuses path-aware agents like Claude Code that:
+agentmon virtualizes all workspace access under `/workspace`. This confuses path-aware agents like Claude Code that:
 - Read `git status` output containing real paths
 - Use absolute paths in tool calls
 - Reference file paths in their output
@@ -22,7 +22,7 @@ Make the virtual root configurable per-session. When `real-paths` is enabled, th
 ### CLI Flag
 
 ```bash
-agentsh session create --workspace /home/user/work/myproject --real-paths
+agentmon session create --workspace /home/user/work/myproject --real-paths
 ```
 
 ### YAML Config
@@ -203,5 +203,5 @@ When `real_paths: true` and `EnforceWithoutFUSE: false`, outside-workspace acces
 
 ### Manual verification
 
-- Run Claude Code through agentsh with `--real-paths`
+- Run Claude Code through agentmon with `--real-paths`
 - Confirm `git status`, file paths, and navigation all use real paths

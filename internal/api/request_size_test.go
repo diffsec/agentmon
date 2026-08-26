@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
 )
 
 func TestCreateSession_RequestTooLargeReturns413(t *testing.T) {

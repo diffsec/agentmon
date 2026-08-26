@@ -2,7 +2,7 @@ package metrics
 
 import (
 	"context"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -31,14 +31,14 @@ func TestHandlerExportsCountersAndEscapes(t *testing.T) {
 		}
 	}
 
-	assertContains("agentsh_up 1")
-	assertContains("agentsh_events_total 3")
-	assertContains("agentsh_net_ebpf_dropped_events_total 1")
-	assertContains("agentsh_net_ebpf_attach_fail_total 1")
-	assertContains("agentsh_net_ebpf_unavailable_total 1")
-	assertContains(`agentsh_events_by_type_total{type="bar\\n\\\"x\\\""} 1`)
-	assertContains("agentsh_events_by_type_total{type=\"foo\"} 2")
-	assertContains("agentsh_sessions_active 7")
+	assertContains("agentmon_up 1")
+	assertContains("agentmon_events_total 3")
+	assertContains("agentmon_net_ebpf_dropped_events_total 1")
+	assertContains("agentmon_net_ebpf_attach_fail_total 1")
+	assertContains("agentmon_net_ebpf_unavailable_total 1")
+	assertContains(`agentmon_events_by_type_total{type="bar\\n\\\"x\\\""} 1`)
+	assertContains("agentmon_events_by_type_total{type=\"foo\"} 2")
+	assertContains("agentmon_sessions_active 7")
 }
 
 type fakeEventStore struct {

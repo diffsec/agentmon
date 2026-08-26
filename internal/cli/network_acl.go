@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/netmonitor/pnacl"
+	"github.com/diffsec/agentmon/internal/netmonitor/pnacl"
 	"github.com/spf13/cobra"
 )
 
@@ -50,13 +50,13 @@ func newNetworkACLListCmd() *cobra.Command {
 Rules are displayed grouped by process, showing the target, port, protocol,
 and decision for each rule.`,
 		Example: `  # List all rules
-  agentsh network-acl list
+  agentmon network-acl list
 
   # List rules for a specific process
-  agentsh network-acl list --process claude-code
+  agentmon network-acl list --process claude-code
 
   # Output as JSON
-  agentsh network-acl list --json`,
+  agentmon network-acl list --json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfgPath := resolveNetworkACLConfigPath(configPath)
 			config, err := pnacl.LoadConfig(cfgPath)
@@ -70,7 +70,7 @@ and decision for each rule.`,
 						})
 					}
 					fmt.Fprintf(cmd.OutOrStdout(), "No network ACL configuration found at %s\n", cfgPath)
-					fmt.Fprintln(cmd.OutOrStdout(), "Use 'agentsh network-acl add' to create rules")
+					fmt.Fprintln(cmd.OutOrStdout(), "Use 'agentmon network-acl add' to create rules")
 					return nil
 				}
 				return fmt.Errorf("load config: %w", err)
@@ -146,7 +146,7 @@ and decision for each rule.`,
 		},
 	}
 
-	cmd.Flags().StringVar(&configPath, "config", "", "Path to network ACL config (default: ~/.config/agentsh/network-acl.yml)")
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to network ACL config (default: ~/.config/agentmon/network-acl.yml)")
 	cmd.Flags().StringVar(&processFilter, "process", "", "Filter rules by process name")
 	cmd.Flags().BoolVar(&outputJSON, "json", false, "Output in JSON format")
 
@@ -175,19 +175,19 @@ Decisions:
   approve - Block and prompt for user approval
   audit   - Allow but log for review`,
 		Example: `  # Allow claude-code to connect to anthropic.com
-  agentsh network-acl add claude-code api.anthropic.com --decision allow
+  agentmon network-acl add claude-code api.anthropic.com --decision allow
 
   # Allow connections to any anthropic.com subdomain
-  agentsh network-acl add claude-code "*.anthropic.com" --decision allow
+  agentmon network-acl add claude-code "*.anthropic.com" --decision allow
 
   # Deny connections to a specific IP
-  agentsh network-acl add my-process 10.0.0.1 --decision deny
+  agentmon network-acl add my-process 10.0.0.1 --decision deny
 
   # Allow connections to a CIDR block on specific port
-  agentsh network-acl add my-process 192.168.0.0/16 --port 443 --decision allow
+  agentmon network-acl add my-process 192.168.0.0/16 --port 443 --decision allow
 
   # Interactive mode to add rules
-  agentsh network-acl add --interactive`,
+  agentmon network-acl add --interactive`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			interactive, _ := cmd.Flags().GetBool("interactive")
 			if interactive {
@@ -277,9 +277,9 @@ func newNetworkACLRemoveCmd() *cobra.Command {
 		Short: "Remove a network ACL rule",
 		Long: `Remove a network ACL rule by its index.
 
-Use 'agentsh network-acl list' to see rule indices.`,
+Use 'agentmon network-acl list' to see rule indices.`,
 		Example: `  # Remove rule at index 0 for claude-code
-  agentsh network-acl remove 0 --process claude-code`,
+  agentmon network-acl remove 0 --process claude-code`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if processName == "" {
@@ -345,10 +345,10 @@ func newNetworkACLTestCmd() *cobra.Command {
 This shows what decision would be made if the specified process tried
 to connect to the target, without actually making any connection.`,
 		Example: `  # Test if claude-code can connect to api.anthropic.com:443
-  agentsh network-acl test claude-code api.anthropic.com --port 443
+  agentmon network-acl test claude-code api.anthropic.com --port 443
 
   # Test UDP connection
-  agentsh network-acl test my-process 8.8.8.8 --port 53 --protocol udp`,
+  agentmon network-acl test my-process 8.8.8.8 --port 53 --protocol udp`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			processName := args[0]
@@ -450,15 +450,15 @@ func newNetworkACLWatchCmd() *cobra.Command {
 This command monitors and displays network connection attempts as they occur.
 You can filter by process name to focus on specific applications.
 
-Note: This requires the agentsh daemon to be running with network monitoring enabled.`,
+Note: This requires the agentmon daemon to be running with network monitoring enabled.`,
 		Example: `  # Watch all connection attempts
-  agentsh network-acl watch
+  agentmon network-acl watch
 
   # Watch only claude-code connections
-  agentsh network-acl watch --process claude-code
+  agentmon network-acl watch --process claude-code
 
   # Output as JSON (one event per line)
-  agentsh network-acl watch --json`,
+  agentmon network-acl watch --json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			w := cmd.OutOrStdout()
@@ -507,10 +507,10 @@ creating baseline policies for applications.
 The learning mode operates in "audit" mode, allowing all connections
 while recording them for policy generation.`,
 		Example: `  # Learn claude-code's network patterns for 1 hour
-  agentsh network-acl learn --process claude-code --duration 1h
+  agentmon network-acl learn --process claude-code --duration 1h
 
   # Learn all processes for 30 minutes and output to file
-  agentsh network-acl learn --duration 30m --output learned-rules.yml`,
+  agentmon network-acl learn --duration 30m --output learned-rules.yml`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if processFilter == "" {
 				return fmt.Errorf("--process is required for learning mode")
@@ -540,11 +540,11 @@ func resolveNetworkACLConfigPath(override string) string {
 	if override != "" {
 		return override
 	}
-	if p := os.Getenv("AGENTSH_NETWORK_ACL_CONFIG"); p != "" {
+	if p := os.Getenv("AGENTMON_NETWORK_ACL_CONFIG"); p != "" {
 		return p
 	}
 	home, _ := os.UserHomeDir()
-	return home + "/.config/agentsh/network-acl.yml"
+	return home + "/.config/agentmon/network-acl.yml"
 }
 
 func formatTarget(r pnacl.NetworkTarget) string {
@@ -628,14 +628,14 @@ func watchNetworkEvents(ctx context.Context, cmd *cobra.Command, processFilter s
 
 	// For now, show usage instructions
 	if !outputJSON {
-		fmt.Fprintln(w, "Network event watching requires the agentsh daemon to be running.")
+		fmt.Fprintln(w, "Network event watching requires the agentmon daemon to be running.")
 		fmt.Fprintln(w, "")
 		fmt.Fprintln(w, "To start the daemon:")
-		fmt.Fprintln(w, "  agentsh daemon install")
-		fmt.Fprintln(w, "  systemctl --user start agentsh")
+		fmt.Fprintln(w, "  agentmon daemon install")
+		fmt.Fprintln(w, "  systemctl --user start agentmon")
 		fmt.Fprintln(w, "")
 		fmt.Fprintln(w, "Or run the server directly:")
-		fmt.Fprintln(w, "  agentsh server")
+		fmt.Fprintln(w, "  agentmon server")
 		fmt.Fprintln(w, "")
 		fmt.Fprintln(w, "Then re-run this command to watch events.")
 		return nil

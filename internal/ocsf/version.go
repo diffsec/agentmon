@@ -1,4 +1,4 @@
-// Package ocsf maps agentsh events to OCSF v1.8.0 class payloads consumed
+// Package ocsf maps agentmon events to OCSF v1.8.0 class payloads consumed
 // by the WTP CompactEvent wire shape. See
 // docs/superpowers/specs/2026-04-25-wtp-phase-1-ocsf-mapper-design.md.
 package ocsf

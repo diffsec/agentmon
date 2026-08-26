@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	dbpolicy "github.com/agentsh/agentsh/internal/db/policy"
-	dbservice "github.com/agentsh/agentsh/internal/db/service"
+	"github.com/diffsec/agentmon/internal/db/events"
+	dbpolicy "github.com/diffsec/agentmon/internal/db/policy"
+	dbservice "github.com/diffsec/agentmon/internal/db/service"
 )
 
 type testDBSessionResolver map[int32]string

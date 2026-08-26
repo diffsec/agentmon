@@ -1,6 +1,6 @@
 package ocsf
 
-// registry maps every production agentsh ev.Type to its OCSF Mapping.
+// registry maps every production agentmon ev.Type to its OCSF Mapping.
 // Per-class projector files (project_*.go) populate it via package
 // init() functions; this file holds only the central declaration and
 // the rollout tracker.
@@ -9,7 +9,7 @@ package ocsf
 // Map() reads but never mutates the registry.
 var registry = map[string]Mapping{}
 
-// pendingTypes lists production agentsh ev.Type values that the
+// pendingTypes lists production agentmon ev.Type values that the
 // mapper does NOT yet handle. Populated in this file initially; each
 // per-class projector PR removes its types as it lands.
 //

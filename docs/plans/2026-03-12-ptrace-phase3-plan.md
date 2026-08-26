@@ -172,9 +172,9 @@ func TestPrometheusCollector_PtraceMetrics(t *testing.T) {
 	body := w.Body.String()
 
 	expected := []string{
-		"agentsh_ptrace_tracees_active 5",
-		"agentsh_ptrace_attach_failures_total",
-		"agentsh_ptrace_timeouts_total 1",
+		"agentmon_ptrace_tracees_active 5",
+		"agentmon_ptrace_attach_failures_total",
+		"agentmon_ptrace_timeouts_total 1",
 	}
 	for _, m := range expected {
 		if !strings.Contains(body, m) {
@@ -238,15 +238,15 @@ func (c *PrometheusCollector) IncPtraceTimeout() {
 In the `Handler` method, before the final `}`, add ptrace metrics output:
 ```go
 // Ptrace metrics
-fmt.Fprint(w, "# HELP agentsh_ptrace_tracees_active Current number of ptrace-traced threads.\n")
-fmt.Fprint(w, "# TYPE agentsh_ptrace_tracees_active gauge\n")
-fmt.Fprintf(w, "agentsh_ptrace_tracees_active %d\n\n", c.ptraceTracees.Load())
+fmt.Fprint(w, "# HELP agentmon_ptrace_tracees_active Current number of ptrace-traced threads.\n")
+fmt.Fprint(w, "# TYPE agentmon_ptrace_tracees_active gauge\n")
+fmt.Fprintf(w, "agentmon_ptrace_tracees_active %d\n\n", c.ptraceTracees.Load())
 
 c.writePtraceAttachFailures(w)
 
-fmt.Fprint(w, "# HELP agentsh_ptrace_timeouts_total Ptrace max_hold_ms timeouts.\n")
-fmt.Fprint(w, "# TYPE agentsh_ptrace_timeouts_total counter\n")
-fmt.Fprintf(w, "agentsh_ptrace_timeouts_total %d\n\n", c.ptraceTimeouts.Load())
+fmt.Fprint(w, "# HELP agentmon_ptrace_timeouts_total Ptrace max_hold_ms timeouts.\n")
+fmt.Fprint(w, "# TYPE agentmon_ptrace_timeouts_total counter\n")
+fmt.Fprintf(w, "agentmon_ptrace_timeouts_total %d\n\n", c.ptraceTimeouts.Load())
 ```
 
 Add helper:
@@ -256,12 +256,12 @@ func (c *PrometheusCollector) writePtraceAttachFailures(w http.ResponseWriter) {
 	if len(keys) == 0 {
 		return
 	}
-	fmt.Fprint(w, "# HELP agentsh_ptrace_attach_failures_total Ptrace attach failures by reason.\n")
-	fmt.Fprint(w, "# TYPE agentsh_ptrace_attach_failures_total counter\n")
+	fmt.Fprint(w, "# HELP agentmon_ptrace_attach_failures_total Ptrace attach failures by reason.\n")
+	fmt.Fprint(w, "# TYPE agentmon_ptrace_attach_failures_total counter\n")
 	for _, reason := range keys {
 		ptr, _ := c.ptraceAttachFails.Load(reason)
 		n := ptr.(*atomic.Uint64).Load()
-		fmt.Fprintf(w, "agentsh_ptrace_attach_failures_total{reason=%q} %d\n", escapeLabelValue(reason), n)
+		fmt.Fprintf(w, "agentmon_ptrace_attach_failures_total{reason=%q} %d\n", escapeLabelValue(reason), n)
 	}
 	fmt.Fprint(w, "\n")
 }

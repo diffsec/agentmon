@@ -34,7 +34,7 @@ func TestZstdEncoder_RoundTripDefaultLevel(t *testing.T) {
 	if got := enc.Algo(); got != wtpv1.Compression_COMPRESSION_ZSTD {
 		t.Fatalf("Algo() = %v, want COMPRESSION_ZSTD", got)
 	}
-	in := bytes.Repeat([]byte("agentsh-wtp-zstd-roundtrip-"), 256) // ~7 KiB highly compressible
+	in := bytes.Repeat([]byte("agentmon-wtp-zstd-roundtrip-"), 256) // ~7 KiB highly compressible
 	out, err := enc.Encode(in)
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
@@ -105,7 +105,7 @@ func TestGzipEncoder_RoundTripDefaultLevel(t *testing.T) {
 	if got := enc.Algo(); got != wtpv1.Compression_COMPRESSION_GZIP {
 		t.Fatalf("Algo() = %v, want COMPRESSION_GZIP", got)
 	}
-	in := bytes.Repeat([]byte("agentsh-wtp-gzip-roundtrip-"), 256)
+	in := bytes.Repeat([]byte("agentmon-wtp-gzip-roundtrip-"), 256)
 	out, err := enc.Encode(in)
 	if err != nil {
 		t.Fatalf("Encode: %v", err)

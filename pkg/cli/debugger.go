@@ -67,7 +67,7 @@ func (d *Debugger) Run(ctx context.Context) error {
 
 	scanner := bufio.NewScanner(d.input)
 	for {
-		fmt.Fprint(d.output, "\n(agentsh) ")
+		fmt.Fprint(d.output, "\n(agentmon) ")
 
 		select {
 		case <-ctx.Done():
@@ -117,7 +117,7 @@ func (d *Debugger) Run(ctx context.Context) error {
 
 func (d *Debugger) printHeader(session *SessionDetail) {
 	fmt.Fprintln(d.output, "")
-	fmt.Fprintln(d.output, "agentsh debugger v1.0.0")
+	fmt.Fprintln(d.output, "agentmon debugger v1.0.0")
 	fmt.Fprintf(d.output, "Session: %s\n", session.ID)
 	if session.AgentID != "" {
 		fmt.Fprintf(d.output, "Agent: %s\n", session.AgentID)

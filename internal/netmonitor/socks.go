@@ -8,7 +8,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/tor"
+	"github.com/diffsec/agentmon/internal/tor"
 )
 
 // SOCKS5 reply / command codes (RFC 1928) and Tor's RESOLVE extension.

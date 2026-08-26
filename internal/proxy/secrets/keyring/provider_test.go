@@ -10,8 +10,8 @@ import (
 
 	keyringlib "github.com/zalando/go-keyring"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/secretstest"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/secretstest"
 )
 
 // skipIfUnavailable constructs a Provider and skips the test if
@@ -70,7 +70,7 @@ func TestFetch_MissingHost(t *testing.T) {
 
 func TestFetch_MissingPath(t *testing.T) {
 	p := &Provider{}
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: ""}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: ""}
 	_, err := p.Fetch(context.Background(), ref)
 	if !errors.Is(err, secrets.ErrInvalidURI) {
 		t.Errorf("Fetch with empty path = %v, want wrapping ErrInvalidURI", err)
@@ -79,7 +79,7 @@ func TestFetch_MissingPath(t *testing.T) {
 
 func TestFetch_WithField(t *testing.T) {
 	p := &Provider{}
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "x", Field: "token"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "x", Field: "token"}
 	_, err := p.Fetch(context.Background(), ref)
 	if !errors.Is(err, secrets.ErrFieldNotSupported) {
 		t.Errorf("Fetch with field = %v, want wrapping ErrFieldNotSupported", err)
@@ -90,7 +90,7 @@ func TestFetch_ContextCanceled(t *testing.T) {
 	p := &Provider{}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel before calling Fetch
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "x"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "x"}
 	_, err := p.Fetch(ctx, ref)
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("Fetch with canceled ctx = %v, want context.Canceled", err)
@@ -100,11 +100,11 @@ func TestFetch_ContextCanceled(t *testing.T) {
 // testServiceName returns a unique keyring service name per test
 // run. Using a unique name per run prevents any one test from
 // polluting a developer's real keyring or leaking entries between
-// runs. The "agentsh-test" prefix makes the intent obvious if an
+// runs. The "agentmon-test" prefix makes the intent obvious if an
 // entry does survive a crash.
 func testServiceName(t *testing.T) string {
 	t.Helper()
-	return fmt.Sprintf("agentsh-test-%s-%d", t.Name(), time.Now().UnixNano())
+	return fmt.Sprintf("agentmon-test-%s-%d", t.Name(), time.Now().UnixNano())
 }
 
 func TestFetch_RoundTrip(t *testing.T) {
@@ -169,7 +169,7 @@ func TestFetch_AfterCloseReturnsError(t *testing.T) {
 	if err := p.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "x"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "x"}
 	_, err := p.Fetch(context.Background(), ref)
 	if err == nil {
 		t.Fatal("Fetch after Close returned nil error")
@@ -205,7 +205,7 @@ func TestFetch_ClosedBetweenLoadAndRLock(t *testing.T) {
 		}
 	}
 
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "x"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "x"}
 	_, err := p.Fetch(context.Background(), ref)
 
 	if !hookRan {
@@ -235,7 +235,7 @@ func TestFetch_AfterClose(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "x"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "x"}
 	_, err := p.Fetch(context.Background(), ref)
 	if err == nil {
 		t.Fatal("Fetch after Close returned nil error")

@@ -13,11 +13,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/signal"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/signal"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 const (
@@ -188,15 +188,15 @@ func runCommandWithResources(ctx context.Context, s *session.Session, cmdID stri
 		msg := []byte(err.Error() + "\n")
 		return 2, []byte{}, msg, 0, int64(len(msg)), false, false, types.ExecResources{}, nil
 	}
-	// Debug: log whether AGENTSH_IN_SESSION is in the environment
+	// Debug: log whether AGENTMON_IN_SESSION is in the environment
 	hasInSession := false
 	for _, e := range env {
-		if strings.HasPrefix(e, "AGENTSH_IN_SESSION=") {
+		if strings.HasPrefix(e, "AGENTMON_IN_SESSION=") {
 			hasInSession = true
 			break
 		}
 	}
-	slog.Debug("exec env built", "command", req.Command, "has_AGENTSH_IN_SESSION", hasInSession, "env_count", len(env))
+	slog.Debug("exec env built", "command", req.Command, "has_AGENTMON_IN_SESSION", hasInSession, "env_count", len(env))
 	if envPol.BlockIteration {
 		env = maybeAddShimEnv(env, envPol, cfg)
 	}
@@ -744,7 +744,7 @@ func buildPolicyEnv(pol policy.ResolvedEnvPolicy, hostEnv []string, s *session.S
 		add[k] = v
 	}
 
-	add["AGENTSH_IN_SESSION"] = "1"
+	add["AGENTMON_IN_SESSION"] = "1"
 
 	baseSlice := mapToEnvSlice(minimal)
 	return policy.BuildEnv(pol, baseSlice, add)
@@ -762,7 +762,7 @@ func mapToEnvSlice(m map[string]string) []string {
 // interception and logging. It tolerates missing/invalid shim path to
 // avoid breaking command execution, but emits a warning.
 //
-// Note: AGENTSH_ENV_BLOCK_ITERATION is intentionally NOT set. Replacing
+// Note: AGENTMON_ENV_BLOCK_ITERATION is intentionally NOT set. Replacing
 // environ with an empty array is incompatible with shells (bash reads
 // environ directly during startup, not via getenv). Server-side
 // buildPolicyEnv filtering is the real security boundary.

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // DLPProcessor processes data for PII detection and redaction/tokenization.

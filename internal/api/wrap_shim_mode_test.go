@@ -5,12 +5,12 @@ package api
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // permissiveTestEngine returns a policy.Engine that allows the bash/sh
@@ -52,7 +52,7 @@ func newTestAppForWrapWithPermissivePolicy(t *testing.T, cfg *config.Config) (*A
 func TestWrapInit_ShimMode_PopulatesWrapperBinary(t *testing.T) {
 	cfg := &config.Config{}
 	// Use /bin/true as a stable wrapper path so the test runs in any CI
-	// without requiring agentsh-unixwrap to be preinstalled on PATH.
+	// without requiring agentmon-unixwrap to be preinstalled on PATH.
 	cfg.Sandbox.UnixSockets.WrapperBin = "/bin/true"
 	cfg.Sandbox.UnixSockets.Enabled = func(b bool) *bool { return &b }(true)
 

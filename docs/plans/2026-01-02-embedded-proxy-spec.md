@@ -5,7 +5,7 @@
 
 ## 1. Purpose and Scope
 
-The embedded LLM proxy intercepts all LLM API requests from agents running under agentsh, providing:
+The embedded LLM proxy intercepts all LLM API requests from agents running under agentmon, providing:
 
 - **DLP protection**: Redact PII before requests reach LLM providers
 - **Audit logging**: Record all request/response pairs for compliance and debugging
@@ -31,22 +31,22 @@ The proxy operates in passthrough mode, supporting Anthropic, OpenAI (API key), 
 
 ## 2. Session Lifecycle Integration
 
-The proxy integrates with agentsh's existing session lifecycle:
+The proxy integrates with agentmon's existing session lifecycle:
 
 ```
-agentsh session start --policy=default
+agentmon session start --policy=default
     │
-    ├── 1. Create session directory (~/.agentsh/sessions/<id>/)
+    ├── 1. Create session directory (~/.agentmon/sessions/<id>/)
     ├── 2. Start embedded proxy
     │       └── Bind to random available port (e.g., 52341)
     ├── 3. Set environment variables for agent:
     │       ANTHROPIC_BASE_URL=http://127.0.0.1:52341
     │       OPENAI_BASE_URL=http://127.0.0.1:52341
-    │       AGENTSH_SESSION_ID=<id>
+    │       AGENTMON_SESSION_ID=<id>
     ├── 4. Apply FUSE mount, network policy, etc. (existing)
     └── 5. Start agent process
 
-agentsh session stop / agent exits
+agentmon session stop / agent exits
     │
     ├── 1. Agent process terminates
     ├── 2. Proxy drains pending requests (graceful shutdown)
@@ -176,7 +176,7 @@ Result:
 Request/response logs stored alongside existing session data:
 
 ```
-~/.agentsh/sessions/<session-id>/
+~/.agentmon/sessions/<session-id>/
 ├── events.jsonl           # Existing execution events
 ├── llm-requests.jsonl     # LLM request/response logs
 └── llm-bodies/            # Full bodies (when enabled)
@@ -266,7 +266,7 @@ Token counts are normalized to `input_tokens` / `output_tokens` in logs regardle
 ### Session Start (Proxy Auto-starts)
 
 ```bash
-$ agentsh session start --policy=default
+$ agentmon session start --policy=default
 
 Session abc123 started
   Proxy: http://127.0.0.1:52341
@@ -280,7 +280,7 @@ Export for agent:
 ### Proxy Status Command
 
 ```bash
-$ agentsh proxy status
+$ agentmon proxy status
 
 Proxy: running on :52341
 Mode: embedded
@@ -292,7 +292,7 @@ Tokens: 12,450 in / 34,200 out
 ### View LLM Logs
 
 ```bash
-$ agentsh session logs <session-id> --type=llm
+$ agentmon session logs <session-id> --type=llm
 
 req_001  10:30:01  anthropic  /v1/messages  200  1.2s  150→892 tokens
 req_002  10:30:15  anthropic  /v1/messages  200  0.8s  892→456 tokens  [2 redactions]
@@ -302,7 +302,7 @@ req_003  10:31:02  openai     /v1/chat/completions  200  2.1s  200→1024 tokens
 ### Enhanced Report
 
 ```bash
-$ agentsh report <session-id> --level=detailed
+$ agentmon report <session-id> --level=detailed
 
 ## LLM Usage
 | Provider  | Requests | Tokens In | Tokens Out | Errors |
@@ -319,7 +319,7 @@ $ agentsh report <session-id> --level=detailed
 
 ## 8. Configuration
 
-Complete configuration in `~/.agentsh/config.yaml`:
+Complete configuration in `~/.agentmon/config.yaml`:
 
 ```yaml
 proxy:
@@ -363,9 +363,9 @@ storage:
 
 | Env Var | Effect |
 |---------|--------|
-| `AGENTSH_PROXY_MODE` | Override proxy mode |
-| `AGENTSH_DLP_MODE` | Override DLP mode |
-| `AGENTSH_PROXY_PORT` | Override proxy port |
+| `AGENTMON_PROXY_MODE` | Override proxy mode |
+| `AGENTMON_DLP_MODE` | Override DLP mode |
+| `AGENTMON_PROXY_PORT` | Override proxy port |
 
 ## 9. Implementation Components
 
@@ -384,7 +384,7 @@ storage:
 
 - Existing session lifecycle (`internal/session/`)
 - Existing config loading (`internal/config/`)
-- Existing storage paths (`~/.agentsh/sessions/`)
+- Existing storage paths (`~/.agentmon/sessions/`)
 - Standard library: `net/http`, `net/http/httputil`
 
 ## 11. Future Phases (Not in This Spec)

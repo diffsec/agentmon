@@ -1,7 +1,7 @@
 //go:build linux
 
 // Package statemachine implements the PostgreSQL proxy's Extended Query and
-// transaction state machine per docs/agentsh-db-access-spec.md §14 and the
+// transaction state machine per docs/agentmon-db-access-spec.md §14 and the
 // design doc 2026-05-11-db-plan-05-pg-extended-tx-design.md §4.
 //
 // Transition is a pure function: it consumes (state, frame, cache, rules,

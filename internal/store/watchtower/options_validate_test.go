@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
 )
 
 func TestValidate_CredentialSourceAndClientCertMutuallyExclusive(t *testing.T) {

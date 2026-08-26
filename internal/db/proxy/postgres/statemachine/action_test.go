@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 var _ Action = (*ActionApproverWait)(nil)

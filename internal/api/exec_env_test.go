@@ -6,9 +6,9 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
 )
 
 func TestMergeEnv_MarksInSession(t *testing.T) {
@@ -33,8 +33,8 @@ func TestMergeEnv_MarksInSession(t *testing.T) {
 		}
 	}
 
-	if got["AGENTSH_IN_SESSION"] != "1" {
-		t.Fatalf("expected AGENTSH_IN_SESSION=1, got %q", got["AGENTSH_IN_SESSION"])
+	if got["AGENTMON_IN_SESSION"] != "1" {
+		t.Fatalf("expected AGENTMON_IN_SESSION=1, got %q", got["AGENTMON_IN_SESSION"])
 	}
 }
 
@@ -113,9 +113,9 @@ func TestMaybeAddShimEnv_AddsShimAndFlag(t *testing.T) {
 	out := maybeAddShimEnv(in, policy.ResolvedEnvPolicy{BlockIteration: true}, cfg)
 	m := envSliceToMap(out)
 
-	// AGENTSH_ENV_BLOCK_ITERATION should NOT be set (environ replacement breaks shells)
-	if _, ok := m["AGENTSH_ENV_BLOCK_ITERATION"]; ok {
-		t.Fatalf("AGENTSH_ENV_BLOCK_ITERATION should not be set, got %q", m["AGENTSH_ENV_BLOCK_ITERATION"])
+	// AGENTMON_ENV_BLOCK_ITERATION should NOT be set (environ replacement breaks shells)
+	if _, ok := m["AGENTMON_ENV_BLOCK_ITERATION"]; ok {
+		t.Fatalf("AGENTMON_ENV_BLOCK_ITERATION should not be set, got %q", m["AGENTMON_ENV_BLOCK_ITERATION"])
 	}
 	if got := m["LD_PRELOAD"]; got != shimPath {
 		t.Fatalf("expected LD_PRELOAD to be shim path, got %q", got)
@@ -369,7 +369,7 @@ func TestEnvInject_AppearsInCommandEnv(t *testing.T) {
 	// Setup config with env_inject
 	cfg := &config.Config{}
 	cfg.Sandbox.EnvInject = map[string]string{
-		"BASH_ENV":   "/usr/lib/agentsh/bash_startup.sh",
+		"BASH_ENV":   "/usr/lib/agentmon/bash_startup.sh",
 		"CONFIG_VAR": "from-config",
 	}
 
@@ -390,9 +390,9 @@ func TestEnvInject_AppearsInCommandEnv(t *testing.T) {
 	merged := mergeEnvInject(cfg, pol)
 
 	// Verify config values appear
-	if merged["BASH_ENV"] != "/usr/lib/agentsh/bash_startup.sh" {
+	if merged["BASH_ENV"] != "/usr/lib/agentmon/bash_startup.sh" {
 		t.Errorf("BASH_ENV not found or incorrect: got %q, want %q",
-			merged["BASH_ENV"], "/usr/lib/agentsh/bash_startup.sh")
+			merged["BASH_ENV"], "/usr/lib/agentmon/bash_startup.sh")
 	}
 	if merged["CONFIG_VAR"] != "from-config" {
 		t.Errorf("CONFIG_VAR not found or incorrect: got %q, want %q",

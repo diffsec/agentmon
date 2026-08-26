@@ -4,21 +4,21 @@
 
 ## Overview
 
-Enable agentsh to search for configuration in user-local directories before falling back to system-wide locations. This allows non-root users to run agentsh with their own configuration, policies, and data storage.
+Enable agentmon to search for configuration in user-local directories before falling back to system-wide locations. This allows non-root users to run agentmon with their own configuration, policies, and data storage.
 
 ## Configuration Search Order
 
-When agentsh needs to find its config file, it searches in this order (first found wins):
+When agentmon needs to find its config file, it searches in this order (first found wins):
 
-1. **`AGENTSH_CONFIG` env var** - Explicit path, highest priority
+1. **`AGENTMON_CONFIG` env var** - Explicit path, highest priority
 2. **User-local config** - Platform-specific:
-   - Linux: `$XDG_CONFIG_HOME/agentsh/config.yaml` (default: `~/.config/agentsh/config.yaml`)
-   - macOS: `~/Library/Application Support/agentsh/config.yaml`
-   - Windows: `%APPDATA%\agentsh\config.yaml`
+   - Linux: `$XDG_CONFIG_HOME/agentmon/config.yaml` (default: `~/.config/agentmon/config.yaml`)
+   - macOS: `~/Library/Application Support/agentmon/config.yaml`
+   - Windows: `%APPDATA%\agentmon\config.yaml`
 3. **System-wide config** - Platform-specific:
-   - Linux: `/etc/agentsh/config.yaml`
-   - macOS: `/usr/local/etc/agentsh/config.yaml`
-   - Windows: `%PROGRAMDATA%\agentsh\config.yaml`
+   - Linux: `/etc/agentmon/config.yaml`
+   - macOS: `/usr/local/etc/agentmon/config.yaml`
+   - Windows: `%PROGRAMDATA%\agentmon\config.yaml`
 
 The code tracks *which* config was loaded (user vs system) to determine default paths for policies and data.
 
@@ -28,9 +28,9 @@ The default policies directory is derived from the config location:
 
 | Config Loaded From | Default Policies Dir |
 |-------------------|---------------------|
-| User-local | `~/.config/agentsh/policies/` |
-| System-wide | `/etc/agentsh/policies/` |
-| Explicit path (`AGENTSH_CONFIG`) | Same directory as config + `/policies/` |
+| User-local | `~/.config/agentmon/policies/` |
+| System-wide | `/etc/agentmon/policies/` |
+| Explicit path (`AGENTMON_CONFIG`) | Same directory as config + `/policies/` |
 
 The `policies.dir` setting in the config file can still override this default.
 
@@ -42,8 +42,8 @@ Data directories (sessions, events.db) follow the same user vs system pattern:
 
 | Config Loaded From | Default Data Dir |
 |-------------------|------------------|
-| User-local | `~/.local/share/agentsh/` (Linux), `~/Library/Application Support/agentsh/` (macOS), `%APPDATA%\agentsh\` (Windows) |
-| System-wide | `/var/lib/agentsh/` (Linux), `/usr/local/var/agentsh/` (macOS), `%PROGRAMDATA%\agentsh\` (Windows) |
+| User-local | `~/.local/share/agentmon/` (Linux), `~/Library/Application Support/agentmon/` (macOS), `%APPDATA%\agentmon\` (Windows) |
+| System-wide | `/var/lib/agentmon/` (Linux), `/usr/local/var/agentmon/` (macOS), `%PROGRAMDATA%\agentmon\` (Windows) |
 
 This affects defaults for:
 - `sessions.base_dir` → `<data_dir>/sessions/`
@@ -66,9 +66,9 @@ Config file settings still override these defaults.
 ```go
 type ConfigSource int
 const (
-    ConfigSourceEnv    ConfigSource = iota  // AGENTSH_CONFIG
-    ConfigSourceUser                        // ~/.config/agentsh/
-    ConfigSourceSystem                      // /etc/agentsh/
+    ConfigSourceEnv    ConfigSource = iota  // AGENTMON_CONFIG
+    ConfigSourceUser                        // ~/.config/agentmon/
+    ConfigSourceSystem                      // /etc/agentmon/
 )
 ```
 

@@ -31,7 +31,7 @@ static void init(void) {
         real_environ = environ;
     }
 
-    const char *flag = real_getenv ? real_getenv("AGENTSH_ENV_BLOCK_ITERATION") : getenv("AGENTSH_ENV_BLOCK_ITERATION");
+    const char *flag = real_getenv ? real_getenv("AGENTMON_ENV_BLOCK_ITERATION") : getenv("AGENTMON_ENV_BLOCK_ITERATION");
     int block = (flag && strcmp(flag, "1") == 0);
     char **target = block ? blocked_environ : (real_environ ? real_environ : blocked_environ);
 

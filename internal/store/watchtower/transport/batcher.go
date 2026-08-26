@@ -3,7 +3,7 @@ package transport
 import (
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
 )
 
 // BatcherOptions configures Batcher flush thresholds.

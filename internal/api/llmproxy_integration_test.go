@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/metrics"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/metrics"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // TestIntegration_LLMProxyStartedOnSessionCreate verifies that the embedded LLM proxy
@@ -213,8 +213,8 @@ func TestIntegration_LLMProxyEnvVarsInSession(t *testing.T) {
 	if envVars["OPENAI_BASE_URL"] != proxyURL {
 		t.Errorf("OPENAI_BASE_URL: expected %s, got %s", proxyURL, envVars["OPENAI_BASE_URL"])
 	}
-	if envVars["AGENTSH_SESSION_ID"] != snap.ID {
-		t.Errorf("AGENTSH_SESSION_ID: expected %s, got %s", snap.ID, envVars["AGENTSH_SESSION_ID"])
+	if envVars["AGENTMON_SESSION_ID"] != snap.ID {
+		t.Errorf("AGENTMON_SESSION_ID: expected %s, got %s", snap.ID, envVars["AGENTMON_SESSION_ID"])
 	}
 }
 

@@ -21,19 +21,19 @@ The disabled `macos-enterprise.yml` workflow is deleted (functionality merged he
 **Go binaries:** GoReleaser produces separate arm64 and amd64 darwin archives. Download both, extract, and `lipo` them:
 
 ```bash
-lipo -create -output agentsh-universal \
-  unsigned-arm64/agentsh \
-  unsigned-amd64/agentsh
+lipo -create -output agentmon-universal \
+  unsigned-arm64/agentmon \
+  unsigned-amd64/agentmon
 ```
 
-Same for `agentsh-shell-shim` and any other Mach-O binaries in the archives.
+Same for `agentmon-shell-shim` and any other Mach-O binaries in the archives.
 
 **Swift targets:** Build the Xcode project as universal in one shot:
 
 ```bash
 xcodebuild \
-  -project macos/agentsh/agentsh.xcodeproj \
-  -scheme agentsh \
+  -project macos/diffsec/agentmon.xcodeproj \
+  -scheme agentmon \
   -configuration Release \
   -derivedDataPath build/DerivedData \
   ARCHS="arm64 x86_64" \
@@ -48,12 +48,12 @@ Built unsigned — signing happens in a dedicated step.
 ## App Bundle Structure
 
 ```
-AgentSH.app/
+AgentMon.app/
   Contents/
-    Info.plist                          ← from macos/AgentSH-files/Info.plist
+    Info.plist                          ← from macos/AgentMon-files/Info.plist
     MacOS/
-      agentsh                           ← universal Go binary (lipo'd)
-      agentsh-shell-shim                ← universal Go binary (lipo'd)
+      agentmon                           ← universal Go binary (lipo'd)
+      agentmon-shell-shim                ← universal Go binary (lipo'd)
     Library/SystemExtensions/
       SysExt.systemextension/           ← from DerivedData
     XPCServices/
@@ -69,52 +69,52 @@ Each component signed explicitly with its own entitlements. No `--deep` on indiv
 ```bash
 # 1. System Extension
 codesign --force --sign "$SIGNING_IDENTITY" \
-  --entitlements macos/agentsh/SysExt.entitlements \
+  --entitlements macos/agentmon/SysExt.entitlements \
   --options runtime --timestamp \
-  "build/AgentSH.app/Contents/Library/SystemExtensions/SysExt.systemextension"
+  "build/AgentMon.app/Contents/Library/SystemExtensions/SysExt.systemextension"
 
 # 2. XPC Service
 codesign --force --sign "$SIGNING_IDENTITY" \
   --options runtime --timestamp \
-  "build/AgentSH.app/Contents/XPCServices/xpc.xpc"
+  "build/AgentMon.app/Contents/XPCServices/xpc.xpc"
 
 # 3. Approval Dialog
 codesign --force --sign "$SIGNING_IDENTITY" \
-  --entitlements macos/agentsh/approval-dialog/approval-dialog.entitlements \
+  --entitlements macos/agentmon/approval-dialog/approval-dialog.entitlements \
   --options runtime --timestamp \
-  "build/AgentSH.app/Contents/Resources/approval-dialog.app"
+  "build/AgentMon.app/Contents/Resources/approval-dialog.app"
 
 # 4. Main app bundle
 codesign --force --sign "$SIGNING_IDENTITY" \
-  --entitlements macos/agentsh/agentsh/agentsh.entitlements \
+  --entitlements macos/diffsec/agentmon/agentmon.entitlements \
   --options runtime --timestamp \
-  "build/AgentSH.app"
+  "build/AgentMon.app"
 
 # 5. Verify
-codesign --verify --deep --strict --verbose=2 "build/AgentSH.app"
+codesign --verify --deep --strict --verbose=2 "build/AgentMon.app"
 ```
 
 ## Entitlements Reference
 
 | Component | Entitlements file | Key entitlements |
 |---|---|---|
-| agentsh (host app) | `macos/agentsh/agentsh/agentsh.entitlements` | system-extension.install, app-sandbox, network.client |
-| SysExt | `macos/agentsh/SysExt.entitlements` | networkextension (content-filter, dns-proxy) |
+| agentmon (host app) | `macos/diffsec/agentmon/agentmon.entitlements` | system-extension.install, app-sandbox, network.client |
+| SysExt | `macos/agentmon/SysExt.entitlements` | networkextension (content-filter, dns-proxy) |
 | xpc | none (sandbox from build settings) | app-sandbox, hardened-runtime |
-| approval-dialog | `macos/agentsh/approval-dialog/approval-dialog.entitlements` | app-sandbox, network.client |
+| approval-dialog | `macos/agentmon/approval-dialog/approval-dialog.entitlements` | app-sandbox, network.client |
 
 ## Notarization & DMG
 
 ```bash
-ditto -c -k --keepParent build/AgentSH.app build/AgentSH.zip
-xcrun notarytool submit build/AgentSH.zip \
+ditto -c -k --keepParent build/AgentMon.app build/AgentMon.zip
+xcrun notarytool submit build/AgentMon.zip \
   --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" \
   --team-id "$TEAM_ID" --wait --timeout 20m
-xcrun stapler staple build/AgentSH.app
+xcrun stapler staple build/AgentMon.app
 
-hdiutil create -volname "AgentSH" \
-  -srcfolder build/AgentSH.app \
-  -ov -format UDZO "build/AgentSH-${VERSION}.dmg"
+hdiutil create -volname "AgentMon" \
+  -srcfolder build/AgentMon.app \
+  -ov -format UDZO "build/AgentMon-${VERSION}.dmg"
 ```
 
 Upload DMG, delete old darwin tarballs from release.
@@ -127,8 +127,8 @@ Upload DMG, delete old darwin tarballs from release.
 
 **Delete:**
 - `.github/workflows/macos-enterprise.yml` — Merged into release.yml
-- `macos/AgentSH-files/AgentSH.entitlements` — Replaced by new entitlements
+- `macos/AgentMon-files/AgentMon.entitlements` — Replaced by new entitlements
 
 **Keep:**
-- `macos/AgentSH-files/Info.plist` — Host app bundle Info.plist
+- `macos/AgentMon-files/Info.plist` — Host app bundle Info.plist
 - `.goreleaser.yml` — Unchanged, darwin builds remain as intermediate artifacts

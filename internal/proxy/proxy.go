@@ -17,10 +17,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/mcpinspect"
-	"github.com/agentsh/agentsh/internal/mcpregistry"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // tpmFallbackTokenCharge is the conservative token charge applied when TPM
@@ -30,7 +30,7 @@ const tpmFallbackTokenCharge = 200
 
 // Config holds the proxy configuration using config package types.
 type Config struct {
-	// SessionID is the current session ID (set by agentsh).
+	// SessionID is the current session ID (set by agentmon).
 	SessionID string
 
 	// Proxy contains proxy mode and upstream settings.
@@ -106,7 +106,7 @@ func New(cfg Config, storagePath string, logger *slog.Logger) (*Proxy, error) {
 
 	// Run retention cleanup asynchronously if configured.
 	// storagePath is the base sessions directory used by NewStorage, for example
-	// ~/.agentsh/sessions.
+	// ~/.agentmon/sessions.
 	if storagePath != "" && (cfg.Storage.Retention.MaxAgeDays > 0 || cfg.Storage.Retention.MaxSizeMB > 0) {
 		retentionCfg := RetentionConfig{
 			MaxAgeDays: cfg.Storage.Retention.MaxAgeDays,
@@ -716,7 +716,7 @@ func (p *Proxy) EnvVars() map[string]string {
 		"OPENAI_BASE_URL":    baseURL,
 		// Session ID is passed so agent can include it in headers
 		// for correlation when using external proxy
-		"AGENTSH_SESSION_ID": p.cfg.SessionID,
+		"AGENTMON_SESSION_ID": p.cfg.SessionID,
 	}
 	for _, svc := range svcs {
 		name := svc.ExposeAs

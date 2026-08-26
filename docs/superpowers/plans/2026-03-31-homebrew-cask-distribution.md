@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Distribute the macOS AgentSH.app via Homebrew Cask, auto-publishing on each stable release.
+**Goal:** Distribute the macOS AgentMon.app via Homebrew Cask, auto-publishing on each stable release.
 
 **Architecture:** A cask template in the main repo gets version/SHA256 substituted by a new release workflow job that pushes the generated formula to a separate tap repo. The GoReleaser cask config is removed.
 
@@ -25,7 +25,7 @@ Go to https://github.com/organizations/canyonroad/repositories/new and create:
 
 - [ ] **Step 2: Create a PAT for CI access**
 
-Create a fine-grained PAT (or classic with `repo` scope) that has `contents: write` on `canyonroad/homebrew-tap`. Add it as a repository secret named `HOMEBREW_TAP_GITHUB_TOKEN` in `canyonroad/agentsh` Settings > Secrets and variables > Actions.
+Create a fine-grained PAT (or classic with `repo` scope) that has `contents: write` on `canyonroad/homebrew-tap`. Add it as a repository secret named `HOMEBREW_TAP_GITHUB_TOKEN` in `diffsec/agentmon` Settings > Secrets and variables > Actions.
 
 - [ ] **Step 3: Verify access**
 
@@ -46,33 +46,33 @@ rm -rf /tmp/tap-test
 - [ ] **Step 1: Create the template file**
 
 ```ruby
-cask "agentsh" do
+cask "agentmon" do
   version "__VERSION__"
   sha256 "__SHA256__"
 
-  url "https://github.com/canyonroad/agentsh/releases/download/v#{version}/AgentSH-v#{version}.dmg"
-  name "AgentSH"
+  url "https://github.com/diffsec/agentmon/releases/download/v#{version}/AgentMon-v#{version}.dmg"
+  name "AgentMon"
   desc "Secure sandboxed shell for AI agents"
-  homepage "https://github.com/canyonroad/agentsh"
+  homepage "https://github.com/diffsec/agentmon"
 
   depends_on macos: ">= :sonoma"
 
-  app "AgentSH.app"
+  app "AgentMon.app"
 
-  uninstall quit:      "ai.canyonroad.agentsh",
-            signal:    ["TERM", "agentsh"],
-            launchctl: "ai.canyonroad.agentsh.daemon"
+  uninstall quit:      "dev.diffsec.agentmon",
+            signal:    ["TERM", "agentmon"],
+            launchctl: "dev.diffsec.agentmon.daemon"
 
   zap trash: [
-    "~/Library/Application Support/agentsh",
-    "~/Library/Preferences/ai.canyonroad.agentsh.plist",
-    "~/Library/Caches/ai.canyonroad.agentsh",
-    "~/Library/LaunchAgents/ai.canyonroad.agentsh.daemon.plist",
+    "~/Library/Application Support/agentmon",
+    "~/Library/Preferences/dev.diffsec.agentmon.plist",
+    "~/Library/Caches/dev.diffsec.agentmon",
+    "~/Library/LaunchAgents/dev.diffsec.agentmon.daemon.plist",
   ]
 
   caveats <<~EOS
-    After installation, open AgentSH.app to activate the system extension:
-      open /Applications/AgentSH.app
+    After installation, open AgentMon.app to activate the system extension:
+      open /Applications/AgentMon.app
     You will be prompted in System Settings to approve the extension.
   EOS
 end
@@ -166,10 +166,10 @@ Add the following after the `update-checksums` job (after line 396) and before t
           VERSION: ${{ github.ref_name }}
         run: |
           gh release download "$VERSION" \
-            --pattern "AgentSH-*.dmg" \
+            --pattern "AgentMon-*.dmg" \
             --repo "${{ github.repository }}" \
             --dir .
-          DMG_FILE=$(ls AgentSH-*.dmg)
+          DMG_FILE=$(ls AgentMon-*.dmg)
           if [ "$(echo "$DMG_FILE" | wc -l)" -ne 1 ]; then
             echo "::error::Expected exactly one DMG file, found: $DMG_FILE"
             exit 1
@@ -182,9 +182,9 @@ Add the following after the `update-checksums` job (after line 396) and before t
         run: |
           sed -e "s/__VERSION__/$CLEAN_VERSION/g" \
               -e "s/__SHA256__/$SHA256/g" \
-              scripts/homebrew-cask.rb.tmpl > agentsh.rb
+              scripts/homebrew-cask.rb.tmpl > agentmon.rb
           echo "--- Generated cask formula ---"
-          cat agentsh.rb
+          cat agentmon.rb
 
       - name: Push to homebrew-tap
         env:
@@ -192,12 +192,12 @@ Add the following after the `update-checksums` job (after line 396) and before t
         run: |
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/canyonroad/homebrew-tap.git" tap
           mkdir -p tap/Casks
-          cp agentsh.rb tap/Casks/agentsh.rb
+          cp agentmon.rb tap/Casks/agentmon.rb
           cd tap
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Casks/agentsh.rb
-          git diff --cached --quiet || git commit -m "Update agentsh cask to ${CLEAN_VERSION}"
+          git add Casks/agentmon.rb
+          git diff --cached --quiet || git commit -m "Update agentmon cask to ${CLEAN_VERSION}"
           git push
 ```
 
@@ -251,7 +251,7 @@ Wait for all jobs to complete, including `publish-homebrew-cask`.
 - [ ] **Step 4: Verify the cask was pushed to the tap repo**
 
 ```bash
-gh api repos/canyonroad/homebrew-tap/contents/Casks/agentsh.rb --jq '.content' | base64 -d
+gh api repos/canyonroad/homebrew-tap/contents/Casks/agentmon.rb --jq '.content' | base64 -d
 ```
 
 Verify the formula has the correct version and SHA256.
@@ -260,20 +260,20 @@ Verify the formula has the correct version and SHA256.
 
 ```bash
 brew tap canyonroad/tap
-brew install --cask agentsh
+brew install --cask agentmon
 ```
 
 Verify:
-- `AgentSH.app` is installed in `/Applications`
+- `AgentMon.app` is installed in `/Applications`
 - The caveats message is displayed
 - Opening the app triggers the system extension approval prompt
 
 - [ ] **Step 6: Test uninstall**
 
 ```bash
-brew uninstall --cask agentsh
+brew uninstall --cask agentmon
 ```
 
 Verify:
-- `AgentSH.app` is removed from `/Applications`
+- `AgentMon.app` is removed from `/Applications`
 - The launchd daemon is unloaded

@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/mcpinspect"
-	"github.com/agentsh/agentsh/internal/mcpregistry"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // TestProxy_AnthropicPassthrough tests that requests are correctly
@@ -502,8 +502,8 @@ func TestProxy_EnvVars(t *testing.T) {
 	if vars["OPENAI_BASE_URL"] == "" {
 		t.Error("OPENAI_BASE_URL not set")
 	}
-	if vars["AGENTSH_SESSION_ID"] != "test-session-env" {
-		t.Errorf("unexpected AGENTSH_SESSION_ID: %s", vars["AGENTSH_SESSION_ID"])
+	if vars["AGENTMON_SESSION_ID"] != "test-session-env" {
+		t.Errorf("unexpected AGENTMON_SESSION_ID: %s", vars["AGENTMON_SESSION_ID"])
 	}
 
 	// Verify the base URLs point to the proxy
@@ -1469,8 +1469,8 @@ func TestProxy_SSEBlocking_Integration(t *testing.T) {
 	}
 
 	// 3. The replacement text must be present.
-	if !strings.Contains(sseOutput, "[agentsh] Tool 'get_weather' blocked by policy") {
-		t.Error("expected replacement text '[agentsh] Tool 'get_weather' blocked by policy' in SSE output")
+	if !strings.Contains(sseOutput, "[agentmon] Tool 'get_weather' blocked by policy") {
+		t.Error("expected replacement text '[agentmon] Tool 'get_weather' blocked by policy' in SSE output")
 	}
 
 	// 4. stop_reason must be rewritten from "tool_use" to "end_turn" (all tools blocked).
@@ -1734,8 +1734,8 @@ func TestProxy_CrossServerBlocking_Integration(t *testing.T) {
 		}
 
 		// 3. The replacement text must be present.
-		if !strings.Contains(sseOutput, "[agentsh] Tool 'send_email' blocked by policy") {
-			t.Error("request 2: expected replacement text '[agentsh] Tool 'send_email' blocked by policy' in SSE output")
+		if !strings.Contains(sseOutput, "[agentmon] Tool 'send_email' blocked by policy") {
+			t.Error("request 2: expected replacement text '[agentmon] Tool 'send_email' blocked by policy' in SSE output")
 		}
 
 		// 4. stop_reason must be rewritten from "tool_use" to "end_turn".
@@ -1924,7 +1924,7 @@ func TestProxyRateLimitBlocksToolCall(t *testing.T) {
 	}
 
 	// The replacement text should be present.
-	if !strings.Contains(bodyStr, "[agentsh] Tool 'get_weather' blocked by policy") {
+	if !strings.Contains(bodyStr, "[agentmon] Tool 'get_weather' blocked by policy") {
 		t.Errorf("expected replacement text in response, got: %s", bodyStr)
 	}
 

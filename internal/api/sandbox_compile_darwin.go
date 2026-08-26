@@ -5,8 +5,8 @@ package api
 import (
 	"log/slog"
 
-	"github.com/agentsh/agentsh/internal/platform/darwin"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/platform/darwin"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // compileDarwinSandboxProfile compiles a policy-driven SBPL profile and populates

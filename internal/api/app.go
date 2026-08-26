@@ -15,28 +15,28 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/approvals"
-	"github.com/agentsh/agentsh/internal/auth"
-	"github.com/agentsh/agentsh/internal/config"
-	dbevents "github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/limits"
-	"github.com/agentsh/agentsh/internal/mcpinspect"
-	"github.com/agentsh/agentsh/internal/mcpregistry"
-	"github.com/agentsh/agentsh/internal/metrics"
-	"github.com/agentsh/agentsh/internal/netmonitor"
-	ebpftrace "github.com/agentsh/agentsh/internal/netmonitor/ebpf"
-	"github.com/agentsh/agentsh/internal/netmonitor/redirect"
-	"github.com/agentsh/agentsh/internal/pkgcheck"
-	"github.com/agentsh/agentsh/internal/platform"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/policy/signing"
-	"github.com/agentsh/agentsh/internal/proxy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/internal/tor"
-	"github.com/agentsh/agentsh/internal/trash"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/approvals"
+	"github.com/diffsec/agentmon/internal/auth"
+	"github.com/diffsec/agentmon/internal/config"
+	dbevents "github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/limits"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
+	"github.com/diffsec/agentmon/internal/metrics"
+	"github.com/diffsec/agentmon/internal/netmonitor"
+	ebpftrace "github.com/diffsec/agentmon/internal/netmonitor/ebpf"
+	"github.com/diffsec/agentmon/internal/netmonitor/redirect"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/platform"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy/signing"
+	"github.com/diffsec/agentmon/internal/proxy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/internal/tor"
+	"github.com/diffsec/agentmon/internal/trash"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
@@ -732,7 +732,7 @@ func (a *App) tryStartTransparentNetwork(ctx context.Context, s *session.Session
 		return err
 	}
 
-	nsName := "agentsh-" + strings.TrimPrefix(s.ID, "session-")
+	nsName := "agentmon-" + strings.TrimPrefix(s.ID, "session-")
 	subnetCIDR, hostIPCIDR, nsIPCIDR, hostIf, nsIf := netmonitor.AllocateSubnet(a.cfg.Sandbox.Network.Transparent.SubnetBase, nsName)
 	ns, err := netmonitor.SetupNetNS(ctx, nsName, subnetCIDR, hostIf, nsIf, hostIPCIDR, nsIPCIDR, tcpPort, dnsPort, torRedirectPorts)
 	if err != nil {
@@ -858,7 +858,7 @@ func (a *App) destroySession(w http.ResponseWriter, r *http.Request) {
 // to ensure both target the same directory.
 func resolveTrashPath(trashPath, workspace string) string {
 	if trashPath == "" {
-		trashPath = ".agentsh_trash"
+		trashPath = ".agentmon_trash"
 	}
 	if filepath.IsAbs(trashPath) {
 		return trashPath
@@ -1037,7 +1037,7 @@ func addSoftDeleteHints(fileOps []types.Event, stderrB []byte, stderrTotal int64
 		}
 		token := fmt.Sprint(ev.Fields["trash_token"])
 		path := ev.Path
-		cmd := fmt.Sprintf("agentsh trash restore %s", token)
+		cmd := fmt.Sprintf("agentmon trash restore %s", token)
 		softSuggestions = append(softSuggestions, types.Suggestion{
 			Action:  "restore file",
 			Command: cmd,
@@ -1232,7 +1232,7 @@ func guidanceForResponse(req types.ExecRequest, res types.ExecResult, blockedOps
 		g.Reason = "command timed out"
 		g.Suggestions = append(g.Suggestions, types.Suggestion{
 			Action:  "increase_timeout",
-			Command: "agentsh exec --timeout 2m ...",
+			Command: "agentmon exec --timeout 2m ...",
 			Reason:  "increase --timeout for slow commands",
 		})
 	}

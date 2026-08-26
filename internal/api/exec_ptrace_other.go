@@ -5,7 +5,7 @@ package api
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type ptraceExecResult struct {

@@ -2,7 +2,7 @@
 
 ## Problem
 
-Agentsh has sandbox features (seccomp, ptrace, eBPF, cgroups) that can be enabled in config but may not work in certain environments like Firecracker VMs, containers, or systems with older kernels. Currently this causes silent failures or mysterious timeouts instead of clear errors.
+Agentmon has sandbox features (seccomp, ptrace, eBPF, cgroups) that can be enabled in config but may not work in certain environments like Firecracker VMs, containers, or systems with older kernels. Currently this causes silent failures or mysterious timeouts instead of clear errors.
 
 ## Solution
 
@@ -41,7 +41,7 @@ type CheckResult struct {
 ### Error Message Format
 
 ```
-agentsh: capability check failed
+agentmon: capability check failed
 
   Feature:     seccomp-user-notify
   Config:      sandbox.unix_sockets.enabled = true
@@ -147,4 +147,4 @@ var (
 
 - **Check crashes**: Each check runs with timeout and recovers from panics
 - **Multiple failures**: All failures collected and reported together
-- **Partial support**: Some features may work partially; checks test the specific functionality agentsh needs
+- **Partial support**: Some features may work partially; checks test the specific functionality agentmon needs

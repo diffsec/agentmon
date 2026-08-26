@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/session"
+	"github.com/diffsec/agentmon/internal/session"
 	"github.com/spf13/cobra"
 )
 
@@ -32,7 +32,7 @@ func addCheckpointStorageFlag(cmd *cobra.Command) {
 func getCheckpointStorage(cmd *cobra.Command) (*session.FileCheckpointStorage, error) {
 	dir, _ := cmd.Flags().GetString("storage-dir")
 	if dir == "" {
-		dir = "/var/lib/agentsh/checkpoints"
+		dir = "/var/lib/agentmon/checkpoints"
 	}
 	return session.NewFileCheckpointStorage(dir, 0)
 }

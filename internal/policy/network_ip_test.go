@@ -4,7 +4,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestEngine_CheckNetworkIP_MatchesDomainAndCIDR(t *testing.T) {

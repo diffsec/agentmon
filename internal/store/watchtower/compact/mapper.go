@@ -1,4 +1,4 @@
-// Package compact projects agentsh events into the WTP CompactEvent wire shape.
+// Package compact projects agentmon events into the WTP CompactEvent wire shape.
 //
 // The OCSF class/activity mapping is Phase 1 work and is injected via the
 // Mapper interface. This package provides:
@@ -13,7 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // MappedEvent is the Mapper's output: a class/activity pair plus the
@@ -25,7 +25,7 @@ type MappedEvent struct {
 	Payload        []byte // protobuf-encoded class-specific payload
 }
 
-// Mapper projects an agentsh event into the OCSF class identifier and the
+// Mapper projects an agentmon event into the OCSF class identifier and the
 // pre-encoded class-specific payload bytes.
 //
 // Production: injected via watchtower.WithMapper(...) from Phase 1.

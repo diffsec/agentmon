@@ -3,12 +3,12 @@ package session
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/awssm"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/azurekv"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/gcpsm"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/onepassword"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/vault"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/awssm"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/azurekv"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/gcpsm"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/onepassword"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/vault"
 	"gopkg.in/yaml.v3"
 )
 
@@ -42,7 +42,7 @@ func TestResolveProviderConfigs_Keyring(t *testing.T) {
 
 func TestResolveProviderConfigs_Vault(t *testing.T) {
 	providers := map[string]yaml.Node{
-		"v": mustYAMLNode(t, "type: vault\naddress: https://vault.example.com\nauth:\n  method: token\n  token_ref: keyring://agentsh/vt"),
+		"v": mustYAMLNode(t, "type: vault\naddress: https://vault.example.com\nauth:\n  method: token\n  token_ref: keyring://agentmon/vt"),
 	}
 	configs, err := ResolveProviderConfigs(providers)
 	if err != nil {
@@ -79,7 +79,7 @@ func TestResolveServiceConfigs_FromHTTPService(t *testing.T) {
 		{
 			Name:     "github",
 			Upstream: "https://api.github.com",
-			Secret:   &policy.HTTPServiceSecret{Ref: "keyring://agentsh/github_token", Format: "ghp_{rand:36}"},
+			Secret:   &policy.HTTPServiceSecret{Ref: "keyring://agentmon/github_token", Format: "ghp_{rand:36}"},
 			Inject:   &policy.HTTPServiceInject{Header: &policy.HTTPServiceInjectHeader{Name: "Authorization", Template: "Bearer {{secret}}"}},
 			ScrubResponse: &scrubTrue,
 		},
@@ -128,7 +128,7 @@ func TestResolveServiceConfigs_ScrubResponseDefault(t *testing.T) {
 	svcs := []policy.HTTPService{{
 		Name:     "svc",
 		Upstream: "https://api.example.com",
-		Secret:   &policy.HTTPServiceSecret{Ref: "keyring://agentsh/key", Format: "ghp_{rand:36}"},
+		Secret:   &policy.HTTPServiceSecret{Ref: "keyring://agentmon/key", Format: "ghp_{rand:36}"},
 	}}
 	resolved, err := ResolveServiceConfigs(svcs)
 	if err != nil {
@@ -144,7 +144,7 @@ func TestResolveServiceConfigs_ScrubResponseExplicitFalse(t *testing.T) {
 	svcs := []policy.HTTPService{{
 		Name:          "svc",
 		Upstream:      "https://api.example.com",
-		Secret:        &policy.HTTPServiceSecret{Ref: "keyring://agentsh/key", Format: "ghp_{rand:36}"},
+		Secret:        &policy.HTTPServiceSecret{Ref: "keyring://agentmon/key", Format: "ghp_{rand:36}"},
 		ScrubResponse: &scrubFalse,
 	}}
 	resolved, err := ResolveServiceConfigs(svcs)
@@ -273,7 +273,7 @@ func TestResolveProviderConfigs_OP_LiteralKey(t *testing.T) {
 
 func TestResolveProviderConfigs_OP_RefKey(t *testing.T) {
 	providers := map[string]yaml.Node{
-		"op": mustYAMLNode(t, "type: op\nserver_url: https://op.internal\napi_key_ref: keyring://agentsh/op_key"),
+		"op": mustYAMLNode(t, "type: op\nserver_url: https://op.internal\napi_key_ref: keyring://agentmon/op_key"),
 	}
 	configs, err := ResolveProviderConfigs(providers)
 	if err != nil {

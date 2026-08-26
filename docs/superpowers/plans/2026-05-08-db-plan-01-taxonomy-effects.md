@@ -8,7 +8,7 @@
 
 **Tech Stack:** Go 1.25, standard library only, table-driven tests, `gopkg.in/yaml.v3` for `db_services` config (already in go.mod).
 
-**Source spec:** [`docs/agentsh-db-access-spec.md`](../../agentsh-db-access-spec.md) §5, §6, §8 (skeleton), §9.1.
+**Source spec:** [`docs/agentmon-db-access-spec.md`](../../agentmon-db-access-spec.md) §5, §6, §8 (skeleton), §9.1.
 **Roadmap:** [`docs/superpowers/specs/2026-05-08-db-access-phase-1-roadmap-design.md`](../specs/2026-05-08-db-access-phase-1-roadmap-design.md).
 
 ---
@@ -1480,7 +1480,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func TestRedaction_String(t *testing.T) {
@@ -1619,7 +1619,7 @@ package events
 import (
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // DBEvent is the normalized audit event emitted per database statement, per §8.
@@ -1699,7 +1699,7 @@ services:
       port: 5432
     listen:
       kind: unix
-      path: /run/agentsh/db/appdb.sock
+      path: /run/agentmon/db/appdb.sock
     tls_mode: terminate_reissue
 `)
 	cfg, err := ParseConfig(in)
@@ -1716,7 +1716,7 @@ services:
 	if s.Upstream.Host != "db.internal" || s.Upstream.Port != 5432 {
 		t.Errorf("unexpected upstream: %+v", s.Upstream)
 	}
-	if s.Listen.Kind != "unix" || s.Listen.Path != "/run/agentsh/db/appdb.sock" {
+	if s.Listen.Kind != "unix" || s.Listen.Path != "/run/agentmon/db/appdb.sock" {
 		t.Errorf("unexpected listen: %+v", s.Listen)
 	}
 	if s.TLSMode != "terminate_reissue" {

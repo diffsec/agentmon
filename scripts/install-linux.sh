@@ -1,19 +1,19 @@
 #!/bin/bash
-# install-linux.sh - Linux installation script for agentsh
+# install-linux.sh - Linux installation script for agentmon
 #
 # Usage:
-#   curl -fsSL https://get.agentsh.dev/linux | bash
+#   curl -fsSL https://get.agentmon.dev/linux | bash
 #   ./install-linux.sh [version]
 #
 # Environment variables:
-#   AGENTSH_VERSION - version to install (default: latest)
-#   AGENTSH_INSTALL_DIR - installation directory (default: /usr/local/bin)
+#   AGENTMON_VERSION - version to install (default: latest)
+#   AGENTMON_INSTALL_DIR - installation directory (default: /usr/local/bin)
 
 set -e
 
-VERSION="${AGENTSH_VERSION:-${1:-latest}}"
-INSTALL_DIR="${AGENTSH_INSTALL_DIR:-/usr/local/bin}"
-GITHUB_REPO="agentsh/agentsh"
+VERSION="${AGENTMON_VERSION:-${1:-latest}}"
+INSTALL_DIR="${AGENTMON_INSTALL_DIR:-/usr/local/bin}"
+GITHUB_REPO="diffsec/agentmon"
 
 # Colors for output
 RED='\033[0;31m'
@@ -37,7 +37,7 @@ error() {
 check_privileges() {
     if [[ "$INSTALL_DIR" == "/usr/local/bin" ]] && [[ $EUID -ne 0 ]]; then
         error "Installation to $INSTALL_DIR requires root privileges."
-        error "Run with sudo or set AGENTSH_INSTALL_DIR to a user directory."
+        error "Run with sudo or set AGENTMON_INSTALL_DIR to a user directory."
         exit 1
     fi
 }
@@ -181,8 +181,8 @@ get_latest_version() {
     echo "$latest"
 }
 
-# Download and install agentsh
-install_agentsh() {
+# Download and install agentmon
+install_agentmon() {
     local version="$VERSION"
     local arch=$(detect_arch)
 
@@ -190,13 +190,13 @@ install_agentsh() {
         version=$(get_latest_version)
     fi
 
-    info "Installing agentsh ${version} for linux/${arch}..."
+    info "Installing agentmon ${version} for linux/${arch}..."
 
-    local download_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/agentsh-linux-${arch}"
-    local tmp_file="/tmp/agentsh-$$"
+    local download_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/agentmon-linux-${arch}"
+    local tmp_file="/tmp/agentmon-$$"
 
     if ! curl -fsSL "$download_url" -o "$tmp_file"; then
-        error "Failed to download agentsh from ${download_url}"
+        error "Failed to download agentmon from ${download_url}"
         exit 1
     fi
 
@@ -209,12 +209,12 @@ install_agentsh() {
 
     # Move to install directory
     if [[ $EUID -eq 0 ]] || [[ -w "$INSTALL_DIR" ]]; then
-        mv "$tmp_file" "${INSTALL_DIR}/agentsh"
+        mv "$tmp_file" "${INSTALL_DIR}/agentmon"
     else
-        sudo mv "$tmp_file" "${INSTALL_DIR}/agentsh"
+        sudo mv "$tmp_file" "${INSTALL_DIR}/agentmon"
     fi
 
-    info "agentsh installed to ${INSTALL_DIR}/agentsh"
+    info "agentmon installed to ${INSTALL_DIR}/agentmon"
 }
 
 # Download and install envshim helper
@@ -248,11 +248,11 @@ install_envshim() {
 
 # Verify installation
 verify_installation() {
-    if command -v agentsh &> /dev/null; then
+    if command -v agentmon &> /dev/null; then
         info "Verification successful!"
-        agentsh version 2>/dev/null || true
+        agentmon version 2>/dev/null || true
     else
-        warn "agentsh not found in PATH. You may need to add ${INSTALL_DIR} to your PATH."
+        warn "agentmon not found in PATH. You may need to add ${INSTALL_DIR} to your PATH."
     fi
 }
 
@@ -260,17 +260,17 @@ verify_installation() {
 print_instructions() {
     echo ""
     echo "============================================"
-    echo "  agentsh installed successfully!"
+    echo "  agentmon installed successfully!"
     echo "============================================"
     echo ""
     echo "Quick start:"
-    echo "  agentsh server        # Start the agentsh server"
-    echo "  agentsh status        # Check server status"
-    echo "  agentsh --help        # Show available commands"
+    echo "  agentmon server        # Start the agentmon server"
+    echo "  agentmon status        # Check server status"
+    echo "  agentmon --help        # Show available commands"
     echo ""
     echo "Configuration:"
-    echo "  Default config: ~/.config/agentsh/config.yml"
-    echo "  Default policy: ~/.config/agentsh/policy.yml"
+    echo "  Default config: ~/.config/agentmon/config.yml"
+    echo "  Default policy: ~/.config/agentmon/policy.yml"
     echo ""
     echo "Documentation:"
     echo "  https://github.com/${GITHUB_REPO}"
@@ -279,7 +279,7 @@ print_instructions() {
 
 # Main installation flow
 main() {
-    echo "agentsh Linux Installer"
+    echo "agentmon Linux Installer"
     echo "======================="
     echo ""
 
@@ -291,7 +291,7 @@ main() {
     check_cgroups
 
     echo ""
-    install_agentsh
+    install_agentmon
     install_envshim
 
     echo ""

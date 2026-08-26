@@ -30,7 +30,7 @@ import (
 //   - Bounding (PR_CAPBSET_READ): the hard ceiling. A bit cleared here
 //     cannot be regained at all, even across exec. This is what
 //     capabilities.DropCapabilities() narrows via PR_CAPBSET_DROP, so
-//     omitting it would miss agentsh's own drop mechanism.
+//     omitting it would miss agentmon's own drop mechanism.
 //
 // The Effective set is deliberately excluded from the drop signal even
 // though capget returns it: a process can do capset(eff=0, prm=full) and

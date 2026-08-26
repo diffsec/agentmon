@@ -4,7 +4,7 @@ Issue: #379 (follow-up to #374)
 
 ## Summary
 
-On the client-spawned wrap path (shell shim / kernel-install and `agentsh wrap`), the executed command inherits the launcher's full environment (`syscall.Exec(cmdPath, args, os.Environ())` in `cmd/agentsh-unixwrap/main.go`). `policy.BuildEnv` — which enforces env `allow`/`deny`/`max_bytes`/`max_keys` — runs only on the server-spawned exec path (`internal/api/exec.go`). So env_policy allow/deny isolation never runs on the wrap path: commands (including any secrets in the launcher env) see everything. #374 plumbed `env_inject` through this path; this closes the env_policy gap.
+On the client-spawned wrap path (shell shim / kernel-install and `agentmon wrap`), the executed command inherits the launcher's full environment (`syscall.Exec(cmdPath, args, os.Environ())` in `cmd/agentmon-unixwrap/main.go`). `policy.BuildEnv` — which enforces env `allow`/`deny`/`max_bytes`/`max_keys` — runs only on the server-spawned exec path (`internal/api/exec.go`). So env_policy allow/deny isolation never runs on the wrap path: commands (including any secrets in the launcher env) see everything. #374 plumbed `env_inject` through this path; this closes the env_policy gap.
 
 The fix plumbs the resolved env policy through `WrapInitResponse` (exactly as #374 did for `EnvInject`) and applies a **subtractive** `policy.BuildEnv` filter client-side over the inherited environment, **gated behind an opt-in config flag**, **fail-open**. Default-off means zero behavior change for existing deployments until an operator enables it.
 
@@ -14,7 +14,7 @@ The fix plumbs the resolved env policy through `WrapInitResponse` (exactly as #3
 - Default-off: no change to any existing wrap/shim deployment until `sandbox.wrap_env_policy.enabled: true`.
 - Fail-open: any filter error falls back to the unfiltered inherited env; a command is never blocked by env filtering.
 - Mixed-version safe: old server / new client and new server / old client both degrade to today's behavior (no filtering).
-- agentsh's own markers (`AGENTSH_*`, notify/signal FDs, wrapper env, proxy markers) and operator `env_inject` are never stripped.
+- agentmon's own markers (`AGENTMON_*`, notify/signal FDs, wrapper env, proxy markers) and operator `env_inject` are never stripped.
 
 ## Non-Goals
 
@@ -99,7 +99,7 @@ func Filter(base []string, wire *types.EnvPolicyWire) []string {
 
 ### 4. Apply client-side, before markers
 
-The filter runs on the **inherited launcher env only**, before agentsh adds its own vars — so markers, wrapper env, proxy, and `env_inject` are never stripped and `env_inject` still overrides:
+The filter runs on the **inherited launcher env only**, before agentmon adds its own vars — so markers, wrapper env, proxy, and `env_inject` are never stripped and `env_inject` still overrides:
 
 - `internal/cli/wrap_linux.go`, both branches: `base := wrapenv.Filter(os.Environ(), wrapResp.EnvPolicy)` then the existing `buildWrapEnv(base, …)` → `envinject.Apply(…)`.
 - `internal/shim/kernelinstall/install_linux.go:200`: wrap the base — `assembleWrapperEnv(wrapenv.Filter(filterShimInternalEnv(p.Env), resp.EnvPolicy), p.Argv0, resp.WrapperEnv, resp.EnvInject)`.
@@ -108,7 +108,7 @@ Note: as on the exec path, a restrictive `env_allow` will also exclude infra var
 
 ### Why not other approaches
 
-- **Filter inside `agentsh-unixwrap` before `execve`:** single chokepoint, but the wrapper is a minimal static stub; it would require serializing allow/deny globs into its env and reimplementing `BuildEnv`. The Go client already imports `policy`/`envinject` and reuses `BuildEnv` directly — DRY and consistent with how #374 applied `env_inject`.
+- **Filter inside `agentmon-unixwrap` before `execve`:** single chokepoint, but the wrapper is a minimal static stub; it would require serializing allow/deny globs into its env and reimplementing `BuildEnv`. The Go client already imports `policy`/`envinject` and reuses `BuildEnv` directly — DRY and consistent with how #374 applied `env_inject`.
 - **Server returns a fully-filtered env set:** impossible — the launcher env (`os.Environ()`) exists only client-side; the server can send the policy, not the filtered result.
 - **Minimal-base rebuild (exec parity):** rejected as a non-goal — breaks inheritance on the exact platforms this path serves.
 
@@ -124,13 +124,13 @@ No new error types. `Filter` is fail-open: nil wire or `BuildEnv` error ⇒ inhe
 - no allow, no deny ⇒ a `defaultSecretDeny`-listed var (e.g. `AWS_SECRET_ACCESS_KEY`) stripped, ordinary vars kept (confirms baseline secret protection).
 - allow `["PATH","HOME"]` ⇒ only those kept.
 - a large env is filtered by allow/deny only and is **not** rejected (confirms `max_*` is not enforced on this path).
-- a var named like an agentsh marker is irrelevant here (markers are added by callers after Filter) — covered by the caller-order tests below.
+- a var named like an agentmon marker is irrelevant here (markers are added by callers after Filter) — covered by the caller-order tests below.
 
 `internal/api` (wrap helper):
 - flag off ⇒ `wrapEnvPolicyWire` returns `nil` (and the response `EnvPolicy` is nil).
 - flag on with a policy that denies `FOO` ⇒ returns a wire whose `Deny` contains `FOO`; `Allow` mirrors the resolved policy.
 
-`internal/cli` / `internal/shim/kernelinstall` (ordering): a focused test that, given a base containing a denied var plus an agentsh marker added after Filter, the denied var is removed while the marker and an `env_inject` value survive. (If a full wrap launch is impractical to unit-test, assert the helper composition: `envinject.Apply(buildWrapEnv(wrapenv.Filter(base, wire), …), inject)` keeps markers + inject and drops denied vars.)
+`internal/cli` / `internal/shim/kernelinstall` (ordering): a focused test that, given a base containing a denied var plus an agentmon marker added after Filter, the denied var is removed while the marker and an `env_inject` value survive. (If a full wrap launch is impractical to unit-test, assert the helper composition: `envinject.Apply(buildWrapEnv(wrapenv.Filter(base, wire), …), inject)` keeps markers + inject and drops denied vars.)
 
 `internal/config`: `sandbox.wrap_env_policy.enabled` defaults to false; round-trips true from YAML.
 

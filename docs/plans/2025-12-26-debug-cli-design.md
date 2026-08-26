@@ -4,13 +4,13 @@
 
 ## Overview
 
-Add one-shot debug commands for operational visibility into agentsh sessions.
+Add one-shot debug commands for operational visibility into agentmon sessions.
 These wrap existing infrastructure and add a `debug` command namespace.
 
 ## Commands
 
 ```
-agentsh debug
+agentmon debug
   ├── stats SESSION_ID [--json]
   │     Show session statistics: event counts by type/decision,
   │     latency percentiles, resource usage, duration

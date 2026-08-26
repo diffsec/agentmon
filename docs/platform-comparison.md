@@ -2,11 +2,11 @@
 
 > **macOS ESF+NE is Alpha.** The feature matrix below reflects design-target capabilities. The ESF+NE column is functional end-to-end but not yet production-ready.
 
-This document provides a comprehensive comparison of agentsh capabilities across all supported platforms.
+This document provides a comprehensive comparison of agentmon capabilities across all supported platforms.
 
 ## Feature Support Matrix
 
-> **Note on macOS Lima:** The "macOS Lima" column applies to both deployment modes. When running agentsh **inside** the Lima VM, you get 100% Linux-equivalent security. When running agentsh on macOS **orchestrating** the Lima VM, you get 85% due to VM boundary overhead. See [Lima Deployment Modes](#lima-deployment-modes) for details.
+> **Note on macOS Lima:** The "macOS Lima" column applies to both deployment modes. When running agentmon **inside** the Lima VM, you get 100% Linux-equivalent security. When running agentmon on macOS **orchestrating** the Lima VM, you get 85% due to VM boundary overhead. See [Lima Deployment Modes](#lima-deployment-modes) for details.
 
 > **Database access note:** Current database enforcement is Postgres-family only and the runtime DB proxy is Linux-only. Use native Linux, WSL2, or a Linux VM environment for `db_services` enforcement. Native macOS and native Windows builds compile the DB packages but the Postgres proxy runtime returns unsupported.
 
@@ -117,11 +117,11 @@ macOS ESF+NE          ███████████████████�
 
 macOS + Lima (in VM)  ████████████████████████████████████████████████████████  100%
                       File✓   Net✓    Sig✓    Iso✓      Sys✓     Res✓
-                      (Run agentsh inside Lima VM = native Linux)
+                      (Run agentmon inside Lima VM = native Linux)
 
 macOS + Lima (orch)   ██████████████████████████████████████████░░░░░░░░░░░░░░   85%
                       File✓   Net✓    Sig✓    Iso✓      Sys✓     Res✓
-                      (agentsh on macOS orchestrating Lima VM)
+                      (agentmon on macOS orchestrating Lima VM)
 
 macOS (observation)   ██████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   25%
                       File⚠   Net✗    Sig✗    Iso✗      Sys✗     Res✗
@@ -247,7 +247,7 @@ Lima/virtiofs   █████████████████████�
                     │   macOS ESF+NE      │
                     │   90% - Alpha       │
                     │   brew install      │
-                    │   --cask agentsh    │
+                    │   --cask agentmon    │
                     └─────────────────────┘
 ```
 
@@ -258,9 +258,9 @@ Lima/virtiofs   █████████████████████�
 | Production - Maximum Security | Linux Native | 100% | Full isolation, all features |
 | Production - AWS Fargate | Linux (ptrace mode) | 95% | Full enforcement with steering via ptrace + E2E tested on Fargate |
 | Production - Windows Server | Windows WSL2 | 100% | Full Linux security in VM |
-| Production - macOS | macOS + Lima (inside VM) | 100% | Run agentsh inside Lima = native Linux |
+| Production - macOS | macOS + Lima (inside VM) | 100% | Run agentmon inside Lima = native Linux |
 | Enterprise Security Product | macOS ESF+NE | 90% | Alpha — install via Homebrew cask |
-| Development - macOS | macOS ESF+NE | 90% | Alpha — `brew install --cask agentsh` |
+| Development - macOS | macOS ESF+NE | 90% | Alpha — `brew install --cask agentmon` |
 | Development - Windows | Windows Native | 75% | Registry monitoring + WinDivert network |
 | CI/CD Pipeline | Linux Native | 100% | Containers supported |
 | Air-gapped/Offline | Linux Native | 100% | No external dependencies |
@@ -320,8 +320,8 @@ sandbox:
 | Observation | FSEvents (observe) | pcap (observe) | None | None required | 25% |
 
 **When to use each:**
-- **ESF + NE (Alpha)**: Development and production on macOS — install via `brew install --cask agentsh`
-- **Lima VM (inside)**: Production on macOS - run agentsh inside VM for full Linux security
+- **ESF + NE (Alpha)**: Development and production on macOS — install via `brew install --cask agentmon`
+- **Lima VM (inside)**: Production on macOS - run agentmon inside VM for full Linux security
 - **Lima VM (orchestrated)**: When you need macOS-native CLI experience with Lima backend
 - **Observation**: Quick testing, observation-only use cases
 
@@ -331,8 +331,8 @@ Lima provides two deployment modes for macOS users who need full Linux isolation
 
 | Mode | Security | Description |
 |------|:--------:|-------------|
-| **Inside VM** | 100% | Run agentsh + AI agent inside Lima VM. Identical to native Linux. |
-| **Orchestrated** | 85% | Run agentsh on macOS, use Lima as execution sandbox via `limactl shell`. |
+| **Inside VM** | 100% | Run agentmon + AI agent inside Lima VM. Identical to native Linux. |
+| **Orchestrated** | 85% | Run agentmon on macOS, use Lima as execution sandbox via `limactl shell`. |
 
 **Recommendation:** Use Inside-VM mode for production. It's simpler (no special platform code needed) and provides full Linux-equivalent security.
 
@@ -354,7 +354,7 @@ See [Known Limitations - macOS + Lima](#macos--lima) for detailed comparison.
 - **Resource monitoring available** - native Mach API monitoring for memory, CPU, and thread count
 - **No syscall filtering** - except exec blocking via ESF
 - **Signal interception**: Audit only via Endpoint Security; cannot block or redirect signals
-- Install via `brew tap canyonroad/tap && brew install --cask agentsh`
+- Install via `brew tap canyonroad/tap && brew install --cask agentmon`
 
 ### macOS + Lima
 
@@ -362,7 +362,7 @@ Lima provides two deployment modes with different trade-offs:
 
 #### Inside-VM Mode (100% Security Score) - Recommended
 
-Run agentsh and the AI agent harness **entirely inside** the Lima VM:
+Run agentmon and the AI agent harness **entirely inside** the Lima VM:
 
 ```
 ┌─────────────────────────────────────┐
@@ -370,7 +370,7 @@ Run agentsh and the AI agent harness **entirely inside** the Lima VM:
 │  ┌─────────────────────────────┐   │
 │  │      Lima VM (Linux)        │   │
 │  │  ┌───────────────────────┐  │   │
-│  │  │   agentsh (Linux)     │  │   │
+│  │  │   agentmon (Linux)     │  │   │
 │  │  │   + AI Agent harness  │  │   │
 │  │  └───────────────────────┘  │   │
 │  └─────────────────────────────┘   │
@@ -393,13 +393,13 @@ This is **identical to native Linux** - you get:
 
 #### Orchestrated Mode (85% Security Score)
 
-Run agentsh on macOS, using Lima as a remote execution sandbox:
+Run agentmon on macOS, using Lima as a remote execution sandbox:
 
 ```
 ┌─────────────────────────────────────┐
 │         macOS Host                  │
 │  ┌─────────────────────────────┐   │
-│  │   agentsh (macOS binary)   │   │
+│  │   agentmon (macOS binary)   │   │
 │  └───────────┬─────────────────┘   │
 │              │ limactl shell       │
 │  ┌───────────▼─────────────────┐   │
@@ -415,17 +415,17 @@ This mode uses `internal/platform/lima/` to orchestrate commands inside the VM.
 - Additional latency from `limactl shell` IPC
 - Path translation between macOS and Lima
 - More complex architecture
-- Useful when you need macOS-native agentsh CLI experience
+- Useful when you need macOS-native agentmon CLI experience
 
 #### Lima Implementation Details (Both Modes)
 
 Inside the VM, both modes use standard Linux primitives:
-- **Resource limits**: cgroups v2 at `/sys/fs/cgroup/agentsh/<name>`
+- **Resource limits**: cgroups v2 at `/sys/fs/cgroup/agentmon/<name>`
   - CPU: `cpu.max` (quota/period in microseconds)
   - Memory: `memory.max` (bytes)
   - Processes: `pids.max`
   - Disk I/O: `io.max` (rbps/wbps per device)
-- **Network interception**: iptables DNAT via `AGENTSH` chain
+- **Network interception**: iptables DNAT via `AGENTMON` chain
   - TCP redirect to proxy (excludes localhost)
   - UDP port 53 redirect to DNS proxy
 - **Filesystem mounting**: bindfs passthrough mount inside VM
@@ -462,12 +462,12 @@ Inside the VM, both modes use standard Linux primitives:
 - **Signal interception**: Full blocking and redirect via seccomp in Linux VM
 
 **WSL2 Implementation Details:**
-- **Resource limits**: cgroups v2 at `/sys/fs/cgroup/agentsh/<name>`
+- **Resource limits**: cgroups v2 at `/sys/fs/cgroup/agentmon/<name>`
   - CPU: `cpu.max` (quota/period in microseconds)
   - Memory: `memory.max` (bytes)
   - Processes: `pids.max`
   - Disk I/O: `io.max` (rbps/wbps per device)
-- **Network interception**: iptables DNAT via `AGENTSH` chain
+- **Network interception**: iptables DNAT via `AGENTMON` chain
   - TCP redirect to proxy (excludes localhost)
   - UDP port 53 redirect to DNS proxy
 - **Filesystem mounting**: bindfs passthrough mount inside VM
@@ -485,10 +485,10 @@ Inside the VM, both modes use standard Linux primitives:
 
 | Platform | Command | Requirements |
 |----------|---------|--------------|
-| Linux | `curl -fsSL https://get.agentsh.dev \| bash` | root for full features |
-| macOS ESF+NE | `brew tap canyonroad/tap && brew install --cask agentsh` | Approve sysext in System Settings |
-| macOS Lima | `brew install lima && limactl start agentsh` | Lima VM |
-| Windows Native | `sc create agentsh type=filesys` | Admin, test signing (dev) or EV cert (prod) |
+| Linux | `curl -fsSL https://get.agentmon.dev \| bash` | root for full features |
+| macOS ESF+NE | `brew tap canyonroad/tap && brew install --cask agentmon` | Approve sysext in System Settings |
+| macOS Lima | `brew install lima && limactl start agentmon` | Lima VM |
+| Windows Native | `sc create agentmon type=filesys` | Admin, test signing (dev) or EV cert (prod) |
 | Windows WSL2 | `wsl --install -d Ubuntu && ...` | WSL2 enabled |
 
 See [macOS Build Guide](macos-build.md) for detailed macOS build instructions.
@@ -496,7 +496,7 @@ See [macOS Build Guide](macos-build.md) for detailed macOS build instructions.
 ## Optimization Configuration
 
 ```yaml
-# agentsh.yaml - Performance-optimized configuration
+# agentmon.yaml - Performance-optimized configuration
 
 performance:
   # Cache policy decisions

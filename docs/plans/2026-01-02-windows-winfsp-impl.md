@@ -41,7 +41,7 @@ package fuse
 import (
 	"runtime"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // Config holds FUSE mount configuration.
@@ -73,7 +73,7 @@ func InstallInstructions() string {
 
 **Step 3: Verify package compiles**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && go build ./internal/platform/fuse/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && go build ./internal/platform/fuse/...`
 Expected: Build succeeds
 
 **Step 4: Commit**
@@ -102,7 +102,7 @@ package fuse
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // Mount returns an error when CGO is disabled.
@@ -136,7 +136,7 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // cgoEnabled reports whether CGO is available.
@@ -164,7 +164,7 @@ func Mount(cfg Config) (platform.FSMount, error) {
 
 **Step 3: Verify both build tags compile**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && CGO_ENABLED=0 go build ./internal/platform/fuse/... && CGO_ENABLED=1 go build ./internal/platform/fuse/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && CGO_ENABLED=0 go build ./internal/platform/fuse/... && CGO_ENABLED=1 go build ./internal/platform/fuse/...`
 Expected: Both builds succeed
 
 **Step 4: Commit**
@@ -298,7 +298,7 @@ func detectImplementation() string {
 
 **Step 4: Verify all platforms compile**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && GOOS=darwin go build ./internal/platform/fuse/... && GOOS=windows go build ./internal/platform/fuse/... && GOOS=linux go build ./internal/platform/fuse/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && GOOS=darwin go build ./internal/platform/fuse/... && GOOS=windows go build ./internal/platform/fuse/... && GOOS=linux go build ./internal/platform/fuse/...`
 Expected: All builds succeed
 
 **Step 5: Commit**
@@ -330,7 +330,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 	"github.com/winfsp/cgofuse/fuse"
 )
 
@@ -393,7 +393,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 	"github.com/winfsp/cgofuse/fuse"
 )
 
@@ -829,7 +829,7 @@ func (f *fuseFS) Fsync(path string, datasync bool, fh uint64) int {
 
 **Step 3: Verify it compiles**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && go build ./internal/platform/fuse/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && go build ./internal/platform/fuse/...`
 Expected: Build succeeds
 
 **Step 4: Commit**
@@ -1007,7 +1007,7 @@ func (f *fuseFS) Chown(path string, uid uint32, gid uint32) int {
 
 **Step 5: Verify all platforms compile**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && GOOS=darwin go build ./internal/platform/fuse/... && GOOS=windows go build ./internal/platform/fuse/... && GOOS=linux go build ./internal/platform/fuse/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && GOOS=darwin go build ./internal/platform/fuse/... && GOOS=windows go build ./internal/platform/fuse/... && GOOS=linux go build ./internal/platform/fuse/...`
 Expected: All builds succeed
 
 **Step 6: Commit**
@@ -1037,7 +1037,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 	cgofuse "github.com/winfsp/cgofuse/fuse"
 )
 
@@ -1104,7 +1104,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 	cgofuse "github.com/winfsp/cgofuse/fuse"
 )
 
@@ -1182,7 +1182,7 @@ func Mount(cfg Config) (platform.FSMount, error) {
 func mountOptions(cfg Config) []string {
 	volname := cfg.VolumeName
 	if volname == "" {
-		volname = "agentsh"
+		volname = "agentmon"
 	}
 
 	switch runtime.GOOS {
@@ -1211,7 +1211,7 @@ func mountOptions(cfg Config) []string {
 
 **Step 3: Verify it compiles**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && go build ./internal/platform/fuse/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && go build ./internal/platform/fuse/...`
 Expected: Build succeeds
 
 **Step 4: Commit**
@@ -1245,7 +1245,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 	cgofuse "github.com/winfsp/cgofuse/fuse"
 )
 
@@ -1364,7 +1364,7 @@ func (f *fuseFS) Unlink(path string) int {
 
 **Step 3: Verify it compiles**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && go build ./internal/platform/fuse/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && go build ./internal/platform/fuse/...`
 Expected: Build succeeds
 
 **Step 4: Commit**
@@ -1428,7 +1428,7 @@ func TestImplementation(t *testing.T) {
 
 **Step 2: Run tests**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && go test ./internal/platform/fuse/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && go test ./internal/platform/fuse/... -v`
 Expected: Tests pass
 
 **Step 3: Commit**
@@ -1459,8 +1459,8 @@ package darwin
 import (
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/platform"
-	"github.com/agentsh/agentsh/internal/platform/fuse"
+	"github.com/diffsec/agentmon/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform/fuse"
 )
 
 // Filesystem implements platform.FilesystemInterceptor for macOS.
@@ -1507,8 +1507,8 @@ var _ platform.FilesystemInterceptor = (*Filesystem)(nil)
 package darwin
 
 import (
-	"github.com/agentsh/agentsh/internal/platform"
-	"github.com/agentsh/agentsh/internal/platform/fuse"
+	"github.com/diffsec/agentmon/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform/fuse"
 )
 
 // Mount creates a FUSE mount.
@@ -1522,7 +1522,7 @@ func (fs *Filesystem) Mount(cfg platform.FSConfig) (platform.FSMount, error) {
 
 	mount, err := fuse.Mount(fuse.Config{
 		FSConfig:   cfg,
-		VolumeName: "agentsh",
+		VolumeName: "agentmon",
 	})
 	if err != nil {
 		return nil, err
@@ -1544,8 +1544,8 @@ const cgoEnabled = true
 package darwin
 
 import (
-	"github.com/agentsh/agentsh/internal/platform"
-	"github.com/agentsh/agentsh/internal/platform/fuse"
+	"github.com/diffsec/agentmon/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform/fuse"
 )
 
 // Mount returns an error when CGO is disabled.
@@ -1564,7 +1564,7 @@ rm internal/platform/darwin/fuse_ops.go
 
 **Step 5: Verify darwin tests pass**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && go test ./internal/platform/darwin/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && go test ./internal/platform/darwin/... -v`
 Expected: Tests pass
 
 **Step 6: Commit**
@@ -1593,8 +1593,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/platform"
-	"github.com/agentsh/agentsh/internal/platform/fuse"
+	"github.com/diffsec/agentmon/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform/fuse"
 )
 
 // Filesystem implements platform.FilesystemInterceptor for Windows using WinFsp.
@@ -1635,7 +1635,7 @@ func (fs *Filesystem) Mount(cfg platform.FSConfig) (platform.FSMount, error) {
 
 	mount, err := fuse.Mount(fuse.Config{
 		FSConfig:   cfg,
-		VolumeName: "agentsh",
+		VolumeName: "agentmon",
 	})
 	if err != nil {
 		return nil, err
@@ -1659,12 +1659,12 @@ var _ platform.FilesystemInterceptor = (*Filesystem)(nil)
 
 **Step 2: Verify windows builds**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && GOOS=windows go build ./internal/platform/windows/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && GOOS=windows go build ./internal/platform/windows/...`
 Expected: Build succeeds
 
 **Step 3: Run windows tests**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && go test ./internal/platform/windows/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && go test ./internal/platform/windows/... -v`
 Expected: Tests pass
 
 **Step 4: Commit**
@@ -1679,11 +1679,11 @@ git commit -m "feat(windows): use shared fuse package for WinFsp support"
 ## Task 11: Add minifilter process exclusion - protocol
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/inc/protocol.h`
+- Modify: `drivers/windows/agentmon-minifilter/inc/protocol.h`
 
 **Step 1: Add MSG_EXCLUDE_PROCESS message type**
 
-Add to the AGENTSH_MSG_TYPE enum after MSG_METRICS_REPLY:
+Add to the AGENTMON_MSG_TYPE enum after MSG_METRICS_REPLY:
 
 ```c
     MSG_EXCLUDE_PROCESS = 107,
@@ -1691,20 +1691,20 @@ Add to the AGENTSH_MSG_TYPE enum after MSG_METRICS_REPLY:
 
 **Step 2: Add exclude process message struct**
 
-Add after AGENTSH_METRICS struct:
+Add after AGENTMON_METRICS struct:
 
 ```c
 // Process exclusion (user-mode -> driver)
-typedef struct _AGENTSH_EXCLUDE_PROCESS {
-    AGENTSH_MESSAGE_HEADER Header;
+typedef struct _AGENTMON_EXCLUDE_PROCESS {
+    AGENTMON_MESSAGE_HEADER Header;
     ULONG ProcessId;
-} AGENTSH_EXCLUDE_PROCESS, *PAGENTSH_EXCLUDE_PROCESS;
+} AGENTMON_EXCLUDE_PROCESS, *PAGENTMON_EXCLUDE_PROCESS;
 ```
 
 **Step 3: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/
+git add drivers/windows/agentmon-minifilter/
 git commit -m "feat(minifilter): add MSG_EXCLUDE_PROCESS protocol message"
 ```
 
@@ -1713,35 +1713,35 @@ git commit -m "feat(minifilter): add MSG_EXCLUDE_PROCESS protocol message"
 ## Task 12: Add minifilter process exclusion - driver
 
 **Files:**
-- Modify: `drivers/windows/agentsh-minifilter/src/filesystem.c`
-- Modify: `drivers/windows/agentsh-minifilter/src/driver.c`
+- Modify: `drivers/windows/agentmon-minifilter/src/filesystem.c`
+- Modify: `drivers/windows/agentmon-minifilter/src/driver.c`
 
 **Step 1: Add excluded process tracking**
 
 In `filesystem.c`, add near the top after includes:
 
 ```c
-// Excluded process ID (agentsh itself when using WinFsp)
+// Excluded process ID (agentmon itself when using WinFsp)
 static volatile ULONG gExcludedProcessId = 0;
 
-BOOLEAN AgentshIsExcludedProcess(ULONG ProcessId) {
+BOOLEAN AgentmonIsExcludedProcess(ULONG ProcessId) {
     return ProcessId != 0 && ProcessId == gExcludedProcessId;
 }
 
-void AgentshSetExcludedProcess(ULONG ProcessId) {
+void AgentmonSetExcludedProcess(ULONG ProcessId) {
     InterlockedExchange(&gExcludedProcessId, ProcessId);
 }
 ```
 
 **Step 2: Add exclusion check to pre-callbacks**
 
-In each pre-callback (AgentshPreCreate, AgentshPreWrite, AgentshPreSetInfo), add at the start:
+In each pre-callback (AgentmonPreCreate, AgentmonPreWrite, AgentmonPreSetInfo), add at the start:
 
 ```c
     ULONG processId = HandleToULong(PsGetCurrentProcessId());
 
-    // Skip if this is the excluded process (agentsh using WinFsp)
-    if (AgentshIsExcludedProcess(processId)) {
+    // Skip if this is the excluded process (agentmon using WinFsp)
+    if (AgentmonIsExcludedProcess(processId)) {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 ```
@@ -1753,9 +1753,9 @@ In the message handler, add case for MSG_EXCLUDE_PROCESS:
 ```c
     case MSG_EXCLUDE_PROCESS:
         {
-            PAGENTSH_EXCLUDE_PROCESS excludeMsg = (PAGENTSH_EXCLUDE_PROCESS)InputBuffer;
-            if (InputBufferLength >= sizeof(AGENTSH_EXCLUDE_PROCESS)) {
-                AgentshSetExcludedProcess(excludeMsg->ProcessId);
+            PAGENTMON_EXCLUDE_PROCESS excludeMsg = (PAGENTMON_EXCLUDE_PROCESS)InputBuffer;
+            if (InputBufferLength >= sizeof(AGENTMON_EXCLUDE_PROCESS)) {
+                AgentmonSetExcludedProcess(excludeMsg->ProcessId);
                 status = STATUS_SUCCESS;
             }
         }
@@ -1765,7 +1765,7 @@ In the message handler, add case for MSG_EXCLUDE_PROCESS:
 **Step 4: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/
+git add drivers/windows/agentmon-minifilter/
 git commit -m "feat(minifilter): implement process exclusion for WinFsp coexistence"
 ```
 
@@ -1807,7 +1807,7 @@ func (c *DriverClient) ExcludeSelf() error {
 
 **Step 3: Run windows tests**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && go test ./internal/platform/windows/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && go test ./internal/platform/windows/... -v`
 Expected: Tests pass
 
 **Step 4: Commit**
@@ -1852,7 +1852,7 @@ func (fs *Filesystem) Mount(cfg platform.FSConfig) (platform.FSMount, error) {
 
 	mount, err := fuse.Mount(fuse.Config{
 		FSConfig:   cfg,
-		VolumeName: "agentsh",
+		VolumeName: "agentmon",
 	})
 	if err != nil {
 		return nil, err
@@ -1865,7 +1865,7 @@ func (fs *Filesystem) Mount(cfg platform.FSConfig) (platform.FSMount, error) {
 
 **Step 2: Verify it compiles**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && GOOS=windows go build ./internal/platform/windows/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && GOOS=windows go build ./internal/platform/windows/...`
 Expected: Build succeeds
 
 **Step 3: Commit**
@@ -1881,12 +1881,12 @@ git commit -m "feat(windows): call ExcludeSelf before WinFsp mount"
 
 **Step 1: Run all platform tests**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && go test ./internal/platform/... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && go test ./internal/platform/... -v`
 Expected: All tests pass
 
 **Step 2: Cross-compile for all platforms**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && GOOS=darwin go build ./... && GOOS=windows go build ./... && GOOS=linux go build ./...`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && GOOS=darwin go build ./... && GOOS=windows go build ./... && GOOS=linux go build ./...`
 Expected: All builds succeed
 
 **Step 3: Commit any fixes if needed**
@@ -1902,12 +1902,12 @@ git status
 
 **Step 1: Review all changes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && git log --oneline main..HEAD`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && git log --oneline main..HEAD`
 Expected: See all commits from this implementation
 
 **Step 2: Run full test suite**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/windows-winfsp && go test ./... -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/windows-winfsp && go test ./... -v`
 Expected: All tests pass
 
 **Step 3: Push branch**

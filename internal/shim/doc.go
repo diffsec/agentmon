@@ -1,7 +1,7 @@
-// Package shim provides the shell shim infrastructure for agentsh.
+// Package shim provides the shell shim infrastructure for agentmon.
 //
 // The shell shim intercepts shell commands (/bin/sh, /bin/bash) and routes
-// them through agentsh for policy enforcement and auditing.
+// them through agentmon for policy enforcement and auditing.
 //
 // # MCP Server Detection
 //

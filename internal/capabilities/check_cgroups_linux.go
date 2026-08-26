@@ -5,7 +5,7 @@ package capabilities
 import (
 	"context"
 
-	"github.com/agentsh/agentsh/internal/limits"
+	"github.com/diffsec/agentmon/internal/limits"
 	"golang.org/x/sys/unix"
 )
 

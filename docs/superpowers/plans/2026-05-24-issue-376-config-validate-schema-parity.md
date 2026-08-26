@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `agentsh config validate` reject the configs the server rejects at startup, by wiring the two config-schema cross-field validators (`cfg.Sandbox.Validate()`, `cfg.Policies.Signing.Validate()`) into `config.validateConfig`.
+**Goal:** Make `agentmon config validate` reject the configs the server rejects at startup, by wiring the two config-schema cross-field validators (`cfg.Sandbox.Validate()`, `cfg.Policies.Signing.Validate()`) into `config.validateConfig`.
 
 **Architecture:** `config.Load`/`LoadWithSource` (used by `config validate`, the server, and shim auto-start) run `validateConfig`. Append the two validators — currently called only at `server.New` — to the end of `validateConfig`, with error prefixes copied verbatim from `server.go` so messages are identical. Keep the startup calls as defense-in-depth with a guardrail comment. Host/environment checks stay at startup.
 
@@ -48,7 +48,7 @@ import (
 	"testing"
 )
 
-// Issue #376: validateConfig (run by config.Load and `agentsh config validate`)
+// Issue #376: validateConfig (run by config.Load and `agentmon config validate`)
 // must enforce the config-schema cross-field invariants the server also checks
 // at startup, with the same messages, so misconfig is caught pre-deploy.
 
@@ -140,7 +140,7 @@ In `internal/config/config.go`, immediately before the final `return nil` of `va
 
 ```go
 	// Config-schema cross-field invariants that the server also enforces at
-	// startup. Validated here so `agentsh config validate` (and the shim's
+	// startup. Validated here so `agentmon config validate` (and the shim's
 	// auto-start path) catch them before deploy rather than surfacing as a
 	// generic "server unreachable" at runtime (issue #376). Host/environment
 	// checks (capabilities, etc.) intentionally stay at server startup.
@@ -163,7 +163,7 @@ In `internal/server/server.go`, directly above the `if err := cfg.Sandbox.Valida
 
 ```go
 	// These config-schema invariants are also enforced by config.validateConfig
-	// (run by config.Load), so `agentsh config validate` catches them pre-deploy
+	// (run by config.Load), so `agentmon config validate` catches them pre-deploy
 	// (issue #376). The calls here are defense-in-depth for any server built from
 	// a config that did not pass through config.Load. New config-schema invariants
 	// belong in config.validateConfig, not here.

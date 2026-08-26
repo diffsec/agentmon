@@ -4,7 +4,7 @@
 
 **Goal:** Ship the production OCSF v1.8.0 mapper that closes the WTP `validate()` blocker — projects every production `pkg/types.Event` into a deterministic `(class_uid, activity_id, payload []byte)` triple consumable by `wtpv1.CompactEvent`.
 
-**Architecture:** Pure-function `internal/ocsf` package implementing `compact.Mapper`. Eight proto3 messages under `proto/canyonroad/wtp/v1/ocsf/` mirror OCSF v1.8.0 classes. A single `registry map[string]Mapping` declares each agentsh `Type`'s class, activity, fields-allowlist, and projector function. Determinism comes from `proto.MarshalOptions{Deterministic: true}.Marshal(...)` and slice-ordered allowlist iteration.
+**Architecture:** Pure-function `internal/ocsf` package implementing `compact.Mapper`. Eight proto3 messages under `proto/canyonroad/wtp/v1/ocsf/` mirror OCSF v1.8.0 classes. A single `registry map[string]Mapping` declares each agentmon `Type`'s class, activity, fields-allowlist, and projector function. Determinism comes from `proto.MarshalOptions{Deterministic: true}.Marshal(...)` and slice-ordered allowlist iteration.
 
 **Tech Stack:** Go, `google.golang.org/protobuf/proto`, `protoc` (existing pipeline), `go/parser` for the exhaustiveness AST walk.
 
@@ -26,7 +26,7 @@
 | `proto/canyonroad/wtp/v1/ocsf/application_activity.proto` (NEW) | `ApplicationActivity` (class_uid 6005) + agent-internal activity enum (≥100). |
 | `Makefile` (modify line 31-36) | Add OCSF .proto files to the `proto:` target. |
 | `internal/ocsf/version.go` (NEW) | `const SchemaVersion = "1.8.0"`. |
-| `internal/ocsf/activity.go` (NEW) | OCSF activity_id constants per class + agentsh-internal extensions ≥100. |
+| `internal/ocsf/activity.go` (NEW) | OCSF activity_id constants per class + agentmon-internal extensions ≥100. |
 | `internal/ocsf/mapping.go` (NEW) | `type Mapping`, `type Projector`, `type FieldRule`, `projectFields` helper, `safeProject` recover wrapper. |
 | `internal/ocsf/mapper.go` (NEW) | `type Mapper`, `New()`, `Map()` — implements `compact.Mapper`. |
 | `internal/ocsf/registry.go` (NEW) | `var registry = map[string]Mapping{...}`; `var pendingTypes` for incremental rollout. |
@@ -69,7 +69,7 @@ syntax = "proto3";
 
 package canyonroad.wtp.v1.ocsf;
 
-option go_package = "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf;ocsfpb";
+option go_package = "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf;ocsfpb";
 
 // Metadata is OCSF's per-record metadata object. Every class message
 // embeds a Metadata.
@@ -77,13 +77,13 @@ message Metadata {
   optional string version       = 1; // OCSF schema version, e.g. "1.8.0"
   optional Product product      = 2;
   optional uint64 logged_time   = 3; // unix nanos
-  optional string event_code    = 4; // agentsh ev.Type for cross-reference
+  optional string event_code    = 4; // agentmon ev.Type for cross-reference
   optional string uid           = 5; // ev.ID
 }
 
 message Product {
-  optional string name          = 1; // "agentsh"
-  optional string vendor_name   = 2; // "agentsh"
+  optional string name          = 1; // "agentmon"
+  optional string vendor_name   = 2; // "agentmon"
   optional string version       = 3; // agent version when known
 }
 
@@ -95,7 +95,7 @@ message Process {
   optional string name          = 3; // basename of the executable
   optional string cmd_line      = 4; // joined argv (space-separated, shell-safe-quoted)
   optional File   file          = 5; // executable file
-  optional uint32 depth         = 6; // agentsh extension: nesting depth
+  optional uint32 depth         = 6; // agentmon extension: nesting depth
   optional string session_uid   = 7; // ev.SessionID
   optional string command_uid   = 8; // ev.CommandID
 }
@@ -137,9 +137,9 @@ Edit `Makefile` lines 31-36. Replace the existing block with:
 ```makefile
 proto:
 	protoc -I proto \
-	  --go_out=. --go_opt=module=github.com/agentsh/agentsh \
-	  --go-grpc_out=. --go-grpc_opt=module=github.com/agentsh/agentsh \
-	  proto/agentsh/v1/pty.proto \
+	  --go_out=. --go_opt=module=github.com/diffsec/agentmon \
+	  --go-grpc_out=. --go-grpc_opt=module=github.com/diffsec/agentmon \
+	  proto/agentmon/v1/pty.proto \
 	  proto/canyonroad/wtp/v1/wtp.proto \
 	  proto/canyonroad/wtp/v1/ocsf/common.proto \
 	  proto/canyonroad/wtp/v1/ocsf/process_activity.proto \
@@ -181,13 +181,13 @@ syntax = "proto3";
 
 package canyonroad.wtp.v1.ocsf;
 
-option go_package = "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf;ocsfpb";
+option go_package = "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf;ocsfpb";
 
 import "canyonroad/wtp/v1/ocsf/common.proto";
 
 // ProcessActivity (class_uid 1007). OCSF v1.8.0 subset.
 //
-// Activities used by agentsh:
+// Activities used by agentmon:
 //   1 = Launch
 //   2 = Terminate
 //   3 = Open      (used for exec_intercept)
@@ -239,7 +239,7 @@ git commit -m "ocsf: add ProcessActivity (class_uid 1007)"
 ```proto
 syntax = "proto3";
 package canyonroad.wtp.v1.ocsf;
-option go_package = "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf;ocsfpb";
+option go_package = "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf;ocsfpb";
 import "canyonroad/wtp/v1/ocsf/common.proto";
 
 // FileSystemActivity (class_uid 1001). OCSF v1.8.0 subset.
@@ -295,7 +295,7 @@ git commit -m "ocsf: add FileSystemActivity (class_uid 1001)"
 ```proto
 syntax = "proto3";
 package canyonroad.wtp.v1.ocsf;
-option go_package = "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf;ocsfpb";
+option go_package = "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf;ocsfpb";
 import "canyonroad/wtp/v1/ocsf/common.proto";
 
 // NetworkActivity (class_uid 4001). OCSF v1.8.0 subset.
@@ -352,7 +352,7 @@ git commit -m "ocsf: add NetworkActivity (class_uid 4001)"
 ```proto
 syntax = "proto3";
 package canyonroad.wtp.v1.ocsf;
-option go_package = "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf;ocsfpb";
+option go_package = "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf;ocsfpb";
 import "canyonroad/wtp/v1/ocsf/common.proto";
 
 // HTTPActivity (class_uid 4002). OCSF v1.8.0 subset.
@@ -416,7 +416,7 @@ git commit -m "ocsf: add HTTPActivity (class_uid 4002)"
 ```proto
 syntax = "proto3";
 package canyonroad.wtp.v1.ocsf;
-option go_package = "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf;ocsfpb";
+option go_package = "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf;ocsfpb";
 import "canyonroad/wtp/v1/ocsf/common.proto";
 
 // DNSActivity (class_uid 4003). OCSF v1.8.0 subset.
@@ -472,7 +472,7 @@ git commit -m "ocsf: add DNSActivity (class_uid 4003)"
 ```proto
 syntax = "proto3";
 package canyonroad.wtp.v1.ocsf;
-option go_package = "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf;ocsfpb";
+option go_package = "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf;ocsfpb";
 import "canyonroad/wtp/v1/ocsf/common.proto";
 
 // DetectionFinding (class_uid 2004). OCSF v1.8.0 subset.
@@ -531,10 +531,10 @@ git commit -m "ocsf: add DetectionFinding (class_uid 2004)"
 ```proto
 syntax = "proto3";
 package canyonroad.wtp.v1.ocsf;
-option go_package = "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf;ocsfpb";
+option go_package = "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf;ocsfpb";
 import "canyonroad/wtp/v1/ocsf/common.proto";
 
-// ApplicationActivity (class_uid 6005). OCSF v1.8.0 subset, with agentsh
+// ApplicationActivity (class_uid 6005). OCSF v1.8.0 subset, with agentmon
 // extensions for infrastructure events tagged via agent_internal.
 //
 // OCSF activities used (1..7):
@@ -543,7 +543,7 @@ import "canyonroad/wtp/v1/ocsf/common.proto";
 //   3 = Update
 //   6 = Other (used for misc agent actions like secret_access)
 //
-// agentsh-internal activities (>=100, see AppActivity enum):
+// agentmon-internal activities (>=100, see AppActivity enum):
 //   100 = EBPF Attached
 //   101 = FUSE Mounted
 //   102 = Cgroup Applied
@@ -643,7 +643,7 @@ git commit -m "ocsf: add ApplicationActivity (class_uid 6005); generate .pb.go f
 - [ ] **Step 1: Write `version.go`**
 
 ```go
-// Package ocsf maps agentsh events to OCSF v1.8.0 class payloads consumed
+// Package ocsf maps agentmon events to OCSF v1.8.0 class payloads consumed
 // by the WTP CompactEvent wire shape. See
 // docs/superpowers/specs/2026-04-25-wtp-phase-1-ocsf-mapper-design.md.
 package ocsf
@@ -672,7 +672,7 @@ const (
 )
 
 // OCSF activity_id values per class. Each constant block matches the
-// class's proto definition; agentsh-internal extensions (>=100) live
+// class's proto definition; agentmon-internal extensions (>=100) live
 // in the ApplicationActivity block.
 
 const (
@@ -721,7 +721,7 @@ const (
 	FindingActivityClose   uint32 = 3
 )
 
-// Application Activity standard + agentsh-internal extensions.
+// Application Activity standard + agentmon-internal extensions.
 const (
 	AppActivityUnknown uint32 = 0
 	AppActivityOpen    uint32 = 1
@@ -729,7 +729,7 @@ const (
 	AppActivityUpdate  uint32 = 3
 	AppActivityOther   uint32 = 6
 
-	// agentsh-internal — values >= 100 to stay clear of OCSF reservations.
+	// agentmon-internal — values >= 100 to stay clear of OCSF reservations.
 	AppActivityEBPFAttached            uint32 = 100
 	AppActivityFUSEMounted             uint32 = 101
 	AppActivityCgroupApplied           uint32 = 102
@@ -783,10 +783,10 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
-// Mapping declares how a single agentsh ev.Type is projected into OCSF.
+// Mapping declares how a single agentmon ev.Type is projected into OCSF.
 //
 // All four fields are required:
 //   - ClassUID and ActivityID end up on the resulting compact.MappedEvent.
@@ -1033,8 +1033,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Mapper is the production OCSF v1.8.0 mapper. It implements
@@ -1050,7 +1050,7 @@ func New() *Mapper {
 	return &Mapper{registry: registry}
 }
 
-// Map projects an agentsh event into a compact.MappedEvent.
+// Map projects an agentmon event into a compact.MappedEvent.
 //
 // Returns ErrUnmappedType if ev.Type is not in the registry (or its
 // UnmappedTypeError wrapper which carries the offending Type). Returns
@@ -1107,7 +1107,7 @@ var _ compact.Mapper = (*Mapper)(nil)
 ```go
 package ocsf
 
-// registry maps every production agentsh ev.Type to its OCSF Mapping.
+// registry maps every production agentmon ev.Type to its OCSF Mapping.
 // Per-class projector files (project_*.go) populate it via package
 // init() functions; this file holds only the central declaration and
 // the rollout tracker.
@@ -1116,7 +1116,7 @@ package ocsf
 // Map() reads but never mutates the registry.
 var registry = map[string]Mapping{}
 
-// pendingTypes lists production agentsh ev.Type values that the
+// pendingTypes lists production agentmon ev.Type values that the
 // mapper does NOT yet handle. Populated in this file initially; each
 // per-class projector PR removes its types as it lands.
 //
@@ -1407,8 +1407,8 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/agentsh/agentsh/pkg/types"
-	ocsfpb "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf"
+	"github.com/diffsec/agentmon/pkg/types"
+	ocsfpb "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf"
 )
 
 var updateGoldens = flag.Bool("update", false, "regenerate golden files")
@@ -1678,7 +1678,7 @@ import (
 	"testing"
 )
 
-// findRepoRoot returns the absolute path to the agentsh repo root by
+// findRepoRoot returns the absolute path to the agentmon repo root by
 // walking up from this file's directory until it finds a go.mod.
 func findRepoRoot(t *testing.T) string {
 	t.Helper()
@@ -1845,7 +1845,7 @@ func TestExhaustiveness_PendingTypesShrinking(t *testing.T) {
 	}
 }
 
-// repoRoot returns the agentsh repo root via go.mod search.
+// repoRoot returns the agentmon repo root via go.mod search.
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	_, file, _, _ := runtime.Caller(0)
@@ -1896,8 +1896,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/agentsh/agentsh/pkg/types"
-	ocsfpb "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf"
+	"github.com/diffsec/agentmon/pkg/types"
+	ocsfpb "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf"
 )
 
 // processProjector builds a *ocsfpb.ProcessActivity from an event
@@ -1982,8 +1982,8 @@ func buildMetadata(ev types.Event) *ocsfpb.Metadata {
 	md := &ocsfpb.Metadata{
 		Version: strp(SchemaVersion),
 		Product: &ocsfpb.Product{
-			Name:       strp("agentsh"),
-			VendorName: strp("agentsh"),
+			Name:       strp("agentmon"),
+			VendorName: strp("agentmon"),
 		},
 		LoggedTime: u64p(uint64(ev.Timestamp.UTC().UnixNano())),
 		EventCode:  strp(ev.Type),
@@ -2129,8 +2129,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/agentsh/agentsh/pkg/types"
-	ocsfpb "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf"
+	"github.com/diffsec/agentmon/pkg/types"
+	ocsfpb "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf"
 )
 
 func fileProjector(activity uint32) Projector {
@@ -2307,8 +2307,8 @@ package ocsf
 import (
 	"google.golang.org/protobuf/proto"
 
-	"github.com/agentsh/agentsh/pkg/types"
-	ocsfpb "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf"
+	"github.com/diffsec/agentmon/pkg/types"
+	ocsfpb "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf"
 )
 
 func networkProjector(activity uint32) Projector {
@@ -2412,7 +2412,7 @@ Append to `goldenSampleEvents()`:
 		{ID: "ev-conn-allowed-1", Type: "connection_allowed", Timestamp: t0, PID: 301, Domain: "ok.example", Remote: "10.0.0.1"},
 		{ID: "ev-connect-redirect-1", Type: "connect_redirect", Timestamp: t0, PID: 302, Domain: "in.example", Fields: map[string]any{"redirect_target": "out.example:443"}},
 		{ID: "ev-ptrace-network-1", Type: "ptrace_network", Timestamp: t0, PID: 303, Domain: "trace.example"},
-		{ID: "ev-unix-sock-1", Type: "unix_socket_op", Timestamp: t0, PID: 304, Path: "/run/agentsh.sock", Abstract: false},
+		{ID: "ev-unix-sock-1", Type: "unix_socket_op", Timestamp: t0, PID: 304, Path: "/run/agentmon.sock", Abstract: false},
 		{ID: "ev-tnet-failed-1", Type: "transparent_net_failed", Timestamp: t0},
 		{ID: "ev-tnet-ready-1", Type: "transparent_net_ready", Timestamp: t0},
 		{ID: "ev-tnet-setup-1", Type: "transparent_net_setup", Timestamp: t0},
@@ -2450,8 +2450,8 @@ package ocsf
 import (
 	"google.golang.org/protobuf/proto"
 
-	"github.com/agentsh/agentsh/pkg/types"
-	ocsfpb "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf"
+	"github.com/diffsec/agentmon/pkg/types"
+	ocsfpb "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf"
 )
 
 func httpProjector(activity uint32) Projector {
@@ -2544,7 +2544,7 @@ func init() {
 		// HTTP Activity (4002) — Task 19
 		{ID: "ev-http-1", Type: "http", Timestamp: t0, PID: 400, Domain: "api.example", Fields: map[string]any{
 			"method": "POST", "url": "https://api.example/v1/x", "host": "api.example",
-			"user_agent": "agentsh/1.0", "http_version": "1.1",
+			"user_agent": "agentmon/1.0", "http_version": "1.1",
 			"status_code": 200, "response_bytes": 1024,
 		}},
 		{ID: "ev-net-http-req-1", Type: "net_http_request", Timestamp: t0, PID: 401, Domain: "raw.example",
@@ -2580,8 +2580,8 @@ package ocsf
 import (
 	"google.golang.org/protobuf/proto"
 
-	"github.com/agentsh/agentsh/pkg/types"
-	ocsfpb "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf"
+	"github.com/diffsec/agentmon/pkg/types"
+	ocsfpb "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf"
 )
 
 func dnsProjector(activity uint32) Projector {
@@ -2678,8 +2678,8 @@ package ocsf
 import (
 	"google.golang.org/protobuf/proto"
 
-	"github.com/agentsh/agentsh/pkg/types"
-	ocsfpb "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf"
+	"github.com/diffsec/agentmon/pkg/types"
+	ocsfpb "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf"
 )
 
 func findingProjector(activity uint32, findingType string) Projector {
@@ -2792,8 +2792,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/agentsh/agentsh/pkg/types"
-	ocsfpb "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1/ocsf"
+	"github.com/diffsec/agentmon/pkg/types"
+	ocsfpb "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1/ocsf"
 )
 
 // appProjector handles class_uid 6005. Both standard MCP/proxy/secret
@@ -2811,7 +2811,7 @@ func appProjector(activity uint32, agentInternal bool) Projector {
 			Severity:      strp(severityFromPolicy(ev.Policy)),
 			Metadata:      buildMetadata(ev),
 			Actor:         buildActor(ev),
-			AppName:       strp("agentsh"),
+			AppName:       strp("agentmon"),
 			AgentInternal: boolp(agentInternal),
 		}
 		if ev.CommandID != "" {
@@ -3040,7 +3040,7 @@ func TestEncoderE2E_WithOCSFMapper(t *testing.T) {
 
 Add the import to the test file's import block:
 ```go
-import "github.com/agentsh/agentsh/internal/ocsf"
+import "github.com/diffsec/agentmon/internal/ocsf"
 ```
 
 - [ ] **Step 3: Run the test**
@@ -3075,8 +3075,8 @@ package watchtower
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/ocsf"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/ocsf"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
 )
 
 func TestValidate_AcceptsOCSFMapper(t *testing.T) {

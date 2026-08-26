@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/netmonitor/ebpf"
+	"github.com/diffsec/agentmon/internal/netmonitor/ebpf"
 )
 
 // tipDefinition defines a tip for a missing capability.
@@ -60,7 +60,7 @@ var linuxTips = []tipDefinition{
 		Feature:  "ebpf_cgroup_attach",
 		CheckKey: "ebpf_cgroup_attach",
 		Impact:   "Network rules (domain-based denies) won't enforce against subprocesses",
-		Action:   "eBPF cgroup_connect requires CAP_BPF (or CAP_SYS_ADMIN), /sys/fs/bpf mounted, and kernel CONFIG_CGROUP_BPF. Check `agentsh detect` output for the specific blocker.",
+		Action:   "eBPF cgroup_connect requires CAP_BPF (or CAP_SYS_ADMIN), /sys/fs/bpf mounted, and kernel CONFIG_CGROUP_BPF. Check `agentmon detect` output for the specific blocker.",
 	},
 	{
 		Feature:  "ptrace",
@@ -75,7 +75,7 @@ var darwinTips = []tipDefinition{
 		Feature:  "esf",
 		CheckKey: "esf",
 		Impact:   "ESF enforcement unavailable (extension not installed or not running)",
-		Action:   "Install the agentsh macOS app bundle and ensure the system extension is approved and running (see `agentsh detect` detail).",
+		Action:   "Install the agentmon macOS app bundle and ensure the system extension is approved and running (see `agentmon detect` detail).",
 	},
 	{
 		Feature:  "lima_available",
@@ -96,7 +96,7 @@ var windowsTips = []tipDefinition{
 		Feature:  "minifilter",
 		CheckKey: "minifilter",
 		Impact:   "No kernel-level file interception",
-		Action:   "Install agentsh minifilter driver (requires Administrator)",
+		Action:   "Install agentmon minifilter driver (requires Administrator)",
 	},
 	{
 		Feature:  "windivert",
@@ -170,7 +170,7 @@ var tipsByBackend = map[string][]reasonTip{
 	},
 	"cgroups-v2":               {{Tip: Tip{Feature: "cgroups-v2", Impact: "Resource limits unavailable", Action: "Enable cgroups v2 in kernel or container runtime"}}},
 	"cgroups_v2_resource_limits": {{Tip: Tip{Feature: "cgroups_v2_resource_limits", Impact: "Resource limits (memory/cpu/pids) cannot be enforced for sessions", Action: "Required only if you want resource limits. On stock Docker, add a docker.service drop-in:\n  # /etc/systemd/system/docker.service.d/cgroup-delegate.conf\n  [Service]\n  Delegate=memory pids cpu\nThen `systemctl daemon-reload && systemctl restart docker`. eBPF network enforcement does NOT require this."}}},
-	"ebpf_cgroup_attach":         {{Tip: Tip{Feature: "ebpf_cgroup_attach", Impact: "Network rules (domain-based denies) won't enforce against subprocesses", Action: "eBPF cgroup_connect requires CAP_BPF (or CAP_SYS_ADMIN), /sys/fs/bpf mounted, and kernel CONFIG_CGROUP_BPF. Check `agentsh detect` output for the specific blocker."}}},
+	"ebpf_cgroup_attach":         {{Tip: Tip{Feature: "ebpf_cgroup_attach", Impact: "Network rules (domain-based denies) won't enforce against subprocesses", Action: "eBPF cgroup_connect requires CAP_BPF (or CAP_SYS_ADMIN), /sys/fs/bpf mounted, and kernel CONFIG_CGROUP_BPF. Check `agentmon detect` output for the specific blocker."}}},
 	"ptrace":          {{Tip: Tip{Feature: "ptrace", Impact: "Syscall-level enforcement via ptrace unavailable", Action: "Add SYS_PTRACE capability"}}},
 	"pid-namespace":   {{Tip: Tip{Feature: "pid-namespace", Impact: "Process isolation unavailable", Action: "Run in a PID namespace (docker run --pid=host or unshare -p)"}}},
 	"capability-drop": {{Tip: Tip{Feature: "capability-drop", Impact: "Process retains full Linux capabilities (privilege reduction inactive)", Action: "Start the process with a reduced capability set using systemd CapabilityBoundingSet= + User=, docker run --cap-drop=ALL, or an unprivileged user. Note: capabilities.DropCapabilities() only narrows the bounding set for exec'd children via PR_CAPBSET_DROP and does not lower the running process's permitted/effective sets, so calling it from inside the server is not a substitute for the startup-time mechanisms above."}}},
@@ -184,15 +184,15 @@ var tipsByBackend = map[string][]reasonTip{
 	// fallback is listed last by convention — lookupTip scans it in a
 	// separate pass, so its position here isn't load-bearing.
 	"esf": {
-		{Contains: "OS_REASON_EXEC", Tip: Tip{Feature: "esf", Impact: "Endpoint Security enforcement absent (extension binary rejected at exec)", Action: "macOS refuses to launch the activated extension — likely AMFI/code-signing. Check the embedded profile: `ls /Library/SystemExtensions/*/ai.canyonroad.agentsh.SysExt.systemextension/Contents/embedded.provisionprofile`. If it is missing, upgrade to a newer agentsh release (older releases shipped without it) — reinstalling the same build fails identically. Full launchd state: `launchctl print system/<TeamID>.ai.canyonroad.agentsh.SysExt` (TeamID: `systemextensionsctl list`)."}},
-		{Contains: "could not be verified", Tip: Tip{Feature: "esf", Impact: "Endpoint Security liveness unverifiable", Action: "Could not verify the extension process is running. Check it manually: `launchctl print system/<TeamID>.ai.canyonroad.agentsh.SysExt` (TeamID: `systemextensionsctl list`)."}},
-		{Contains: "not running", Tip: Tip{Feature: "esf", Impact: "Endpoint Security enforcement absent (extension activated but not running)", Action: "The extension is installed and approved but its process is not staying up. The most common cause is missing Full Disk Access — grant it under System Settings > Privacy & Security > Full Disk Access. Check the actual crash reason: `/usr/bin/log show --predicate 'process == \"ai.canyonroad.agentsh.SysExt\"' --last 10m`, and `launchctl print system/<TeamID>.ai.canyonroad.agentsh.SysExt` for the full launchd state (TeamID: `systemextensionsctl list`)."}},
-		{Tip: Tip{Feature: "esf", Impact: "Endpoint Security Framework unavailable", Action: "Install the agentsh macOS app bundle with system extension"}},
+		{Contains: "OS_REASON_EXEC", Tip: Tip{Feature: "esf", Impact: "Endpoint Security enforcement absent (extension binary rejected at exec)", Action: "macOS refuses to launch the activated extension — likely AMFI/code-signing. Check the embedded profile: `ls /Library/SystemExtensions/*/dev.diffsec.agentmon.SysExt.systemextension/Contents/embedded.provisionprofile`. If it is missing, upgrade to a newer agentmon release (older releases shipped without it) — reinstalling the same build fails identically. Full launchd state: `launchctl print system/<TeamID>.dev.diffsec.agentmon.SysExt` (TeamID: `systemextensionsctl list`)."}},
+		{Contains: "could not be verified", Tip: Tip{Feature: "esf", Impact: "Endpoint Security liveness unverifiable", Action: "Could not verify the extension process is running. Check it manually: `launchctl print system/<TeamID>.dev.diffsec.agentmon.SysExt` (TeamID: `systemextensionsctl list`)."}},
+		{Contains: "not running", Tip: Tip{Feature: "esf", Impact: "Endpoint Security enforcement absent (extension activated but not running)", Action: "The extension is installed and approved but its process is not staying up. The most common cause is missing Full Disk Access — grant it under System Settings > Privacy & Security > Full Disk Access. Check the actual crash reason: `/usr/bin/log show --predicate 'process == \"dev.diffsec.agentmon.SysExt\"' --last 10m`, and `launchctl print system/<TeamID>.dev.diffsec.agentmon.SysExt` for the full launchd state (TeamID: `systemextensionsctl list`)."}},
+		{Tip: Tip{Feature: "esf", Impact: "Endpoint Security Framework unavailable", Action: "Install the agentmon macOS app bundle with system extension"}},
 	},
 	"network-extension": {{Tip: Tip{Feature: "network-extension", Impact: "Network filtering unavailable", Action: "Requires network extension entitlement from Apple"}}},
 	// Windows
 	"winfsp":     {{Tip: Tip{Feature: "winfsp", Impact: "Filesystem interception unavailable", Action: "Install WinFsp: https://winfsp.dev/"}}},
-	"minifilter": {{Tip: Tip{Feature: "minifilter", Impact: "Kernel-level file filtering unavailable", Action: "Install agentsh minifilter driver"}}},
+	"minifilter": {{Tip: Tip{Feature: "minifilter", Impact: "Kernel-level file filtering unavailable", Action: "Install agentmon minifilter driver"}}},
 	"windivert":  {{Tip: Tip{Feature: "windivert", Impact: "Network interception unavailable", Action: "Install WinDivert: https://reqrypt.org/windivert.html"}}},
 }
 

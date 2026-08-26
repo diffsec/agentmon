@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 )
 
 // UVResolverConfig configures the uv resolver.

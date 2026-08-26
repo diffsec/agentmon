@@ -24,10 +24,10 @@ func TestResolveTrashPath(t *testing.T) {
 		want      string
 	}{
 		{
-			name:      "empty defaults to .agentsh_trash relative to workspace",
+			name:      "empty defaults to .agentmon_trash relative to workspace",
 			trashPath: "",
 			workspace: absWorkspace,
-			want:      filepath.Join(absWorkspace, ".agentsh_trash"),
+			want:      filepath.Join(absWorkspace, ".agentmon_trash"),
 		},
 		{
 			name:      "absolute path returned as-is",
@@ -43,13 +43,13 @@ func TestResolveTrashPath(t *testing.T) {
 		},
 		{
 			name:      "nested relative path resolved against workspace",
-			trashPath: filepath.Join(".agentsh", "trash"),
+			trashPath: filepath.Join(".agentmon", "trash"),
 			workspace: absWorkspace,
-			want:      filepath.Join(absWorkspace, ".agentsh", "trash"),
+			want:      filepath.Join(absWorkspace, ".agentmon", "trash"),
 		},
 		{
 			name:      "empty workspace with relative path returns empty",
-			trashPath: ".agentsh_trash",
+			trashPath: ".agentmon_trash",
 			workspace: "",
 			want:      "",
 		},

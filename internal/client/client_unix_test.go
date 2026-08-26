@@ -16,8 +16,18 @@ func TestClient_UnixSocketHealth(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("unix sockets not supported on Windows")
 	}
-	dir := t.TempDir()
-	sock := filepath.Join(dir, "agentsh.sock")
+	// Not t.TempDir(): it derives the directory name from the test name, which
+	// here produced a 103-byte socket path -- one byte under the limit. macOS
+	// sockaddr_un.sun_path is 104 bytes *including* the NUL terminator, so 103
+	// characters is the true maximum, and renaming agentsh.sock -> agentmon.sock
+	// was enough to tip it over into EINVAL. Use a short directory instead so the
+	// path length does not depend on the length of the test's own name.
+	dir, err := os.MkdirTemp("", "amc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	sock := filepath.Join(dir, "agentmon.sock")
 
 	ln, err := net.Listen("unix", sock)
 	if err != nil {

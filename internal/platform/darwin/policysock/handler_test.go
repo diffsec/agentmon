@@ -5,7 +5,7 @@ package policysock
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestPolicyAdapter_CheckFile_Allow(t *testing.T) {

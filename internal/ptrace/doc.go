@@ -1,6 +1,6 @@
 //go:build linux
 
-// Package ptrace implements a ptrace-based syscall tracer backend for agentsh.
+// Package ptrace implements a ptrace-based syscall tracer backend for agentmon.
 // It provides syscall-level interception for environments where seccomp user-notify
 // and eBPF are unavailable (e.g., AWS Fargate with SYS_PTRACE).
 //
@@ -50,9 +50,9 @@
 //     timeout. Swept every event loop iteration.
 //   - Metrics interface: SetTraceeCount, IncAttachFailure, IncTimeout —
 //     decoupled from observability via PtraceMetricsCollector adapter.
-//     Prometheus metrics: agentsh_ptrace_tracees_active (gauge),
-//     agentsh_ptrace_attach_failures_total{reason} (counter),
-//     agentsh_ptrace_timeouts_total (counter).
+//     Prometheus metrics: agentmon_ptrace_tracees_active (gauge),
+//     agentmon_ptrace_attach_failures_total{reason} (counter),
+//     agentmon_ptrace_timeouts_total (counter).
 //   - Graceful degradation: tracees that exit while parked are cleaned up,
 //     resume requests for dead tracees are safely skipped, ESRCH errors in
 //     allow/deny trigger cleanup instead of SIGKILL fallback.

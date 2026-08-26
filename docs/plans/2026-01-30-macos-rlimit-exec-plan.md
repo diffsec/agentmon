@@ -13,7 +13,7 @@
 ## Task 1: Create the wrapper binary
 
 **Files:**
-- Create: `cmd/agentsh-rlimit-exec/main.go`
+- Create: `cmd/agentmon-rlimit-exec/main.go`
 
 **Step 1: Create the directory and file**
 
@@ -33,20 +33,20 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: agentsh-rlimit-exec <command> [args...]")
+		fmt.Fprintln(os.Stderr, "usage: agentmon-rlimit-exec <command> [args...]")
 		os.Exit(1)
 	}
 
 	// Apply RLIMIT_AS if set
-	if limitStr := os.Getenv("AGENTSH_RLIMIT_AS"); limitStr != "" {
+	if limitStr := os.Getenv("AGENTMON_RLIMIT_AS"); limitStr != "" {
 		limit, err := strconv.ParseUint(limitStr, 10, 64)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "agentsh-rlimit-exec: invalid AGENTSH_RLIMIT_AS: %v\n", err)
+			fmt.Fprintf(os.Stderr, "agentmon-rlimit-exec: invalid AGENTMON_RLIMIT_AS: %v\n", err)
 			os.Exit(1)
 		}
 		rlimit := unix.Rlimit{Cur: limit, Max: limit}
 		if err := unix.Setrlimit(unix.RLIMIT_AS, &rlimit); err != nil {
-			fmt.Fprintf(os.Stderr, "agentsh-rlimit-exec: setrlimit failed: %v\n", err)
+			fmt.Fprintf(os.Stderr, "agentmon-rlimit-exec: setrlimit failed: %v\n", err)
 			os.Exit(1)
 		}
 	}
@@ -55,14 +55,14 @@ func main() {
 	cmd := os.Args[1]
 	path, err := exec.LookPath(cmd)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "agentsh-rlimit-exec: command not found: %s\n", cmd)
+		fmt.Fprintf(os.Stderr, "agentmon-rlimit-exec: command not found: %s\n", cmd)
 		os.Exit(127)
 	}
 
 	// Exec replaces this process with the target command
 	args := os.Args[1:] // includes cmd as args[0]
 	if err := unix.Exec(path, args, os.Environ()); err != nil {
-		fmt.Fprintf(os.Stderr, "agentsh-rlimit-exec: exec failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "agentmon-rlimit-exec: exec failed: %v\n", err)
 		os.Exit(126)
 	}
 }
@@ -70,14 +70,14 @@ func main() {
 
 **Step 2: Verify it compiles**
 
-Run: `go build ./cmd/agentsh-rlimit-exec/...`
+Run: `go build ./cmd/agentmon-rlimit-exec/...`
 Expected: No errors
 
 **Step 3: Commit**
 
 ```bash
-git add cmd/agentsh-rlimit-exec/main.go
-git commit -m "feat(darwin): add agentsh-rlimit-exec wrapper for memory limits"
+git add cmd/agentmon-rlimit-exec/main.go
+git commit -m "feat(darwin): add agentmon-rlimit-exec wrapper for memory limits"
 ```
 
 ---
@@ -85,7 +85,7 @@ git commit -m "feat(darwin): add agentsh-rlimit-exec wrapper for memory limits"
 ## Task 2: Add tests for the wrapper binary
 
 **Files:**
-- Create: `cmd/agentsh-rlimit-exec/main_test.go`
+- Create: `cmd/agentmon-rlimit-exec/main_test.go`
 
 **Step 1: Create test file**
 
@@ -113,7 +113,7 @@ func TestRlimitExecSetsLimit(t *testing.T) {
 	limit := uint64(128 * 1024 * 1024) // 128MB
 
 	cmd := exec.Command(wrapper, "sh", "-c", "ulimit -v")
-	cmd.Env = append(os.Environ(), "AGENTSH_RLIMIT_AS="+strconv.FormatUint(limit, 10))
+	cmd.Env = append(os.Environ(), "AGENTMON_RLIMIT_AS="+strconv.FormatUint(limit, 10))
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -136,7 +136,7 @@ func TestRlimitExecSetsLimit(t *testing.T) {
 func TestRlimitExecNoLimit(t *testing.T) {
 	wrapper := buildWrapper(t)
 
-	// Run without AGENTSH_RLIMIT_AS - should work normally
+	// Run without AGENTMON_RLIMIT_AS - should work normally
 	cmd := exec.Command(wrapper, "echo", "hello")
 	output, err := cmd.Output()
 	if err != nil {
@@ -172,7 +172,7 @@ func buildWrapper(t *testing.T) string {
 	t.Helper()
 
 	tmpDir := t.TempDir()
-	wrapper := tmpDir + "/agentsh-rlimit-exec"
+	wrapper := tmpDir + "/agentmon-rlimit-exec"
 
 	cmd := exec.Command("go", "build", "-o", wrapper, ".")
 	cmd.Dir = "."
@@ -186,14 +186,14 @@ func buildWrapper(t *testing.T) string {
 
 **Step 2: Run tests**
 
-Run: `go test ./cmd/agentsh-rlimit-exec/...`
+Run: `go test ./cmd/agentmon-rlimit-exec/...`
 Expected: All pass
 
 **Step 3: Commit**
 
 ```bash
-git add cmd/agentsh-rlimit-exec/main_test.go
-git commit -m "test(darwin): add tests for agentsh-rlimit-exec wrapper"
+git add cmd/agentmon-rlimit-exec/main_test.go
+git commit -m "test(darwin): add tests for agentmon-rlimit-exec wrapper"
 ```
 
 ---
@@ -212,7 +212,7 @@ func NewResourceLimiter() *ResourceLimiter {
 	r := &ResourceLimiter{
 		available: true,
 		supportedLimits: []platform.ResourceType{
-			platform.ResourceMemory, // Supported via agentsh-rlimit-exec wrapper
+			platform.ResourceMemory, // Supported via agentmon-rlimit-exec wrapper
 			platform.ResourceCPU,
 		},
 		handles: make(map[string]*ResourceHandle),
@@ -351,10 +351,10 @@ func (s *Sandbox) ExecuteWithResources(ctx context.Context, rh *ResourceHandle, 
 		rlimits := rh.GetRlimits()
 		for _, rl := range rlimits {
 			if rl.Resource == RlimitAS && rl.Cur > 0 {
-				// Wrap with agentsh-rlimit-exec
-				actualCmd = "agentsh-rlimit-exec"
+				// Wrap with agentmon-rlimit-exec
+				actualCmd = "agentmon-rlimit-exec"
 				actualArgs = append([]string{cmd}, args...)
-				rlimitEnv = fmt.Sprintf("AGENTSH_RLIMIT_AS=%d", rl.Cur)
+				rlimitEnv = fmt.Sprintf("AGENTMON_RLIMIT_AS=%d", rl.Cur)
 				break
 			}
 		}
@@ -397,7 +397,7 @@ Expected: No errors
 
 ```bash
 git add internal/platform/darwin/sandbox_resources.go
-git commit -m "feat(darwin): integrate agentsh-rlimit-exec in sandbox execution"
+git commit -m "feat(darwin): integrate agentmon-rlimit-exec in sandbox execution"
 ```
 
 ---
@@ -416,8 +416,8 @@ func TestSandboxExecuteWithResources_MemoryLimit(t *testing.T) {
 	}
 
 	// Check if wrapper is available
-	if _, err := exec.LookPath("agentsh-rlimit-exec"); err != nil {
-		t.Skip("agentsh-rlimit-exec not in PATH")
+	if _, err := exec.LookPath("agentmon-rlimit-exec"); err != nil {
+		t.Skip("agentmon-rlimit-exec not in PATH")
 	}
 
 	m := NewSandboxManager()
@@ -506,8 +506,8 @@ Update the Memory Limiting section to reflect the implementation:
 
 ### Mechanism
 
-Uses RLIMIT_AS via a wrapper binary (`agentsh-rlimit-exec`). The wrapper:
-1. Reads limit from `AGENTSH_RLIMIT_AS` environment variable
+Uses RLIMIT_AS via a wrapper binary (`agentmon-rlimit-exec`). The wrapper:
+1. Reads limit from `AGENTMON_RLIMIT_AS` environment variable
 2. Calls `setrlimit(RLIMIT_AS, limit)` on itself
 3. Calls `exec()` to run the target command
 4. Target inherits the rlimit

@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/approvals"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/ptygrpc"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/approvals"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/ptygrpc"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -24,22 +24,22 @@ import (
 )
 
 const (
-	grpcServiceName           = "agentsh.v1.Agentsh"
-	grpcMethodCreateSession   = "/agentsh.v1.Agentsh/CreateSession"
-	grpcMethodListSessions    = "/agentsh.v1.Agentsh/ListSessions"
-	grpcMethodGetSession      = "/agentsh.v1.Agentsh/GetSession"
-	grpcMethodDestroySession  = "/agentsh.v1.Agentsh/DestroySession"
-	grpcMethodPatchSession    = "/agentsh.v1.Agentsh/PatchSession"
-	grpcMethodExec            = "/agentsh.v1.Agentsh/Exec"
-	grpcMethodExecStream      = "/agentsh.v1.Agentsh/ExecStream"
-	grpcMethodKillCommand     = "/agentsh.v1.Agentsh/KillCommand"
-	grpcMethodEventsTail      = "/agentsh.v1.Agentsh/EventsTail"
-	grpcMethodQueryEvents     = "/agentsh.v1.Agentsh/QueryEvents"
-	grpcMethodSearchEvents    = "/agentsh.v1.Agentsh/SearchEvents"
-	grpcMethodOutputChunk     = "/agentsh.v1.Agentsh/OutputChunk"
-	grpcMethodListApprovals   = "/agentsh.v1.Agentsh/ListApprovals"
-	grpcMethodResolveApproval = "/agentsh.v1.Agentsh/ResolveApproval"
-	grpcMethodPolicyTest      = "/agentsh.v1.Agentsh/PolicyTest"
+	grpcServiceName           = "agentmon.v1.Agentmon"
+	grpcMethodCreateSession   = "/agentmon.v1.Agentmon/CreateSession"
+	grpcMethodListSessions    = "/agentmon.v1.Agentmon/ListSessions"
+	grpcMethodGetSession      = "/agentmon.v1.Agentmon/GetSession"
+	grpcMethodDestroySession  = "/agentmon.v1.Agentmon/DestroySession"
+	grpcMethodPatchSession    = "/agentmon.v1.Agentmon/PatchSession"
+	grpcMethodExec            = "/agentmon.v1.Agentmon/Exec"
+	grpcMethodExecStream      = "/agentmon.v1.Agentmon/ExecStream"
+	grpcMethodKillCommand     = "/agentmon.v1.Agentmon/KillCommand"
+	grpcMethodEventsTail      = "/agentmon.v1.Agentmon/EventsTail"
+	grpcMethodQueryEvents     = "/agentmon.v1.Agentmon/QueryEvents"
+	grpcMethodSearchEvents    = "/agentmon.v1.Agentmon/SearchEvents"
+	grpcMethodOutputChunk     = "/agentmon.v1.Agentmon/OutputChunk"
+	grpcMethodListApprovals   = "/agentmon.v1.Agentmon/ListApprovals"
+	grpcMethodResolveApproval = "/agentmon.v1.Agentmon/ResolveApproval"
+	grpcMethodPolicyTest      = "/agentmon.v1.Agentmon/PolicyTest"
 	defaultGRPCAPIKeyMetadata = "x-api-key"
 )
 
@@ -47,7 +47,7 @@ type grpcServer struct {
 	app *App
 }
 
-type AgentshGRPCServer interface {
+type AgentmonGRPCServer interface {
 	// Session management
 	CreateSession(context.Context, *structpb.Struct) (*structpb.Struct, error)
 	ListSessions(context.Context, *structpb.Struct) (*structpb.Struct, error)
@@ -79,7 +79,7 @@ type AgentshGRPCServer interface {
 func RegisterGRPC(s *grpc.Server, app *App) {
 	s.RegisterService(&grpc.ServiceDesc{
 		ServiceName: grpcServiceName,
-		HandlerType: (*AgentshGRPCServer)(nil),
+		HandlerType: (*AgentmonGRPCServer)(nil),
 		Methods: []grpc.MethodDesc{
 			{MethodName: "CreateSession", Handler: grpcHandleCreateSession},
 			{MethodName: "ListSessions", Handler: grpcHandleListSessions},
@@ -107,10 +107,10 @@ func RegisterGRPC(s *grpc.Server, app *App) {
 				ServerStreams: true,
 			},
 		},
-		Metadata: "proto/agentsh/v1/agentsh.proto",
+		Metadata: "proto/agentmon/v1/agentmon.proto",
 	}, &grpcServer{app: app})
 
-	ptygrpc.RegisterAgentshPTYServer(s, &ptyGRPCServer{app: app})
+	ptygrpc.RegisterAgentmonPTYServer(s, &ptyGRPCServer{app: app})
 }
 
 func grpcHandleCreateSession(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) {

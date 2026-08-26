@@ -237,25 +237,25 @@ func ReadLLMLogs(r io.Reader) ([]LLMLogRow, error) {
 // GetSessionLLMLogPath returns the path to the LLM log file for a session.
 // It tries multiple locations in order of preference.
 func GetSessionLLMLogPath(sessionID string) (string, error) {
-	// Try AGENTSH_SESSIONS_DIR first
-	if sessionsDir := os.Getenv("AGENTSH_SESSIONS_DIR"); sessionsDir != "" {
+	// Try AGENTMON_SESSIONS_DIR first
+	if sessionsDir := os.Getenv("AGENTMON_SESSIONS_DIR"); sessionsDir != "" {
 		path := filepath.Join(sessionsDir, sessionID, "llm-requests.jsonl")
 		if _, err := os.Stat(path); err == nil {
 			return path, nil
 		}
 	}
 
-	// Try ~/.local/share/agentsh/sessions (XDG data dir)
+	// Try ~/.local/share/agentmon/sessions (XDG data dir)
 	if home, err := os.UserHomeDir(); err == nil {
-		path := filepath.Join(home, ".local", "share", "agentsh", "sessions", sessionID, "llm-requests.jsonl")
+		path := filepath.Join(home, ".local", "share", "agentmon", "sessions", sessionID, "llm-requests.jsonl")
 		if _, err := os.Stat(path); err == nil {
 			return path, nil
 		}
 	}
 
-	// Try ~/.agentsh/sessions (legacy location)
+	// Try ~/.agentmon/sessions (legacy location)
 	if home, err := os.UserHomeDir(); err == nil {
-		path := filepath.Join(home, ".agentsh", "sessions", sessionID, "llm-requests.jsonl")
+		path := filepath.Join(home, ".agentmon", "sessions", sessionID, "llm-requests.jsonl")
 		if _, err := os.Stat(path); err == nil {
 			return path, nil
 		}

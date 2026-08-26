@@ -49,7 +49,7 @@ providers:
     namespace: engineering
     auth:
       method: token
-      token_ref: keyring://agentsh/vault_token
+      token_ref: keyring://agentmon/vault_token
   keyring:
     type: keyring
 
@@ -90,7 +90,7 @@ http_services:
   - name: anthropic
     upstream: https://api.anthropic.com
     secret:
-      ref: keyring://agentsh/anthropic_key
+      ref: keyring://agentmon/anthropic_key
       format: "sk-ant-{rand:93}"
     inject:
       header:
@@ -369,7 +369,7 @@ The response body says `"credential leak blocked"` in both cases. No information
 Add a "How credential substitution works" section at the top explaining the end-to-end flow:
 
 1. Operator declares `providers:` (where secrets live) and `http_services:` entries with `secret:` (which service uses which secret)
-2. At session start, agentsh fetches the real secret from the provider
+2. At session start, agentmon fetches the real secret from the provider
 3. A fake credential with matching format and length is generated
 4. The agent receives `<NAME>_API_URL` pointing at the gateway — it never sees the real credential
 5. On egress: gateway replaces fakes with reals in body, headers, query, path; injects real credential into configured header

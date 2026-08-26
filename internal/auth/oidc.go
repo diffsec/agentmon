@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 	"github.com/coreos/go-oidc/v3/oidc"
 )
 

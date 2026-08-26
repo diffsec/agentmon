@@ -124,7 +124,7 @@ attribute — exactly as `commandID` is already empty there. No special-casing.
 
 `SetCurrentProcessPID` is called with `cmd.Process.Pid` (`internal/api/exec.go:357`,
 `internal/api/exec_stream.go:434`) and `ps.PID()` (`internal/api/pty_core.go:202`)
-— all host-side PIDs of the command process as agentsh observes it. The
+— all host-side PIDs of the command process as agentmon observes it. The
 ptrace-path Tor events use `nc.PID`, also a host-side PID from the ptrace
 subsystem. Both event families therefore carry `pid` in the same namespace and
 cross-reference cleanly.

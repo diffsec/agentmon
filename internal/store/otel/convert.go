@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	"go.opentelemetry.io/otel/attribute"
 	otellog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -107,7 +107,7 @@ func eventAttributes(ev types.Event) []otellog.KeyValue {
 	}
 
 	// canyonroad namespace.
-	attrs = append(attrs, otellog.String("canyonroad.product", "agentsh"))
+	attrs = append(attrs, otellog.String("canyonroad.product", "agentmon"))
 	if ev.ID != "" {
 		attrs = append(attrs, otellog.String("canyonroad.event.id", ev.ID))
 	}

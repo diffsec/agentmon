@@ -11,7 +11,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 const maxFeedSize = 100 * 1024 * 1024 // 100 MB

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `agentsh daemon install --force` actually apply the new service definition — unload/reload on macOS, restart-if-active on Linux — and fail loudly instead of warning when the service can't be (re)loaded. Fixes [#439](https://github.com/canyonroad/agentsh/issues/439).
+**Goal:** Make `agentmon daemon install --force` actually apply the new service definition — unload/reload on macOS, restart-if-active on Linux — and fail loudly instead of warning when the service can't be (re)loaded. Fixes [#439](https://github.com/diffsec/agentmon/issues/439).
 
 **Architecture:** All changes live in `internal/cli/daemon.go`: two new helpers (`reloadLaunchdService`, `restartSystemdIfActive`) shared by the install/restart call sites, plus unifying home-dir resolution on the existing `userHomeDir()` helper so tests can sandbox with `$HOME`. Tests use fake `launchctl`/`systemctl` shell scripts on a prepended `PATH` (house style — see `internal/cli/auto_daemon_test.go`).
 
@@ -46,7 +46,7 @@ Keep the `user.Current()` block — `currentUser.Uid` is still needed for the `X
 ```
 
 ```go
-	dataDir := filepath.Join(home, ".local", "share", "agentsh")
+	dataDir := filepath.Join(home, ".local", "share", "agentmon")
 ```
 
 ```go
@@ -66,7 +66,7 @@ Install now derives the unit path from `userHomeDir()`; uninstall must resolve t
 func uninstallSystemdService(cmd *cobra.Command) error {
 	w := cmd.OutOrStdout()
 
-	servicePath := filepath.Join(userHomeDir(), ".config", "systemd", "user", "agentsh.service")
+	servicePath := filepath.Join(userHomeDir(), ".config", "systemd", "user", "agentmon.service")
 ```
 
 (The rest of the function is unchanged.)
@@ -89,7 +89,7 @@ func installLaunchdService(cmd *cobra.Command, force bool) error {
 ```
 
 ```go
-	logDir := filepath.Join(home, "Library", "Logs", "agentsh")
+	logDir := filepath.Join(home, "Library", "Logs", "agentmon")
 ```
 
 ```go
@@ -152,10 +152,10 @@ func setupFakeTools(t *testing.T, launchctlBody, systemctlBody string) string {
 	}
 	binDir := t.TempDir()
 	callsFile := filepath.Join(t.TempDir(), "calls")
-	t.Setenv("AGENTSH_TEST_CALLS", callsFile)
+	t.Setenv("AGENTMON_TEST_CALLS", callsFile)
 	writeTool := func(name, body string) {
 		script := "#!/bin/sh\n" +
-			"echo \"$(basename \"$0\") $@\" >> \"$AGENTSH_TEST_CALLS\"\n" +
+			"echo \"$(basename \"$0\") $@\" >> \"$AGENTMON_TEST_CALLS\"\n" +
 			body + "\nexit 0\n"
 		if err := os.WriteFile(filepath.Join(binDir, name), []byte(script), 0o755); err != nil {
 			t.Fatalf("write fake %s: %v", name, err)
@@ -241,7 +241,7 @@ func TestInstallLaunchd_ForceReplacesLoadedDefinition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(content), "ai.canyonroad.agentsh.daemon") {
+	if !strings.Contains(string(content), "dev.diffsec.agentmon.daemon") {
 		t.Errorf("plist not rewritten, still: %s", content)
 	}
 }
@@ -317,7 +317,7 @@ In `newDaemonRestartCmd`, replace the darwin branch's inline unload/load pair (c
 
 ```go
 		case "darwin":
-			fmt.Fprintln(w, "Restarting agentsh daemon...")
+			fmt.Fprintln(w, "Restarting agentmon daemon...")
 			if err := reloadLaunchdService(getLaunchdPlistPath()); err != nil {
 				return fmt.Errorf("restart failed: %w", err)
 			}
@@ -362,11 +362,11 @@ func TestInstallSystemd_RestartsActiveUnit(t *testing.T) {
 
 	assertCalls(t, recordedCalls(t, callsFile), []string{
 		"systemctl --user daemon-reload",
-		"systemctl --user enable agentsh",
-		"systemctl --user is-active agentsh",
-		"systemctl --user restart agentsh",
+		"systemctl --user enable agentmon",
+		"systemctl --user is-active agentmon",
+		"systemctl --user restart agentmon",
 	})
-	unitPath := filepath.Join(os.Getenv("HOME"), ".config", "systemd", "user", "agentsh.service")
+	unitPath := filepath.Join(os.Getenv("HOME"), ".config", "systemd", "user", "agentmon.service")
 	if _, err := os.Stat(unitPath); err != nil {
 		t.Errorf("unit not written inside sandbox HOME: %v", err)
 	}
@@ -388,7 +388,7 @@ func TestInstallSystemd_InactiveUnitNotRestarted(t *testing.T) {
 	}
 
 	for _, call := range recordedCalls(t, callsFile) {
-		if strings.Contains(call, " restart ") || strings.HasSuffix(call, " restart agentsh") {
+		if strings.Contains(call, " restart ") || strings.HasSuffix(call, " restart agentmon") {
 			t.Errorf("unexpected restart call: %s", call)
 		}
 	}
@@ -406,7 +406,7 @@ func TestInstallSystemd_RestartFailureIsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when systemctl restart fails")
 	}
-	if !strings.Contains(err.Error(), "systemctl --user restart agentsh") {
+	if !strings.Contains(err.Error(), "systemctl --user restart agentmon") {
 		t.Errorf("error should include manual remediation: %v", err)
 	}
 }
@@ -422,17 +422,17 @@ Expected: `TestInstallSystemd_RestartsActiveUnit` FAILS (no `is-active`/`restart
 In `internal/cli/daemon.go`, add next to `runSystemctl`:
 
 ```go
-// restartSystemdIfActive restarts the agentsh user unit only when it is
+// restartSystemdIfActive restarts the agentmon user unit only when it is
 // currently active, so install is never the thing that first starts the
 // daemon on Linux. The bool reports whether a restart occurred. is-active is
 // queried via Output() rather than runSystemctl so "inactive" does not leak
 // to the terminal.
 func restartSystemdIfActive() (bool, error) {
-	out, err := exec.Command("systemctl", "--user", "is-active", "agentsh").Output()
+	out, err := exec.Command("systemctl", "--user", "is-active", "agentmon").Output()
 	if err != nil || strings.TrimSpace(string(out)) != "active" {
 		return false, nil
 	}
-	if err := runSystemctl("restart", "agentsh"); err != nil {
+	if err := runSystemctl("restart", "agentmon"); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -443,7 +443,7 @@ In `installSystemdService`, insert after the enable block and change the closing
 
 ```go
 	// Enable service
-	if err := runSystemctl("enable", "agentsh"); err != nil {
+	if err := runSystemctl("enable", "agentmon"); err != nil {
 		fmt.Fprintf(w, "Warning: failed to enable service: %v\n", err)
 	} else {
 		fmt.Fprintln(w, "Service enabled for automatic start on login")
@@ -453,7 +453,7 @@ In `installSystemdService`, insert after the enable block and change the closing
 	// ExecStart until bounced; restart so the new unit takes effect (#439).
 	restarted, err := restartSystemdIfActive()
 	if err != nil {
-		return fmt.Errorf("restart service: %w (unit written to %s; restart manually with: systemctl --user restart agentsh)", err, servicePath)
+		return fmt.Errorf("restart service: %w (unit written to %s; restart manually with: systemctl --user restart agentmon)", err, servicePath)
 	}
 	if restarted {
 		fmt.Fprintln(w, "Service restarted with updated configuration")
@@ -462,12 +462,12 @@ In `installSystemdService`, insert after the enable block and change the closing
 	fmt.Fprintln(w)
 	if !restarted {
 		fmt.Fprintln(w, "To start the daemon now:")
-		fmt.Fprintln(w, "  systemctl --user start agentsh")
+		fmt.Fprintln(w, "  systemctl --user start agentmon")
 		fmt.Fprintln(w)
 	}
 	fmt.Fprintln(w, "To check status:")
-	fmt.Fprintln(w, "  systemctl --user status agentsh")
-	fmt.Fprintln(w, "  agentsh daemon status")
+	fmt.Fprintln(w, "  systemctl --user status agentmon")
+	fmt.Fprintln(w, "  agentmon daemon status")
 
 	return nil
 ```
@@ -507,7 +507,7 @@ Expected: both succeed.
 
 - [ ] **Step 4: Manual macOS verification — coordinate with the user first**
 
-This step touches the real launchd session on the development machine; do not run it unattended. Per the issue: `agentsh daemon install`, mutate the plist (or install a build with different `ProgramArguments`), `agentsh daemon install --force`, then `launchctl list | grep agentsh` — the running job must reflect the new definition without a manual `agentsh daemon restart`. If the user prefers, skip and rely on CI + the fake-tool tests.
+This step touches the real launchd session on the development machine; do not run it unattended. Per the issue: `agentmon daemon install`, mutate the plist (or install a build with different `ProgramArguments`), `agentmon daemon install --force`, then `launchctl list | grep agentmon` — the running job must reflect the new definition without a manual `agentmon daemon restart`. If the user prefers, skip and rely on CI + the fake-tool tests.
 
 - [ ] **Step 5: Push and open PR**
 

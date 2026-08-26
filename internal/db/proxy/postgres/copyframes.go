@@ -9,8 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 func (pc *proxyConn) runCopyLoop(ctx context.Context, direction effects.BulkOpKind) (upstreamResult, error) {

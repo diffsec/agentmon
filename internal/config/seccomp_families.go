@@ -3,7 +3,7 @@ package config
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/seccomp"
 )
 
 // ResolveBlockedFamilies converts YAML-typed entries into the engine-typed

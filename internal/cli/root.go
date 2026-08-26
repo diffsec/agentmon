@@ -10,20 +10,20 @@ import (
 func NewRoot(version string) *cobra.Command {
 	cfg := &clientConfig{}
 	cmd := &cobra.Command{
-		Use:           "agentsh",
-		Short:         "agentsh: secure agent shell",
+		Use:           "agentmon",
+		Short:         "agentmon: secure agent shell",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
 
 	cmd.Version = version
-	cmd.SetVersionTemplate("agentsh {{.Version}}\n")
+	cmd.SetVersionTemplate("agentmon {{.Version}}\n")
 
-	cmd.PersistentFlags().StringVar(&cfg.serverAddr, "server", getenvDefault("AGENTSH_SERVER", "http://127.0.0.1:18080"), "agentsh server base URL")
-	cmd.PersistentFlags().StringVar(&cfg.transport, "transport", getenvDefault("AGENTSH_TRANSPORT", "http"), "Client transport: http|grpc (grpc uses HTTP for non-gRPC endpoints)")
-	cmd.PersistentFlags().StringVar(&cfg.grpcAddr, "grpc-addr", getenvDefault("AGENTSH_GRPC_ADDR", "127.0.0.1:9090"), "agentsh gRPC address (host:port)")
-	cmd.PersistentFlags().StringVar(&cfg.apiKey, "api-key", getenvDefault("AGENTSH_API_KEY", ""), "API key (sent as X-API-Key)")
-	cmd.PersistentFlags().StringVar(&cfg.clientTimeout, "client-timeout", getenvDefault("AGENTSH_CLIENT_TIMEOUT", "30s"), "HTTP client timeout for API requests (e.g. 30s, 5m)")
+	cmd.PersistentFlags().StringVar(&cfg.serverAddr, "server", getenvDefault("AGENTMON_SERVER", "http://127.0.0.1:18080"), "agentmon server base URL")
+	cmd.PersistentFlags().StringVar(&cfg.transport, "transport", getenvDefault("AGENTMON_TRANSPORT", "http"), "Client transport: http|grpc (grpc uses HTTP for non-gRPC endpoints)")
+	cmd.PersistentFlags().StringVar(&cfg.grpcAddr, "grpc-addr", getenvDefault("AGENTMON_GRPC_ADDR", "127.0.0.1:9090"), "agentmon gRPC address (host:port)")
+	cmd.PersistentFlags().StringVar(&cfg.apiKey, "api-key", getenvDefault("AGENTMON_API_KEY", ""), "API key (sent as X-API-Key)")
+	cmd.PersistentFlags().StringVar(&cfg.clientTimeout, "client-timeout", getenvDefault("AGENTMON_CLIENT_TIMEOUT", "30s"), "HTTP client timeout for API requests (e.g. 30s, 5m)")
 
 	cmd.AddCommand(newServerCmd())
 	cmd.AddCommand(newSessionCmd())

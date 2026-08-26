@@ -37,7 +37,7 @@ version: 1
 name: test-env-inject
 
 env_inject:
-  BASH_ENV: "/usr/lib/agentsh/bash_startup.sh"
+  BASH_ENV: "/usr/lib/agentmon/bash_startup.sh"
   MY_CUSTOM_VAR: "custom_value"
 `
 	var p Policy
@@ -45,7 +45,7 @@ env_inject:
 	require.NoError(t, err)
 	require.NotNil(t, p.EnvInject)
 	assert.Len(t, p.EnvInject, 2)
-	assert.Equal(t, "/usr/lib/agentsh/bash_startup.sh", p.EnvInject["BASH_ENV"])
+	assert.Equal(t, "/usr/lib/agentmon/bash_startup.sh", p.EnvInject["BASH_ENV"])
 	assert.Equal(t, "custom_value", p.EnvInject["MY_CUSTOM_VAR"])
 }
 

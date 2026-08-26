@@ -43,9 +43,9 @@ type RuntimeContext struct {
 	IPCBackend      string
 
 	// Version
-	AgentshVersion     string
-	AgentshCommit      string
-	AgentshBuildTime   string
+	AgentmonVersion     string
+	AgentmonCommit      string
+	AgentmonBuildTime   string
 	EventSchemaVersion string
 }
 
@@ -60,7 +60,7 @@ func DetectRuntimeContext() *RuntimeContext {
 	ctx.Hostname, _ = os.Hostname()
 	ctx.MachineID = detectMachineID()
 	ctx.ContainerID, ctx.ContainerRuntime = detectContainer()
-	ctx.ContainerImage = os.Getenv("AGENTSH_CONTAINER_IMAGE")
+	ctx.ContainerImage = os.Getenv("AGENTMON_CONTAINER_IMAGE")
 
 	// Kubernetes detection
 	ctx.K8sNamespace = os.Getenv("KUBERNETES_NAMESPACE")

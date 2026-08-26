@@ -23,18 +23,18 @@ Before starting, ensure you have:
 ## Task 1: Create Driver Directory Structure
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/`
-- Create: `drivers/windows/agentsh-minifilter/src/`
-- Create: `drivers/windows/agentsh-minifilter/inc/`
-- Create: `drivers/windows/agentsh-minifilter/scripts/`
+- Create: `drivers/windows/agentmon-minifilter/`
+- Create: `drivers/windows/agentmon-minifilter/src/`
+- Create: `drivers/windows/agentmon-minifilter/inc/`
+- Create: `drivers/windows/agentmon-minifilter/scripts/`
 
 **Step 1: Create directory structure**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feature-windows-minifilter
-mkdir -p drivers/windows/agentsh-minifilter/src
-mkdir -p drivers/windows/agentsh-minifilter/inc
-mkdir -p drivers/windows/agentsh-minifilter/scripts
+cd /home/eran/work/agentmon/.worktrees/feature-windows-minifilter
+mkdir -p drivers/windows/agentmon-minifilter/src
+mkdir -p drivers/windows/agentmon-minifilter/inc
+mkdir -p drivers/windows/agentmon-minifilter/scripts
 ```
 
 **Step 2: Commit**
@@ -49,20 +49,20 @@ git commit -m "feat(windows): create mini filter driver directory structure"
 ## Task 2: Create Shared Protocol Header
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/inc/protocol.h`
+- Create: `drivers/windows/agentmon-minifilter/inc/protocol.h`
 
 **Step 1: Write the protocol header**
 
 ```c
 // protocol.h - Communication protocol between driver and user-mode
-#ifndef _AGENTSH_PROTOCOL_H_
-#define _AGENTSH_PROTOCOL_H_
+#ifndef _AGENTMON_PROTOCOL_H_
+#define _AGENTMON_PROTOCOL_H_
 
-#define AGENTSH_PORT_NAME L"\\AgentshPort"
-#define AGENTSH_MAX_PATH 520
+#define AGENTMON_PORT_NAME L"\\AgentmonPort"
+#define AGENTMON_MAX_PATH 520
 
 // Message types
-typedef enum _AGENTSH_MSG_TYPE {
+typedef enum _AGENTMON_MSG_TYPE {
     // Driver -> User-mode (requests)
     MSG_PING = 0,
     MSG_POLICY_CHECK_FILE = 1,
@@ -76,49 +76,49 @@ typedef enum _AGENTSH_MSG_TYPE {
     MSG_UNREGISTER_SESSION = 101,
     MSG_UPDATE_CACHE = 102,
     MSG_SHUTDOWN = 103,
-} AGENTSH_MSG_TYPE;
+} AGENTMON_MSG_TYPE;
 
 // Policy decisions
-typedef enum _AGENTSH_DECISION {
+typedef enum _AGENTMON_DECISION {
     DECISION_ALLOW = 0,
     DECISION_DENY = 1,
     DECISION_PENDING = 2,
-} AGENTSH_DECISION;
+} AGENTMON_DECISION;
 
 // Message header (all messages start with this)
-typedef struct _AGENTSH_MESSAGE_HEADER {
-    AGENTSH_MSG_TYPE Type;
+typedef struct _AGENTMON_MESSAGE_HEADER {
+    AGENTMON_MSG_TYPE Type;
     ULONG Size;
     ULONG64 RequestId;
-} AGENTSH_MESSAGE_HEADER, *PAGENTSH_MESSAGE_HEADER;
+} AGENTMON_MESSAGE_HEADER, *PAGENTMON_MESSAGE_HEADER;
 
 // Ping message (driver -> user-mode)
-typedef struct _AGENTSH_PING {
-    AGENTSH_MESSAGE_HEADER Header;
+typedef struct _AGENTMON_PING {
+    AGENTMON_MESSAGE_HEADER Header;
     ULONG DriverVersion;
     ULONG64 Timestamp;
-} AGENTSH_PING, *PAGENTSH_PING;
+} AGENTMON_PING, *PAGENTMON_PING;
 
 // Pong response (user-mode -> driver)
-typedef struct _AGENTSH_PONG {
-    AGENTSH_MESSAGE_HEADER Header;
+typedef struct _AGENTMON_PONG {
+    AGENTMON_MESSAGE_HEADER Header;
     ULONG ClientVersion;
     ULONG64 Timestamp;
-} AGENTSH_PONG, *PAGENTSH_PONG;
+} AGENTMON_PONG, *PAGENTMON_PONG;
 
 // Connection context passed during FilterConnectCommunicationPort
-typedef struct _AGENTSH_CONNECTION_CONTEXT {
+typedef struct _AGENTMON_CONNECTION_CONTEXT {
     ULONG ClientVersion;
     ULONG ClientPid;
-} AGENTSH_CONNECTION_CONTEXT, *PAGENTSH_CONNECTION_CONTEXT;
+} AGENTMON_CONNECTION_CONTEXT, *PAGENTMON_CONNECTION_CONTEXT;
 
-#endif // _AGENTSH_PROTOCOL_H_
+#endif // _AGENTMON_PROTOCOL_H_
 ```
 
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/inc/protocol.h
+git add drivers/windows/agentmon-minifilter/inc/protocol.h
 git commit -m "feat(windows): add filter port communication protocol header"
 ```
 
@@ -127,15 +127,15 @@ git commit -m "feat(windows): add filter port communication protocol header"
 ## Task 3: Create Main Driver Entry
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/src/driver.c`
-- Create: `drivers/windows/agentsh-minifilter/inc/driver.h`
+- Create: `drivers/windows/agentmon-minifilter/src/driver.c`
+- Create: `drivers/windows/agentmon-minifilter/inc/driver.h`
 
 **Step 1: Write the driver header**
 
 ```c
 // driver.h - Main driver definitions
-#ifndef _AGENTSH_DRIVER_H_
-#define _AGENTSH_DRIVER_H_
+#ifndef _AGENTMON_DRIVER_H_
+#define _AGENTMON_DRIVER_H_
 
 #include <fltKernel.h>
 #include <dontuse.h>
@@ -143,50 +143,50 @@ git commit -m "feat(windows): add filter port communication protocol header"
 #include "protocol.h"
 
 // Driver version
-#define AGENTSH_DRIVER_VERSION 0x00010000  // 1.0.0.0
+#define AGENTMON_DRIVER_VERSION 0x00010000  // 1.0.0.0
 
 // Pool tags
-#define AGENTSH_TAG_GENERAL 'hsGA'
-#define AGENTSH_TAG_MESSAGE 'smGA'
+#define AGENTMON_TAG_GENERAL 'hsGA'
+#define AGENTMON_TAG_MESSAGE 'smGA'
 
 // Global driver data
-typedef struct _AGENTSH_GLOBAL_DATA {
+typedef struct _AGENTMON_GLOBAL_DATA {
     PFLT_FILTER FilterHandle;
     PFLT_PORT ServerPort;
     PFLT_PORT ClientPort;
     BOOLEAN ClientConnected;
     ULONG ClientPid;
     LONG MessageId;
-} AGENTSH_GLOBAL_DATA, *PAGENTSH_GLOBAL_DATA;
+} AGENTMON_GLOBAL_DATA, *PAGENTMON_GLOBAL_DATA;
 
-extern AGENTSH_GLOBAL_DATA AgentshData;
+extern AGENTMON_GLOBAL_DATA AgentmonData;
 
 // Communication functions (communication.c)
 NTSTATUS
-AgentshInitializeCommunication(
+AgentmonInitializeCommunication(
     _In_ PFLT_FILTER Filter
     );
 
 VOID
-AgentshShutdownCommunication(
+AgentmonShutdownCommunication(
     VOID
     );
 
 NTSTATUS
-AgentshSendPing(
+AgentmonSendPing(
     VOID
     );
 
 // Filter callbacks
 FLT_PREOP_CALLBACK_STATUS
-AgentshPreCreate(
+AgentmonPreCreate(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
     );
 
 NTSTATUS
-AgentshInstanceSetup(
+AgentmonInstanceSetup(
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_SETUP_FLAGS Flags,
     _In_ DEVICE_TYPE VolumeDeviceType,
@@ -194,17 +194,17 @@ AgentshInstanceSetup(
     );
 
 NTSTATUS
-AgentshInstanceQueryTeardown(
+AgentmonInstanceQueryTeardown(
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_QUERY_TEARDOWN_FLAGS Flags
     );
 
 NTSTATUS
-AgentshFilterUnload(
+AgentmonFilterUnload(
     _In_ FLT_FILTER_UNLOAD_FLAGS Flags
     );
 
-#endif // _AGENTSH_DRIVER_H_
+#endif // _AGENTMON_DRIVER_H_
 ```
 
 **Step 2: Write the driver entry**
@@ -214,11 +214,11 @@ AgentshFilterUnload(
 #include "driver.h"
 
 // Global data
-AGENTSH_GLOBAL_DATA AgentshData = {0};
+AGENTMON_GLOBAL_DATA AgentmonData = {0};
 
 // Filter callbacks - minimal for Phase 1
 CONST FLT_OPERATION_REGISTRATION FilterCallbacks[] = {
-    { IRP_MJ_CREATE, 0, AgentshPreCreate, NULL },
+    { IRP_MJ_CREATE, 0, AgentmonPreCreate, NULL },
     { IRP_MJ_OPERATION_END }
 };
 
@@ -229,9 +229,9 @@ CONST FLT_REGISTRATION FilterRegistration = {
     0,                                  // Flags
     NULL,                               // Context registration
     FilterCallbacks,                    // Operation callbacks
-    AgentshFilterUnload,                // FilterUnload
-    AgentshInstanceSetup,               // InstanceSetup
-    AgentshInstanceQueryTeardown,       // InstanceQueryTeardown
+    AgentmonFilterUnload,                // FilterUnload
+    AgentmonInstanceSetup,               // InstanceSetup
+    AgentmonInstanceQueryTeardown,       // InstanceQueryTeardown
     NULL,                               // InstanceTeardownStart
     NULL,                               // InstanceTeardownComplete
     NULL,                               // GenerateFileName
@@ -241,7 +241,7 @@ CONST FLT_REGISTRATION FilterRegistration = {
 
 // Minimal pre-create callback (just pass through for Phase 1)
 FLT_PREOP_CALLBACK_STATUS
-AgentshPreCreate(
+AgentmonPreCreate(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
@@ -257,7 +257,7 @@ AgentshPreCreate(
 
 // Instance setup - attach to all NTFS volumes
 NTSTATUS
-AgentshInstanceSetup(
+AgentmonInstanceSetup(
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_SETUP_FLAGS Flags,
     _In_ DEVICE_TYPE VolumeDeviceType,
@@ -278,7 +278,7 @@ AgentshInstanceSetup(
 
 // Instance query teardown - allow detach
 NTSTATUS
-AgentshInstanceQueryTeardown(
+AgentmonInstanceQueryTeardown(
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_QUERY_TEARDOWN_FLAGS Flags
     )
@@ -291,19 +291,19 @@ AgentshInstanceQueryTeardown(
 
 // Filter unload
 NTSTATUS
-AgentshFilterUnload(
+AgentmonFilterUnload(
     _In_ FLT_FILTER_UNLOAD_FLAGS Flags
     )
 {
     UNREFERENCED_PARAMETER(Flags);
 
     // Shutdown communication
-    AgentshShutdownCommunication();
+    AgentmonShutdownCommunication();
 
     // Unregister filter
-    if (AgentshData.FilterHandle != NULL) {
-        FltUnregisterFilter(AgentshData.FilterHandle);
-        AgentshData.FilterHandle = NULL;
+    if (AgentmonData.FilterHandle != NULL) {
+        FltUnregisterFilter(AgentmonData.FilterHandle);
+        AgentmonData.FilterHandle = NULL;
     }
 
     return STATUS_SUCCESS;
@@ -321,13 +321,13 @@ DriverEntry(
     UNREFERENCED_PARAMETER(RegistryPath);
 
     // Initialize global data
-    RtlZeroMemory(&AgentshData, sizeof(AgentshData));
+    RtlZeroMemory(&AgentmonData, sizeof(AgentmonData));
 
     // Register with filter manager
     status = FltRegisterFilter(
         DriverObject,
         &FilterRegistration,
-        &AgentshData.FilterHandle
+        &AgentmonData.FilterHandle
         );
 
     if (!NT_SUCCESS(status)) {
@@ -335,17 +335,17 @@ DriverEntry(
     }
 
     // Initialize communication port
-    status = AgentshInitializeCommunication(AgentshData.FilterHandle);
+    status = AgentmonInitializeCommunication(AgentmonData.FilterHandle);
     if (!NT_SUCCESS(status)) {
-        FltUnregisterFilter(AgentshData.FilterHandle);
+        FltUnregisterFilter(AgentmonData.FilterHandle);
         return status;
     }
 
     // Start filtering
-    status = FltStartFiltering(AgentshData.FilterHandle);
+    status = FltStartFiltering(AgentmonData.FilterHandle);
     if (!NT_SUCCESS(status)) {
-        AgentshShutdownCommunication();
-        FltUnregisterFilter(AgentshData.FilterHandle);
+        AgentmonShutdownCommunication();
+        FltUnregisterFilter(AgentmonData.FilterHandle);
         return status;
     }
 
@@ -356,8 +356,8 @@ DriverEntry(
 **Step 3: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/inc/driver.h
-git add drivers/windows/agentsh-minifilter/src/driver.c
+git add drivers/windows/agentmon-minifilter/inc/driver.h
+git add drivers/windows/agentmon-minifilter/src/driver.c
 git commit -m "feat(windows): add mini filter driver entry and registration"
 ```
 
@@ -366,7 +366,7 @@ git commit -m "feat(windows): add mini filter driver entry and registration"
 ## Task 4: Create Communication Port Handler
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/src/communication.c`
+- Create: `drivers/windows/agentmon-minifilter/src/communication.c`
 
 **Step 1: Write the communication handler**
 
@@ -376,7 +376,7 @@ git commit -m "feat(windows): add mini filter driver entry and registration"
 
 // Forward declarations
 NTSTATUS
-AgentshConnectNotify(
+AgentmonConnectNotify(
     _In_ PFLT_PORT ClientPort,
     _In_opt_ PVOID ServerPortCookie,
     _In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext,
@@ -385,12 +385,12 @@ AgentshConnectNotify(
     );
 
 VOID
-AgentshDisconnectNotify(
+AgentmonDisconnectNotify(
     _In_opt_ PVOID ConnectionCookie
     );
 
 NTSTATUS
-AgentshMessageNotify(
+AgentmonMessageNotify(
     _In_opt_ PVOID PortCookie,
     _In_reads_bytes_opt_(InputBufferLength) PVOID InputBuffer,
     _In_ ULONG InputBufferLength,
@@ -401,7 +401,7 @@ AgentshMessageNotify(
 
 // Initialize communication port
 NTSTATUS
-AgentshInitializeCommunication(
+AgentmonInitializeCommunication(
     _In_ PFLT_FILTER Filter
     )
 {
@@ -416,7 +416,7 @@ AgentshInitializeCommunication(
         return status;
     }
 
-    RtlInitUnicodeString(&portName, AGENTSH_PORT_NAME);
+    RtlInitUnicodeString(&portName, AGENTMON_PORT_NAME);
 
     InitializeObjectAttributes(
         &oa,
@@ -429,12 +429,12 @@ AgentshInitializeCommunication(
     // Create communication port
     status = FltCreateCommunicationPort(
         Filter,
-        &AgentshData.ServerPort,
+        &AgentmonData.ServerPort,
         &oa,
         NULL,                       // ServerPortCookie
-        AgentshConnectNotify,
-        AgentshDisconnectNotify,
-        AgentshMessageNotify,
+        AgentmonConnectNotify,
+        AgentmonDisconnectNotify,
+        AgentmonMessageNotify,
         1                           // MaxConnections
         );
 
@@ -445,19 +445,19 @@ AgentshInitializeCommunication(
 
 // Shutdown communication
 VOID
-AgentshShutdownCommunication(
+AgentmonShutdownCommunication(
     VOID
     )
 {
-    if (AgentshData.ServerPort != NULL) {
-        FltCloseCommunicationPort(AgentshData.ServerPort);
-        AgentshData.ServerPort = NULL;
+    if (AgentmonData.ServerPort != NULL) {
+        FltCloseCommunicationPort(AgentmonData.ServerPort);
+        AgentmonData.ServerPort = NULL;
     }
 }
 
 // Client connect notification
 NTSTATUS
-AgentshConnectNotify(
+AgentmonConnectNotify(
     _In_ PFLT_PORT ClientPort,
     _In_opt_ PVOID ServerPortCookie,
     _In_reads_bytes_opt_(SizeOfContext) PVOID ConnectionContext,
@@ -465,26 +465,26 @@ AgentshConnectNotify(
     _Outptr_result_maybenull_ PVOID *ConnectionPortCookie
     )
 {
-    PAGENTSH_CONNECTION_CONTEXT ctx;
+    PAGENTMON_CONNECTION_CONTEXT ctx;
 
     UNREFERENCED_PARAMETER(ServerPortCookie);
 
     // Validate connection context
     if (ConnectionContext == NULL ||
-        SizeOfContext < sizeof(AGENTSH_CONNECTION_CONTEXT)) {
+        SizeOfContext < sizeof(AGENTMON_CONNECTION_CONTEXT)) {
         return STATUS_INVALID_PARAMETER;
     }
 
-    ctx = (PAGENTSH_CONNECTION_CONTEXT)ConnectionContext;
+    ctx = (PAGENTMON_CONNECTION_CONTEXT)ConnectionContext;
 
     // Store client info
-    AgentshData.ClientPort = ClientPort;
-    AgentshData.ClientPid = ctx->ClientPid;
-    AgentshData.ClientConnected = TRUE;
+    AgentmonData.ClientPort = ClientPort;
+    AgentmonData.ClientPid = ctx->ClientPid;
+    AgentmonData.ClientConnected = TRUE;
 
     *ConnectionPortCookie = NULL;
 
-    DbgPrint("AgentSH: Client connected (PID: %u, Version: 0x%08X)\n",
+    DbgPrint("AgentMon: Client connected (PID: %u, Version: 0x%08X)\n",
              ctx->ClientPid, ctx->ClientVersion);
 
     return STATUS_SUCCESS;
@@ -492,24 +492,24 @@ AgentshConnectNotify(
 
 // Client disconnect notification
 VOID
-AgentshDisconnectNotify(
+AgentmonDisconnectNotify(
     _In_opt_ PVOID ConnectionCookie
     )
 {
     UNREFERENCED_PARAMETER(ConnectionCookie);
 
-    DbgPrint("AgentSH: Client disconnected\n");
+    DbgPrint("AgentMon: Client disconnected\n");
 
     // Clear client state
-    FltCloseClientPort(AgentshData.FilterHandle, &AgentshData.ClientPort);
-    AgentshData.ClientPort = NULL;
-    AgentshData.ClientPid = 0;
-    AgentshData.ClientConnected = FALSE;
+    FltCloseClientPort(AgentmonData.FilterHandle, &AgentmonData.ClientPort);
+    AgentmonData.ClientPort = NULL;
+    AgentmonData.ClientPid = 0;
+    AgentmonData.ClientConnected = FALSE;
 }
 
 // Message notification from user-mode
 NTSTATUS
-AgentshMessageNotify(
+AgentmonMessageNotify(
     _In_opt_ PVOID PortCookie,
     _In_reads_bytes_opt_(InputBufferLength) PVOID InputBuffer,
     _In_ ULONG InputBufferLength,
@@ -518,7 +518,7 @@ AgentshMessageNotify(
     _Out_ PULONG ReturnOutputBufferLength
     )
 {
-    PAGENTSH_MESSAGE_HEADER header;
+    PAGENTMON_MESSAGE_HEADER header;
 
     UNREFERENCED_PARAMETER(PortCookie);
     UNREFERENCED_PARAMETER(OutputBuffer);
@@ -526,27 +526,27 @@ AgentshMessageNotify(
 
     *ReturnOutputBufferLength = 0;
 
-    if (InputBuffer == NULL || InputBufferLength < sizeof(AGENTSH_MESSAGE_HEADER)) {
+    if (InputBuffer == NULL || InputBufferLength < sizeof(AGENTMON_MESSAGE_HEADER)) {
         return STATUS_INVALID_PARAMETER;
     }
 
-    header = (PAGENTSH_MESSAGE_HEADER)InputBuffer;
+    header = (PAGENTMON_MESSAGE_HEADER)InputBuffer;
 
     switch (header->Type) {
         case MSG_PONG:
-            DbgPrint("AgentSH: Received PONG from client\n");
+            DbgPrint("AgentMon: Received PONG from client\n");
             break;
 
         case MSG_REGISTER_SESSION:
-            DbgPrint("AgentSH: Session registration (Phase 2)\n");
+            DbgPrint("AgentMon: Session registration (Phase 2)\n");
             break;
 
         case MSG_UNREGISTER_SESSION:
-            DbgPrint("AgentSH: Session unregistration (Phase 2)\n");
+            DbgPrint("AgentMon: Session unregistration (Phase 2)\n");
             break;
 
         default:
-            DbgPrint("AgentSH: Unknown message type: %d\n", header->Type);
+            DbgPrint("AgentMon: Unknown message type: %d\n", header->Type);
             break;
     }
 
@@ -555,33 +555,33 @@ AgentshMessageNotify(
 
 // Send ping to user-mode client
 NTSTATUS
-AgentshSendPing(
+AgentmonSendPing(
     VOID
     )
 {
     NTSTATUS status;
-    AGENTSH_PING ping = {0};
-    AGENTSH_PONG pong = {0};
+    AGENTMON_PING ping = {0};
+    AGENTMON_PONG pong = {0};
     ULONG replyLength = sizeof(pong);
     LARGE_INTEGER timeout;
 
-    if (!AgentshData.ClientConnected || AgentshData.ClientPort == NULL) {
+    if (!AgentmonData.ClientConnected || AgentmonData.ClientPort == NULL) {
         return STATUS_PORT_DISCONNECTED;
     }
 
     // Build ping message
     ping.Header.Type = MSG_PING;
     ping.Header.Size = sizeof(ping);
-    ping.Header.RequestId = InterlockedIncrement(&AgentshData.MessageId);
-    ping.DriverVersion = AGENTSH_DRIVER_VERSION;
+    ping.Header.RequestId = InterlockedIncrement(&AgentmonData.MessageId);
+    ping.DriverVersion = AGENTMON_DRIVER_VERSION;
     KeQuerySystemTimePrecise((PLARGE_INTEGER)&ping.Timestamp);
 
     // 5 second timeout
     timeout.QuadPart = -50000000LL;  // 100ns units, negative = relative
 
     status = FltSendMessage(
-        AgentshData.FilterHandle,
-        &AgentshData.ClientPort,
+        AgentmonData.FilterHandle,
+        &AgentmonData.ClientPort,
         &ping,
         sizeof(ping),
         &pong,
@@ -590,7 +590,7 @@ AgentshSendPing(
         );
 
     if (NT_SUCCESS(status)) {
-        DbgPrint("AgentSH: Ping successful, client version: 0x%08X\n",
+        DbgPrint("AgentMon: Ping successful, client version: 0x%08X\n",
                  pong.ClientVersion);
     }
 
@@ -601,7 +601,7 @@ AgentshSendPing(
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/src/communication.c
+git add drivers/windows/agentmon-minifilter/src/communication.c
 git commit -m "feat(windows): add filter port communication handling"
 ```
 
@@ -610,8 +610,8 @@ git commit -m "feat(windows): add filter port communication handling"
 ## Task 5: Create Visual Studio Project Files
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/agentsh.vcxproj`
-- Create: `drivers/windows/agentsh-minifilter/agentsh.sln`
+- Create: `drivers/windows/agentmon-minifilter/agentmon.vcxproj`
+- Create: `drivers/windows/agentmon-minifilter/agentmon.sln`
 
 **Step 1: Write the vcxproj file**
 
@@ -635,7 +635,7 @@ git commit -m "feat(windows): add filter port communication handling"
     <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
     <Configuration>Debug</Configuration>
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
-    <RootNamespace>agentsh</RootNamespace>
+    <RootNamespace>agentmon</RootNamespace>
     <DriverType>KMDF</DriverType>
     <DriverTargetPlatform>Universal</DriverTargetPlatform>
   </PropertyGroup>
@@ -706,7 +706,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "agentsh", "agentsh.vcxproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "agentmon", "agentmon.vcxproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -728,8 +728,8 @@ EndGlobal
 **Step 3: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/agentsh.vcxproj
-git add drivers/windows/agentsh-minifilter/agentsh.sln
+git add drivers/windows/agentmon-minifilter/agentmon.vcxproj
+git add drivers/windows/agentmon-minifilter/agentmon.sln
 git commit -m "feat(windows): add Visual Studio project files for driver build"
 ```
 
@@ -738,13 +738,13 @@ git commit -m "feat(windows): add Visual Studio project files for driver build"
 ## Task 6: Create Driver INF File
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/agentsh.inf`
+- Create: `drivers/windows/agentmon-minifilter/agentmon.inf`
 
 **Step 1: Write the INF file**
 
 ```inf
 ;
-; agentsh.inf - AgentSH Mini Filter Driver
+; agentmon.inf - AgentMon Mini Filter Driver
 ;
 
 [Version]
@@ -753,59 +753,59 @@ Class       = "ActivityMonitor"
 ClassGuid   = {b86dff51-a31e-4bac-b3cf-e8cfe75c9fc2}
 Provider    = %Provider%
 DriverVer   = 01/01/2026,1.0.0.0
-CatalogFile = agentsh.cat
+CatalogFile = agentmon.cat
 PnpLockdown = 1
 
 [SourceDisksNames]
 1 = %DiskName%
 
 [SourceDisksFiles]
-agentsh.sys = 1
+agentmon.sys = 1
 
 [DestinationDirs]
 DefaultDestDir      = 12
-AgentSH.DriverFiles = 12
+AgentMon.DriverFiles = 12
 
 [DefaultInstall.NTamd64]
 OptionDesc = %ServiceDescription%
-CopyFiles  = AgentSH.DriverFiles
+CopyFiles  = AgentMon.DriverFiles
 
 [DefaultInstall.NTamd64.Services]
-AddService = %ServiceName%,,AgentSH.Service
+AddService = %ServiceName%,,AgentMon.Service
 
 [DefaultUninstall.NTamd64]
 LegacyUninstall = 1
-DelFiles        = AgentSH.DriverFiles
+DelFiles        = AgentMon.DriverFiles
 
 [DefaultUninstall.NTamd64.Services]
 DelService = %ServiceName%,0x200
 
-[AgentSH.Service]
+[AgentMon.Service]
 DisplayName      = %ServiceName%
 Description      = %ServiceDescription%
-ServiceBinary    = %12%\agentsh.sys
+ServiceBinary    = %12%\agentmon.sys
 Dependencies     = FltMgr
 ServiceType      = 2    ; SERVICE_FILE_SYSTEM_DRIVER
 StartType        = 3    ; SERVICE_DEMAND_START
 ErrorControl     = 1    ; SERVICE_ERROR_NORMAL
 LoadOrderGroup   = "FSFilter Activity Monitor"
-AddReg           = AgentSH.AddRegistry
+AddReg           = AgentMon.AddRegistry
 
-[AgentSH.AddRegistry]
+[AgentMon.AddRegistry]
 HKR,"Instances","DefaultInstance",0x00000000,%DefaultInstance%
 HKR,"Instances\"%Instance.Name%,"Altitude",0x00000000,%Instance.Altitude%
 HKR,"Instances\"%Instance.Name%,"Flags",0x00010001,%Instance.Flags%
 
-[AgentSH.DriverFiles]
-agentsh.sys
+[AgentMon.DriverFiles]
+agentmon.sys
 
 [Strings]
-Provider           = "AgentSH"
-ServiceName        = "AgentSH"
-ServiceDescription = "AgentSH Security Monitor Mini-Filter"
-DiskName           = "AgentSH Installation Disk"
-DefaultInstance    = "AgentSH Instance"
-Instance.Name      = "AgentSH Instance"
+Provider           = "AgentMon"
+ServiceName        = "AgentMon"
+ServiceDescription = "AgentMon Security Monitor Mini-Filter"
+DiskName           = "AgentMon Installation Disk"
+DefaultInstance    = "AgentMon Instance"
+Instance.Name      = "AgentMon Instance"
 Instance.Altitude  = "385200"
 Instance.Flags     = 0x0
 ```
@@ -813,7 +813,7 @@ Instance.Flags     = 0x0
 **Step 2: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/agentsh.inf
+git add drivers/windows/agentmon-minifilter/agentmon.inf
 git commit -m "feat(windows): add driver INF installation manifest"
 ```
 
@@ -822,15 +822,15 @@ git commit -m "feat(windows): add driver INF installation manifest"
 ## Task 7: Create Build Scripts
 
 **Files:**
-- Create: `drivers/windows/agentsh-minifilter/scripts/build.cmd`
-- Create: `drivers/windows/agentsh-minifilter/scripts/install.cmd`
-- Create: `drivers/windows/agentsh-minifilter/scripts/uninstall.cmd`
+- Create: `drivers/windows/agentmon-minifilter/scripts/build.cmd`
+- Create: `drivers/windows/agentmon-minifilter/scripts/install.cmd`
+- Create: `drivers/windows/agentmon-minifilter/scripts/uninstall.cmd`
 
 **Step 1: Write build.cmd**
 
 ```batch
 @echo off
-REM build.cmd - Build the AgentSH mini filter driver
+REM build.cmd - Build the AgentMon mini filter driver
 
 setlocal
 
@@ -841,7 +841,7 @@ set PLATFORM=%2
 if "%PLATFORM%"=="" set PLATFORM=x64
 
 echo ========================================
-echo Building AgentSH Driver (%CONFIG%/%PLATFORM%)
+echo Building AgentMon Driver (%CONFIG%/%PLATFORM%)
 echo ========================================
 
 pushd %~dp0..
@@ -868,7 +868,7 @@ exit /b 1
 :found
 echo Using MSBuild: %MSBUILD%
 
-%MSBUILD% agentsh.sln /p:Configuration=%CONFIG% /p:Platform=%PLATFORM% /t:Build /v:minimal
+%MSBUILD% agentmon.sln /p:Configuration=%CONFIG% /p:Platform=%PLATFORM% /t:Build /v:minimal
 
 if errorlevel 1 (
     echo Build FAILED
@@ -877,7 +877,7 @@ if errorlevel 1 (
 )
 
 echo ========================================
-echo Build successful: bin\%PLATFORM%\%CONFIG%\agentsh.sys
+echo Build successful: bin\%PLATFORM%\%CONFIG%\agentmon.sys
 echo ========================================
 
 popd
@@ -888,12 +888,12 @@ exit /b 0
 
 ```batch
 @echo off
-REM install.cmd - Install the AgentSH driver (requires admin)
+REM install.cmd - Install the AgentMon driver (requires admin)
 
 setlocal
 
 set DRIVER_PATH=%1
-if "%DRIVER_PATH%"=="" set DRIVER_PATH=%~dp0..\bin\x64\Debug\agentsh.sys
+if "%DRIVER_PATH%"=="" set DRIVER_PATH=%~dp0..\bin\x64\Debug\agentmon.sys
 
 if not exist "%DRIVER_PATH%" (
     echo ERROR: Driver not found at %DRIVER_PATH%
@@ -902,7 +902,7 @@ if not exist "%DRIVER_PATH%" (
 )
 
 echo ========================================
-echo Installing AgentSH Driver
+echo Installing AgentMon Driver
 echo ========================================
 
 REM Check admin privileges
@@ -914,21 +914,21 @@ if errorlevel 1 (
 )
 
 REM Copy driver to System32\drivers
-copy /y "%DRIVER_PATH%" "%SystemRoot%\System32\drivers\agentsh.sys"
+copy /y "%DRIVER_PATH%" "%SystemRoot%\System32\drivers\agentmon.sys"
 if errorlevel 1 (
     echo ERROR: Failed to copy driver
     exit /b 1
 )
 
 REM Install using INF
-rundll32.exe setupapi.dll,InstallHinfSection DefaultInstall 132 %~dp0..\agentsh.inf
+rundll32.exe setupapi.dll,InstallHinfSection DefaultInstall 132 %~dp0..\agentmon.inf
 if errorlevel 1 (
     echo ERROR: INF installation failed
     exit /b 1
 )
 
 REM Load the driver
-fltmc load agentsh
+fltmc load agentmon
 if errorlevel 1 (
     echo WARNING: Driver load failed (may already be loaded or need reboot)
 )
@@ -945,12 +945,12 @@ exit /b 0
 
 ```batch
 @echo off
-REM uninstall.cmd - Uninstall the AgentSH driver (requires admin)
+REM uninstall.cmd - Uninstall the AgentMon driver (requires admin)
 
 setlocal
 
 echo ========================================
-echo Uninstalling AgentSH Driver
+echo Uninstalling AgentMon Driver
 echo ========================================
 
 REM Check admin privileges
@@ -962,13 +962,13 @@ if errorlevel 1 (
 )
 
 REM Unload the driver
-fltmc unload agentsh 2>nul
+fltmc unload agentmon 2>nul
 
 REM Uninstall using INF
-rundll32.exe setupapi.dll,InstallHinfSection DefaultUninstall 132 %~dp0..\agentsh.inf
+rundll32.exe setupapi.dll,InstallHinfSection DefaultUninstall 132 %~dp0..\agentmon.inf
 
 REM Delete driver file
-del /f "%SystemRoot%\System32\drivers\agentsh.sys" 2>nul
+del /f "%SystemRoot%\System32\drivers\agentmon.sys" 2>nul
 
 echo ========================================
 echo Driver uninstalled successfully
@@ -980,7 +980,7 @@ exit /b 0
 **Step 4: Commit**
 
 ```bash
-git add drivers/windows/agentsh-minifilter/scripts/
+git add drivers/windows/agentmon-minifilter/scripts/
 git commit -m "feat(windows): add driver build and install scripts"
 ```
 
@@ -1027,7 +1027,7 @@ const (
 // Driver client version
 const DriverClientVersion = 0x00010000
 
-// DriverClient communicates with the agentsh.sys mini filter
+// DriverClient communicates with the agentmon.sys mini filter
 type DriverClient struct {
 	port       windows.Handle
 	connected  atomic.Bool
@@ -1053,7 +1053,7 @@ func (c *DriverClient) Connect() error {
 		return fmt.Errorf("already connected")
 	}
 
-	portName, err := windows.UTF16PtrFromString(`\AgentshPort`)
+	portName, err := windows.UTF16PtrFromString(`\AgentmonPort`)
 	if err != nil {
 		return fmt.Errorf("invalid port name: %w", err)
 	}
@@ -1492,7 +1492,7 @@ func TestMessageConstants(t *testing.T) {
 **Step 2: Run tests**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feature-windows-minifilter
+cd /home/eran/work/agentmon/.worktrees/feature-windows-minifilter
 go test ./internal/platform/windows/... -v
 ```
 
@@ -1522,23 +1522,23 @@ Add these targets to the existing Makefile:
 
 build-driver:
 	@echo "Building Windows driver (Release)..."
-	cd drivers/windows/agentsh-minifilter && scripts/build.cmd Release x64
+	cd drivers/windows/agentmon-minifilter && scripts/build.cmd Release x64
 
 build-driver-debug:
 	@echo "Building Windows driver (Debug)..."
-	cd drivers/windows/agentsh-minifilter && scripts/build.cmd Debug x64
+	cd drivers/windows/agentmon-minifilter && scripts/build.cmd Debug x64
 
 install-driver:
 	@echo "Installing Windows driver..."
-	cd drivers/windows/agentsh-minifilter && scripts/install.cmd
+	cd drivers/windows/agentmon-minifilter && scripts/install.cmd
 
 uninstall-driver:
 	@echo "Uninstalling Windows driver..."
-	cd drivers/windows/agentsh-minifilter && scripts/uninstall.cmd
+	cd drivers/windows/agentmon-minifilter && scripts/uninstall.cmd
 
 # Full Windows build (Go + driver)
 build-windows-full: build-driver
-	GOOS=windows GOARCH=amd64 go build -o bin/agentsh.exe ./cmd/agentsh
+	GOOS=windows GOARCH=amd64 go build -o bin/agentmon.exe ./cmd/agentmon
 ```
 
 **Step 2: Commit**
@@ -1555,7 +1555,7 @@ git commit -m "build: add Windows driver targets to Makefile"
 **Step 1: Run all tests**
 
 ```bash
-cd /home/eran/work/agentsh/.worktrees/feature-windows-minifilter
+cd /home/eran/work/agentmon/.worktrees/feature-windows-minifilter
 go test ./... -v
 go build ./...
 ```
@@ -1565,10 +1565,10 @@ Expected: All tests pass, build succeeds
 **Step 2: Verify driver files are complete**
 
 ```bash
-ls -la drivers/windows/agentsh-minifilter/
-ls -la drivers/windows/agentsh-minifilter/src/
-ls -la drivers/windows/agentsh-minifilter/inc/
-ls -la drivers/windows/agentsh-minifilter/scripts/
+ls -la drivers/windows/agentmon-minifilter/
+ls -la drivers/windows/agentmon-minifilter/src/
+ls -la drivers/windows/agentmon-minifilter/inc/
+ls -la drivers/windows/agentmon-minifilter/scripts/
 ```
 
 Expected: All files present

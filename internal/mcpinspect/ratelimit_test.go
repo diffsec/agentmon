@@ -3,7 +3,7 @@ package mcpinspect
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func TestRateLimiterRegistry_DefaultLimits(t *testing.T) {

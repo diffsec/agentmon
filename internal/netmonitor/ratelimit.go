@@ -3,8 +3,8 @@ package netmonitor
 import (
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/pkg/ratelimit"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/pkg/ratelimit"
 )
 
 // DomainRateLimiter manages rate limits for network domains.

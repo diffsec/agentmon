@@ -12,7 +12,7 @@ import "testing"
 // shows this state before Load() runs, the EFAULT is confirmed to be
 // stacked-install rejection rather than a kernel quirk in F2's content.
 func TestParseProcSelfSeccompState_FilterModeWithCount(t *testing.T) {
-	const status = `Name:	agentsh-unixwra
+	const status = `Name:	agentmon-unixwra
 Tgid:	123
 Pid:	123
 PPid:	100

@@ -1,18 +1,18 @@
-# Secrets & Vaults in agentsh
+# Secrets & Vaults in agentmon
 
 This document is the operator reference for every vault, KMS, and secret
-store that agentsh talks to. It covers what each subsystem does, how to
+store that agentmon talks to. It covers what each subsystem does, how to
 configure it, which auth methods are supported, and what is planned but
 not yet built.
 
-If you are an SRE standing up agentsh for the first time, jump to
+If you are an SRE standing up agentmon for the first time, jump to
 **[Part 4 — Operator quickstart](#part-4--operator-quickstart)** and
 come back for depth.
 
 ## Status legend
 
 Every provider below is tagged with one of three statuses. Pay attention
-to the tag — agentsh is mid-evolution and the set of "works today" is
+to the tag — agentmon is mid-evolution and the set of "works today" is
 smaller than the set of "designed."
 
 | Tag | Meaning |
@@ -25,12 +25,12 @@ smaller than the set of "designed."
 
 ## Part 0 — Overview
 
-agentsh has **three distinct vault concerns**, and conflating them is the
+agentmon has **three distinct vault concerns**, and conflating them is the
 single most common source of confusion:
 
 1. **Audit integrity KMS** — **Operational.** The HMAC key used to sign
    the tamper-proof audit log chain. Lives in `internal/audit/kms/`. One
-   key per agentsh instance. Read once at startup, cached in memory. See
+   key per agentmon instance. Read once at startup, cached in memory. See
    [Part 1](#part-1--audit-integrity-chain-kms-backends-operational).
 
 2. **Runtime secret injection** — **Scaffold.** A secret manager that
@@ -54,8 +54,8 @@ single most common source of confusion:
 | Sign my audit log with a HashiCorp Vault key | [Part 1.3 — HashiCorp Vault](#hashicorp-vault-audit-kms) |
 | Understand why `pkg/secrets/` isn't loaded by my server | [Part 2.1 — Status](#21-status) |
 | See what Plans 2–12 will add | [Part 3 — External-secrets substitution](#part-3--external-secrets-substitution-planned) |
-| Stand up agentsh on Kubernetes | [Part 4.4 — Kubernetes](#44-kubernetes-deployment-vault--service-account) |
-| Stand up agentsh on AWS | [Part 4.5 — AWS-native](#45-aws-native-deployment) |
+| Stand up agentmon on Kubernetes | [Part 4.4 — Kubernetes](#44-kubernetes-deployment-vault--service-account) |
+| Stand up agentmon on AWS | [Part 4.5 — AWS-native](#45-aws-native-deployment) |
 
 ---
 
@@ -63,7 +63,7 @@ single most common source of confusion:
 
 ### 1.1 What it protects
 
-agentsh writes an append-only audit log of every security-relevant
+agentmon writes an append-only audit log of every security-relevant
 event (policy decision, file access, network connection, approval,
 session lifecycle). Without integrity protection, an attacker with
 write access to the log file can rewrite history.
@@ -89,17 +89,17 @@ next to the JSONL log:
 - `<audit.output>.chain`
 
 That sidecar stores the last sequence, the last entry hash, and a fingerprint of
-the configured HMAC key. agentsh uses it at startup to resume the chain across
+the configured HMAC key. agentmon uses it at startup to resume the chain across
 process restarts and rotated `audit.jsonl`, `audit.jsonl.1`, `audit.jsonl.2`, …
 files.
 
-If the sidecar is missing but the log contains v2 entries, agentsh writes an
+If the sidecar is missing but the log contains v2 entries, agentmon writes an
 `integrity_chain_rotated` event with `reason_code=sidecar_missing` and starts a
-fresh chain. If the sidecar and log disagree, agentsh refuses to start and
+fresh chain. If the sidecar and log disagree, agentmon refuses to start and
 points the operator at an explicit archival reset flow:
 
 ```bash
-agentsh audit chain reset --reason "rotated audit integrity key" --reason-code key_rotated --legacy-archive
+agentmon audit chain reset --reason "rotated audit integrity key" --reason-code key_rotated --legacy-archive
 ```
 
 Changing the audit HMAC key or `audit.integrity.algorithm` requires
@@ -114,7 +114,7 @@ the chain.
 ### 1.2 YAML config shape
 
 All KMS providers for the audit integrity chain are configured under
-`audit.integrity` in the agentsh YAML config. The top-level shape:
+`audit.integrity` in the agentmon YAML config. The top-level shape:
 
 ```yaml
 audit:
@@ -135,7 +135,7 @@ audit:
 ```
 
 `key_source` is the single switch. If you leave `key_source` empty,
-agentsh auto-detects it in this order: `key_file` → `key_env` →
+agentmon auto-detects it in this order: `key_file` → `key_env` →
 `aws_kms.key_id` → `azure_keyvault.vault_url` → `hashicorp_vault.address`
 → `gcp_kms.key_name`. Auto-detection is convenient for tests; in
 production, set `key_source` explicitly.
@@ -162,7 +162,7 @@ audit:
   integrity:
     enabled: true
     key_source: file
-    key_file: /etc/agentsh/audit-key.hex
+    key_file: /etc/agentmon/audit-key.hex
 ```
 
 Or via env var:
@@ -172,16 +172,16 @@ audit:
   integrity:
     enabled: true
     key_source: env
-    key_env: AGENTSH_AUDIT_KEY
+    key_env: AGENTMON_AUDIT_KEY
 ```
 
 The key file must contain a hex-encoded secret, trimmed of whitespace.
 Generate one with:
 
 ```bash
-openssl rand -hex 32 > /etc/agentsh/audit-key.hex
-chmod 0400 /etc/agentsh/audit-key.hex
-chown agentsh:agentsh /etc/agentsh/audit-key.hex
+openssl rand -hex 32 > /etc/agentmon/audit-key.hex
+chmod 0400 /etc/agentmon/audit-key.hex
+chown agentmon:agentmon /etc/agentmon/audit-key.hex
 ```
 
 Code reference: `internal/audit/kms/file.go` — `NewFileProvider`.
@@ -193,15 +193,15 @@ Code reference: `internal/audit/kms/file.go` — `NewFileProvider`.
 - For env var mode, the env var is read at startup only. Empty or unset
   yields `ErrKeyNotFound`.
 - Do **not** use file or env for production. The threat model assumes
-  the attacker can read the agentsh working directory; the whole point
+  the attacker can read the agentmon working directory; the whole point
   of the integrity chain is defeated if the key sits next to the log.
 
 #### AWS KMS
 
-Envelope-encryption model: KMS never sees the HMAC plaintext. agentsh
+Envelope-encryption model: KMS never sees the HMAC plaintext. agentmon
 asks KMS to generate a data encryption key (DEK), uses the DEK
 plaintext as the HMAC secret, and caches the KMS-encrypted ciphertext
-to disk. On restart, agentsh decrypts the cached DEK and recovers the
+to disk. On restart, agentmon decrypts the cached DEK and recovers the
 same HMAC key.
 
 ```yaml
@@ -212,12 +212,12 @@ audit:
     aws_kms:
       key_id: arn:aws:kms:us-east-1:123456789012:key/abcd1234-...
       region: us-east-1
-      encrypted_dek_file: /var/lib/agentsh/audit.dek
+      encrypted_dek_file: /var/lib/agentmon/audit.dek
 ```
 
 | Field | Purpose |
 |---|---|
-| `key_id` | ARN or alias (e.g. `alias/agentsh-audit`) of the KMS key. **Required.** |
+| `key_id` | ARN or alias (e.g. `alias/agentmon-audit`) of the KMS key. **Required.** |
 | `region` | AWS region for the KMS client. Defaults to the credential provider chain if empty. |
 | `encrypted_dek_file` | Path to cache the encrypted DEK. **Strongly recommended** — otherwise each restart generates a new DEK and the integrity chain resets. |
 
@@ -240,7 +240,7 @@ startup.
 
 **Credentials.** The AWS SDK default credential chain is used —
 environment variables, `~/.aws/credentials`, IAM role on EC2/ECS/EKS,
-IMDS, etc. agentsh does not ship a `role_arn` field for audit KMS;
+IMDS, etc. agentmon does not ship a `role_arn` field for audit KMS;
 use the standard AWS credential mechanisms.
 
 Code reference: `internal/audit/kms/aws.go` — `NewAWSKMSProvider`.
@@ -251,7 +251,7 @@ Code reference: `internal/audit/kms/aws.go` — `NewAWSKMSProvider`.
   (container restart with ephemeral storage), the new DEK is different
   from the old one and the integrity chain forks. Use persistent
   storage.
-- The `encrypted_dek_file` is written mode 0600. Make sure the agentsh
+- The `encrypted_dek_file` is written mode 0600. Make sure the agentmon
   user owns it.
 - KMS throttling is rare for this use case — `GenerateDataKey` once
   and `Decrypt` once per restart — but set up a CloudWatch alarm on
@@ -260,7 +260,7 @@ Code reference: `internal/audit/kms/aws.go` — `NewAWSKMSProvider`.
 #### Azure Key Vault
 
 Treats Key Vault as a passive secret store: the HMAC key is placed in
-Key Vault as a **secret** (not a key), and agentsh reads it at startup.
+Key Vault as a **secret** (not a key), and agentmon reads it at startup.
 No envelope encryption.
 
 ```yaml
@@ -269,7 +269,7 @@ audit:
     enabled: true
     key_source: azure_keyvault
     azure_keyvault:
-      vault_url: https://agentsh-vault.vault.azure.net
+      vault_url: https://agentmon-vault.vault.azure.net
       key_name: audit-hmac-key
       key_version: ""   # empty = latest version
 ```
@@ -290,12 +290,12 @@ configure a managed identity on the VM/container and grant it
 az role assignment create \
   --role "Key Vault Secrets User" \
   --assignee <managed-identity-principal-id> \
-  --scope /subscriptions/.../providers/Microsoft.KeyVault/vaults/agentsh-vault
+  --scope /subscriptions/.../providers/Microsoft.KeyVault/vaults/agentmon-vault
 ```
 
 **Secret format.** The secret value is either:
 
-- A hex/base64-encoded key (agentsh tries base64 first, falls back to
+- A hex/base64-encoded key (agentmon tries base64 first, falls back to
   raw bytes).
 - A raw string (treated as the literal HMAC key).
 
@@ -303,7 +303,7 @@ Create one with:
 
 ```bash
 openssl rand -base64 32 | az keyvault secret set \
-  --vault-name agentsh-vault \
+  --vault-name agentmon-vault \
   --name audit-hmac-key \
   --file /dev/stdin
 ```
@@ -314,7 +314,7 @@ Code reference: `internal/audit/kms/azure.go` —
 **Caveats:**
 
 - Key Vault firewall rules apply. If your vault is locked down to
-  specific networks/VNets, agentsh must run inside one of them.
+  specific networks/VNets, agentmon must run inside one of them.
 - Rotating the secret in Key Vault has no effect until the daemon
   restarts — the key is cached in memory.
 - The current provider does not support Key Vault **keys** (HSM-backed
@@ -335,8 +335,8 @@ audit:
     hashicorp_vault:
       address:         https://vault.corp.internal:8200
       auth_method:     kubernetes     # token | kubernetes | approle
-      kubernetes_role: agentsh
-      secret_path:     secret/data/agentsh/audit-key
+      kubernetes_role: agentmon
+      secret_path:     secret/data/agentmon/audit-key
       key_field:       key            # default: "key"
 ```
 
@@ -344,7 +344,7 @@ audit:
 |---|---|
 | `address` | Vault server URL. **Required.** |
 | `auth_method` | `token`, `kubernetes`, or `approle`. Defaults to `token`. |
-| `secret_path` | Full Vault path to the secret. **Required.** KV v2 paths like `secret/data/agentsh/audit-key` are auto-detected; KV v1 is a fallback. |
+| `secret_path` | Full Vault path to the secret. **Required.** KV v2 paths like `secret/data/agentmon/audit-key` are auto-detected; KV v1 is a fallback. |
 | `key_field` | Field name inside the KV entry. Defaults to `key`. |
 | `token_file` | (token auth only) File to read the token from. Falls back to `VAULT_TOKEN` env var. |
 | `kubernetes_role` | (kubernetes auth only) Vault role bound to the service account. |
@@ -358,13 +358,13 @@ audit:
   when rotated. Do not use in production.
 
 - **Kubernetes (recommended for k8s deployments).** Bind a Vault role
-  to the agentsh service account. Vault authenticates via the
+  to the agentmon service account. Vault authenticates via the
   in-pod projected service-account JWT. No static secrets anywhere.
   ```
-  vault write auth/kubernetes/role/agentsh \
-      bound_service_account_names=agentsh \
-      bound_service_account_namespaces=agentsh \
-      policies=agentsh-audit \
+  vault write auth/kubernetes/role/agentmon \
+      bound_service_account_names=agentmon \
+      bound_service_account_namespaces=agentmon \
+      policies=agentmon-audit \
       ttl=1h
   ```
 
@@ -376,12 +376,12 @@ audit:
 **Policy required on Vault side:**
 
 ```hcl
-path "secret/data/agentsh/audit-key" {
+path "secret/data/agentmon/audit-key" {
   capabilities = ["read"]
 }
 ```
 
-Add `path "secret/metadata/agentsh/audit-key"` if you plan to use
+Add `path "secret/metadata/agentmon/audit-key"` if you plan to use
 versioned reads later.
 
 Code reference: `internal/audit/kms/vault.go` —
@@ -395,13 +395,13 @@ Code reference: `internal/audit/kms/vault.go` —
   an issue.
 - Vault **namespaces** (Enterprise feature) are not exposed in the
   audit KMS config. If you need namespace support, override via the
-  `VAULT_NAMESPACE` env var before launching agentsh.
-- A sealed Vault returns an error from `GetKey`; agentsh fails to
+  `VAULT_NAMESPACE` env var before launching agentmon.
+- A sealed Vault returns an error from `GetKey`; agentmon fails to
   start until Vault is unsealed.
 
 #### GCP Cloud KMS
 
-Same envelope-encryption model as AWS KMS: agentsh generates a 256-bit
+Same envelope-encryption model as AWS KMS: agentmon generates a 256-bit
 DEK locally, encrypts it with a Cloud KMS crypto key, and caches the
 ciphertext.
 
@@ -411,8 +411,8 @@ audit:
     enabled: true
     key_source: gcp_kms
     gcp_kms:
-      key_name:            projects/my-project/locations/us-central1/keyRings/agentsh/cryptoKeys/audit-hmac
-      encrypted_dek_file:  /var/lib/agentsh/audit.dek
+      key_name:            projects/my-project/locations/us-central1/keyRings/agentmon/cryptoKeys/audit-hmac
+      encrypted_dek_file:  /var/lib/agentmon/audit.dek
 ```
 
 | Field | Purpose |
@@ -431,9 +431,9 @@ service account is picked up automatically.
 
 ```bash
 gcloud kms keys add-iam-policy-binding audit-hmac \
-    --keyring agentsh \
+    --keyring agentmon \
     --location us-central1 \
-    --member serviceAccount:agentsh@my-project.iam.gserviceaccount.com \
+    --member serviceAccount:agentmon@my-project.iam.gserviceaccount.com \
     --role roles/cloudkms.cryptoKeyEncrypterDecrypter
 ```
 
@@ -456,13 +456,13 @@ verified with the new key). The correct rotation procedure is:
 1. Drain the current audit log: flush all buffered events, close the
    current log file, and archive it with its HMAC key ID recorded in
    the archive's sidecar.
-2. Restart agentsh with the new KMS config (or, for envelope
+2. Restart agentmon with the new KMS config (or, for envelope
    providers, delete the old `encrypted_dek_file` so a new DEK is
    generated).
 3. Start fresh chain.
 
 For envelope providers (AWS KMS, GCP KMS), the underlying KMS crypto
-key can be rotated on the KMS side without touching agentsh — the
+key can be rotated on the KMS side without touching agentmon — the
 encrypted DEK keeps working as long as the KMS key alias still
 resolves to a version that can decrypt the existing ciphertext.
 
@@ -477,7 +477,7 @@ resolves to a version that can decrypt the existing ciphertext.
 | `unsupported auth method: ""` (Vault) | `hashicorp_vault.auth_method` not set. Defaults to `token` when empty — check the field name is spelled correctly. |
 | Daemon restarts but audit log verification fails on the first new event | The DEK file was lost or the KMS key was rotated out. See [1.4 Key rotation](#14-key-rotation-runbook). |
 
-If a provider returns `ErrKeyNotFound` at startup, agentsh fails to
+If a provider returns `ErrKeyNotFound` at startup, agentmon fails to
 start — it refuses to run without integrity if integrity is enabled.
 To disable integrity temporarily, set `audit.integrity.enabled: false`.
 
@@ -561,31 +561,31 @@ secrets:
       secret_id: ${VAULT_SECRET_ID}   # read from env at load time, scaffold only
       namespace: ""
       allowed_paths:
-        - "secret/data/agentsh/*"
+        - "secret/data/agentmon/*"
     aws:
       enabled: true
       region: us-east-1
-      role_arn: arn:aws:iam::123456789012:role/agentsh-secrets
+      role_arn: arn:aws:iam::123456789012:role/agentmon-secrets
       allowed_secrets:
-        - "agentsh/*"
+        - "agentmon/*"
     azure:
       enabled: false           # stubbed, no implementation
-      vault_url: https://agentsh-vault.vault.azure.net
+      vault_url: https://agentmon-vault.vault.azure.net
       tenant_id: 00000000-0000-0000-0000-000000000000
       client_id: 00000000-0000-0000-0000-000000000000
       allowed_keys:
-        - "agentsh-*"
+        - "agentmon-*"
 
   allowed_paths:
     - "*"
 
   inject:
     - provider: vault
-      path: secret/data/agentsh/github
+      path: secret/data/agentmon/github
       key: token
       env_var: GITHUB_TOKEN
     - provider: aws
-      path: agentsh/db-password
+      path: agentmon/db-password
       env_var: DB_PASSWORD
 
   require_approval: true
@@ -717,7 +717,7 @@ trust.
 
 The external-secrets design flips the model: the real credential
 **never enters the agent's memory**. The agent only sees a fake with
-the same shape as the real thing. agentsh's embedded proxy intercepts
+the same shape as the real thing. agentmon's embedded proxy intercepts
 the agent's outbound HTTP, rewrites the fake to the real credential
 at the last moment, and forwards the reconstructed request upstream.
 
@@ -730,7 +730,7 @@ Three mechanisms are considered in the spec; only Mechanism A ships
 in v1.
 
 - **A. Explicit local proxy (v1).** The spawned process's environment
-  sends cooperating SDKs to agentsh's local proxy. The proxy
+  sends cooperating SDKs to agentmon's local proxy. The proxy
   terminates HTTP, scans the body and headers for known fake values,
   rewrites them to real credentials, and forwards upstream.
 - **B. Linux TLS uprobes (future).** eBPF uprobes on `SSL_write`,
@@ -888,7 +888,7 @@ thing you can configure today. Runtime secret injection is scaffold
 only; external-secrets is planned.
 
 ```
-Where does agentsh run?
+Where does agentmon run?
 ├── Laptop / CI                     → File / Env (Part 1.3, File/Env)
 ├── Kubernetes cluster
 │   ├── AWS (EKS)                   → AWS KMS       (Part 1.3, AWS KMS)
@@ -922,19 +922,19 @@ model (File/Env), and the operational integration is tighter.
 ### 4.3 Local development (File / Env)
 
 ```bash
-mkdir -p ~/.agentsh
-openssl rand -hex 32 > ~/.agentsh/audit-key.hex
-chmod 0400 ~/.agentsh/audit-key.hex
+mkdir -p ~/.agentmon
+openssl rand -hex 32 > ~/.agentmon/audit-key.hex
+chmod 0400 ~/.agentmon/audit-key.hex
 ```
 
-`~/.agentsh/agentsh.yaml`:
+`~/.diffsec/agentmon.yaml`:
 
 ```yaml
 audit:
   integrity:
     enabled: true
     key_source: file
-    key_file: ~/.agentsh/audit-key.hex
+    key_file: ~/.agentmon/audit-key.hex
 ```
 
 This is the full setup. No cloud, no Vault, no network dependencies.
@@ -951,21 +951,21 @@ vault write auth/kubernetes/config \
     kubernetes_host="https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT"
 
 # Policy
-vault policy write agentsh-audit - <<EOF
-path "secret/data/agentsh/audit-key" {
+vault policy write agentmon-audit - <<EOF
+path "secret/data/agentmon/audit-key" {
   capabilities = ["read"]
 }
 EOF
 
 # Role
-vault write auth/kubernetes/role/agentsh \
-    bound_service_account_names=agentsh \
-    bound_service_account_namespaces=agentsh \
-    policies=agentsh-audit \
+vault write auth/kubernetes/role/agentmon \
+    bound_service_account_names=agentmon \
+    bound_service_account_namespaces=agentmon \
+    policies=agentmon-audit \
     ttl=1h
 
 # Put the key in Vault
-vault kv put secret/agentsh/audit-key key="$(openssl rand -hex 32)"
+vault kv put secret/agentmon/audit-key key="$(openssl rand -hex 32)"
 ```
 
 **Kubernetes side:**
@@ -974,16 +974,16 @@ vault kv put secret/agentsh/audit-key key="$(openssl rand -hex 32)"
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: agentsh
-  namespace: agentsh
+  name: agentmon
+  namespace: agentmon
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: agentsh-config
-  namespace: agentsh
+  name: agentmon-config
+  namespace: agentmon
 data:
-  agentsh.yaml: |
+  agentmon.yaml: |
     audit:
       integrity:
         enabled: true
@@ -991,32 +991,32 @@ data:
         hashicorp_vault:
           address: https://vault.corp.internal:8200
           auth_method: kubernetes
-          kubernetes_role: agentsh
-          secret_path: secret/data/agentsh/audit-key
+          kubernetes_role: agentmon
+          secret_path: secret/data/agentmon/audit-key
           key_field: key
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: agentsh
-  namespace: agentsh
+  name: agentmon
+  namespace: agentmon
 spec:
   template:
     spec:
-      serviceAccountName: agentsh
+      serviceAccountName: agentmon
       containers:
-      - name: agentsh
-        image: agentsh:latest
+      - name: agentmon
+        image: agentmon:latest
         volumeMounts:
         - name: config
-          mountPath: /etc/agentsh
+          mountPath: /etc/agentmon
       volumes:
       - name: config
         configMap:
-          name: agentsh-config
+          name: agentmon-config
 ```
 
-No static tokens, no secrets in the manifest. agentsh authenticates to
+No static tokens, no secrets in the manifest. agentmon authenticates to
 Vault using the projected service account JWT at startup.
 
 ### 4.5 AWS-native deployment
@@ -1025,14 +1025,14 @@ Vault using the projected service account JWT at startup.
 
 ```bash
 aws kms create-key \
-    --description "agentsh audit integrity HMAC" \
+    --description "agentmon audit integrity HMAC" \
     --key-usage ENCRYPT_DECRYPT
 aws kms create-alias \
-    --alias-name alias/agentsh-audit \
+    --alias-name alias/agentmon-audit \
     --target-key-id <key-id-from-above>
 ```
 
-**IAM role (attached to the agentsh EC2 instance / ECS task / EKS SA):**
+**IAM role (attached to the agentmon EC2 instance / ECS task / EKS SA):**
 
 ```json
 {
@@ -1045,7 +1045,7 @@ aws kms create-alias \
 }
 ```
 
-**agentsh config:**
+**agentmon config:**
 
 ```yaml
 audit:
@@ -1053,29 +1053,29 @@ audit:
     enabled: true
     key_source: aws_kms
     aws_kms:
-      key_id: alias/agentsh-audit
+      key_id: alias/agentmon-audit
       region: us-east-1
-      encrypted_dek_file: /var/lib/agentsh/audit.dek
+      encrypted_dek_file: /var/lib/agentmon/audit.dek
 ```
 
-`/var/lib/agentsh` must be on persistent storage. On ECS/EKS, mount an
+`/var/lib/agentmon` must be on persistent storage. On ECS/EKS, mount an
 EBS volume. On plain EC2, use the local disk with a backup policy.
 
 ### 4.6 Security considerations
 
 - **Key material in memory.** Once loaded, every KMS provider keeps
-  the HMAC key in plaintext in the agentsh daemon's address space.
+  the HMAC key in plaintext in the agentmon daemon's address space.
   Local root attackers can read it. This is considered out-of-scope
   for the current threat model (see the external-secrets design).
 - **DEK caching.** The AWS/GCP envelope providers cache the encrypted
   DEK on disk at `encrypted_dek_file`. The file is mode 0600 and
-  owned by the agentsh user. It must be on **persistent** storage —
+  owned by the agentmon user. It must be on **persistent** storage —
   losing it breaks the integrity chain.
 - **Network exposure.** Every KMS provider makes outbound HTTPS calls
-  at startup. If agentsh runs in a restricted network, allowlist the
+  at startup. If agentmon runs in a restricted network, allowlist the
   KMS endpoints. AWS/GCP/Azure publish IP ranges; Vault is your own
   infrastructure.
-- **Sealed Vault.** If HashiCorp Vault is sealed at agentsh startup,
+- **Sealed Vault.** If HashiCorp Vault is sealed at agentmon startup,
   the daemon fails to start. This is deliberate — running without
   integrity protection is worse than being down.
 - **Rotation.** See [1.4](#14-key-rotation-runbook). The integrity
@@ -1096,7 +1096,7 @@ daemon from starting, which your orchestrator's liveness check will
 catch naturally.
 
 For HashiCorp Vault deployments, monitor the Vault sidecar or the
-`sys/health` endpoint independently — agentsh does not poll Vault
+`sys/health` endpoint independently — agentmon does not poll Vault
 after the initial key fetch.
 
 The `pkg/secrets/` scaffold does expose an `IsHealthy(ctx) bool`

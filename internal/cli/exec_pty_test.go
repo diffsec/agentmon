@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/agentsh/agentsh/pkg/ptygrpc"
+	"github.com/diffsec/agentmon/pkg/ptygrpc"
 )
 
 func TestExecPTYFlag_SelectsPTYPath(t *testing.T) {
@@ -192,7 +192,7 @@ func TestExecPTYWS_PolicyDenied_DefaultsToExit126(t *testing.T) {
 }
 
 func TestExecPTYWS_PolicyDenied_ModeErrorPreservesError(t *testing.T) {
-	t.Setenv("AGENTSH_PTY_DENY_MODE", "error")
+	t.Setenv("AGENTMON_PTY_DENY_MODE", "error")
 
 	srv := newHTTPTestServerOrSkip(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		up := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
@@ -227,19 +227,19 @@ func TestExecPTYWS_PolicyDenied_ModeErrorPreservesError(t *testing.T) {
 }
 
 type denyPTYServer struct {
-	ptygrpc.UnimplementedAgentshPTYServer
+	ptygrpc.UnimplementedAgentmonPTYServer
 }
 
-func (s *denyPTYServer) ExecPTY(stream ptygrpc.AgentshPTY_ExecPTYServer) error {
+func (s *denyPTYServer) ExecPTY(stream ptygrpc.AgentmonPTY_ExecPTYServer) error {
 	_, _ = stream.Recv()
 	return status.Error(codes.PermissionDenied, "command denied by policy")
 }
 
 type denyPTYServerImmediate struct {
-	ptygrpc.UnimplementedAgentshPTYServer
+	ptygrpc.UnimplementedAgentmonPTYServer
 }
 
-func (s *denyPTYServerImmediate) ExecPTY(stream ptygrpc.AgentshPTY_ExecPTYServer) error {
+func (s *denyPTYServerImmediate) ExecPTY(stream ptygrpc.AgentmonPTY_ExecPTYServer) error {
 	return status.Error(codes.PermissionDenied, "command denied by policy")
 }
 
@@ -255,7 +255,7 @@ func TestExecPTYGRPC_PolicyDenied_DefaultsToExit126(t *testing.T) {
 
 	g := grpc.NewServer()
 	t.Cleanup(g.Stop)
-	ptygrpc.RegisterAgentshPTYServer(g, &denyPTYServer{})
+	ptygrpc.RegisterAgentmonPTYServer(g, &denyPTYServer{})
 	go func() { _ = g.Serve(ln) }()
 
 	cfg := &clientConfig{grpcAddr: ln.Addr().String(), transport: "grpc"}
@@ -293,7 +293,7 @@ func TestExecPTYGRPC_PolicyDeniedOnStart_DefaultsToExit126(t *testing.T) {
 
 	g := grpc.NewServer()
 	t.Cleanup(g.Stop)
-	ptygrpc.RegisterAgentshPTYServer(g, &denyPTYServerImmediate{})
+	ptygrpc.RegisterAgentmonPTYServer(g, &denyPTYServerImmediate{})
 	go func() { _ = g.Serve(ln) }()
 
 	cfg := &clientConfig{grpcAddr: ln.Addr().String(), transport: "grpc"}

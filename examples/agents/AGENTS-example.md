@@ -1,13 +1,13 @@
-# Command Execution via agentsh
+# Command Execution via agentmon
 
-**All shell commands in this project MUST be executed through agentsh.**
+**All shell commands in this project MUST be executed through agentmon.**
 
-When using the Bash tool, wrap every command with `agentsh exec`:
+When using the Bash tool, wrap every command with `agentmon exec`:
 
 ## Required Syntax
 
 ```bash
-agentsh exec SESSION_ID -- COMMAND [ARGS...]
+agentmon exec SESSION_ID -- COMMAND [ARGS...]
 ```
 
 The `--` separator is **required** between the session ID and the command.
@@ -23,19 +23,19 @@ go build ./...
 
 Use:
 ```bash
-agentsh exec my-session -- ls -la
-agentsh exec my-session -- npm install
-agentsh exec my-session -- go build ./...
+agentmon exec my-session -- ls -la
+agentmon exec my-session -- npm install
+agentmon exec my-session -- go build ./...
 ```
 
 ## Using Environment Variables (Recommended)
 
-When `AGENTSH_SESSION_ID` is set, pass all command arguments after `exec`:
+When `AGENTMON_SESSION_ID` is set, pass all command arguments after `exec`:
 
 ```bash
-export AGENTSH_SESSION_ID=my-session
-agentsh exec -- ls -la
-agentsh exec -- npm install
+export AGENTMON_SESSION_ID=my-session
+agentmon exec -- ls -la
+agentmon exec -- npm install
 ```
 
 ## Auto-Creating Sessions
@@ -43,14 +43,14 @@ agentsh exec -- npm install
 Use `--root` to auto-create a session if it doesn't exist:
 
 ```bash
-agentsh exec my-session --root /path/to/workspace -- ls -la
+agentmon exec my-session --root /path/to/workspace -- ls -la
 ```
 
 Or set the environment variable:
 
 ```bash
-export AGENTSH_SESSION_ROOT=/path/to/workspace
-agentsh exec my-session -- ls -la
+export AGENTMON_SESSION_ROOT=/path/to/workspace
+agentmon exec my-session -- ls -la
 ```
 
 ## Common Flags
@@ -66,6 +66,6 @@ agentsh exec my-session -- ls -la
 
 | Variable               | Description                                      |
 |------------------------|--------------------------------------------------|
-| `AGENTSH_SESSION_ID`   | Default session ID (avoids passing as argument)  |
-| `AGENTSH_SESSION_ROOT` | Root directory for auto-creating sessions        |
-| `AGENTSH_SERVER`       | Server URL (default: `http://127.0.0.1:18080`)    |
+| `AGENTMON_SESSION_ID`   | Default session ID (avoids passing as argument)  |
+| `AGENTMON_SESSION_ROOT` | Root directory for auto-creating sessions        |
+| `AGENTMON_SERVER`       | Server URL (default: `http://127.0.0.1:18080`)    |

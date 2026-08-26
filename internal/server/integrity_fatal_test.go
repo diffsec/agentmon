@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/store/jsonl"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/store/jsonl"
 )
 
 func testServerConfig(t *testing.T) *config.Config {

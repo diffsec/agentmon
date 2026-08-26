@@ -916,12 +916,12 @@ func TestValidateHTTPServices(t *testing.T) {
 			wantErr: "reserved env var name",
 		},
 		{
-			name: "reserved AGENTSH_SESSION_ID rejected",
+			name: "reserved AGENTMON_SESSION_ID rejected",
 			svcs: []HTTPService{
 				{
 					Name:     "svc",
 					Upstream: "https://api.example.com",
-					ExposeAs: "AGENTSH_SESSION_ID",
+					ExposeAs: "AGENTMON_SESSION_ID",
 					Rules:    []HTTPServiceRule{validRule},
 				},
 			},
@@ -1346,7 +1346,7 @@ func TestValidateHTTPServices_SecretOnly(t *testing.T) {
 		Name:     "github",
 		Upstream: "https://api.github.com",
 		Secret: &HTTPServiceSecret{
-			Ref:    "keyring://agentsh/github-token",
+			Ref:    "keyring://agentmon/github-token",
 			Format: "ghp_{rand:36}",
 		},
 		Inject: &HTTPServiceInject{
@@ -1401,7 +1401,7 @@ func TestValidateHTTPServices_MultipleServicesMultipleProviders(t *testing.T) {
 			Name:     "stripe",
 			Upstream: "https://api.stripe.com",
 			Secret: &HTTPServiceSecret{
-				Ref:    "keyring://agentsh/stripe-key",
+				Ref:    "keyring://agentmon/stripe-key",
 				Format: "sk_live_{rand:24}",
 			},
 			Inject: &HTTPServiceInject{
@@ -1553,7 +1553,7 @@ func TestValidateHTTPServices_InvalidFakeFormat(t *testing.T) {
 		Name:     "github",
 		Upstream: "https://api.github.com",
 		Secret: &HTTPServiceSecret{
-			Ref:    "keyring://agentsh/github-token",
+			Ref:    "keyring://agentmon/github-token",
 			Format: "short{rand:5}",
 		},
 		Inject: &HTTPServiceInject{
@@ -1580,7 +1580,7 @@ func TestValidateHTTPServices_MissingSecretPlaceholder(t *testing.T) {
 		Name:     "github",
 		Upstream: "https://api.github.com",
 		Secret: &HTTPServiceSecret{
-			Ref:    "keyring://agentsh/github-token",
+			Ref:    "keyring://agentmon/github-token",
 			Format: "ghp_{rand:36}",
 		},
 		Inject: &HTTPServiceInject{
@@ -1607,7 +1607,7 @@ func TestValidateHTTPServices_InjectNoHeader_Rejected(t *testing.T) {
 		Name:     "github",
 		Upstream: "https://api.github.com",
 		Secret: &HTTPServiceSecret{
-			Ref:    "keyring://agentsh/github-token",
+			Ref:    "keyring://agentmon/github-token",
 			Format: "ghp_{rand:36}",
 		},
 		Inject: &HTTPServiceInject{},
@@ -1629,7 +1629,7 @@ func TestValidateHTTPServices_InjectHeaderNameEmpty_Rejected(t *testing.T) {
 		Name:     "github",
 		Upstream: "https://api.github.com",
 		Secret: &HTTPServiceSecret{
-			Ref:    "keyring://agentsh/github-token",
+			Ref:    "keyring://agentmon/github-token",
 			Format: "ghp_{rand:36}",
 		},
 		Inject: &HTTPServiceInject{
@@ -1686,7 +1686,7 @@ services:
     match:
       hosts: ["api.github.com"]
     secret:
-      ref: keyring://agentsh/github_token
+      ref: keyring://agentmon/github_token
 `
 	var p Policy
 	if err := yaml.Unmarshal([]byte(input), &p); err != nil {

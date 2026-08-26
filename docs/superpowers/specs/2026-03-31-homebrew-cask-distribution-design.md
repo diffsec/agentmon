@@ -1,12 +1,12 @@
-# Homebrew Cask Distribution for macOS AgentSH
+# Homebrew Cask Distribution for macOS AgentMon
 
 ## Summary
 
-Distribute the signed, notarized `AgentSH.app` via Homebrew Cask so users can install with `brew tap canyonroad/tap && brew install --cask agentsh`. The release pipeline auto-generates and pushes the cask formula on each stable release.
+Distribute the signed, notarized `AgentMon.app` via Homebrew Cask so users can install with `brew tap canyonroad/tap && brew install --cask agentmon`. The release pipeline auto-generates and pushes the cask formula on each stable release.
 
 ## Motivation
 
-The macOS build produces a signed, notarized DMG containing `AgentSH.app` with its system extension, XPC service, and approval dialog. Without the full app bundle, the ESF file/process interception and network filtering don't work. Homebrew Cask is the standard macOS mechanism for distributing `.app` bundles, and users expect `brew install` to work.
+The macOS build produces a signed, notarized DMG containing `AgentMon.app` with its system extension, XPC service, and approval dialog. Without the full app bundle, the ESF file/process interception and network filtering don't work. Homebrew Cask is the standard macOS mechanism for distributing `.app` bundles, and users expect `brew install` to work.
 
 ## Design
 
@@ -17,7 +17,7 @@ Create `canyonroad/homebrew-tap` on GitHub with this structure:
 ```
 homebrew-tap/
   Casks/
-    agentsh.rb        # Auto-generated on each stable release
+    agentmon.rb        # Auto-generated on each stable release
   README.md
 ```
 
@@ -25,41 +25,41 @@ Users install with:
 
 ```bash
 brew tap canyonroad/tap
-brew install --cask agentsh
+brew install --cask agentmon
 ```
 
 ### Cask Formula
 
-The cask formula installs `AgentSH.app` from the release DMG:
+The cask formula installs `AgentMon.app` from the release DMG:
 
 ```ruby
-cask "agentsh" do
+cask "agentmon" do
   version "0.16.11"
   sha256 "abc123..."
 
-  url "https://github.com/canyonroad/agentsh/releases/download/v#{version}/AgentSH-v#{version}.dmg"
-  name "AgentSH"
+  url "https://github.com/diffsec/agentmon/releases/download/v#{version}/AgentMon-v#{version}.dmg"
+  name "AgentMon"
   desc "Secure sandboxed shell for AI agents"
-  homepage "https://github.com/canyonroad/agentsh"
+  homepage "https://github.com/diffsec/agentmon"
 
   depends_on macos: ">= :sonoma"
 
-  app "AgentSH.app"
+  app "AgentMon.app"
 
-  uninstall quit:      "ai.canyonroad.agentsh",
-            signal:    ["TERM", "agentsh"],
-            launchctl: "ai.canyonroad.agentsh.daemon"
+  uninstall quit:      "dev.diffsec.agentmon",
+            signal:    ["TERM", "agentmon"],
+            launchctl: "dev.diffsec.agentmon.daemon"
 
   zap trash: [
-    "~/Library/Application Support/agentsh",
-    "~/Library/Preferences/ai.canyonroad.agentsh.plist",
-    "~/Library/Caches/ai.canyonroad.agentsh",
-    "~/Library/LaunchAgents/ai.canyonroad.agentsh.daemon.plist",
+    "~/Library/Application Support/agentmon",
+    "~/Library/Preferences/dev.diffsec.agentmon.plist",
+    "~/Library/Caches/dev.diffsec.agentmon",
+    "~/Library/LaunchAgents/dev.diffsec.agentmon.daemon.plist",
   ]
 
   caveats <<~EOS
-    After installation, open AgentSH.app to activate the system extension:
-      open /Applications/AgentSH.app
+    After installation, open AgentMon.app to activate the system extension:
+      open /Applications/AgentMon.app
     You will be prompted in System Settings to approve the extension.
   EOS
 end
@@ -68,19 +68,19 @@ end
 Key decisions:
 - `depends_on macos: ">= :sonoma"` matches the deployment target (macOS 14.0)
 - Uses `caveats` instead of `postflight` to guide the user through system extension approval (compatible with official homebrew-cask submission)
-- `uninstall` quits the app, signals the `agentsh` server process, and unloads the launchd daemon
+- `uninstall` quits the app, signals the `agentmon` server process, and unloads the launchd daemon
 - `zap` cleans up preferences, caches, application support data, and the launchd plist
 
 ### Cask Template
 
-A template file lives in the main agentsh repo at `scripts/homebrew-cask.rb.tmpl`. The release pipeline substitutes `__VERSION__` and `__SHA256__` placeholders:
+A template file lives in the main agentmon repo at `scripts/homebrew-cask.rb.tmpl`. The release pipeline substitutes `__VERSION__` and `__SHA256__` placeholders:
 
 ```ruby
-cask "agentsh" do
+cask "agentmon" do
   version "__VERSION__"
   sha256 "__SHA256__"
 
-  url "https://github.com/canyonroad/agentsh/releases/download/v#{version}/AgentSH-v#{version}.dmg"
+  url "https://github.com/diffsec/agentmon/releases/download/v#{version}/AgentMon-v#{version}.dmg"
   # ... rest of formula
 end
 ```
@@ -105,10 +105,10 @@ publish-homebrew-cask:
         VERSION: ${{ github.ref_name }}
       run: |
         gh release download "$VERSION" \
-          --pattern "AgentSH-*.dmg" \
+          --pattern "AgentMon-*.dmg" \
           --repo "${{ github.repository }}" \
           --dir .
-        DMG_FILE=$(ls AgentSH-*.dmg)
+        DMG_FILE=$(ls AgentMon-*.dmg)
         if [ "$(echo "$DMG_FILE" | wc -l)" -ne 1 ]; then
           echo "::error::Expected exactly one DMG file, found: $DMG_FILE"
           exit 1
@@ -121,7 +121,7 @@ publish-homebrew-cask:
       run: |
         sed -e "s/__VERSION__/$CLEAN_VERSION/g" \
             -e "s/__SHA256__/$SHA256/g" \
-            scripts/homebrew-cask.rb.tmpl > agentsh.rb
+            scripts/homebrew-cask.rb.tmpl > agentmon.rb
 
     - name: Push to homebrew-tap
       env:
@@ -129,12 +129,12 @@ publish-homebrew-cask:
       run: |
         git clone "https://x-access-token:${TAP_TOKEN}@github.com/canyonroad/homebrew-tap.git" tap
         mkdir -p tap/Casks
-        cp agentsh.rb tap/Casks/agentsh.rb
+        cp agentmon.rb tap/Casks/agentmon.rb
         cd tap
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add Casks/agentsh.rb
-        git diff --cached --quiet || git commit -m "Update agentsh cask to ${CLEAN_VERSION}"
+        git add Casks/agentmon.rb
+        git diff --cached --quiet || git commit -m "Update agentmon cask to ${CLEAN_VERSION}"
         git push
 ```
 
@@ -169,5 +169,5 @@ When ready to submit officially, the formula can be adapted with minimal changes
 ## Out of Scope
 
 - Linux/Windows Homebrew (Linuxbrew) — not applicable for the `.app` bundle
-- Auto-update mechanism within the app — Homebrew handles upgrades via `brew upgrade --cask agentsh`
+- Auto-update mechanism within the app — Homebrew handles upgrades via `brew upgrade --cask agentmon`
 - CLI-only formula for non-macOS platforms — could be added later as a separate Formula

@@ -7,10 +7,10 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/capabilities"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // TestSetupSeccompWrapper_LandlockNetwork_HonorsConfig verifies that the
@@ -69,9 +69,9 @@ func TestSetupSeccompWrapper_LandlockNetwork_HonorsConfig(t *testing.T) {
 				}
 			}()
 
-			seccompJSON, ok := result.wrappedReq.Env["AGENTSH_SECCOMP_CONFIG"]
+			seccompJSON, ok := result.wrappedReq.Env["AGENTMON_SECCOMP_CONFIG"]
 			if !ok {
-				t.Fatal("AGENTSH_SECCOMP_CONFIG env var not set")
+				t.Fatal("AGENTMON_SECCOMP_CONFIG env var not set")
 			}
 
 			var parsed map[string]any

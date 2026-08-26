@@ -66,7 +66,7 @@ func (t *LinuxProcessTracker) setupCgroup(pid int) (string, error) {
 	}
 
 	basePath := filepath.Join("/sys/fs/cgroup", strings.TrimPrefix(parts[2], "/"))
-	cgroupPath := filepath.Join(basePath, fmt.Sprintf("agentsh-session-%d", pid))
+	cgroupPath := filepath.Join(basePath, fmt.Sprintf("agentmon-session-%d", pid))
 
 	// Create cgroup directory
 	if err := os.MkdirAll(cgroupPath, 0o755); err != nil {

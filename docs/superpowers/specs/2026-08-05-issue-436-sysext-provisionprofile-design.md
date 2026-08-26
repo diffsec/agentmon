@@ -1,7 +1,7 @@
 # Issue #436: Embed SysExt provisioning profile; verify profiles at release
 
 **Date:** 2026-08-05
-**Issue:** [#436](https://github.com/canyonroad/agentsh/issues/436) — macOS
+**Issue:** [#436](https://github.com/diffsec/agentmon/issues/436) — macOS
 system extension ships without `embedded.provisionprofile`; AMFI blocks it,
 ESF/NE never start
 **Approach:** Embed the existing distribution profile in the release
@@ -10,7 +10,7 @@ workflow so this class of failure can never ship silently again.
 
 ## Problem
 
-The `.systemextension` bundle inside `AgentSH.app` is signed with the
+The `.systemextension` bundle inside `AgentMon.app` is signed with the
 restricted `com.apple.developer.endpoint-security.client` entitlement, but
 the release pipeline never copies a provisioning profile into it. Restricted
 entitlements require an embedded profile that grants them; without one, AMFI
@@ -22,13 +22,13 @@ shipped in every release from at least v0.17.0 through v0.20.5.
 
 The gap is visible in `.github/workflows/release.yml`: the "Assemble app
 bundle" step embeds the app's profile
-(`macos/AgentSH/AgentSH_Distribution.provisionprofile` →
+(`macos/AgentMon/AgentMon_Distribution.provisionprofile` →
 `Contents/embedded.provisionprofile`) but nothing embeds
-`macos/AgentSH/AgentSH_SysExt_Distribution.provisionprofile` into the sysext
+`macos/AgentMon/AgentMon_SysExt_Distribution.provisionprofile` into the sysext
 bundle before the inside-out signing step.
 
 The repo's SysExt profile is valid for the fix (verified by decoding it):
-application identifier `WCKWMMKJ35.ai.canyonroad.agentsh.SysExt`, grants
+application identifier `LWSYS6YTUZ.dev.diffsec.agentmon.SysExt`, grants
 `com.apple.developer.endpoint-security.client`, `ProvisionsAllDevices: true`
 (Developer ID distribution), expires 2044.
 
@@ -38,7 +38,7 @@ application identifier `WCKWMMKJ35.ai.canyonroad.agentsh.SysExt`, grants
 |---|---|
 | Fix | Copy the SysExt profile into the sysext bundle during assembly, before signing |
 | Guardrail | New `scripts/verify-macos-bundle.sh`, run as a release step after signing; failure fails the release |
-| `agentsh detect` false `esf ✓` | Out of scope — separate issue (detection trusts `systemextensionsctl list`, never checks the process runs) |
+| `agentmon detect` false `esf ✓` | Out of scope — separate issue (detection trusts `systemextensionsctl list`, never checks the process runs) |
 | `staple-macos.yml` | Unchanged; the script is manually runnable there if ever needed |
 
 ## Design
@@ -49,8 +49,8 @@ In the "Assemble app bundle" step, immediately after the existing app-profile
 copy, add:
 
 ```
-cp macos/AgentSH/AgentSH_SysExt_Distribution.provisionprofile \
-  "build/AgentSH.app/Contents/Library/SystemExtensions/ai.canyonroad.agentsh.SysExt.systemextension/Contents/embedded.provisionprofile"
+cp macos/AgentMon/AgentMon_SysExt_Distribution.provisionprofile \
+  "build/AgentMon.app/Contents/Library/SystemExtensions/dev.diffsec.agentmon.SysExt.systemextension/Contents/embedded.provisionprofile"
 ```
 
 Assembly runs before the "Sign app bundle (inside-out)" step, so the sysext
@@ -63,15 +63,15 @@ Standalone bash, macOS-native tools only (`security`, `codesign`, `plutil`,
 `date`). Usage:
 
 ```
-scripts/verify-macos-bundle.sh <path-to-AgentSH.app>
+scripts/verify-macos-bundle.sh <path-to-AgentMon.app>
 ```
 
-Runnable against a CI build (`build/AgentSH.app`), an installed
-`/Applications/AgentSH.app`, or a mounted DMG — the same tool serves release
+Runnable against a CI build (`build/AgentMon.app`), an installed
+`/Applications/AgentMon.app`, or a mounted DMG — the same tool serves release
 gating and field triage of user reports.
 
 It checks two profile-bearing bundles: the app itself and
-`Contents/Library/SystemExtensions/ai.canyonroad.agentsh.SysExt.systemextension`.
+`Contents/Library/SystemExtensions/dev.diffsec.agentmon.SysExt.systemextension`.
 Per bundle:
 
 1. **Profile present:** `Contents/embedded.provisionprofile` exists and
@@ -141,7 +141,7 @@ New release.yml step **"Verify provisioning profiles"** between "Sign app
 bundle (inside-out)" and "Notarize app bundle":
 
 ```
-scripts/verify-macos-bundle.sh build/AgentSH.app
+scripts/verify-macos-bundle.sh build/AgentMon.app
 ```
 
 A failure fails the job before notarization — no Apple round-trip wasted on
@@ -165,7 +165,7 @@ acceptance.
 
 ### Non-goals
 
-- Fixing `agentsh detect`'s false `esf ✓` (trusts `systemextensionsctl
+- Fixing `agentmon detect`'s false `esf ✓` (trusts `systemextensionsctl
   list`, never verifies the extension process runs) — real, but a separate
   issue against `internal/capabilities/detect_darwin.go`.
 - Verifying notarization/stapling state — `stapler validate` already exists
@@ -178,7 +178,7 @@ acceptance.
 ## Testing
 
 1. **Detector validates against the real bug:** run the script against an
-   installed v0.20.5 `/Applications/AgentSH.app` — must fail with the
+   installed v0.20.5 `/Applications/AgentMon.app` — must fail with the
    sysext missing-profile error (and the entitlement cross-check must flag
    `endpoint-security.client` as claimed-but-not-granted). *Executed as: no
    v0.20.5 install existed on the dev machine, so this was substituted with
@@ -197,6 +197,6 @@ acceptance.
 | Acceptance criterion | How satisfied |
 |---|---|
 | Sysext bundle in the shipped DMG contains `embedded.provisionprofile` granting the ES entitlement | Assembly-step copy, sealed by the existing signing step; verify step gates the release |
-| On an affected machine after upgrade, the extension actually runs | AMFI accepts the profiled binary: `launchctl print system/WCKWMMKJ35.ai.canyonroad.agentsh.SysExt` shows the service running, not `spawn scheduled` / `OS_REASON_EXEC` |
+| On an affected machine after upgrade, the extension actually runs | AMFI accepts the profiled binary: `launchctl print system/LWSYS6YTUZ.dev.diffsec.agentmon.SysExt` shows the service running, not `spawn scheduled` / `OS_REASON_EXEC` |
 | Nested execs are policed again; `sh -c` no longer hits `shellc-opaque-script` pre-deny | ESF exec interception active once the extension runs |
 | Regression cannot ship silently | "Verify provisioning profiles" release step fails the job on any missing/mismatched profile |

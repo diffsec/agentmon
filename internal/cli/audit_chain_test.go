@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	auditstore "github.com/agentsh/agentsh/internal/store"
-	"github.com/agentsh/agentsh/internal/store/jsonl"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	auditstore "github.com/diffsec/agentmon/internal/store"
+	"github.com/diffsec/agentmon/internal/store/jsonl"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestAuditChainStatusCmd_ReadsSidecar(t *testing.T) {
@@ -58,7 +58,7 @@ func TestAuditChainResetCmd_RejectsUnknownReasonCode(t *testing.T) {
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	cmd := newAuditChainResetCmd()
 	cmd.SetArgs([]string{"--config", cfgPath, "--reason", "manual", "--reason-code", "bogus", "--force"})
@@ -90,7 +90,7 @@ func TestAuditChainResetCmd_RequiresLegacyArchiveForKeyRotated(t *testing.T) {
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
 	if err != nil {
@@ -120,7 +120,7 @@ func TestAuditChainResetCmd_RequiresLegacyArchiveWhenCurrentAlgorithmCannotVerif
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfigWithAlgorithm(t, cfgPath, logPath, "hmac-sha512")
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
 	if err != nil {
@@ -150,7 +150,7 @@ func TestAuditChainResetCmd_RequiresLegacyArchiveWhenBackupContainsFutureFormat(
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	backup := mustWrapFutureFormatVerifyEntry(t, testAuditKey, `{"type":"future_backup"}`)
 	if err := os.WriteFile(logPath+".1", append(backup, '\n'), 0o600); err != nil {
@@ -185,7 +185,7 @@ func TestAuditChainResetCmd_RequiresLegacyArchiveWhenBackupUsesDifferentAlgorith
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	backupChain, err := audit.NewIntegrityChainWithAlgorithm(testAuditKey, "hmac-sha512")
 	if err != nil {
@@ -227,7 +227,7 @@ func TestAuditChainResetCmd_AllowsInPlaceResetAcrossMultipleBackups(t *testing.T
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
 	if err != nil {
@@ -268,7 +268,7 @@ func TestAuditChainResetCmd_UsesNewestBackupWhenActiveFileEmpty(t *testing.T) {
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
 	if err != nil {
@@ -324,7 +324,7 @@ func TestAuditChainResetCmd_CreatesFreshLogWhenAuditDirMissing(t *testing.T) {
 	logPath := filepath.Join(dir, "missing", "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	cmd := newAuditChainResetCmd()
 	cmd.SetArgs([]string{"--config", cfgPath, "--reason", "manual", "--force"})
@@ -346,7 +346,7 @@ func TestAuditChainResetCmd_LegacyArchiveRenamesLog(t *testing.T) {
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	if err := os.WriteFile(logPath, []byte(`{"type":"legacy"}`+"\n"), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", logPath, err)
@@ -372,7 +372,7 @@ func TestAuditChainResetCmd_LegacyArchiveMovesEntireRotationSet(t *testing.T) {
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	if err := os.WriteFile(logPath, []byte(`{"type":"current"}`+"\n"), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", logPath, err)
@@ -404,7 +404,7 @@ func TestAuditChainResetCmd_LegacyArchiveMovesNonPositiveNumericSiblings(t *test
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	if err := os.WriteFile(logPath, []byte(`{"type":"current"}`+"\n"), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", logPath, err)
@@ -439,7 +439,7 @@ func TestAuditChainResetCmd_LegacyArchiveResultVerifiesAndReopens(t *testing.T) 
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
 	if err != nil {
@@ -531,7 +531,7 @@ func TestAuditChainResetCmd_AppendsPriorChainSummary(t *testing.T) {
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
 	if err != nil {
@@ -585,7 +585,7 @@ func TestAuditChainResetCmd_FailsWhenAuditWriterLockHeld(t *testing.T) {
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	store, err := jsonl.New(logPath, 100, 3)
 	if err != nil {
@@ -613,7 +613,7 @@ func TestAuditChainResetCmd_SucceedsAfterAuditWriterCloses(t *testing.T) {
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	store, err := jsonl.New(logPath, 100, 3)
 	if err != nil {
@@ -653,7 +653,7 @@ func TestAuditChainResetCmd_RequiresLegacyArchiveWhenPriorSummaryUnavailable(t *
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	if err := os.WriteFile(logPath, []byte(`{"type":"current"}`+"\n"), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", logPath, err)
@@ -678,7 +678,7 @@ func TestAuditChainResetCmd_RejectsIncompleteRotationSetEvenWhenCurrentSummaryRe
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	chain, err := audit.NewIntegrityChain(testAuditKey)
 	if err != nil {
@@ -711,7 +711,7 @@ func TestAuditChainResetCmd_LegacyArchiveAllowsResetWhenPriorSummaryUnavailable(
 	logPath := filepath.Join(dir, "audit.jsonl")
 	cfgPath := filepath.Join(dir, "config.yaml")
 	writeAuditVerifyConfig(t, cfgPath, logPath)
-	t.Setenv("AGENTSH_AUDIT_TEST_KEY", string(testAuditKey))
+	t.Setenv("AGENTMON_AUDIT_TEST_KEY", string(testAuditKey))
 
 	if err := os.WriteFile(logPath, []byte(`{"type":"current"}`+"\n"), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", logPath, err)

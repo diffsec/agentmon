@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -36,17 +36,17 @@ func newExecCmd() *cobra.Command {
 		Short: "Execute a command in a session",
 		Long: `Execute a command in a session.
 
-Session ID can be provided as argument or via AGENTSH_SESSION_ID env var.
-Root directory for auto-creating sessions uses --root flag or AGENTSH_SESSION_ROOT env var.
+Session ID can be provided as argument or via AGENTMON_SESSION_ID env var.
+Root directory for auto-creating sessions uses --root flag or AGENTMON_SESSION_ROOT env var.
 
 Every command passes through a policy pre-check. If you see
 "blocked by policy (rule=default-deny-commands)", no rule in your policy
 matched the binary — see docs/cookbook/command-policies.md for how to allow
-it, or how to launch a long-lived agent under "agentsh wrap" instead.`,
+it, or how to launch a long-lived agent under "agentmon wrap" instead.`,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Get session ID from env var if not in args
-			envSessionID := strings.TrimSpace(os.Getenv("AGENTSH_SESSION_ID"))
+			envSessionID := strings.TrimSpace(os.Getenv("AGENTMON_SESSION_ID"))
 			sessionID, req, err := parseExecInputWithEnv(args, jsonStr, timeout, stream, envSessionID)
 			if err != nil {
 				return err
@@ -83,7 +83,7 @@ it, or how to launch a long-lived agent under "agentsh wrap" instead.`,
 			// Resolve root for auto-create: use --root if provided, else env var, else $PWD
 			autoCreateRoot := strings.TrimSpace(root)
 			if autoCreateRoot == "" {
-				autoCreateRoot = strings.TrimSpace(os.Getenv("AGENTSH_SESSION_ROOT"))
+				autoCreateRoot = strings.TrimSpace(os.Getenv("AGENTMON_SESSION_ROOT"))
 			}
 			if autoCreateRoot == "" {
 				autoCreateRoot, _ = os.Getwd()
@@ -210,8 +210,8 @@ it, or how to launch a long-lived agent under "agentsh wrap" instead.`,
 	c.Flags().BoolVar(&stream, "stream", false, "Stream output (requires server support)")
 	c.Flags().BoolVar(&pty, "pty", false, "Execute in an interactive PTY (stdin/stdout streaming, resize, signals)")
 	c.Flags().StringVar(&argv0, "argv0", "", "Override argv[0] for the executed process")
-	c.Flags().StringVar(&output, "output", getenvDefault("AGENTSH_OUTPUT", "shell"), "Output format: shell|json")
-	c.Flags().StringVar(&events, "events", getenvDefault("AGENTSH_EVENTS", ""), "Events to include in response: all|summary|blocked|none (default depends on --output)")
+	c.Flags().StringVar(&output, "output", getenvDefault("AGENTMON_OUTPUT", "shell"), "Output format: shell|json")
+	c.Flags().StringVar(&events, "events", getenvDefault("AGENTMON_EVENTS", ""), "Events to include in response: all|summary|blocked|none (default depends on --output)")
 	c.Flags().StringVar(&root, "root", "", "Root directory for auto-creating session if it doesn't exist (defaults to $PWD)")
 	c.Flags().BoolVar(&noDetectRoot, "no-detect-root", false, "Disable project root detection when auto-creating session")
 	c.Flags().StringVar(&projectRoot, "project-root", "", "Explicit project root (skips detection) when auto-creating session")
@@ -347,29 +347,29 @@ func printShellExec(cmd *cobra.Command, resp types.ExecResponse) error {
 	if resp.Guidance != nil {
 		if msg := strings.TrimSpace(resp.Guidance.Reason); msg != "" && (resp.Guidance.Blocked || resp.Result.ExitCode != 0) {
 			if resp.Guidance.PolicyRule != "" {
-				fmt.Fprintf(cmd.ErrOrStderr(), "agentsh: %s (rule=%s)\n", msg, resp.Guidance.PolicyRule)
+				fmt.Fprintf(cmd.ErrOrStderr(), "agentmon: %s (rule=%s)\n", msg, resp.Guidance.PolicyRule)
 			} else {
-				fmt.Fprintln(cmd.ErrOrStderr(), "agentsh: "+msg)
+				fmt.Fprintln(cmd.ErrOrStderr(), "agentmon: "+msg)
 			}
 			for _, s := range resp.Guidance.Substitutions {
 				if strings.TrimSpace(s.Command) != "" {
-					fmt.Fprintln(cmd.ErrOrStderr(), "agentsh: try: "+s.Command)
+					fmt.Fprintln(cmd.ErrOrStderr(), "agentmon: try: "+s.Command)
 				}
 			}
 			for _, s := range resp.Guidance.Suggestions {
 				if strings.TrimSpace(s.Command) != "" {
-					fmt.Fprintln(cmd.ErrOrStderr(), "agentsh: try: "+s.Command)
+					fmt.Fprintln(cmd.ErrOrStderr(), "agentmon: try: "+s.Command)
 					continue
 				}
 				if strings.TrimSpace(s.Reason) != "" {
-					fmt.Fprintln(cmd.ErrOrStderr(), "agentsh: hint: "+s.Reason)
+					fmt.Fprintln(cmd.ErrOrStderr(), "agentmon: hint: "+s.Reason)
 				}
 			}
 		}
 	} else if msg := shellBlockSummary(resp); msg != "" {
 		fmt.Fprintln(cmd.ErrOrStderr(), msg)
 		for _, s := range shellSubstitutions(resp) {
-			fmt.Fprintln(cmd.ErrOrStderr(), "agentsh: try: "+s)
+			fmt.Fprintln(cmd.ErrOrStderr(), "agentmon: try: "+s)
 		}
 	}
 
@@ -382,7 +382,7 @@ func printShellExec(cmd *cobra.Command, resp types.ExecResponse) error {
 func shellBlockSummary(resp types.ExecResponse) string {
 	// Prefer explicit policy error when present.
 	if resp.Result.Error != nil && resp.Result.Error.PolicyRule != "" {
-		return fmt.Sprintf("agentsh: blocked by policy (rule=%s): %s", resp.Result.Error.PolicyRule, resp.Result.Error.Message)
+		return fmt.Sprintf("agentmon: blocked by policy (rule=%s): %s", resp.Result.Error.PolicyRule, resp.Result.Error.Message)
 	}
 	// Otherwise, summarize first blocked operation if present.
 	if len(resp.Events.BlockedOperations) == 0 {
@@ -406,9 +406,9 @@ func shellBlockSummary(resp types.ExecResponse) string {
 		}
 	}
 	if rule != "" {
-		return fmt.Sprintf("agentsh: blocked by policy (rule=%s): %s", rule, target)
+		return fmt.Sprintf("agentmon: blocked by policy (rule=%s): %s", rule, target)
 	}
-	return fmt.Sprintf("agentsh: blocked by policy: %s", target)
+	return fmt.Sprintf("agentmon: blocked by policy: %s", target)
 }
 
 func shellSubstitutions(resp types.ExecResponse) []string {

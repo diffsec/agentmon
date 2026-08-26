@@ -3,7 +3,7 @@ package session
 import (
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // ResolvedMount represents an active mount with its loaded policy.

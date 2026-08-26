@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
@@ -98,7 +98,7 @@ func TestExecveHandler_Handle_TruncatedDeny(t *testing.T) {
 
 func TestExecveHandler_Handle_InternalBypass(t *testing.T) {
 	cfg := ExecveHandlerConfig{
-		InternalBypass: []string{"/usr/local/bin/agentsh"},
+		InternalBypass: []string{"/usr/local/bin/agentmon"},
 	}
 	// Policy should NOT be called for internal bypass
 	dt := NewDepthTracker()
@@ -108,8 +108,8 @@ func TestExecveHandler_Handle_InternalBypass(t *testing.T) {
 	ctx := ExecveContext{
 		PID:       1001,
 		ParentPID: 1000,
-		Filename:  "/usr/local/bin/agentsh",
-		Argv:      []string{"agentsh", "exec"},
+		Filename:  "/usr/local/bin/agentmon",
+		Argv:      []string{"agentmon", "exec"},
 		Truncated: false,
 	}
 
@@ -121,8 +121,8 @@ func TestExecveHandler_Handle_InternalBypass(t *testing.T) {
 func TestExecveHandler_InternalBypass(t *testing.T) {
 	cfg := ExecveHandlerConfig{
 		InternalBypass: []string{
-			"/usr/local/bin/agentsh",
-			"/usr/local/bin/agentsh-*",
+			"/usr/local/bin/agentmon",
+			"/usr/local/bin/agentmon-*",
 			"*.real",
 		},
 	}
@@ -132,8 +132,8 @@ func TestExecveHandler_InternalBypass(t *testing.T) {
 		filename string
 		bypass   bool
 	}{
-		{"/usr/local/bin/agentsh", true},
-		{"/usr/local/bin/agentsh-unixwrap", true},
+		{"/usr/local/bin/agentmon", true},
+		{"/usr/local/bin/agentmon-unixwrap", true},
 		{"/bin/bash.real", true},
 		{"/usr/bin/sh.real", true},
 		{"/usr/bin/git", false},
@@ -272,7 +272,7 @@ func TestExecveHandler_Action(t *testing.T) {
 
 	t.Run("internal bypass produces ActionContinue", func(t *testing.T) {
 		cfg := ExecveHandlerConfig{
-			InternalBypass: []string{"/usr/local/bin/agentsh"},
+			InternalBypass: []string{"/usr/local/bin/agentmon"},
 		}
 		dt := NewDepthTracker()
 		h := NewExecveHandler(cfg, nil, dt, nil)
@@ -280,8 +280,8 @@ func TestExecveHandler_Action(t *testing.T) {
 		result, _ := h.Handle(context.Background(), ExecveContext{
 			PID:       1001,
 			ParentPID: 1000,
-			Filename:  "/usr/local/bin/agentsh",
-			Argv:      []string{"agentsh", "exec"},
+			Filename:  "/usr/local/bin/agentmon",
+			Argv:      []string{"agentmon", "exec"},
 		})
 
 		require.True(t, result.Allow)

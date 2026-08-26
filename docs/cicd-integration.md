@@ -1,10 +1,10 @@
 # CI/CD Integration Guide
 
-This guide shows how to integrate agentsh session reports into your CI/CD pipelines.
+This guide shows how to integrate agentmon session reports into your CI/CD pipelines.
 
 ## Overview
 
-When running AI agents in CI/CD pipelines, agentsh captures all activity for auditing. After the agent completes, generate a report to:
+When running AI agents in CI/CD pipelines, agentmon captures all activity for auditing. After the agent completes, generate a report to:
 
 - Verify the agent behaved as expected
 - Detect policy violations or anomalies
@@ -29,30 +29,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install agentsh
+      - name: Install agentmon
         run: |
-          curl -fsSL https://agentsh.dev/install.sh | bash
+          curl -fsSL https://agentmon.dev/install.sh | bash
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Start agentsh and create session
+      - name: Start agentmon and create session
         id: session
         run: |
-          agentsh server &
+          agentmon server &
           sleep 2
-          SESSION=$(agentsh session create --workspace . --policy ci-agent --json | jq -r '.id')
+          SESSION=$(agentmon session create --workspace . --policy ci-agent --json | jq -r '.id')
           echo "id=$SESSION" >> $GITHUB_OUTPUT
 
       - name: Run AI agent
         env:
-          AGENTSH_SESSION: ${{ steps.session.outputs.id }}
+          AGENTMON_SESSION: ${{ steps.session.outputs.id }}
         run: |
           # Your AI agent command here
-          agentsh exec $AGENTSH_SESSION -- your-agent-cli "${{ inputs.task }}"
+          agentmon exec $AGENTMON_SESSION -- your-agent-cli "${{ inputs.task }}"
 
       - name: Generate session report
         if: always()
         run: |
-          agentsh report ${{ steps.session.outputs.id }} \
+          agentmon report ${{ steps.session.outputs.id }} \
             --level=detailed \
             --output=session-report.md
 
@@ -60,7 +60,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: agentsh-session-report
+          name: agentmon-session-report
           path: session-report.md
 
       - name: Add report to job summary
@@ -71,7 +71,7 @@ jobs:
 
       - name: Cleanup session
         if: always()
-        run: agentsh session destroy ${{ steps.session.outputs.id }}
+        run: agentmon session destroy ${{ steps.session.outputs.id }}
 ```
 
 ## GitLab CI Example
@@ -81,18 +81,18 @@ ai-agent-task:
   stage: build
   image: ubuntu:22.04
   variables:
-    AGENTSH_SESSION: ""
+    AGENTMON_SESSION: ""
   before_script:
-    - curl -fsSL https://agentsh.dev/install.sh | bash
+    - curl -fsSL https://agentmon.dev/install.sh | bash
     - export PATH="$HOME/.local/bin:$PATH"
-    - agentsh server &
+    - agentmon server &
     - sleep 2
-    - export AGENTSH_SESSION=$(agentsh session create --workspace . --policy ci-agent --json | jq -r '.id')
+    - export AGENTMON_SESSION=$(agentmon session create --workspace . --policy ci-agent --json | jq -r '.id')
   script:
-    - agentsh exec $AGENTSH_SESSION -- your-agent-cli "do the task"
+    - agentmon exec $AGENTMON_SESSION -- your-agent-cli "do the task"
   after_script:
-    - agentsh report $AGENTSH_SESSION --level=detailed --output=session-report.md
-    - agentsh session destroy $AGENTSH_SESSION || true
+    - agentmon report $AGENTMON_SESSION --level=detailed --output=session-report.md
+    - agentmon session destroy $AGENTMON_SESSION || true
   artifacts:
     when: always
     paths:
@@ -103,36 +103,36 @@ ai-agent-task:
 
 ## Docker Container Integration
 
-When running agentsh in containers, proper startup sequencing is important to avoid race conditions between the daemon and shell shim.
+When running agentmon in containers, proper startup sequencing is important to avoid race conditions between the daemon and shell shim.
 
 ### Non-Interactive Shell Enforcement
 
 By default, the shell shim bypasses policy when stdin is not a TTY. This preserves binary stdin/stdout for piped data (e.g., `docker exec -i container sh -c "cat > /file" < binary`). In CI/CD environments where all commands are non-interactive but still need enforcement, use `--force` during shim installation:
 
 ```bash
-agentsh shim install-shell \
+agentmon shim install-shell \
   --root / \
-  --shim /usr/bin/agentsh-shell-shim \
+  --shim /usr/bin/agentmon-shell-shim \
   --bash \
   --force \
   --i-understand-this-modifies-the-host
 ```
 
-This writes `/etc/agentsh/shim.conf` with `force=true`. The shim reads this file at startup, so it works regardless of how the shell is spawned (unlike env vars or profile scripts that may not be sourced for non-interactive SSH sessions).
+This writes `/etc/agentmon/shim.conf` with `force=true`. The shim reads this file at startup, so it works regardless of how the shell is spawned (unlike env vars or profile scripts that may not be sourced for non-interactive SSH sessions).
 
-Alternatively, set `AGENTSH_SHIM_FORCE=1` in the process environment for per-process enforcement.
+Alternatively, set `AGENTMON_SHIM_FORCE=1` in the process environment for per-process enforcement.
 
 ### Basic Dockerfile
 
 ```dockerfile
 FROM debian:bookworm-slim
 
-# Install agentsh
-RUN curl -fsSL https://agentsh.dev/install.sh | bash
+# Install agentmon
+RUN curl -fsSL https://agentmon.dev/install.sh | bash
 
 # Copy your configuration
-COPY config.yaml /etc/agentsh/config.yaml
-COPY policies/ /etc/agentsh/policies/
+COPY config.yaml /etc/agentmon/config.yaml
+COPY policies/ /etc/agentmon/policies/
 
 # Copy entrypoint script
 COPY entrypoint.sh /entrypoint.sh
@@ -149,21 +149,21 @@ The shell shim has built-in retry logic, but for reliable container startup, exp
 #!/bin/bash
 set -e
 
-# Start the agentsh server in the background
-agentsh server &
+# Start the agentmon server in the background
+agentmon server &
 
 # Wait for the server to be ready (polls /health endpoint)
-echo "Waiting for agentsh server..."
+echo "Waiting for agentmon server..."
 until curl -sf http://127.0.0.1:18080/health >/dev/null 2>&1; do
     sleep 0.1
 done
-echo "agentsh server ready"
+echo "agentmon server ready"
 
 # Create a session for the workspace
-export AGENTSH_SESSION=$(agentsh session create --workspace /workspace --policy default --json | jq -r '.id')
+export AGENTMON_SESSION=$(agentmon session create --workspace /workspace --policy default --json | jq -r '.id')
 
 # Execute the main command through the shell shim
-exec agentsh-shell-shim "$@"
+exec agentmon-shell-shim "$@"
 ```
 
 ### Docker Compose Example
@@ -177,7 +177,7 @@ services:
     volumes:
       - ./workspace:/workspace
     environment:
-      - AGENTSH_LOG_LEVEL=info
+      - AGENTMON_LOG_LEVEL=info
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:18080/health"]
       interval: 5s
@@ -224,7 +224,7 @@ spec:
 
 ### Race Condition Prevention
 
-The shell shim (`agentsh-shell-shim`) internally calls `agentsh exec`, which has retry logic:
+The shell shim (`agentmon-shell-shim`) internally calls `agentmon exec`, which has retry logic:
 - On connection failure, it checks if auto-start is enabled
 - If enabled, it starts the daemon and polls `/health` for up to 5 seconds
 
@@ -236,27 +236,27 @@ However, for production container deployments, explicit health checking is more 
 
 ### Daytona Integration
 
-For Daytona workspaces, add agentsh to your devcontainer configuration:
+For Daytona workspaces, add agentmon to your devcontainer configuration:
 
 ```json
 {
   "image": "your-base-image",
-  "postCreateCommand": "curl -fsSL https://agentsh.dev/install.sh | bash",
-  "postStartCommand": "agentsh daemon &",
+  "postCreateCommand": "curl -fsSL https://agentmon.dev/install.sh | bash",
+  "postStartCommand": "agentmon daemon &",
   "customizations": {
-    "agentsh": {
+    "agentmon": {
       "policy": "daytona-workspace"
     }
   }
 }
 ```
 
-Or use the agentsh-enabled base image:
+Or use the agentmon-enabled base image:
 
 ```json
 {
-  "image": "ghcr.io/agentsh/devcontainer:latest",
-  "postStartCommand": "agentsh daemon &"
+  "image": "ghcr.io/agentmon/devcontainer:latest",
+  "postStartCommand": "agentmon daemon &"
 }
 ```
 
@@ -293,28 +293,28 @@ Use different policies for different CI contexts:
 
 ```yaml
 # For PR checks - stricter
-agentsh session create --policy pr-check
+agentmon session create --policy pr-check
 
 # For deployment agents - more permissive but audited
-agentsh session create --policy deploy-agent
+agentmon session create --policy deploy-agent
 ```
 
 ## Troubleshooting
 
 ### "No sessions found"
 
-The agentsh server may have restarted or the session timed out. Use `--direct-db` for offline access.
+The agentmon server may have restarted or the session timed out. Use `--direct-db` for offline access.
 
 ### Report is empty or minimal
 
-Check that your agent is actually running through agentsh:
+Check that your agent is actually running through agentmon:
 
 ```bash
-# Wrong - agent runs outside agentsh
+# Wrong - agent runs outside agentmon
 ./my-agent
 
-# Right - agent runs through agentsh
-agentsh exec $SESSION -- ./my-agent
+# Right - agent runs through agentmon
+agentmon exec $SESSION -- ./my-agent
 ```
 
 ## Generating Policies from CI Runs
@@ -346,14 +346,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install agentsh
+      - name: Install agentmon
         run: |
-          curl -fsSL https://agentsh.dev/install.sh | bash
+          curl -fsSL https://agentmon.dev/install.sh | bash
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Start agentsh server
+      - name: Start agentmon server
         run: |
-          agentsh server &
+          agentmon server &
           sleep 2
 
       - name: Create session
@@ -365,19 +365,19 @@ jobs:
           else
             POLICY="ci-generated"
           fi
-          SESSION=$(agentsh session create --workspace . --policy $POLICY --json | jq -r '.id')
+          SESSION=$(agentmon session create --workspace . --policy $POLICY --json | jq -r '.id')
           echo "id=$SESSION" >> $GITHUB_OUTPUT
 
       - name: Run build and tests
         run: |
-          agentsh exec ${{ steps.session.outputs.id }} -- npm install
-          agentsh exec ${{ steps.session.outputs.id }} -- npm run build
-          agentsh exec ${{ steps.session.outputs.id }} -- npm test
+          agentmon exec ${{ steps.session.outputs.id }} -- npm install
+          agentmon exec ${{ steps.session.outputs.id }} -- npm run build
+          agentmon exec ${{ steps.session.outputs.id }} -- npm test
 
       - name: Generate policy from profile run
         if: inputs.profile_run
         run: |
-          agentsh policy generate ${{ steps.session.outputs.id }} \
+          agentmon policy generate ${{ steps.session.outputs.id }} \
             --name=ci-generated \
             --threshold=5 \
             --output=configs/policies/ci-generated.yaml

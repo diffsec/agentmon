@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
-	"github.com/agentsh/agentsh/pkg/types"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
+	"github.com/diffsec/agentmon/pkg/types"
 	gounix "golang.org/x/sys/unix"
 )
 
 // familyHelperEnv gates the re-exec body inside the family block tests.
 // Setting it outside of those tests' parent→child dispatch is unsupported.
-const familyHelperEnv = "AGENTSH_TEST_FAMILY_HELPER"
+const familyHelperEnv = "AGENTMON_TEST_FAMILY_HELPER"
 
 // TestSeccompFamilyBlock_Errno verifies that installing a filter with
 // BlockedFamilies = [{AF_ALG, errno}] causes socket(AF_ALG, ...) to return

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store/sqlite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/store/sqlite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestReportIntegration(t *testing.T) {

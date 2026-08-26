@@ -8,8 +8,8 @@
   "metadata": {
     "version": "1.8.0",
     "product": {
-      "name": "agentsh",
-      "vendor_name": "agentsh"
+      "name": "agentmon",
+      "vendor_name": "agentmon"
     },
     "logged_time": "1777118400000000000",
     "event_code": "exec.start",

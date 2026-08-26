@@ -4,7 +4,7 @@ Issue: #378
 
 ## Summary
 
-On the kernel-install (`unixwrap`) shell-shim path, agentsh fail-closes on any `sh -c` / `bash -c` payload it cannot statically resolve to a single command (`rule=shellc-opaque-script`, exit 126) — but only when the policy has a restrictive command rule **and** runtime per-exec enforcement is not active. On sandbox-API platforms (Blaxel, E2B, Daytona, Runloop) the shim is the only shell and the platform always launches `/bin/sh -c "<command>"`, an invocation shape the integrator cannot change. The net effect is that anything with a pipe, redirect, `$VAR`, `&&`/`;`, or glob is denied before it runs, and there is no operator override.
+On the kernel-install (`unixwrap`) shell-shim path, agentmon fail-closes on any `sh -c` / `bash -c` payload it cannot statically resolve to a single command (`rule=shellc-opaque-script`, exit 126) — but only when the policy has a restrictive command rule **and** runtime per-exec enforcement is not active. On sandbox-API platforms (Blaxel, E2B, Daytona, Runloop) the shim is the only shell and the platform always launches `/bin/sh -c "<command>"`, an invocation shape the integrator cannot change. The net effect is that anything with a pipe, redirect, `$VAR`, `&&`/`;`, or glob is denied before it runs, and there is no operator override.
 
 The "run opaque scripts under per-exec enforcement" behavior the issue asks for **already exists implicitly** (added in #375): when `execveEnforcementActive()` is true, opaque scripts are not pre-denied — they run and every inner `execve` is policed by `CheckExecve`. The gap is that (a) there is no way for an operator to express intent when runtime enforcement is unavailable, and (b) the deny is opaque, giving no remediation guidance.
 

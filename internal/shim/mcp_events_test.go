@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
 )
 
 func TestMCPEventForwarder(t *testing.T) {

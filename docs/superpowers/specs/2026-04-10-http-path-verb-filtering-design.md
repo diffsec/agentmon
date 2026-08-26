@@ -8,7 +8,7 @@
 
 ## Problem
 
-`agentsh`'s policy engine filters outbound network calls at the host/port/CIDR level via `NetworkRule`, and resolves domains at DNS time. There is no way to say "allow `GET /repos/*`, deny `DELETE /repos/*`" — once a host is allowed, every method and every path on that host is reachable.
+`agentmon`'s policy engine filters outbound network calls at the host/port/CIDR level via `NetworkRule`, and resolves domains at DNS time. There is no way to say "allow `GET /repos/*`, deny `DELETE /repos/*`" — once a host is allowed, every method and every path on that host is reachable.
 
 Agents are increasingly wired to general HTTP/HTTPS APIs (GitHub, Stripe, internal services) and the operator wants to grant the minimum useful surface: read-only access to some paths, specific verbs on others, deny on destructive operations. Today the only option is binary allow/deny on `api.github.com`, which means an agent that needs to `GET /repos/owner/repo/issues` also has authority to `DELETE /repos/owner/repo` and every other endpoint on the same host.
 
@@ -325,7 +325,7 @@ Host-based routing was rejected: it requires SDKs to preserve the original `Host
 
 ### Env var injection plumbing
 
-`Proxy.EnvVars()` currently returns `ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, `AGENTSH_SESSION_ID`. Extend it to append one entry per declared `http_services` entry, using the service's `expose_as` field (or the derived default `<NAME>_API_URL`).
+`Proxy.EnvVars()` currently returns `ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, `AGENTMON_SESSION_ID`. Extend it to append one entry per declared `http_services` entry, using the service's `expose_as` field (or the derived default `<NAME>_API_URL`).
 
 The returned map is already merged into the child process environment at the session spawn point — the existing consumer in `internal/api/app.go` passes these through unchanged. No new injection path, no new config surface.
 

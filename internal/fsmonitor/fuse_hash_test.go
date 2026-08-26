@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 // Integration: requires /dev/fuse. Verifies soft-delete diversion hashes small files.
@@ -28,7 +28,7 @@ func TestFUSE_SoftDeleteHashesSmallFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	trashDir := ".agentsh_trash"
+	trashDir := ".agentmon_trash"
 	enabled := true
 	hooks := &Hooks{
 		FUSEAudit: &FUSEAuditHooks{

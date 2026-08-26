@@ -3,7 +3,7 @@ package fuse
 import (
 	"runtime"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // Config holds FUSE mount configuration.

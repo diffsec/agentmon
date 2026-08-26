@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// Issue #376: validateConfig (run by config.Load and `agentsh config validate`)
+// Issue #376: validateConfig (run by config.Load and `agentmon config validate`)
 // must enforce the config-schema cross-field invariants the server also checks
 // at startup, with the same messages, so misconfig is caught pre-deploy.
 

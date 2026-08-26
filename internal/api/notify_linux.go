@@ -14,13 +14,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/approvals"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/netmonitor"
-	unixmon "github.com/agentsh/agentsh/internal/netmonitor/unix"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/approvals"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/netmonitor"
+	unixmon "github.com/diffsec/agentmon/internal/netmonitor/unix"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/google/uuid"
 	"golang.org/x/sys/unix"
 )
@@ -280,7 +280,7 @@ func startNotifyHandler(ctx context.Context, parentSock *os.File, sessID string,
 				}
 
 				// Create stub symlink for execve redirect
-				stubPath, err := exec.LookPath("agentsh-stub")
+				stubPath, err := exec.LookPath("agentmon-stub")
 				if err == nil {
 					// Normalize to absolute path in case LookPath returns relative
 					if !filepath.IsAbs(stubPath) {
@@ -297,7 +297,7 @@ func startNotifyHandler(ctx context.Context, parentSock *os.File, sessID string,
 						slog.Warn("exec: failed to create stub symlink", "error", symlinkErr, "session_id", sessID)
 					}
 				} else {
-					slog.Warn("exec: agentsh-stub not found, redirect will deny", "error", err, "session_id", sessID)
+					slog.Warn("exec: agentmon-stub not found, redirect will deny", "error", err, "session_id", sessID)
 				}
 			}
 		}

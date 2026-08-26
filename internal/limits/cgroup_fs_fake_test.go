@@ -296,7 +296,7 @@ func TestFakeCgroupFS_Smoke(t *testing.T) {
 		t.Fatalf("unexpected content: %q", data)
 	}
 
-	if err := f.Mkdir("/sys/fs/cgroup/agentsh.slice", 0o755); err != nil {
+	if err := f.Mkdir("/sys/fs/cgroup/agentmon.slice", 0o755); err != nil {
 		t.Fatalf("Mkdir: %v", err)
 	}
 	entries, err := f.ReadDir("/sys/fs/cgroup")
@@ -305,11 +305,11 @@ func TestFakeCgroupFS_Smoke(t *testing.T) {
 	}
 	found := false
 	for _, e := range entries {
-		if e.Name() == "agentsh.slice" && e.IsDir() {
+		if e.Name() == "agentmon.slice" && e.IsDir() {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("expected agentsh.slice in readdir, got %v", entries)
+		t.Fatalf("expected agentmon.slice in readdir, got %v", entries)
 	}
 }

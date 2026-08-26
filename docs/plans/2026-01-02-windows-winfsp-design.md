@@ -14,7 +14,7 @@ Implement WinFsp-based filesystem mounting for Windows to enable soft-delete and
 | FUSE library | cgofuse (shared) | Cross-platform: works with FUSE-T and WinFsp |
 | Code organization | Shared `fuse/` package | Avoid duplication between darwin and windows |
 | Mount style | Directory mount | Matches macOS behavior, integrates naturally |
-| Minifilter coexistence | Exclude agentsh process | Clean separation: WinFsp handles files, minifilter handles registry |
+| Minifilter coexistence | Exclude agentmon process | Clean separation: WinFsp handles files, minifilter handles registry |
 | Fallback behavior | Configurable hard fail | Require WinFsp when enabled; skip when disabled in config |
 
 ## Architecture
@@ -46,7 +46,7 @@ internal/platform/
 
 package fuse
 
-import "github.com/agentsh/agentsh/internal/platform"
+import "github.com/diffsec/agentmon/internal/platform"
 
 // Config holds FUSE mount configuration
 type Config struct {
@@ -217,15 +217,15 @@ func (f *fuseFS) handleRedirect(decision platform.Decision, realPath string) str
 
 ## Minifilter Exclusion
 
-To avoid double-interception when WinFsp is active, the minifilter excludes the agentsh process.
+To avoid double-interception when WinFsp is active, the minifilter excludes the agentmon process.
 
 ### Driver Changes
 
 ```c
-// drivers/windows/agentsh-minifilter/src/filesystem.c
+// drivers/windows/agentmon-minifilter/src/filesystem.c
 
 FLT_PREOP_CALLBACK_STATUS
-AgentshPreCreate(
+AgentmonPreCreate(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
@@ -233,8 +233,8 @@ AgentshPreCreate(
 {
     ULONG processId = HandleToULong(PsGetCurrentProcessId());
 
-    // Skip if this is the agentsh process itself
-    if (AgentshIsExcludedProcess(processId)) {
+    // Skip if this is the agentmon process itself
+    if (AgentmonIsExcludedProcess(processId)) {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
@@ -243,15 +243,15 @@ AgentshPreCreate(
 ```
 
 ```c
-// drivers/windows/agentsh-minifilter/src/process.c
+// drivers/windows/agentmon-minifilter/src/process.c
 
 static volatile ULONG gExcludedProcessId = 0;
 
-BOOLEAN AgentshIsExcludedProcess(ULONG ProcessId) {
+BOOLEAN AgentmonIsExcludedProcess(ULONG ProcessId) {
     return ProcessId == gExcludedProcessId;
 }
 
-void AgentshSetExcludedProcess(ULONG ProcessId) {
+void AgentmonSetExcludedProcess(ULONG ProcessId) {
     InterlockedExchange(&gExcludedProcessId, ProcessId);
 }
 ```

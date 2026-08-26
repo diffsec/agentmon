@@ -43,7 +43,7 @@ Steps:
 
 Steps:
 1) Forward blocked events (`blocked=true`) to store/broker as `net_connect_blocked` with reason=ebpf.
-2) Metrics: add counters `agentsh_net_ebpf_blocked_total`, `agentsh_net_ebpf_map_load_fail_total`.
+2) Metrics: add counters `agentmon_net_ebpf_blocked_total`, `agentmon_net_ebpf_map_load_fail_total`.
 3) Ensure rdns enrichment stays optional.
 
 ### Task 5: Tests

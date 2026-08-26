@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/shim"
+	"github.com/diffsec/agentmon/internal/shim"
 	"github.com/spf13/cobra"
 )
 
@@ -64,13 +64,13 @@ func newShimInstallShellCmd() *cobra.Command {
 	}
 
 	c.Flags().StringVar(&root, "root", "/", "Root filesystem to modify")
-	c.Flags().StringVar(&shimPath, "shim", "", "Path to agentsh shell shim binary (agentsh-shell-shim)")
+	c.Flags().StringVar(&shimPath, "shim", "", "Path to agentmon shell shim binary (agentmon-shell-shim)")
 	c.Flags().BoolVar(&bash, "bash", false, "Also install shim for /bin/bash if present")
 	c.Flags().BoolVar(&bashOnly, "bash-only", false, "Install shim only for /bin/bash, leaving /bin/sh untouched")
 	c.Flags().BoolVar(&iUnderstand, "i-understand-this-modifies-the-host", false, "Allow modifying the host filesystem when --root=/")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "Show planned actions without modifying the filesystem")
 	c.Flags().StringVar(&output, "output", "shell", "Output format: shell|json")
-	c.Flags().BoolVar(&force, "force", false, "Write /etc/agentsh/shim.conf with force=true (enforces policy for non-interactive shells)")
+	c.Flags().BoolVar(&force, "force", false, "Write /etc/agentmon/shim.conf with force=true (enforces policy for non-interactive shells)")
 	return c
 }
 

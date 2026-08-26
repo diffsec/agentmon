@@ -31,13 +31,13 @@
 ### Task 3: Exec path wiring
 **Files:** `internal/api/exec.go` (and streaming/pty variants), `internal/api/exec_stream.go`
 - When command decision resolved, obtain `EnvPolicy` and construct child env via builder.
-- If `BlockIteration` true, set a flag env (e.g., `AGENTSH_ENV_SHIM=block`) for shim activation.
+- If `BlockIteration` true, set a flag env (e.g., `AGENTMON_ENV_SHIM=block`) for shim activation.
 - Ensure current behavior is preserved when no env policy is defined (fallback to existing env construction).
 - Tests: integration-ish test that a command sees only allowed vars; another that denied vars are absent; size limit triggers error.
 
 ### Task 4: Optional LD_PRELOAD shim (minimal)
 **Files:** `internal/policy/envshim/` (new) + build script, small C source
-- Intercept `getenv`, `setenv`, `putenv`, `clearenv`, `environ` access; when `AGENTSH_ENV_SHIM=block`, return empty for iteration and block denied keys (keys list passed via env? keep simple: block iteration only in v1).
+- Intercept `getenv`, `setenv`, `putenv`, `clearenv`, `environ` access; when `AGENTMON_ENV_SHIM=block`, return empty for iteration and block denied keys (keys list passed via env? keep simple: block iteration only in v1).
 - Log accesses (key names) to stderr or fd=3 (configurable) with throttling.
 - Add build target to Makefile (optional; can be skipped if too much for now).
 - Tests: basic C shim unit test (if feasible) or document manual test.

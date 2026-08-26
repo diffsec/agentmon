@@ -12,7 +12,7 @@ import (
 	"github.com/1Password/connect-sdk-go/connect"
 	opSDK "github.com/1Password/connect-sdk-go/onepassword"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // opClient is the interface the provider uses for 1Password operations.
@@ -186,13 +186,13 @@ func New(ctx context.Context, cfg Config, resolver secrets.RefResolver) (*Provid
 		sv.Zero()
 	}
 
-	sdkClient := connect.NewClientWithUserAgent(cfg.ServerURL, apiKey, "agentsh")
+	sdkClient := connect.NewClientWithUserAgent(cfg.ServerURL, apiKey, "agentmon")
 	adapter := &sdkClientAdapter{inner: sdkClient}
 
 	// Probe connectivity: GetVaultsByTitle with a non-existent title.
 	// Auth failures are fatal; not-found (empty result) is expected
 	// and non-fatal.
-	_, probeErr := adapter.GetVaultsByTitle("agentsh-probe-nonexistent")
+	_, probeErr := adapter.GetVaultsByTitle("agentmon-probe-nonexistent")
 	if probeErr != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()

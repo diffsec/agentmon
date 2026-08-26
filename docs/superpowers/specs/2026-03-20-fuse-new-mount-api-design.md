@@ -8,7 +8,7 @@
 
 On Cloudflare Firecracker VMs, the traditional `mount()` syscall hangs. This is not a seccomp issue (there is no seccomp filter in the guest) — it appears to be a Firecracker virtio/kernel-level issue specific to the `mount()` syscall.
 
-The existing `probeMountSyscall()` in agentsh detects this (500ms timeout → returns false), but when fusermount is also unavailable, FUSE is reported as unavailable — even though `/dev/fuse` opens fine and the kernel supports FUSE.
+The existing `probeMountSyscall()` in agentmon detects this (500ms timeout → returns false), but when fusermount is also unavailable, FUSE is reported as unavailable — even though `/dev/fuse` opens fine and the kernel supports FUSE.
 
 The Linux new mount API (kernel 5.2+) works perfectly in these environments: `fsopen`, `fsconfig`, `fsmount`, and `move_mount` all succeed. This design adds the new mount API as a fallback between fusermount and legacy mount().
 
@@ -33,13 +33,13 @@ The `Filesystem` struct gets a new field `mountMethod string` recording which mo
 4. `checkDirectMount()` → existing CAP_SYS_ADMIN + mount probe → return `"direct"`
 5. Return `""` (unavailable)
 
-`MountMethod() string` is exposed on the `Filesystem` struct for `agentsh detect` output.
+`MountMethod() string` is exposed on the `Filesystem` struct for `agentmon detect` output.
 
 **Recheck()**: `Recheck()` must also re-detect and store `mountMethod` (not just `available`), since deferred FUSE detection (E2B sandbox case) may discover a new mount method after startup.
 
 **Logging**: `detectMountMethod` logs at info level which method was selected, and at debug level which methods were tried and why they failed. This is critical for debugging Firecracker environments.
 
-**`checkFUSE()` in `security_caps.go`**: The parallel `checkFUSE()` in `internal/capabilities/security_caps.go` must delegate to the same detection logic (or call `Filesystem.MountMethod() != ""`), so that `agentsh detect` correctly reports `fuse: true` when the new-api path is available.
+**`checkFUSE()` in `security_caps.go`**: The parallel `checkFUSE()` in `internal/capabilities/security_caps.go` must delegate to the same detection logic (or call `Filesystem.MountMethod() != ""`), so that `agentmon detect` correctly reports `fuse: true` when the new-api path is available.
 
 ### 2. New Mount API Implementation
 

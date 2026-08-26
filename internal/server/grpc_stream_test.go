@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -81,7 +81,7 @@ file_rules:
 	// Create session.
 	createReq, _ := structpb.NewStruct(map[string]any{"workspace": workspace, "policy": "default"})
 	createResp := &structpb.Struct{}
-	if err := conn.Invoke(ctx, "/agentsh.v1.Agentsh/CreateSession", createReq, createResp); err != nil {
+	if err := conn.Invoke(ctx, "/agentmon.v1.Agentmon/CreateSession", createReq, createResp); err != nil {
 		t.Fatal(err)
 	}
 	cb, _ := protojson.Marshal(createResp)
@@ -100,7 +100,7 @@ file_rules:
 		"args":       []any{"-c", "echo hi"},
 	})
 	desc := &grpc.StreamDesc{ServerStreams: true}
-	st, err := conn.NewStream(ctx, desc, "/agentsh.v1.Agentsh/ExecStream")
+	st, err := conn.NewStream(ctx, desc, "/agentmon.v1.Agentmon/ExecStream")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +217,7 @@ file_rules:
 	// Create session.
 	createReq, _ := structpb.NewStruct(map[string]any{"workspace": workspace, "policy": "default"})
 	createResp := &structpb.Struct{}
-	if err := conn.Invoke(ctx, "/agentsh.v1.Agentsh/CreateSession", createReq, createResp); err != nil {
+	if err := conn.Invoke(ctx, "/agentmon.v1.Agentmon/CreateSession", createReq, createResp); err != nil {
 		t.Fatal(err)
 	}
 	cb, _ := protojson.Marshal(createResp)
@@ -232,7 +232,7 @@ file_rules:
 	// Start tail.
 	tailReq, _ := structpb.NewStruct(map[string]any{"session_id": snap.ID})
 	desc := &grpc.StreamDesc{ServerStreams: true}
-	st, err := conn.NewStream(ctx, desc, "/agentsh.v1.Agentsh/EventsTail")
+	st, err := conn.NewStream(ctx, desc, "/agentmon.v1.Agentmon/EventsTail")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +252,7 @@ file_rules:
 			"include_events": "none",
 		})
 		execResp := &structpb.Struct{}
-		_ = conn.Invoke(ctx, "/agentsh.v1.Agentsh/Exec", execReq, execResp)
+		_ = conn.Invoke(ctx, "/agentmon.v1.Agentmon/Exec", execReq, execResp)
 	}()
 
 	deadline := time.Now().Add(5 * time.Second)

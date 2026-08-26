@@ -3,8 +3,8 @@
 package server
 
 import (
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // startPolicySocket is a no-op on non-darwin platforms.

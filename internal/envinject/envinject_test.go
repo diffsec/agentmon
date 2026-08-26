@@ -24,12 +24,12 @@ func envToMap(env []string) (map[string]string, map[string]int) {
 
 func TestApply_OverridesExistingKey(t *testing.T) {
 	base := []string{"BASH_ENV=/inherited", "PATH=/usr/bin", "HOME=/root"}
-	inject := map[string]string{"BASH_ENV": "/usr/lib/agentsh/bash_startup.sh"}
+	inject := map[string]string{"BASH_ENV": "/usr/lib/agentmon/bash_startup.sh"}
 
 	got := Apply(base, inject)
 
 	vals, counts := envToMap(got)
-	if vals["BASH_ENV"] != "/usr/lib/agentsh/bash_startup.sh" {
+	if vals["BASH_ENV"] != "/usr/lib/agentmon/bash_startup.sh" {
 		t.Fatalf("BASH_ENV = %q, want injected value", vals["BASH_ENV"])
 	}
 	if counts["BASH_ENV"] != 1 {
@@ -42,12 +42,12 @@ func TestApply_OverridesExistingKey(t *testing.T) {
 
 func TestApply_AddsNewKey(t *testing.T) {
 	base := []string{"PATH=/usr/bin"}
-	inject := map[string]string{"OTEL_SERVICE_NAME": "agentsh-blaxel"}
+	inject := map[string]string{"OTEL_SERVICE_NAME": "agentmon-blaxel"}
 
 	got := Apply(base, inject)
 
 	vals, counts := envToMap(got)
-	if vals["OTEL_SERVICE_NAME"] != "agentsh-blaxel" {
+	if vals["OTEL_SERVICE_NAME"] != "agentmon-blaxel" {
 		t.Fatalf("OTEL_SERVICE_NAME = %q, want injected value", vals["OTEL_SERVICE_NAME"])
 	}
 	if counts["OTEL_SERVICE_NAME"] != 1 {

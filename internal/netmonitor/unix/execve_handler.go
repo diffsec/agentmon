@@ -8,15 +8,15 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/netmonitor"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/netmonitor"
+	"github.com/diffsec/agentmon/pkg/types"
 	"golang.org/x/sys/unix"
 )
 
 // Action constants for pipeline routing decisions.
 const (
 	ActionContinue = "continue" // Allow execve in-place (zero overhead)
-	ActionRedirect = "redirect" // Redirect execve to agentsh-stub
+	ActionRedirect = "redirect" // Redirect execve to agentmon-stub
 	ActionDeny     = "deny"     // Fail execve with errno
 )
 
@@ -96,7 +96,7 @@ type ExecveHandler struct {
 	depthTracker    *DepthTracker
 	emitter         ExecveEmitter
 	approver        ApprovalRequester
-	stubSymlinkPath      string // Short symlink path pointing to agentsh-stub
+	stubSymlinkPath      string // Short symlink path pointing to agentmon-stub
 	transparentOverrides *netmonitor.TransparentOverrides
 }
 
@@ -379,7 +379,7 @@ func (h *ExecveHandler) Handle(goCtx context.Context, ctx ExecveContext) (Execve
 		return result, h.buildEvent(ctx, result, decision.Rule)
 
 	case "approve":
-		// Redirect to agentsh-stub for approval workflow
+		// Redirect to agentmon-stub for approval workflow
 		result := ExecveResult{
 			Allow:    false,
 			Action:   ActionRedirect,
@@ -391,7 +391,7 @@ func (h *ExecveHandler) Handle(goCtx context.Context, ctx ExecveContext) (Execve
 		return result, h.buildEvent(ctx, result, decision.Rule)
 
 	case "redirect":
-		// Redirect execve to agentsh-stub
+		// Redirect execve to agentmon-stub
 		result := ExecveResult{
 			Allow:    false,
 			Action:   ActionRedirect,

@@ -3,8 +3,8 @@
 package darwin
 
 import (
-	"github.com/agentsh/agentsh/internal/platform"
-	"github.com/agentsh/agentsh/internal/platform/fuse"
+	"github.com/diffsec/agentmon/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform/fuse"
 )
 
 // Mount delegates to the shared fuse package, which returns an error when CGO is disabled.

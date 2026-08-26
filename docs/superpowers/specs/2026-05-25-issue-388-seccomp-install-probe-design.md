@@ -4,7 +4,7 @@ Issue: #388
 
 ## Summary
 
-`agentsh detect` reports `seccomp-execve ✓` and `seccomp_user_notify ✓` (Command Control 25/25) from **read-only** capability probes (`seccomp(SECCOMP_GET_ACTION_AVAIL)`, `seccomp(SECCOMP_GET_NOTIF_SIZES)`) that never install a filter. In environments where the actual user-notify filter install fails — e.g. Daytona sandboxes, where `SECCOMP_FILTER_FLAG_NEW_LISTENER` returns **EBUSY** — `detect` still reports the capability as available, while runtime `agentsh-unixwrap` dies with `seccomp: filter Load failed`. The verdict means *"the kernel knows this feature"*, not *"agentsh can install its filter here."* So `detect` and the protection score are a **false positive** for the enforcement that actually matters.
+`agentmon detect` reports `seccomp-execve ✓` and `seccomp_user_notify ✓` (Command Control 25/25) from **read-only** capability probes (`seccomp(SECCOMP_GET_ACTION_AVAIL)`, `seccomp(SECCOMP_GET_NOTIF_SIZES)`) that never install a filter. In environments where the actual user-notify filter install fails — e.g. Daytona sandboxes, where `SECCOMP_FILTER_FLAG_NEW_LISTENER` returns **EBUSY** — `detect` still reports the capability as available, while runtime `agentmon-unixwrap` dies with `seccomp: filter Load failed`. The verdict means *"the kernel knows this feature"*, not *"agentmon can install its filter here."* So `detect` and the protection score are a **false positive** for the enforcement that actually matters.
 
 This design adds a **behavioral install-probe**: a throwaway re-exec child that attempts the exact `NEW_LISTENER` install the runtime uses (`loadRawFilter`) and reports success or the failing errno. `detect`'s `seccomp-execve` / `seccomp_user_notify` verdicts and the Command Control score derive from **that** ("installable here"), while the existing read-only probe is retained as a distinct "kernel-supported" signal surfaced in the detail text.
 
@@ -18,7 +18,7 @@ This design adds a **behavioral install-probe**: a throwaway re-exec child that 
 
 ## Non-Goals
 
-- **No change to runtime or server-startup gating.** This fixes the diagnostic's honesty. The runtime already surfaces the real EBUSY at install time (`agentsh-unixwrap` fails loudly). Aligning startup capability gating with the install-probe is a possible separate follow-up.
+- **No change to runtime or server-startup gating.** This fixes the diagnostic's honesty. The runtime already surfaces the real EBUSY at install time (`agentmon-unixwrap` fails loudly). Aligning startup capability gating with the install-probe is a possible separate follow-up.
 - The probe reuses the existing `buildProbeFilterBytes()` + `loadRawFilter` rather than hand-rolling a separate filter/install — fidelity to the real runtime install is the point, and reuse avoids divergence.
 - No new behavioral KILL-bug logic; that is the separate `wait_killable` probe (#369).
 - No change to the read-only probes themselves; they remain as the "kernel-supported" signal.
@@ -28,7 +28,7 @@ This design adds a **behavioral install-probe**: a throwaway re-exec child that 
 - Read-only probes: `probeSeccompBasic()` (`SECCOMP_GET_ACTION_AVAIL`) and `probeSeccompUserNotify()` (`SECCOMP_GET_NOTIF_SIZES`) in `internal/capabilities/check_seccomp_linux.go` (`//go:build linux`, no cgo). `realCheckSeccompUserNotify()` (`check.go:38`) wraps the latter; `checkSeccompUserNotify` is a swappable package var (test seam).
 - `internal/capabilities/detect_linux.go` derives `seccomp-execve` (L93), `seccomp-notify` (L86), and the `seccomp_user_notify` map entry (L220) all from `caps.Seccomp` — i.e. from the read-only probe.
 - Real install: `loadRawFilter(prog []byte, withWaitKill bool) (int, error)` in `internal/netmonitor/unix/seccomp_load_linux.go` (`//go:build linux && cgo`): `runtime.LockOSThread()` → `prctl(PR_SET_NO_NEW_PRIVS)` → `seccomp(SET_MODE_FILTER, NEW_LISTENER[|WAIT_KILLABLE_RECV])`. The `NEW_LISTENER` flag is what EBUSYs on Daytona.
-- Proven re-exec child harness: `internal/netmonitor/unix/wait_killable_probe_runner_linux.go` (#369) already re-execs `os.Executable()` with a two-factor gate (argv sentinel `--agentsh-internal-...-v1` + random env token, validated in `init()`), and its child calls `loadRawFilter`. `internal/api` imports `netmonitor/unix` and `cmd/agentsh` imports `internal/api`, so the child `init()` handler is linked into the `agentsh` binary (and thus runs when `agentsh detect` re-execs itself). `netmonitor/unix` ships non-cgo stubs (`seccomp_stub.go`, `wait_killable_probe_stub.go`), and does **not** import `internal/capabilities` (no cycle).
+- Proven re-exec child harness: `internal/netmonitor/unix/wait_killable_probe_runner_linux.go` (#369) already re-execs `os.Executable()` with a two-factor gate (argv sentinel `--agentmon-internal-...-v1` + random env token, validated in `init()`), and its child calls `loadRawFilter`. `internal/api` imports `netmonitor/unix` and `cmd/agentmon` imports `internal/api`, so the child `init()` handler is linked into the `agentmon` binary (and thus runs when `agentmon detect` re-execs itself). `netmonitor/unix` ships non-cgo stubs (`seccomp_stub.go`, `wait_killable_probe_stub.go`), and does **not** import `internal/capabilities` (no cycle).
 
 ## Design
 
@@ -37,8 +37,8 @@ This design adds a **behavioral install-probe**: a throwaway re-exec child that 
 A new probe modeled on the wait_killable harness but stripped to a single install attempt.
 
 **Contract constants** (own two-factor gate, distinct from wait_killable):
-- argv sentinel `--agentsh-internal-seccomp-install-probe-child-v1`
-- env token var `AGENTSH_SECCOMP_INSTALL_PROBE_CHILD` (length ≥ 16)
+- argv sentinel `--agentmon-internal-seccomp-install-probe-child-v1`
+- env token var `AGENTMON_SECCOMP_INSTALL_PROBE_CHILD` (length ≥ 16)
 - exit codes: `0` = installed OK; a small fixed code per errno class (EBUSY, EPERM, EINVAL, ENOSYS, other) so the parent classifies without parsing stderr (stderr still captured, bounded, for the detail string).
 
 **Child (`linux && cgo`):** an `init()` branch (added to the package's probe-child detection) that, when the install-probe sentinel+token are present:

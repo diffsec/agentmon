@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/build/ptracer"
-SRC="$ROOT/cmd/agentsh-unixwrap/ptracer"
+SRC="$ROOT/cmd/agentmon-unixwrap/ptracer"
 
 build_one() {
   arch="$1"
@@ -19,7 +19,7 @@ build_one() {
     return 1
   fi
   make -C "$SRC" clean >/dev/null 2>&1 || true
-  CC="$cc" TARGET="$target_dir/libagentsh-ptracer.so" make -C "$SRC" all
+  CC="$cc" TARGET="$target_dir/libagentmon-ptracer.so" make -C "$SRC" all
 }
 
 rm -rf "$OUT"

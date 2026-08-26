@@ -3,7 +3,7 @@ package policy
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // TestEngine_CheckCommand_ShellCDerive verifies that a policy rule targeting
@@ -758,10 +758,10 @@ func TestEngine_CheckCommand_ShellCDerive_DepthCapLoopCompletes(t *testing.T) {
 // purposes. Without this, `allow sh.real` (present in default.yaml for shim
 // integration) + `deny shutdown` would fall through to allow, silently
 // re-opening the exact bypass CheckCommand is meant to close when the shim
-// forwards via `agentsh exec -- /bin/sh.real -c "shutdown now"`.
+// forwards via `agentmon exec -- /bin/sh.real -c "shutdown now"`.
 //
 // This test is the end-to-end assertion that caught the v0.19.0-rc1/rc2
-// release-CI regression: smoke.sh ran `AGENTSH_SHIM_FORCE=1 /bin/sh -c
+// release-CI regression: smoke.sh ran `AGENTMON_SHIM_FORCE=1 /bin/sh -c
 // 'shutdown now'`, the shim forwarded to `/bin/sh.real`, and the engine
 // returned DecisionAllow (rule=allow-shim-shells) instead of DecisionDeny.
 func TestEngine_CheckCommand_ShellCDerive_ShimRealSuffix(t *testing.T) {
@@ -814,12 +814,12 @@ func TestEngine_CheckCommand_ShellCDerive_ShimRealSuffix(t *testing.T) {
 }
 
 // TestEngine_CheckCommand_RealSuffix_PolicyOmitsRealVariant covers
-// canyonroad/agentsh#270: under shim install, the server sees the renamed
+// diffsec/agentmon#270: under shim install, the server sees the renamed
 // real shell (e.g. /bin/bash.real) as the outer command, but operator
 // policies typically list shells without the .real suffix
 // (`commands: [bash]`). Before the fix, basename matching was strict and
 // every shim-routed bash invocation hit default-deny — making
-// AGENTSH_SHIM_FORCE=1 unusable on hosts where the shim is the only
+// AGENTMON_SHIM_FORCE=1 unusable on hosts where the shim is the only
 // enforcement path. The fix: matchCommandRules normalizes the trailing
 // `.real` suffix when checking basenames, mirroring shellparse's
 // known-shell normalization.

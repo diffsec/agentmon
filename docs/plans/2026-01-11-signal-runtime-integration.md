@@ -16,11 +16,11 @@ Add signal filter configuration to both the API's config struct and the wrapper'
 
 **Files:**
 - Modify: `internal/api/core.go:27-32`
-- Modify: `cmd/agentsh-unixwrap/config.go:11-15`
+- Modify: `cmd/agentmon-unixwrap/config.go:11-15`
 
 **Step 1: Write failing test for wrapper config parsing**
 
-Create `cmd/agentsh-unixwrap/config_signal_test.go`:
+Create `cmd/agentmon-unixwrap/config_signal_test.go`:
 
 ```go
 //go:build linux && cgo
@@ -36,8 +36,8 @@ import (
 )
 
 func TestLoadConfigWithSignal(t *testing.T) {
-	os.Setenv("AGENTSH_SECCOMP_CONFIG", `{"unix_socket_enabled":true,"signal_filter_enabled":true}`)
-	defer os.Unsetenv("AGENTSH_SECCOMP_CONFIG")
+	os.Setenv("AGENTMON_SECCOMP_CONFIG", `{"unix_socket_enabled":true,"signal_filter_enabled":true}`)
+	defer os.Unsetenv("AGENTMON_SECCOMP_CONFIG")
 
 	cfg, err := loadConfig()
 	require.NoError(t, err)
@@ -47,15 +47,15 @@ func TestLoadConfigWithSignal(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-runtime && go test ./cmd/agentsh-unixwrap/... -run TestLoadConfigWithSignal -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-runtime && go test ./cmd/agentmon-unixwrap/... -run TestLoadConfigWithSignal -v`
 Expected: FAIL with "cfg.SignalFilterEnabled undefined"
 
 **Step 3: Add SignalFilterEnabled to wrapper config**
 
-Modify `cmd/agentsh-unixwrap/config.go`:
+Modify `cmd/agentmon-unixwrap/config.go`:
 
 ```go
-// WrapperConfig is the configuration passed via AGENTSH_SECCOMP_CONFIG env var.
+// WrapperConfig is the configuration passed via AGENTMON_SECCOMP_CONFIG env var.
 type WrapperConfig struct {
 	UnixSocketEnabled   bool     `json:"unix_socket_enabled"`
 	BlockedSyscalls     []string `json:"blocked_syscalls"`
@@ -68,8 +68,8 @@ type WrapperConfig struct {
 Modify `internal/api/core.go`:
 
 ```go
-// seccompWrapperConfig is passed to the agentsh-unixwrap wrapper via
-// AGENTSH_SECCOMP_CONFIG environment variable to configure seccomp-bpf filtering.
+// seccompWrapperConfig is passed to the agentmon-unixwrap wrapper via
+// AGENTMON_SECCOMP_CONFIG environment variable to configure seccomp-bpf filtering.
 type seccompWrapperConfig struct {
 	UnixSocketEnabled   bool     `json:"unix_socket_enabled"`
 	BlockedSyscalls     []string `json:"blocked_syscalls"`
@@ -79,13 +79,13 @@ type seccompWrapperConfig struct {
 
 **Step 5: Run test to verify it passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-runtime && go test ./cmd/agentsh-unixwrap/... -run TestLoadConfigWithSignal -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-runtime && go test ./cmd/agentmon-unixwrap/... -run TestLoadConfigWithSignal -v`
 Expected: PASS
 
 **Step 6: Commit**
 
 ```bash
-git add cmd/agentsh-unixwrap/config.go cmd/agentsh-unixwrap/config_signal_test.go internal/api/core.go
+git add cmd/agentmon-unixwrap/config.go cmd/agentmon-unixwrap/config_signal_test.go internal/api/core.go
 git commit -m "feat(signal): add signal filter config to wrapper"
 ```
 
@@ -96,11 +96,11 @@ git commit -m "feat(signal): add signal filter config to wrapper"
 Add signal filter installation to the wrapper, sending the notify FD back to the server.
 
 **Files:**
-- Modify: `cmd/agentsh-unixwrap/main.go`
+- Modify: `cmd/agentmon-unixwrap/main.go`
 
 **Step 1: Write failing test for signal filter installation**
 
-Create `cmd/agentsh-unixwrap/signal_test.go`:
+Create `cmd/agentmon-unixwrap/signal_test.go`:
 
 ```go
 //go:build linux && cgo
@@ -110,7 +110,7 @@ package main
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/signal"
+	"github.com/diffsec/agentmon/internal/signal"
 )
 
 func TestSignalFilterAvailable(t *testing.T) {
@@ -127,12 +127,12 @@ func TestSignalFilterAvailable(t *testing.T) {
 
 **Step 2: Run test to verify it passes (signal package already exists)**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-runtime && go test ./cmd/agentsh-unixwrap/... -run TestSignalFilterAvailable -v`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-runtime && go test ./cmd/agentmon-unixwrap/... -run TestSignalFilterAvailable -v`
 Expected: PASS
 
 **Step 3: Add signal filter installation to wrapper main**
 
-Modify `cmd/agentsh-unixwrap/main.go` - add import and installation:
+Modify `cmd/agentmon-unixwrap/main.go` - add import and installation:
 
 ```go
 import (
@@ -143,9 +143,9 @@ import (
 	"strconv"
 	"syscall"
 
-	unixmon "github.com/agentsh/agentsh/internal/netmonitor/unix"
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
-	"github.com/agentsh/agentsh/internal/signal"
+	unixmon "github.com/diffsec/agentmon/internal/netmonitor/unix"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/signal"
 	"golang.org/x/sys/unix"
 )
 
@@ -231,13 +231,13 @@ func main() {
 
 **Step 4: Verify build passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-runtime && go build ./cmd/agentsh-unixwrap/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-runtime && go build ./cmd/agentmon-unixwrap/...`
 Expected: PASS (no errors)
 
 **Step 5: Commit**
 
 ```bash
-git add cmd/agentsh-unixwrap/main.go cmd/agentsh-unixwrap/signal_test.go
+git add cmd/agentmon-unixwrap/main.go cmd/agentmon-unixwrap/signal_test.go
 git commit -m "feat(signal): install signal filter in wrapper"
 ```
 
@@ -266,9 +266,9 @@ import (
 	"os"
 	"time"
 
-	unixmon "github.com/agentsh/agentsh/internal/netmonitor/unix"
-	"github.com/agentsh/agentsh/internal/signal"
-	"github.com/agentsh/agentsh/pkg/types"
+	unixmon "github.com/diffsec/agentmon/internal/netmonitor/unix"
+	"github.com/diffsec/agentmon/internal/signal"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // signalEmitterAdapter adapts the API's event store/broker to the signal handler's EventEmitter interface.
@@ -396,7 +396,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/agentsh/agentsh/internal/signal"
+	"github.com/diffsec/agentmon/internal/signal"
 )
 
 // startSignalHandler is a no-op on non-Linux platforms.
@@ -433,7 +433,7 @@ func NewSignalFilterFromFD(fd int) *SignalFilter {
 
 **Step 4: Verify build passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-runtime && go build ./internal/api/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-runtime && go build ./internal/api/...`
 Expected: PASS
 
 **Step 5: Commit**
@@ -481,13 +481,13 @@ Add to imports in `internal/api/exec.go`:
 ```go
 import (
 	// ... existing imports ...
-	"github.com/agentsh/agentsh/internal/signal"
+	"github.com/diffsec/agentmon/internal/signal"
 )
 ```
 
 **Step 3: Verify build passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-runtime && go build ./internal/api/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-runtime && go build ./internal/api/...`
 Expected: PASS
 
 **Step 4: Commit**
@@ -532,7 +532,7 @@ Modify `internal/api/exec.go` after line 189 (after `startNotifyHandler` call):
 
 **Step 2: Verify build passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-runtime && go build ./internal/api/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-runtime && go build ./internal/api/...`
 Expected: PASS
 
 **Step 3: Commit**
@@ -600,13 +600,13 @@ Add to imports:
 ```go
 import (
 	// ... existing imports ...
-	"github.com/agentsh/agentsh/internal/signal"
+	"github.com/diffsec/agentmon/internal/signal"
 )
 ```
 
 **Step 4: Verify build passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-runtime && go build ./internal/api/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-runtime && go build ./internal/api/...`
 Expected: PASS
 
 **Step 5: Commit**
@@ -623,7 +623,7 @@ git commit -m "feat(signal): wire signal filter into core exec flow"
 Update wrapper to handle sending two FDs (unix socket notify + signal filter).
 
 **Files:**
-- Modify: `cmd/agentsh-unixwrap/main.go`
+- Modify: `cmd/agentmon-unixwrap/main.go`
 
 **Step 1: Refactor wrapper to send FDs sequentially**
 
@@ -703,13 +703,13 @@ func main() {
 
 **Step 2: Verify build passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-runtime && go build ./cmd/agentsh-unixwrap/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-runtime && go build ./cmd/agentmon-unixwrap/...`
 Expected: PASS
 
 **Step 3: Commit**
 
 ```bash
-git add cmd/agentsh-unixwrap/main.go
+git add cmd/agentmon-unixwrap/main.go
 git commit -m "feat(signal): handle multiple FDs in wrapper"
 ```
 
@@ -728,7 +728,7 @@ Update the wrapper setup to use two socket pairs - one for unix socket notify, o
 
 The key insight: each filter sends its FD over the socket. If we send both over one socket, the receiver can distinguish them by order. But cleaner is to have separate socket pairs.
 
-Actually, looking at the code more carefully, the current implementation only has one socketpair and passes it as ExtraFiles[0] (fd 3). The wrapper reads AGENTSH_NOTIFY_SOCK_FD to know which fd to use.
+Actually, looking at the code more carefully, the current implementation only has one socketpair and passes it as ExtraFiles[0] (fd 3). The wrapper reads AGENTMON_NOTIFY_SOCK_FD to know which fd to use.
 
 For simplicity, let's use a single socketpair and have the wrapper send both FDs over it. The server receives them in order (unix notify first, signal filter second).
 
@@ -782,9 +782,9 @@ if signalEnabled {
     extraFiles = append(extraFiles, sigSP.child)
 }
 
-wrappedReq.Env["AGENTSH_NOTIFY_SOCK_FD"] = strconv.Itoa(envFD)
+wrappedReq.Env["AGENTMON_NOTIFY_SOCK_FD"] = strconv.Itoa(envFD)
 if signalEnabled {
-    wrappedReq.Env["AGENTSH_SIGNAL_SOCK_FD"] = strconv.Itoa(envFD + 1)
+    wrappedReq.Env["AGENTMON_SIGNAL_SOCK_FD"] = strconv.Itoa(envFD + 1)
 }
 
 // Pass seccomp configuration
@@ -795,7 +795,7 @@ seccompCfg := seccompWrapperConfig{
 }
 ```
 
-This requires updating the wrapper to read AGENTSH_SIGNAL_SOCK_FD too.
+This requires updating the wrapper to read AGENTMON_SIGNAL_SOCK_FD too.
 
 **Step 3: Commit partial progress**
 
@@ -809,19 +809,19 @@ git commit -m "wip(signal): add separate socket pair for signal filter"
 ## Task 9: Update Wrapper to Use Separate Signal Socket
 
 **Files:**
-- Modify: `cmd/agentsh-unixwrap/main.go`
+- Modify: `cmd/agentmon-unixwrap/main.go`
 
 **Step 1: Add signal socket FD reader**
 
 ```go
 func signalSockFD() (int, error) {
-	val := os.Getenv("AGENTSH_SIGNAL_SOCK_FD")
+	val := os.Getenv("AGENTMON_SIGNAL_SOCK_FD")
 	if val == "" {
 		return -1, nil // Signal socket not configured
 	}
 	n, err := strconv.Atoi(val)
 	if err != nil || n <= 0 {
-		return -1, fmt.Errorf("invalid AGENTSH_SIGNAL_SOCK_FD=%q", val)
+		return -1, fmt.Errorf("invalid AGENTMON_SIGNAL_SOCK_FD=%q", val)
 	}
 	return n, nil
 }
@@ -890,13 +890,13 @@ func main() {
 
 **Step 3: Verify build passes**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-runtime && go build ./cmd/agentsh-unixwrap/...`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-runtime && go build ./cmd/agentmon-unixwrap/...`
 Expected: PASS
 
 **Step 4: Commit**
 
 ```bash
-git add cmd/agentsh-unixwrap/main.go
+git add cmd/agentmon-unixwrap/main.go
 git commit -m "feat(signal): use separate socket for signal filter fd"
 ```
 
@@ -921,7 +921,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/signal"
+	"github.com/diffsec/agentmon/internal/signal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -960,7 +960,7 @@ func TestSignalFilterIntegration(t *testing.T) {
 
 **Step 2: Run test**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-runtime && go test ./internal/api/... -run TestSignalFilterIntegration -v -tags integration`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-runtime && go test ./internal/api/... -run TestSignalFilterIntegration -v -tags integration`
 Expected: PASS (or skip if not available)
 
 **Step 3: Commit**
@@ -976,17 +976,17 @@ git commit -m "test(signal): add integration test for signal filter"
 
 **Step 1: Run all tests**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-runtime && go test ./... -v 2>&1 | tail -50`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-runtime && go test ./... -v 2>&1 | tail -50`
 Expected: All tests pass
 
 **Step 2: Verify Windows cross-compilation**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-runtime && GOOS=windows go build ./...`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-runtime && GOOS=windows go build ./...`
 Expected: PASS
 
 **Step 3: Verify build**
 
-Run: `cd /home/eran/work/agentsh/.worktrees/signal-runtime && go build ./...`
+Run: `cd /home/eran/work/agentmon/.worktrees/signal-runtime && go build ./...`
 Expected: PASS
 
 ---

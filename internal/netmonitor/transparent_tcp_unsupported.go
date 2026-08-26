@@ -6,10 +6,10 @@ package netmonitor
 import (
 	"errors"
 
-	"github.com/agentsh/agentsh/internal/approvals"
-	dbevents "github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
+	"github.com/diffsec/agentmon/internal/approvals"
+	dbevents "github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
 )
 
 type TransparentTCP struct{}

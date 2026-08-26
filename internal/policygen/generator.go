@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/store"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Package-level compiled regexes for sanitizeName

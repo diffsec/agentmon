@@ -4,7 +4,7 @@ Status: design draft 2026-05-11. Brainstormed via superpowers:brainstorming. Imp
 
 Cross-references:
 - Roadmap: `docs/superpowers/specs/2026-05-08-db-access-phase-1-roadmap-design.md` §3 Plan 05.
-- Spec: `docs/agentsh-db-access-spec.md` v0.8 §7.1 (wire framing), §7.3 (mapping incl. COPY rows), §7.4 (SQL-level prepared statements), §7.5 (FunctionCall sub-protocol), §7.6 (function-call escalation), §9.2 (DEALLOCATE / DISCARD coverage by `app-allow-safe-session-settings`), §14 (transaction correctness, deny modes, approval timeouts).
+- Spec: `docs/agentmon-db-access-spec.md` v0.8 §7.1 (wire framing), §7.3 (mapping incl. COPY rows), §7.4 (SQL-level prepared statements), §7.5 (FunctionCall sub-protocol), §7.6 (function-call escalation), §9.2 (DEALLOCATE / DISCARD coverage by `app-allow-safe-session-settings`), §14 (transaction correctness, deny modes, approval timeouts).
 - Predecessor design: `docs/superpowers/specs/2026-05-10-db-plan-04-pg-proxy-skeleton-design.md` (shared design for 04a/04b/04b2/04c).
 - Predecessor plans: `docs/superpowers/plans/2026-05-10-db-plan-04a-listener-skeleton.md`, `…-04b-handshake-tls.md`, `…-04b2-upstream-passthrough.md`, `…-04c-simple-query-events.md`.
 

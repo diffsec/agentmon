@@ -1,6 +1,6 @@
 package keyring
 
-import secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+import secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 
 // Config configures the keyring provider.
 //

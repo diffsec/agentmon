@@ -41,9 +41,9 @@ type BaseEvent struct {
 	IPCBackend      string `json:"ipc_backend,omitempty"`
 
 	// Versioning
-	AgentshVersion     string `json:"agentsh_version,omitempty"`
-	AgentshCommit      string `json:"agentsh_commit,omitempty"`
-	AgentshBuildTime   string `json:"agentsh_build_time,omitempty"`
+	AgentmonVersion     string `json:"agentmon_version,omitempty"`
+	AgentmonCommit      string `json:"agentmon_commit,omitempty"`
+	AgentmonBuildTime   string `json:"agentmon_build_time,omitempty"`
 	EventSchemaVersion string `json:"event_schema_version"`
 	PolicyVersion      string `json:"policy_version,omitempty"`
 	PolicyName         string `json:"policy_name,omitempty"`

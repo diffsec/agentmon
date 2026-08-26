@@ -1,4 +1,4 @@
-# Agent Observe Policy for agentsh
+# Agent Observe Policy for agentmon
 # Audit-only mode for profiling agent behavior
 
 version: 1

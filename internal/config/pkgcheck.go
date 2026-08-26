@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // PackageChecksConfig configures package install security checks.

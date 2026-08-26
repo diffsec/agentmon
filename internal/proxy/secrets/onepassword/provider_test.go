@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/secretstest"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/secretstest"
 )
 
 type mockOPClient struct {
@@ -40,7 +40,7 @@ func TestName(t *testing.T) {
 }
 
 func TestConfig_Dependencies_WithRef(t *testing.T) {
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "op_key"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "op_key"}
 	cfg := Config{
 		ServerURL: "https://op.internal",
 		APIKeyRef: &ref,
@@ -66,7 +66,7 @@ func TestConfig_Dependencies_WithLiteral(t *testing.T) {
 }
 
 func TestConfig_Dependencies_BothSet(t *testing.T) {
-	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentsh", Path: "op_key"}
+	ref := secrets.SecretRef{Scheme: "keyring", Host: "agentmon", Path: "op_key"}
 	cfg := Config{
 		ServerURL: "https://op.internal",
 		APIKey:    "literal-key",

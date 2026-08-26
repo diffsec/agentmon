@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type typeCaptureEmitter struct {
@@ -136,7 +136,7 @@ func TestFUSE_InterceptsExtraOps(t *testing.T) {
 }
 
 // TestFUSE_FsyncFlushLseekPassthrough verifies that fsync(2), implicit flush
-// on close, and lseek(2) on a file opened through the agentsh FUSE mount
+// on close, and lseek(2) on a file opened through the agentmon FUSE mount
 // succeed instead of returning ENOTSUP. Without explicit Fsync/Flush/Lseek
 // pass-throughs on fileHandle, go-fuse falls back to ENOTSUP, which libuv-
 // based runtimes surface as "operation not supported on socket, fsync".

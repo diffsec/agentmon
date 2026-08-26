@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make AgentSH report a `DecisionContext` (hostname, config tags, source-labeled user — OS or Tailscale) to Watchtower on `SessionInit`, so Watchtower can resolve and push the bound policy through the install path that already exists.
+**Goal:** Make AgentMon report a `DecisionContext` (hostname, config tags, source-labeled user — OS or Tailscale) to Watchtower on `SessionInit`, so Watchtower can resolve and push the bound policy through the install path that already exists.
 
 **Architecture:** Approach A (agent/process-level). Add a `DecisionContext` message to `wtp-protos` and carry it on `SessionInit`/`SessionUpdate`. On the agent, a new `internal/decisionctx` package resolves the context from pluggable sources; `buildWatchtowerStore` threads it through `watchtower.Options` → `transport.Options` → `sessionInit()`. Policy verification, install (write signed YAML to `policies.dir` + reload/swap), on-disk persistence (= last-known-good), and re-resolution (`PolicyPush`) are all **reused unchanged**.
 
@@ -19,7 +19,7 @@
 - Create: `buf.gen.go-only.yaml` — Go-only codegen template (avoids the Rust toolchain during dev).
 - Regenerated: `gen/go/canyonroad/wtp/v1/wtp.pb.go`.
 
-**agentsh repo (`/home/eran/work/agentsh`):**
+**agentmon repo (`/home/eran/work/agentmon`):**
 - Modify: `go.mod` — temporary `replace` → local `wtp-protos/gen/go`.
 - Create: `internal/decisionctx/decisionctx.go` — `User`, `DecisionContext`, `Source`, `Resolver`, `Config`, `NewResolver`.
 - Create: `internal/decisionctx/sources.go` — hostname / tags / osuser sources.
@@ -42,7 +42,7 @@
 **Files:**
 - Modify: `/home/eran/work/wtp-protos/proto/canyonroad/wtp/v1/wtp.proto`
 - Create: `/home/eran/work/wtp-protos/buf.gen.go-only.yaml`
-- Modify: `/home/eran/work/agentsh/go.mod`
+- Modify: `/home/eran/work/agentmon/go.mod`
 
 - [ ] **Step 1: Add the proto messages/fields**
 
@@ -123,11 +123,11 @@ git add proto/canyonroad/wtp/v1/wtp.proto buf.gen.go-only.yaml gen/go
 git commit -m "feat: add DecisionContext to SessionInit/SessionUpdate"
 ```
 
-- [ ] **Step 6: Wire the dev `replace` in agentsh and tidy**
+- [ ] **Step 6: Wire the dev `replace` in agentmon and tidy**
 
 Run:
 ```bash
-cd /home/eran/work/agentsh
+cd /home/eran/work/agentmon
 go mod edit -replace github.com/canyonroad/wtp-protos/gen/go=/home/eran/work/wtp-protos/gen/go
 go mod tidy
 go build ./... 2>&1 | tail -5
@@ -137,7 +137,7 @@ Expected: builds cleanly (the new type is now resolvable).
 - [ ] **Step 7: Commit the replace**
 
 ```bash
-cd /home/eran/work/agentsh
+cd /home/eran/work/agentmon
 git add go.mod go.sum
 git commit -m "build: dev replace for local wtp-protos with DecisionContext (drop on v0.2.0 release)"
 ```
@@ -213,7 +213,7 @@ Create `internal/decisionctx/decisionctx.go`:
 
 ```go
 // Package decisionctx resolves a process-level "decision context"
-// (identity + environment signals) that AgentSH reports to Watchtower so
+// (identity + environment signals) that AgentMon reports to Watchtower so
 // the server can resolve the bound policy. It has no dependency on the
 // WTP proto types; conversion to the wire shape happens in the caller.
 package decisionctx
@@ -857,7 +857,7 @@ package server
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/decisionctx"
+	"github.com/diffsec/agentmon/internal/decisionctx"
 	wtpv1 "github.com/canyonroad/wtp-protos/gen/go/canyonroad/wtp/v1"
 )
 
@@ -934,7 +934,7 @@ In `buildWatchtowerStore`, after `agentID := resolveAgentID(cfg)` and before ass
 	wireDC := toWireDecisionContext(dc)
 ```
 
-Add `DecisionContext: wireDC,` to the `watchtower.Options{...}` literal. Ensure imports include `"github.com/agentsh/agentsh/internal/decisionctx"` and the `wtpv1` alias.
+Add `DecisionContext: wireDC,` to the `watchtower.Options{...}` literal. Ensure imports include `"github.com/diffsec/agentmon/internal/decisionctx"` and the `wtpv1` alias.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
@@ -1060,6 +1060,6 @@ git commit -m "chore: cross-platform + full-suite fixups for decisionctx"
 ## Post-implementation (out of band, not blocking this branch)
 
 - In `wtp-protos`: run full `make gen` (Go + Rust), tag `gen/go/v0.2.0`, push.
-- In agentsh: `go get github.com/canyonroad/wtp-protos/gen/go@v0.2.0`, then `go mod edit -dropreplace github.com/canyonroad/wtp-protos/gen/go`, `go mod tidy`, re-run `go test ./...`. Commit "build: consume wtp-protos v0.2.0, drop dev replace".
+- In agentmon: `go get github.com/canyonroad/wtp-protos/gen/go@v0.2.0`, then `go mod edit -dropreplace github.com/canyonroad/wtp-protos/gen/go`, `go mod tidy`, re-run `go test ./...`. Commit "build: consume wtp-protos v0.2.0, drop dev replace".
 - Watchtower **server** repo: implement DecisionContext → policy resolution (binding by hostname/tags/user). Out of scope for this plan.
-- Phase-2 (agentsh): emit `SessionUpdate{decision_context}` on local context change (Tailscale up/down watcher) for mid-session re-resolution.
+- Phase-2 (agentmon): emit `SessionUpdate{decision_context}` on local context change (Tailscale up/down watcher) for mid-session re-resolution.

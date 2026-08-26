@@ -7,10 +7,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/preparedcache"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/preparedcache"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 func TestSQLPrepared_Prepare_Allow_PopulatesCacheAndReturnsNotHandled(t *testing.T) {
@@ -186,7 +186,7 @@ func TestSQLPrepared_ExpectedActionShape_DenyRouteMatch(t *testing.T) {
 	decisions := []policy.Decision{{Verb: policy.VerbDeny, RuleName: "rule1"}}
 	_, acts := Intercept(stmts, decisions, cache, statemachine.ConnState{LastUpstreamRFQ: 'I'}, nil)
 	want := []statemachine.Action{
-		&statemachine.ActionSynthError{SQLState: "42501", Message: "denied by AgentSH policy: rule1"},
+		&statemachine.ActionSynthError{SQLState: "42501", Message: "denied by AgentMon policy: rule1"},
 		&statemachine.ActionSynthReadyForQuery{Status: 'I'},
 	}
 	if diff := cmp.Diff(want, acts); diff != "" {

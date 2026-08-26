@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/client"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -25,7 +25,7 @@ import (
 func TestMultiMountProfile(t *testing.T) {
 	ctx := context.Background()
 
-	bin := buildAgentshBinary(t)
+	bin := buildAgentmonBinary(t)
 	temp := t.TempDir()
 
 	// Create policies directory with workspace-rw and config-readonly policies
@@ -186,7 +186,7 @@ func startMultiMountServerContainer(t *testing.T, ctx context.Context, bin, conf
 	t.Helper()
 
 	binds := []testcontainers.ContainerMount{
-		testcontainers.BindMount(bin, "/usr/local/bin/agentsh"),
+		testcontainers.BindMount(bin, "/usr/local/bin/agentmon"),
 		testcontainers.BindMount(configPath, "/config.yaml"),
 		testcontainers.BindMount(filepath.Join(filepath.Dir(configPath), "keys.yaml"), "/keys.yaml"),
 		testcontainers.BindMount(policiesDir, "/policies"),
@@ -197,7 +197,7 @@ func startMultiMountServerContainer(t *testing.T, ctx context.Context, bin, conf
 	req := testcontainers.ContainerRequest{
 		Image:        "debian:bookworm-slim",
 		ExposedPorts: []string{"18080/tcp"},
-		Cmd:          []string{"/usr/local/bin/agentsh", "server", "--config", "/config.yaml"},
+		Cmd:          []string{"/usr/local/bin/agentmon", "server", "--config", "/config.yaml"},
 		Mounts:       binds,
 		Privileged:   true,
 		CapAdd:       []string{"SYS_ADMIN"},

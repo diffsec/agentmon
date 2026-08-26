@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/platform/darwin"
+	"github.com/diffsec/agentmon/internal/platform/darwin"
 	"golang.org/x/sys/unix"
 )
 

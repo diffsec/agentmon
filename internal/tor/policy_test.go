@@ -4,8 +4,8 @@ import (
 	"net"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/ipset"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/ipset"
 )
 
 func newDenyPolicy(t *testing.T) *Policy {

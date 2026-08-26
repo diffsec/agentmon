@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add per-socket-family blocking to agentsh's sandbox: a YAML-configurable list of `AF_*` families whose `socket(2)`/`socketpair(2)` calls return `EAFNOSUPPORT` (or kill, log, log_and_kill). Two enforcement engines share the same config and types: seccomp-bpf primary, ptrace fallback when seccomp is unavailable.
+**Goal:** Add per-socket-family blocking to agentmon's sandbox: a YAML-configurable list of `AF_*` families whose `socket(2)`/`socketpair(2)` calls return `EAFNOSUPPORT` (or kill, log, log_and_kill). Two enforcement engines share the same config and types: seccomp-bpf primary, ptrace fallback when seccomp is unavailable.
 
 **Architecture:** New `internal/seccomp/families.go` defines `BlockedFamily` + name↔number table + `DefaultBlockedFamilies()`. The seccomp engine (`internal/netmonitor/unix/seccomp_linux.go`) gets `AddRuleConditional` calls keyed on arg0. The ptrace engine (`internal/ptrace/family_checker.go`) gets a small checker invoked from the existing tracer dispatch. Config field on `SandboxSeccompConfig`. Spec: `docs/superpowers/specs/2026-04-29-socket-family-block-design.md`.
 
@@ -12,9 +12,9 @@
 
 ## Conventions for every task
 
-- Run all commands from `/home/eran/work/agentsh`. The brainstorming skill should have placed you in a worktree under `.claude/worktrees/<branch>/`; if so, run from there.
+- Run all commands from `/home/eran/work/agentmon`. The brainstorming skill should have placed you in a worktree under `.claude/worktrees/<branch>/`; if so, run from there.
 - Read the existing analogous code first when adding new code: `internal/netmonitor/unix/seccomp_linux.go::InstallFilterWithConfig` for seccomp rules, `internal/ptrace/static_policy.go` for ptrace patterns.
-- Module path: `github.com/agentsh/agentsh` (verify with `head -1 go.mod`).
+- Module path: `github.com/diffsec/agentmon` (verify with `head -1 go.mod`).
 - Tab indentation; `gofmt -w` on touched files; `go vet ./...` clean before commit.
 - Cross-compile gate per `CLAUDE.md`: `GOOS=windows go build ./...` after every Linux-only file change.
 - Run `go test -race ./internal/seccomp/... ./internal/ptrace/... ./internal/netmonitor/unix/...` after engine changes.
@@ -39,7 +39,7 @@
 | `internal/ptrace/family_checker_test.go` (new) | Unit tests with synthetic regs |
 | `internal/ptrace/family_checker_integration_test.go` (new) | Real-tracee integration test |
 | `internal/server/security.go` or `server.go` (modify) | Engine selection: seccomp vs ptrace vs warn |
-| `cmd/agentsh-unixwrap/config.go` + `main.go` (modify) | Forward `BlockedFamilies` from JSON config to FilterConfig |
+| `cmd/agentmon-unixwrap/config.go` + `main.go` (modify) | Forward `BlockedFamilies` from JSON config to FilterConfig |
 
 ---
 
@@ -371,7 +371,7 @@ Find callers:
 grep -rn "FilterConfigFromYAML(" --include="*.go"
 ```
 
-For each caller, add a `nil` argument as the new `blockedFamilies` parameter. Likely callers are in `internal/api/seccomp_wrapper_config.go` and `cmd/agentsh-unixwrap/main.go` and possibly tests. Pass `nil` for now — Tasks 6–7 will wire real values.
+For each caller, add a `nil` argument as the new `blockedFamilies` parameter. Likely callers are in `internal/api/seccomp_wrapper_config.go` and `cmd/agentmon-unixwrap/main.go` and possibly tests. Pass `nil` for now — Tasks 6–7 will wire real values.
 
 - [ ] **Step 6: Run filter package tests**
 
@@ -393,7 +393,7 @@ Both clean.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add internal/seccomp/filter.go internal/seccomp/filter_test.go internal/api/seccomp_wrapper_config.go cmd/agentsh-unixwrap/main.go
+git add internal/seccomp/filter.go internal/seccomp/filter_test.go internal/api/seccomp_wrapper_config.go cmd/agentmon-unixwrap/main.go
 git commit -m "feat(seccomp): wire BlockedFamilies through FilterConfig
 
 Callers pass nil; later tasks populate real values.
@@ -558,7 +558,7 @@ if seccompActive && !cfg.Sandbox.Seccomp.BlockedSocketFamiliesSet {
 }
 ```
 
-(`seccomp` import is `github.com/agentsh/agentsh/internal/seccomp`. Add the import if not already present in config.go.)
+(`seccomp` import is `github.com/diffsec/agentmon/internal/seccomp`. Add the import if not already present in config.go.)
 
 If the project uses the pointer-slice convention instead of a bool sentinel, replace `!cfg.Sandbox.Seccomp.BlockedSocketFamiliesSet` with `cfg.Sandbox.Seccomp.BlockedSocketFamilies == nil`, and update tests accordingly.
 
@@ -715,7 +715,7 @@ package config
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/seccomp"
 )
 
 func TestResolveBlockedFamilies(t *testing.T) {
@@ -769,7 +769,7 @@ package config
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/seccomp"
 )
 
 // ResolveBlockedFamilies converts YAML-typed entries into the engine-typed
@@ -934,7 +934,7 @@ import (
 	"syscall"
 	"testing"
 
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
 	"golang.org/x/sys/unix"
 )
 
@@ -994,18 +994,18 @@ sudo go test ./internal/netmonitor/unix/ -run "TestSeccomp_FamilyBlock" -v
 
 Expected: tests pass.
 
-- [ ] **Step 7: Update `cmd/agentsh-unixwrap` to forward families**
+- [ ] **Step 7: Update `cmd/agentmon-unixwrap` to forward families**
 
-Find where `FilterConfig` is constructed in `cmd/agentsh-unixwrap/main.go` (around line 64):
+Find where `FilterConfig` is constructed in `cmd/agentmon-unixwrap/main.go` (around line 64):
 
 ```bash
-sed -n '60,90p' cmd/agentsh-unixwrap/main.go
+sed -n '60,90p' cmd/agentmon-unixwrap/main.go
 ```
 
 Add the family forwarding:
 
 ```go
-// In the config struct (cmd/agentsh-unixwrap/config.go):
+// In the config struct (cmd/agentmon-unixwrap/config.go):
 type WrapperConfig struct {
 	UnixSocketEnabled bool                      `json:"unix_socket_enabled"`
 	BlockedSyscalls   []string                  `json:"blocked_syscalls"`
@@ -1030,7 +1030,7 @@ Then update `internal/api/seccomp_wrapper_config.go` (which composes the JSON se
 ```bash
 go build ./...
 GOOS=windows go build ./...
-go test ./internal/seccomp/... ./internal/netmonitor/unix/... ./internal/config/... ./cmd/agentsh-unixwrap/...
+go test ./internal/seccomp/... ./internal/netmonitor/unix/... ./internal/config/... ./cmd/agentmon-unixwrap/...
 ```
 
 All pass.
@@ -1038,7 +1038,7 @@ All pass.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add internal/netmonitor/unix/seccomp_linux.go internal/netmonitor/unix/seccomp_family_test.go cmd/agentsh-unixwrap/config.go cmd/agentsh-unixwrap/main.go internal/api/seccomp_wrapper_config.go
+git add internal/netmonitor/unix/seccomp_linux.go internal/netmonitor/unix/seccomp_family_test.go cmd/agentmon-unixwrap/config.go cmd/agentmon-unixwrap/main.go internal/api/seccomp_wrapper_config.go
 git commit -m "feat(seccomp): per-family rules on socket(2)/socketpair(2)
 
 AddRuleConditional with arg0 == family. EAFNOSUPPORT for errno action;
@@ -1151,7 +1151,7 @@ package ptrace
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/seccomp"
 	"golang.org/x/sys/unix"
 )
 
@@ -1205,7 +1205,7 @@ func TestFamilyChecker_Empty(t *testing.T) {
 package ptrace
 
 import (
-	"github.com/agentsh/agentsh/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/seccomp"
 	"golang.org/x/sys/unix"
 )
 

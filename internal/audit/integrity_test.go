@@ -589,7 +589,7 @@ func TestIntegrityChain_Restore(t *testing.T) {
 }
 
 func TestLoadKey_FromEnv(t *testing.T) {
-	envVar := "AGENTSH_TEST_AUDIT_KEY"
+	envVar := "AGENTMON_TEST_AUDIT_KEY"
 	keyValue := "my-secret-key-from-env"
 
 	t.Setenv(envVar, keyValue)
@@ -648,7 +648,7 @@ func TestLoadKey_FilePriorityOverEnv(t *testing.T) {
 	keyFile := filepath.Join(tmpDir, "hmac.key")
 	fileKey := "key-from-file"
 	envKey := "key-from-env"
-	envVar := "AGENTSH_TEST_AUDIT_KEY_PRIORITY"
+	envVar := "AGENTMON_TEST_AUDIT_KEY_PRIORITY"
 
 	if err := os.WriteFile(keyFile, []byte(fileKey), 0600); err != nil {
 		t.Fatalf("write key file: %v", err)
@@ -674,7 +674,7 @@ func TestLoadKey_NoSource(t *testing.T) {
 }
 
 func TestLoadKey_EmptyEnvVar(t *testing.T) {
-	envVar := "AGENTSH_TEST_EMPTY_KEY"
+	envVar := "AGENTMON_TEST_EMPTY_KEY"
 	t.Setenv(envVar, "")
 
 	_, err := LoadKey("", envVar)

@@ -161,7 +161,7 @@ func (r *DetectResult) Table() string {
 		}
 	}
 
-	sb.WriteString("\nRun 'agentsh detect config' to generate an optimized configuration.\n")
+	sb.WriteString("\nRun 'agentmon detect config' to generate an optimized configuration.\n")
 	return sb.String()
 }
 

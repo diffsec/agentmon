@@ -1,5 +1,5 @@
 // Package decisionctx resolves a process-level "decision context"
-// (identity + environment signals) that AgentSH reports to Watchtower so
+// (identity + environment signals) that AgentMon reports to Watchtower so
 // the server can resolve the bound policy. It has no dependency on the
 // WTP proto types; conversion to the wire shape happens in the caller.
 package decisionctx

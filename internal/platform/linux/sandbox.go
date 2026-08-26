@@ -10,7 +10,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 	"github.com/google/uuid"
 )
 

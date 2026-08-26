@@ -2,7 +2,7 @@
 package shim
 
 import (
-	"github.com/agentsh/agentsh/internal/mcpinspect"
+	"github.com/diffsec/agentmon/internal/mcpinspect"
 )
 
 // MCPBridge connects the shim's stdio wrapper to the mcpinspect package.

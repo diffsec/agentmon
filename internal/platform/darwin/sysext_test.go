@@ -9,7 +9,7 @@ import (
 )
 
 // state = running while launchd still remembers an older crash (runs > 1).
-const launchdRunningAfterCrash = `system/WCKWMMKJ35.ai.canyonroad.agentsh.SysExt = {
+const launchdRunningAfterCrash = `system/LWSYS6YTUZ.dev.diffsec.agentmon.SysExt = {
 	active count = 1
 	state = running
 
@@ -24,8 +24,8 @@ func TestNewSysExtManager(t *testing.T) {
 	if m == nil {
 		t.Fatal("NewSysExtManager() returned nil")
 	}
-	if m.bundleID != "ai.canyonroad.agentsh.SysExt" {
-		t.Errorf("bundleID = %q, want %q", m.bundleID, "ai.canyonroad.agentsh.SysExt")
+	if m.bundleID != "dev.diffsec.agentmon.SysExt" {
+		t.Errorf("bundleID = %q, want %q", m.bundleID, "dev.diffsec.agentmon.SysExt")
 	}
 }
 
@@ -39,8 +39,8 @@ func TestSysExtManager_Status(t *testing.T) {
 	if status == nil {
 		t.Fatal("Status() returned nil status")
 	}
-	if status.BundleID != "ai.canyonroad.agentsh.SysExt" {
-		t.Errorf("BundleID = %q, want %q", status.BundleID, "ai.canyonroad.agentsh.SysExt")
+	if status.BundleID != "dev.diffsec.agentmon.SysExt" {
+		t.Errorf("BundleID = %q, want %q", status.BundleID, "dev.diffsec.agentmon.SysExt")
 	}
 }
 
@@ -48,7 +48,7 @@ func TestSysExtManager_Status_NeverReturnsError(t *testing.T) {
 	// The Status method should never return an error - errors go in status.Error field
 	m := &SysExtManager{
 		bundlePath: "",
-		bundleID:   "ai.canyonroad.agentsh.SysExt",
+		bundleID:   "dev.diffsec.agentmon.SysExt",
 	}
 
 	status, err := m.Status()
@@ -63,7 +63,7 @@ func TestSysExtManager_Status_NeverReturnsError(t *testing.T) {
 func TestSysExtManager_Install_NoBundleError(t *testing.T) {
 	m := &SysExtManager{
 		bundlePath: "",
-		bundleID:   "ai.canyonroad.agentsh.SysExt",
+		bundleID:   "dev.diffsec.agentmon.SysExt",
 	}
 
 	err := m.Install()
@@ -89,13 +89,13 @@ func TestFindAppBundle_FromWithinBundle(t *testing.T) {
 	}{
 		{
 			name:     "from within app bundle Contents/MacOS",
-			execPath: "/Applications/AgentSH.app/Contents/MacOS/agentsh",
-			want:     "/Applications/AgentSH.app",
+			execPath: "/Applications/AgentMon.app/Contents/MacOS/agentmon",
+			want:     "/Applications/AgentMon.app",
 		},
 		{
 			name:     "from within app bundle nested",
-			execPath: "/some/path/AgentSH.app/Contents/Resources/bin/tool",
-			want:     "/some/path/AgentSH.app",
+			execPath: "/some/path/AgentMon.app/Contents/Resources/bin/tool",
+			want:     "/some/path/AgentMon.app",
 		},
 	}
 
@@ -117,7 +117,7 @@ func TestSysExtStatus_JSONTags(t *testing.T) {
 		State:       "running",
 		LastExit:    "",
 		Version:     "1.0.0",
-		BundleID:    "ai.canyonroad.agentsh.SysExt",
+		BundleID:    "dev.diffsec.agentmon.SysExt",
 		ExtensionID: "ext-123",
 		Error:       "",
 	}
@@ -132,7 +132,7 @@ func TestSysExtStatus_JSONTags(t *testing.T) {
 	if status.Version != "1.0.0" {
 		t.Error("Version mismatch")
 	}
-	if status.BundleID != "ai.canyonroad.agentsh.SysExt" {
+	if status.BundleID != "dev.diffsec.agentmon.SysExt" {
 		t.Error("BundleID mismatch")
 	}
 	if status.ExtensionID != "ext-123" {
@@ -147,7 +147,7 @@ func TestSysExtManager_Status_LivenessMapping(t *testing.T) {
 	restore := runLivenessCommand
 	defer func() { runLivenessCommand = restore }()
 
-	m := &SysExtManager{bundlePath: "/tmp", bundleID: "ai.canyonroad.agentsh.SysExt"}
+	m := &SysExtManager{bundlePath: "/tmp", bundleID: "dev.diffsec.agentmon.SysExt"}
 
 	tests := []struct {
 		name            string

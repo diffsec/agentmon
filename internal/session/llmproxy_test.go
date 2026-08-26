@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/mcpregistry"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/mcpregistry"
 )
 
 func TestStartLLMProxy(t *testing.T) {
@@ -134,7 +134,7 @@ func TestSession_LLMProxyEnvVars(t *testing.T) {
 			wantVars: map[string]string{
 				"ANTHROPIC_BASE_URL": "http://127.0.0.1:52341",
 				"OPENAI_BASE_URL":    "http://127.0.0.1:52341",
-				"AGENTSH_SESSION_ID": "env-test-session",
+				"AGENTMON_SESSION_ID": "env-test-session",
 			},
 		},
 	}
@@ -195,7 +195,7 @@ func TestSession_LLMProxyEnvVars_DelegatesToProxy(t *testing.T) {
 		env: map[string]string{
 			"ANTHROPIC_BASE_URL": "http://127.0.0.1:9999",
 			"OPENAI_BASE_URL":    "http://127.0.0.1:9999",
-			"AGENTSH_SESSION_ID": "sess-123",
+			"AGENTMON_SESSION_ID": "sess-123",
 			"GITHUB_API_URL":     "http://127.0.0.1:9999/svc/github",
 			"STRIPE_API_URL":     "http://127.0.0.1:9999/svc/stripe",
 		},
@@ -209,7 +209,7 @@ func TestSession_LLMProxyEnvVars_DelegatesToProxy(t *testing.T) {
 	wantKeys := []string{
 		"ANTHROPIC_BASE_URL",
 		"OPENAI_BASE_URL",
-		"AGENTSH_SESSION_ID",
+		"AGENTMON_SESSION_ID",
 		"GITHUB_API_URL",
 		"STRIPE_API_URL",
 	}
@@ -242,8 +242,8 @@ func TestSession_LLMProxyEnvVars_FallbackWhenNoProxyInstance(t *testing.T) {
 	if got := envVars["OPENAI_BASE_URL"]; got != "http://127.0.0.1:8888" {
 		t.Errorf("OPENAI_BASE_URL = %q", got)
 	}
-	if got := envVars["AGENTSH_SESSION_ID"]; got != "sess-456" {
-		t.Errorf("AGENTSH_SESSION_ID = %q", got)
+	if got := envVars["AGENTMON_SESSION_ID"]; got != "sess-456" {
+		t.Errorf("AGENTMON_SESSION_ID = %q", got)
 	}
 	if _, ok := envVars["GITHUB_API_URL"]; ok {
 		t.Errorf("unexpected GITHUB_API_URL in fallback: %v", envVars)
@@ -309,8 +309,8 @@ func TestSession_LLMProxyEnvVars_Integration(t *testing.T) {
 	if envVars["OPENAI_BASE_URL"] != proxyURL {
 		t.Errorf("OPENAI_BASE_URL: expected %s, got %s", proxyURL, envVars["OPENAI_BASE_URL"])
 	}
-	if envVars["AGENTSH_SESSION_ID"] != "integration-test-session" {
-		t.Errorf("AGENTSH_SESSION_ID: expected integration-test-session, got %s", envVars["AGENTSH_SESSION_ID"])
+	if envVars["AGENTMON_SESSION_ID"] != "integration-test-session" {
+		t.Errorf("AGENTMON_SESSION_ID: expected integration-test-session, got %s", envVars["AGENTMON_SESSION_ID"])
 	}
 
 	// Verify we can use the env vars to make a request
@@ -507,8 +507,8 @@ func TestStartLLMProxy_SessionIDInEnvVars(t *testing.T) {
 	defer closeFn()
 
 	envVars := sess.LLMProxyEnvVars()
-	if envVars["AGENTSH_SESSION_ID"] != "my-unique-session-id" {
-		t.Errorf("expected session ID 'my-unique-session-id', got '%s'", envVars["AGENTSH_SESSION_ID"])
+	if envVars["AGENTMON_SESSION_ID"] != "my-unique-session-id" {
+		t.Errorf("expected session ID 'my-unique-session-id', got '%s'", envVars["AGENTMON_SESSION_ID"])
 	}
 }
 

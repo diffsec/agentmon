@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	secrets "github.com/agentsh/agentsh/internal/proxy/secrets"
+	secrets "github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // ProviderContract runs a baseline set of behavioral assertions

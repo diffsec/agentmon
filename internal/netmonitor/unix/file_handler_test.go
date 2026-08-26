@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 )
@@ -598,7 +598,7 @@ func TestEmulationPath_ReadOnlyOpenat_CaughtByGuard(t *testing.T) {
 
 func TestEmulationPath_ResolvePathAtFailure_ReadVsWrite(t *testing.T) {
 	// Validates behavior when resolvePathAt fails (e.g., Yama ptrace_scope=1,
-	// server is not an ancestor of the tracee — common in `agentsh wrap` path
+	// server is not an ancestor of the tracee — common in `agentmon wrap` path
 	// because PR_SET_PTRACER does not inherit across fork()).
 	//
 	// When resolution fails, the emulated handler falls back to CONTINUE for

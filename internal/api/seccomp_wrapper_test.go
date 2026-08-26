@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func newTestAppForSeccomp(t *testing.T, cfg *config.Config) *App {
@@ -172,13 +172,13 @@ func TestSetupSeccompWrapper_Enabled(t *testing.T) {
 	}
 
 	// Should have notify socket FD env var
-	if result.wrappedReq.Env["AGENTSH_NOTIFY_SOCK_FD"] != "3" {
-		t.Errorf("expected AGENTSH_NOTIFY_SOCK_FD=3, got %q", result.wrappedReq.Env["AGENTSH_NOTIFY_SOCK_FD"])
+	if result.wrappedReq.Env["AGENTMON_NOTIFY_SOCK_FD"] != "3" {
+		t.Errorf("expected AGENTMON_NOTIFY_SOCK_FD=3, got %q", result.wrappedReq.Env["AGENTMON_NOTIFY_SOCK_FD"])
 	}
 
 	// Should have seccomp config env var
-	if _, ok := result.wrappedReq.Env["AGENTSH_SECCOMP_CONFIG"]; !ok {
-		t.Error("expected AGENTSH_SECCOMP_CONFIG env var to be set")
+	if _, ok := result.wrappedReq.Env["AGENTMON_SECCOMP_CONFIG"]; !ok {
+		t.Error("expected AGENTMON_SECCOMP_CONFIG env var to be set")
 	}
 
 	// Clean up file descriptors
@@ -266,9 +266,9 @@ func TestSetupSeccompWrapper_FileMonitorDefaults(t *testing.T) {
 		}
 	}()
 
-	seccompJSON, ok := result.wrappedReq.Env["AGENTSH_SECCOMP_CONFIG"]
+	seccompJSON, ok := result.wrappedReq.Env["AGENTMON_SECCOMP_CONFIG"]
 	if !ok {
-		t.Fatal("AGENTSH_SECCOMP_CONFIG env var not set")
+		t.Fatal("AGENTMON_SECCOMP_CONFIG env var not set")
 	}
 
 	var parsed map[string]any
@@ -350,7 +350,7 @@ func TestSetupSeccompWrapper_WriteOnlyOpensForwarded(t *testing.T) {
 	}()
 
 	var parsed map[string]any
-	if err := json.Unmarshal([]byte(result.wrappedReq.Env["AGENTSH_SECCOMP_CONFIG"]), &parsed); err != nil {
+	if err := json.Unmarshal([]byte(result.wrappedReq.Env["AGENTMON_SECCOMP_CONFIG"]), &parsed); err != nil {
 		t.Fatalf("unmarshal seccomp config: %v", err)
 	}
 	if got, _ := parsed["write_only_opens"].(bool); !got {
@@ -407,8 +407,8 @@ seccomp:
 	if !result.extraCfg.ptraceSync {
 		t.Fatal("expected ptrace sync when a mitigation-set socket family uses log")
 	}
-	if got := result.extraCfg.envInject["AGENTSH_PTRACE_SYNC"]; got != "1" {
-		t.Fatalf("AGENTSH_PTRACE_SYNC = %q, want 1", got)
+	if got := result.extraCfg.envInject["AGENTMON_PTRACE_SYNC"]; got != "1" {
+		t.Fatalf("AGENTMON_PTRACE_SYNC = %q, want 1", got)
 	}
 }
 

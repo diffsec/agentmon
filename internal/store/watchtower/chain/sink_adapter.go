@@ -1,6 +1,6 @@
 package chain
 
-import "github.com/agentsh/agentsh/internal/audit"
+import "github.com/diffsec/agentmon/internal/audit"
 
 // WatchtowerSink adapts *audit.SinkChain to the watchtower-local
 // SinkChainAPI. The adapter is a pure pass-through for Compute, Commit,

@@ -12,7 +12,7 @@
 
 **Branch:** work on `issue-442-macos-packaging-shared-scripts` (already exists, contains the spec).
 
-**Context you need:** This repo builds a macOS app bundle (`AgentSH.app`) containing Go binaries (`Contents/MacOS/`), a system extension, an XPC service, and a helper app. Restricted entitlements (e.g. `endpoint-security.client`) require an embedded provisioning profile or macOS (AMFI) refuses to run the code — that was issue #436. `scripts/verify-macos-bundle.sh` (already exists) checks a built bundle for those profiles. The release pipeline does all this correctly; the Makefile's local path drifted. Signing requires macOS + a signing identity, so signing is NOT testable in this implementation — assembly is, and that's what the smoke test covers.
+**Context you need:** This repo builds a macOS app bundle (`AgentMon.app`) containing Go binaries (`Contents/MacOS/`), a system extension, an XPC service, and a helper app. Restricted entitlements (e.g. `endpoint-security.client`) require an embedded provisioning profile or macOS (AMFI) refuses to run the code — that was issue #436. `scripts/verify-macos-bundle.sh` (already exists) checks a built bundle for those profiles. The release pipeline does all this correctly; the Makefile's local path drifted. Signing requires macOS + a signing identity, so signing is NOT testable in this implementation — assembly is, and that's what the smoke test covers.
 
 ---
 
@@ -31,11 +31,11 @@ Create `scripts/test-assemble-macos-bundle.sh` with this exact content:
 # Smoke test for assemble-macos-bundle.sh. Runs anywhere (no Xcode, no
 # signing identity): fakes the Xcode products and Go binaries, assembles,
 # and asserts the bundle tree. Running on a case-sensitive filesystem
-# (Linux CI) also catches macos/agentsh-vs-macos/AgentSH path drift.
+# (Linux CI) also catches macos/agentmon-vs-macos/AgentMon path drift.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SYSEXT="ai.canyonroad.agentsh.SysExt.systemextension"
+SYSEXT="dev.diffsec.agentmon.SysExt.systemextension"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -47,9 +47,9 @@ mkdir -p "$TMP/products/approval-dialog.app/Contents"
 
 # Fake Go binaries
 mkdir -p "$TMP/go-bin"
-touch "$TMP/go-bin/agentsh" "$TMP/go-bin/agentsh-shell-shim" "$TMP/go-bin/agentsh-stub"
+touch "$TMP/go-bin/agentmon" "$TMP/go-bin/agentmon-shell-shim" "$TMP/go-bin/agentmon-stub"
 
-APP="$TMP/AgentSH.app"
+APP="$TMP/AgentMon.app"
 GO_BIN_DIR="$TMP/go-bin" PRODUCTS_DIR="$TMP/products" \
   scripts/assemble-macos-bundle.sh "$APP"
 
@@ -61,9 +61,9 @@ require() {
   fi
 }
 
-require "$APP/Contents/MacOS/agentsh"
-require "$APP/Contents/MacOS/agentsh-shell-shim"
-require "$APP/Contents/MacOS/agentsh-stub"
+require "$APP/Contents/MacOS/agentmon"
+require "$APP/Contents/MacOS/agentmon-shell-shim"
+require "$APP/Contents/MacOS/agentmon-stub"
 require "$APP/Contents/Info.plist"
 require "$APP/Contents/Library/SystemExtensions/$SYSEXT"
 require "$APP/Contents/Library/SystemExtensions/$SYSEXT/Contents/embedded.provisionprofile"
@@ -112,9 +112,9 @@ set -euo pipefail
 
 APP="${1:?usage: GO_BIN_DIR=<dir> assemble-macos-bundle.sh <app-bundle-path>}"
 PRODUCTS_DIR="${PRODUCTS_DIR:-build/DerivedData/Build/Products/Release}"
-SYSEXT="ai.canyonroad.agentsh.SysExt.systemextension"
-APP_PROFILE="macos/AgentSH/AgentSH_Distribution.provisionprofile"
-SYSEXT_PROFILE="macos/AgentSH/AgentSH_SysExt_Distribution.provisionprofile"
+SYSEXT="dev.diffsec.agentmon.SysExt.systemextension"
+APP_PROFILE="macos/AgentMon/AgentMon_Distribution.provisionprofile"
+SYSEXT_PROFILE="macos/AgentMon/AgentMon_SysExt_Distribution.provisionprofile"
 
 if [ -z "${GO_BIN_DIR:-}" ]; then
   echo "error: GO_BIN_DIR must be set to the directory of Go binaries to bundle" >&2
@@ -131,7 +131,7 @@ for profile in "$APP_PROFILE" "$SYSEXT_PROFILE"; do
   fi
 done
 
-# Start from a clean bundle — a stale local build/AgentSH.app could carry
+# Start from a clean bundle — a stale local build/AgentMon.app could carry
 # leftover files (no-op on fresh CI runners).
 rm -rf "${APP}"
 
@@ -140,7 +140,7 @@ mkdir -p "${APP}/Contents/MacOS"
 cp "${GO_BIN_DIR}"/* "${APP}/Contents/MacOS/"
 
 # Info.plist for host app
-cp macos/AgentSH-files/Info.plist "${APP}/Contents/"
+cp macos/AgentMon-files/Info.plist "${APP}/Contents/"
 
 # System Extension (Xcode names the product with the full bundle ID)
 mkdir -p "${APP}/Contents/Library/SystemExtensions"
@@ -194,7 +194,7 @@ git commit -m "feat(build): shared macOS bundle assemble script + smoke test (#4
 **Files:**
 - Create: `scripts/sign-macos-bundle.sh`
 
-Signing needs macOS + an identity, so there is no runnable test here. Validation is `bash -n` (and shellcheck if installed). The script must reproduce release.yml's "Sign app bundle (inside-out)" step (lines 401–430) EXACTLY, plus the Go-binary loop from the "Create and sign universal Go binaries" step (lines 317–335): `agentsh-shell-shim` signs with no entitlements; every other `Contents/MacOS` binary signs with `agentsh.entitlements`. Do NOT change which binaries get entitlements — the spec explicitly preserves release behavior verbatim (including `agentsh-stub` keeping the restricted entitlement).
+Signing needs macOS + an identity, so there is no runnable test here. Validation is `bash -n` (and shellcheck if installed). The script must reproduce release.yml's "Sign app bundle (inside-out)" step (lines 401–430) EXACTLY, plus the Go-binary loop from the "Create and sign universal Go binaries" step (lines 317–335): `agentmon-shell-shim` signs with no entitlements; every other `Contents/MacOS` binary signs with `agentmon.entitlements`. Do NOT change which binaries get entitlements — the spec explicitly preserves release behavior verbatim (including `agentmon-stub` keeping the restricted entitlement).
 
 - [ ] **Step 1: Write the sign script**
 
@@ -213,25 +213,25 @@ Create `scripts/sign-macos-bundle.sh` with this exact content:
 set -euo pipefail
 
 APP="${1:?usage: SIGNING_IDENTITY=... sign-macos-bundle.sh <app-bundle-path>}"
-SYSEXT="ai.canyonroad.agentsh.SysExt.systemextension"
+SYSEXT="dev.diffsec.agentmon.SysExt.systemextension"
 
 if [ -z "${SIGNING_IDENTITY:-}" ]; then
   echo "error: SIGNING_IDENTITY must be set (see 'security find-identity -v -p codesigning')" >&2
   exit 1
 fi
 
-# 1. Go binaries. agentsh-shell-shim uses minimal (no) entitlements; every
+# 1. Go binaries. agentmon-shell-shim uses minimal (no) entitlements; every
 # other binary gets the app entitlements — this matches the release
 # pipeline's historical per-binary selection exactly.
 for bin in "${APP}/Contents/MacOS"/*; do
   echo "Signing $(basename "$bin")"
-  if [ "$(basename "$bin")" = "agentsh-shell-shim" ]; then
+  if [ "$(basename "$bin")" = "agentmon-shell-shim" ]; then
     codesign --force --sign "$SIGNING_IDENTITY" \
       --options runtime --timestamp \
       "$bin"
   else
     codesign --force --sign "$SIGNING_IDENTITY" \
-      --entitlements macos/AgentSH/agentsh/agentsh.entitlements \
+      --entitlements macos/AgentMon/diffsec/agentmon.entitlements \
       --options runtime --timestamp \
       "$bin"
   fi
@@ -239,7 +239,7 @@ done
 
 # 2. System Extension
 codesign --force --sign "$SIGNING_IDENTITY" \
-  --entitlements macos/AgentSH/SysExt.entitlements \
+  --entitlements macos/AgentMon/SysExt.entitlements \
   --options runtime --timestamp \
   "${APP}/Contents/Library/SystemExtensions/${SYSEXT}"
 
@@ -250,13 +250,13 @@ codesign --force --sign "$SIGNING_IDENTITY" \
 
 # 4. Approval Dialog
 codesign --force --sign "$SIGNING_IDENTITY" \
-  --entitlements macos/AgentSH/approval-dialog/approval-dialog.entitlements \
+  --entitlements macos/AgentMon/approval-dialog/approval-dialog.entitlements \
   --options runtime --timestamp \
   "${APP}/Contents/Resources/approval-dialog.app"
 
 # 5. Main app bundle
 codesign --force --sign "$SIGNING_IDENTITY" \
-  --entitlements macos/AgentSH/agentsh/agentsh.entitlements \
+  --entitlements macos/AgentMon/diffsec/agentmon.entitlements \
   --options runtime --timestamp \
   "${APP}"
 
@@ -298,28 +298,28 @@ Replace the current target (Makefile lines 90–93):
 ```make
 # Build Go binary for macOS (CGO disabled for cross-compilation)
 build-macos-go:
-	mkdir -p build/AgentSH.app/Contents/MacOS
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o build/AgentSH.app/Contents/MacOS/agentsh ./cmd/agentsh
+	mkdir -p build/AgentMon.app/Contents/MacOS
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o build/AgentMon.app/Contents/MacOS/agentmon ./cmd/agentmon
 ```
 
 with:
 
 ```make
-# Build the Go binaries that ship in the app bundle. agentsh needs CGO for
+# Build the Go binaries that ship in the app bundle. agentmon needs CGO for
 # system extension support (nofuse: no macFUSE headers required), matching
 # the release pipeline's rebuild.
 build-macos-go:
 	mkdir -p build/go-local
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -tags nofuse $(LDFLAGS) -o build/go-local/agentsh ./cmd/agentsh
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o build/go-local/agentsh-shell-shim ./cmd/agentsh-shell-shim
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o build/go-local/agentsh-stub ./cmd/agentsh-stub
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -tags nofuse $(LDFLAGS) -o build/go-local/agentmon ./cmd/agentmon
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o build/go-local/agentmon-shell-shim ./cmd/agentmon-shell-shim
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o build/go-local/agentmon-stub ./cmd/agentmon-stub
 ```
 
 (Makefile recipes are TAB-indented — keep the tabs.)
 
 - [ ] **Step 2: Fix the `build-swift` project path case**
 
-In the `build-swift` target (line 98), change `-project macos/agentsh/agentsh.xcodeproj \` to `-project macos/AgentSH/agentsh.xcodeproj \` (the directory on disk is `macos/AgentSH/`; the lowercase form only works on case-insensitive filesystems).
+In the `build-swift` target (line 98), change `-project macos/diffsec/agentmon.xcodeproj \` to `-project macos/AgentMon/agentmon.xcodeproj \` (the directory on disk is `macos/AgentMon/`; the lowercase form only works on case-insensitive filesystems).
 
 - [ ] **Step 3: Replace `assemble-bundle`, `sign-bundle`, `build-macos-enterprise`**
 
@@ -328,26 +328,26 @@ Replace all three targets (currently lines 106–145, from the `# Assemble app b
 ```make
 # Assemble app bundle (shared logic: scripts/assemble-macos-bundle.sh)
 assemble-bundle: build-macos-go build-swift
-	GO_BIN_DIR=build/go-local scripts/assemble-macos-bundle.sh build/AgentSH.app
+	GO_BIN_DIR=build/go-local scripts/assemble-macos-bundle.sh build/AgentMon.app
 
 # Sign bundle (requires SIGNING_IDENTITY env var; shared logic:
 # scripts/sign-macos-bundle.sh)
 sign-bundle:
-	scripts/sign-macos-bundle.sh build/AgentSH.app
+	scripts/sign-macos-bundle.sh build/AgentMon.app
 
 # Full enterprise build, gated on provisioning-profile verification (#440)
 build-macos-enterprise: assemble-bundle sign-bundle
-	scripts/verify-macos-bundle.sh build/AgentSH.app
-	@echo "Enterprise build complete: build/AgentSH.app"
+	scripts/verify-macos-bundle.sh build/AgentMon.app
+	@echo "Enterprise build complete: build/AgentMon.app"
 ```
 
 - [ ] **Step 4: Verify the Makefile parses and the Go targets build**
 
 Run: `make -n assemble-bundle | head -20`
-Expected: prints the go build commands and the `GO_BIN_DIR=build/go-local scripts/assemble-macos-bundle.sh build/AgentSH.app` line (no `*** missing separator` errors).
+Expected: prints the go build commands and the `GO_BIN_DIR=build/go-local scripts/assemble-macos-bundle.sh build/AgentMon.app` line (no `*** missing separator` errors).
 
 Run: `make build-macos-go`
-Expected: succeeds; `ls build/go-local/` shows `agentsh agentsh-shell-shim agentsh-stub`. (Requires macOS with Xcode command-line tools for the CGO build — this plan is executed on the maintainer's Mac, so that holds. Do not run `make assemble-bundle`/`build-swift` here; the full Xcode build is slow and is covered by the acceptance run at the end.)
+Expected: succeeds; `ls build/go-local/` shows `agentmon agentmon-shell-shim agentmon-stub`. (Requires macOS with Xcode command-line tools for the CGO build — this plan is executed on the maintainer's Mac, so that holds. Do not run `make assemble-bundle`/`build-swift` here; the full Xcode build is slow and is covered by the acceptance run at the end.)
 
 - [ ] **Step 5: Commit**
 
@@ -376,7 +376,7 @@ Replace the "Create and sign universal Go binaries" step (name, `env:` block, an
           # Lipo each Mach-O binary into a universal. Signing happens later,
           # inside scripts/sign-macos-bundle.sh, after assembly.
           created=0
-          for bin in unsigned-arm64/agentsh*; do
+          for bin in unsigned-arm64/agentmon*; do
             name=$(basename "$bin")
             [ -f "$bin" ] || continue
             file "$bin" | grep -q "Mach-O" || continue
@@ -401,7 +401,7 @@ Replace the "Create and sign universal Go binaries" step (name, `env:` block, an
 
 - [ ] **Step 2: Fix the xcodebuild project path case**
 
-In the "Build Swift targets (universal)" step (~line 345), change `-project macos/agentsh/agentsh.xcodeproj \` to `-project macos/AgentSH/agentsh.xcodeproj \`.
+In the "Build Swift targets (universal)" step (~line 345), change `-project macos/diffsec/agentmon.xcodeproj \` to `-project macos/AgentMon/agentmon.xcodeproj \`.
 
 - [ ] **Step 3: Replace the assemble step body**
 
@@ -409,7 +409,7 @@ Replace the entire "Assemble app bundle" step with:
 
 ```yaml
       - name: Assemble app bundle
-        run: GO_BIN_DIR=build/go-universal scripts/assemble-macos-bundle.sh build/AgentSH.app
+        run: GO_BIN_DIR=build/go-universal scripts/assemble-macos-bundle.sh build/AgentMon.app
 ```
 
 - [ ] **Step 4: Replace the sign step body**
@@ -420,7 +420,7 @@ Replace the entire "Sign app bundle (inside-out)" step with:
       - name: Sign app bundle (inside-out)
         env:
           SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
-        run: scripts/sign-macos-bundle.sh build/AgentSH.app
+        run: scripts/sign-macos-bundle.sh build/AgentMon.app
 ```
 
 Leave the following "Verify provisioning profiles" step exactly as is.
@@ -479,15 +479,15 @@ The targets and `SIGNING_IDENTITY` flow are unchanged, so most of the doc stands
 
 - [ ] **Step 1: Fix the `build-macos-go` description**
 
-Find the section describing `make build-macos-go` (around line 55; it mentions CGO-disabled builds and an `AgentSH-amd64.app` output). Rewrite it to say: builds `agentsh` (CGO enabled, `nofuse` tag — required for system extension support), `agentsh-shell-shim`, and `agentsh-stub` into `build/go-local/`, arm64.
+Find the section describing `make build-macos-go` (around line 55; it mentions CGO-disabled builds and an `AgentMon-amd64.app` output). Rewrite it to say: builds `agentmon` (CGO enabled, `nofuse` tag — required for system extension support), `agentmon-shell-shim`, and `agentmon-stub` into `build/go-local/`, arm64.
 
 - [ ] **Step 2: Note the verify gate**
 
-In the "Full Enterprise Build" section (~line 92), after the `make build-macos-enterprise` example, add one sentence: the target finishes by running `scripts/verify-macos-bundle.sh build/AgentSH.app`, which fails the build if the provisioning profiles are missing from the bundle.
+In the "Full Enterprise Build" section (~line 92), after the `make build-macos-enterprise` example, add one sentence: the target finishes by running `scripts/verify-macos-bundle.sh build/AgentMon.app`, which fails the build if the provisioning profiles are missing from the bundle.
 
 - [ ] **Step 3: Update the Output Structure tree**
 
-In the "Output Structure" section (~line 100), update the tree so `Contents/MacOS/` lists `agentsh`, `agentsh-shell-shim`, `agentsh-stub`; add `Contents/embedded.provisionprofile`; add `embedded.provisionprofile` under the sysext's `Contents/`; and use the real sysext directory name `ai.canyonroad.agentsh.SysExt.systemextension` (the doc currently writes `sysext` in lowercase).
+In the "Output Structure" section (~line 100), update the tree so `Contents/MacOS/` lists `agentmon`, `agentmon-shell-shim`, `agentmon-stub`; add `Contents/embedded.provisionprofile`; add `embedded.provisionprofile` under the sysext's `Contents/`; and use the real sysext directory name `dev.diffsec.agentmon.SysExt.systemextension` (the doc currently writes `sysext` in lowercase).
 
 - [ ] **Step 4: Commit**
 
@@ -524,8 +524,8 @@ called by both the Makefile and release.yml, so the two paths can no
 longer drift (the drift class that produced #436 and #442).
 
 - Local bundles now embed both provisioning profiles, use the real
-  sysext product name, canonical `macos/AgentSH/` paths, ship the full
-  Go binary set (`agentsh` with CGO+nofuse, shim, stub) plus default
+  sysext product name, canonical `macos/AgentMon/` paths, ship the full
+  Go binary set (`agentmon` with CGO+nofuse, shim, stub) plus default
   config/policies, and `build-macos-enterprise` gates on
   `scripts/verify-macos-bundle.sh` (#440).
 - release.yml behavior is unchanged: same signatures in the same order;

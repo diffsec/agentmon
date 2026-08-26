@@ -7,7 +7,7 @@ import (
 )
 
 // Quarantiner moves a quarantined skill into safe storage and returns a
-// restore token. The agentsh implementation wraps internal/trash; tests
+// restore token. The agentmon implementation wraps internal/trash; tests
 // inject a fake.
 type Quarantiner interface {
 	Quarantine(skill SkillRef, reason string) (token string, err error)

@@ -1453,7 +1453,7 @@ func TestIntegration_SyscallInjection(t *testing.T) {
 
 **Step 2: Run the test in Docker**
 
-Run: `docker build -f Dockerfile.ptrace-test -t agentsh-ptrace-test . && docker run --rm --cap-add SYS_PTRACE agentsh-ptrace-test -test.run TestIntegration_SyscallInjection -test.v -test.timeout=30s`
+Run: `docker build -f Dockerfile.ptrace-test -t agentmon-ptrace-test . && docker run --rm --cap-add SYS_PTRACE agentmon-ptrace-test -test.run TestIntegration_SyscallInjection -test.v -test.timeout=30s`
 Expected: PASS (or informative skip if injection during handler isn't supported yet)
 
 **Step 3: Commit**
@@ -1533,7 +1533,7 @@ func TestIntegration_FileRedirect(t *testing.T) {
 
 **Step 2: Run in Docker**
 
-Run: `docker build -f Dockerfile.ptrace-test -t agentsh-ptrace-test . && docker run --rm --cap-add SYS_PTRACE agentsh-ptrace-test -test.run TestIntegration_FileRedirect -test.v -test.timeout=30s`
+Run: `docker build -f Dockerfile.ptrace-test -t agentmon-ptrace-test . && docker run --rm --cap-add SYS_PTRACE agentmon-ptrace-test -test.run TestIntegration_FileRedirect -test.v -test.timeout=30s`
 Expected: PASS
 
 **Step 3: Commit**
@@ -1631,7 +1631,7 @@ func TestIntegration_SoftDelete(t *testing.T) {
 
 **Step 2: Run in Docker**
 
-Run: `docker build -f Dockerfile.ptrace-test -t agentsh-ptrace-test . && docker run --rm --cap-add SYS_PTRACE agentsh-ptrace-test -test.run TestIntegration_SoftDelete -test.v -test.timeout=30s`
+Run: `docker build -f Dockerfile.ptrace-test -t agentmon-ptrace-test . && docker run --rm --cap-add SYS_PTRACE agentmon-ptrace-test -test.run TestIntegration_SoftDelete -test.v -test.timeout=30s`
 Expected: PASS
 
 **Step 3: Commit**
@@ -1758,7 +1758,7 @@ func (m *mockNetworkHandler) HandleNetwork(ctx context.Context, nc NetworkContex
 
 **Step 2: Run in Docker**
 
-Run: `docker build -f Dockerfile.ptrace-test -t agentsh-ptrace-test . && docker run --rm --cap-add SYS_PTRACE agentsh-ptrace-test -test.run TestIntegration_ConnectRedirect -test.v -test.timeout=30s`
+Run: `docker build -f Dockerfile.ptrace-test -t agentmon-ptrace-test . && docker run --rm --cap-add SYS_PTRACE agentmon-ptrace-test -test.run TestIntegration_ConnectRedirect -test.v -test.timeout=30s`
 Expected: PASS
 
 **Step 3: Commit**
@@ -1836,7 +1836,7 @@ func TestIntegration_ScratchPage(t *testing.T) {
 
 **Step 2: Run in Docker**
 
-Run: `docker build -f Dockerfile.ptrace-test -t agentsh-ptrace-test . && docker run --rm --cap-add SYS_PTRACE agentsh-ptrace-test -test.run TestIntegration_ScratchPage -test.v -test.timeout=30s`
+Run: `docker build -f Dockerfile.ptrace-test -t agentmon-ptrace-test . && docker run --rm --cap-add SYS_PTRACE agentmon-ptrace-test -test.run TestIntegration_ScratchPage -test.v -test.timeout=30s`
 Expected: PASS
 
 **Step 3: Commit**
@@ -1867,7 +1867,7 @@ Expected: All pass
 
 **Step 3: Run full integration tests in Docker**
 
-Run: `docker build -f Dockerfile.ptrace-test -t agentsh-ptrace-test . && docker run --rm --cap-add SYS_PTRACE agentsh-ptrace-test -test.v -test.timeout=120s`
+Run: `docker build -f Dockerfile.ptrace-test -t agentmon-ptrace-test . && docker run --rm --cap-add SYS_PTRACE agentmon-ptrace-test -test.v -test.timeout=120s`
 Expected: All pass
 
 **Step 4: Update documentation**
@@ -1904,5 +1904,5 @@ git commit -m "docs: update documentation for ptrace Phase 4a completion"
 1. `go build ./...` — all packages compile
 2. `GOOS=windows go build ./...` — cross-compilation works
 3. `go test ./... -count=1` — unit tests pass
-4. `docker build -f Dockerfile.ptrace-test -t agentsh-ptrace-test .`
-5. `docker run --rm --cap-add SYS_PTRACE agentsh-ptrace-test -test.v` — all integration tests pass
+4. `docker build -f Dockerfile.ptrace-test -t agentmon-ptrace-test .`
+5. `docker run --rm --cap-add SYS_PTRACE agentmon-ptrace-test -test.v` — all integration tests pass

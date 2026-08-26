@@ -43,7 +43,7 @@ The entire 257ms overhead is the 3 fsyncs. For a workload like `npm install` wit
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| **Durability model** | No-gap audit: every event fsync'd, but AFTER process unblocks | Threat model includes attacker who can kill agentsh to suppress records. Accepts a narrow ~100ms window where events are written but not yet fsync'd. |
+| **Durability model** | No-gap audit: every event fsync'd, but AFTER process unblocks | Threat model includes attacker who can kill agentmon to suppress records. Accepts a narrow ~100ms window where events are written but not yet fsync'd. |
 | **Approach** | Deferred sync: emit after response + periodic background fsync | Best balance of performance and complexity. Page cache serves as natural write buffer. |
 | **Flush interval** | 100ms default | Bounds durability window. At ~28 notifs/sec, ~3 events per batch. 10 fsyncs/sec is negligible on any disk. |
 | **Non-integrity path** | Keep inline Sync when IntegrityStore is not wrapping | Performance issue is driven by sidecar overhead (3 fsyncs). Bare JSONL with 1 fsync is acceptable. |

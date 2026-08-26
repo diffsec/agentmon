@@ -105,9 +105,9 @@ func (f *EventFactory) NewEvent(eventType EventType, pid int) *BaseEvent {
 		IPCBackend:      f.ctx.IPCBackend,
 
 		// Version
-		AgentshVersion:     f.ctx.AgentshVersion,
-		AgentshCommit:      f.ctx.AgentshCommit,
-		AgentshBuildTime:   f.ctx.AgentshBuildTime,
+		AgentmonVersion:     f.ctx.AgentmonVersion,
+		AgentmonCommit:      f.ctx.AgentmonCommit,
+		AgentmonBuildTime:   f.ctx.AgentmonBuildTime,
 		EventSchemaVersion: f.ctx.EventSchemaVersion,
 
 		// Correlation

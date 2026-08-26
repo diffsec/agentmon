@@ -2,7 +2,7 @@
 
 ## Summary
 
-Add Ed25519 detached signature support for agentsh policy files, enabling cryptographic proof of authorship and integrity. Signatures live in separate `.sig` files (JSON) alongside policy YAML files. Verification is configurable per-deployment (`enforce`, `warn`, `off`). The design is CA-ready: the format reserves fields for future certificate chain support without requiring it in v1.
+Add Ed25519 detached signature support for agentmon policy files, enabling cryptographic proof of authorship and integrity. Signatures live in separate `.sig` files (JSON) alongside policy YAML files. Verification is configurable per-deployment (`enforce`, `warn`, `off`). The design is CA-ready: the format reserves fields for future certificate chain support without requiring it in v1.
 
 ## Motivation
 
@@ -69,7 +69,7 @@ Full 64-character hex SHA256 of the public key bytes. No truncation — avoids c
 
 **Trust store:**
 
-A directory of trusted public keys (default: `/etc/agentsh/keys/`). Only files matching `*.json` are loaded. Each file contains one key:
+A directory of trusted public keys (default: `/etc/agentmon/keys/`). Only files matching `*.json` are loaded. Each file contains one key:
 
 ```json
 {
@@ -109,7 +109,7 @@ The `private_key` field contains the full 64-byte Ed25519 private key (seed + pu
 ```yaml
 policies:
   signing:
-    trust_store: "/etc/agentsh/keys/"
+    trust_store: "/etc/agentmon/keys/"
     mode: "warn"  # "enforce" | "warn" | "off"
 ```
 
@@ -132,7 +132,7 @@ Signing applies to the monolithic policy loading path (`internal/policy/Manager`
 **Key generation:**
 
 ```bash
-agentsh policy keygen --output <dir>
+agentmon policy keygen --output <dir>
 ```
 
 - Generates an Ed25519 keypair
@@ -143,7 +143,7 @@ agentsh policy keygen --output <dir>
 **Signing:**
 
 ```bash
-agentsh policy sign <policy-file> --key <private-key-file>
+agentmon policy sign <policy-file> --key <private-key-file>
 ```
 
 - Reads raw bytes of `<policy-file>`
@@ -155,7 +155,7 @@ agentsh policy sign <policy-file> --key <private-key-file>
 **Verification:**
 
 ```bash
-agentsh policy verify <policy-file> [--key-dir <trust-store>]
+agentmon policy verify <policy-file> [--key-dir <trust-store>]
 ```
 
 - Reads `<policy-file>` and `<policy-file>.sig`
@@ -190,9 +190,9 @@ When `policy.Manager` loads a policy:
 
 When watchtower distributes a policy update:
 
-1. Watchtower signs the policy (holds the private key, runs the same signing logic as `agentsh policy sign`)
+1. Watchtower signs the policy (holds the private key, runs the same signing logic as `agentmon policy sign`)
 2. Delivers both files: `<policy>.yaml` + `<policy>.yaml.sig`
-3. Agent writes both to a **staging directory** (`/etc/agentsh/policies/.staging/`) — not directly into the live policy dir
+3. Agent writes both to a **staging directory** (`/etc/agentmon/policies/.staging/`) — not directly into the live policy dir
 4. Agent verifies the signature against its trust store
 5. **On success:** move the `.sig` file first, then the `.yaml` file into the live policy directory. This ordering ensures the policy manager always sees a signature if it sees the policy. Log the update with `key_id`, `signer`, `signed_at`.
 6. **On failure:** rejects the update, logs the failure with details (unknown key, bad signature, missing sig), keeps existing policy

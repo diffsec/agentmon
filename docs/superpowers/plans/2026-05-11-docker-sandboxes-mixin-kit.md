@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship a Docker Sandboxes mixin kit at `docker/sbx-kit/` that installs AgentSH into any sandbox at creation and routes the agent's command-level activity through a coding-agent-tuned policy. Invoked via `sbx run <agent> --kit git+https://github.com/erans/agentsh.git#dir=docker/sbx-kit`.
+**Goal:** Ship a Docker Sandboxes mixin kit at `docker/sbx-kit/` that installs AgentMon into any sandbox at creation and routes the agent's command-level activity through a coding-agent-tuned policy. Invoked via `sbx run <agent> --kit git+https://github.com/erans/agentmon.git#dir=docker/sbx-kit`.
 
-**Architecture:** A `schemaVersion: "1"` mixin kit (`spec.yaml` + `files/` tree) runs a one-shot `install` that curls a new `install.sh` from the latest GitHub release; `initFiles` injects PATH precedence files; the `startup` command runs a new `agentsh-sbx-bootstrap` binary that merges the baked coding-agent policy template with any user-supplied override into `/etc/agentsh/policies/default.yaml`, spawns `agentsh server`, then probes the shim enforcement tier and writes `/run/agentsh/tier`. v1 ships the shim tier only; LD_PRELOAD and ptrace tiers are parked behind forward-compatible tier labels.
+**Architecture:** A `schemaVersion: "1"` mixin kit (`spec.yaml` + `files/` tree) runs a one-shot `install` that curls a new `install.sh` from the latest GitHub release; `initFiles` injects PATH precedence files; the `startup` command runs a new `agentmon-sbx-bootstrap` binary that merges the baked coding-agent policy template with any user-supplied override into `/etc/agentmon/policies/default.yaml`, spawns `agentmon server`, then probes the shim enforcement tier and writes `/run/agentmon/tier`. v1 ships the shim tier only; LD_PRELOAD and ptrace tiers are parked behind forward-compatible tier labels.
 
-**Tech Stack:** Go (existing AgentSH stack), gopkg.in/yaml.v3, cobra, GoReleaser/nfpm for packaging, GitHub Actions for the release pipeline, Bash for the installer + smoke test, Docker Sandboxes `spec.yaml` schema v1.
+**Tech Stack:** Go (existing AgentMon stack), gopkg.in/yaml.v3, cobra, GoReleaser/nfpm for packaging, GitHub Actions for the release pipeline, Bash for the installer + smoke test, Docker Sandboxes `spec.yaml` schema v1.
 
 **Spec reference:** `docs/superpowers/specs/2026-05-11-docker-sandboxes-mixin-kit-design.md`.
 
@@ -35,7 +35,7 @@ import (
 )
 
 // TestCodingAgentTemplate_Loads verifies the policy that the Docker Sandboxes
-// mixin kit bakes into /etc/agentsh/policies/default.yaml parses cleanly
+// mixin kit bakes into /etc/agentmon/policies/default.yaml parses cleanly
 // through the canonical loader. Any field-name typo or schema drift will be
 // caught here before the kit ships.
 func TestCodingAgentTemplate_Loads(t *testing.T) {
@@ -78,8 +78,8 @@ func TestCodingAgentTemplate_DeniesCredentialPaths(t *testing.T) {
 		"/.gnupg/",
 		"/.kube/",
 		"/.netrc",
-		"/etc/agentsh/",
-		"/usr/lib/agentsh/",
+		"/etc/agentmon/",
+		"/usr/lib/agentmon/",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("expected coding-agent.yaml to reference %q", want)
@@ -98,12 +98,12 @@ Expected: FAIL — `configs/policies/coding-agent.yaml` does not exist.
 Create `configs/policies/coding-agent.yaml`:
 
 ```yaml
-# Coding-agent policy for AgentSH inside Docker Sandboxes.
-# This is the baked-in template the agentsh-sbx-bootstrap binary merges with
-# any user override at /home/agent/.agentsh/policy.yaml on every sandbox start.
+# Coding-agent policy for AgentMon inside Docker Sandboxes.
+# This is the baked-in template the agentmon-sbx-bootstrap binary merges with
+# any user override at /home/agent/.agentmon/policy.yaml on every sandbox start.
 #
-# Reference: /usr/share/doc/agentsh/policy-reference.md
-# To extend: write rules to /home/agent/.agentsh/policy.yaml; the bootstrap
+# Reference: /usr/share/doc/agentmon/policy-reference.md
+# To extend: write rules to /home/agent/.agentmon/policy.yaml; the bootstrap
 # merges them on top of this file (user wins on name collision; otherwise
 # rules concatenate in declared order).
 
@@ -142,19 +142,19 @@ file_rules:
     decision: deny
     message: "Access to credential path {{.Path}} is denied by the coding-agent policy."
 
-  # ---- AgentSH self-protection: agent cannot edit its own policy/logs/binaries.
+  # ---- AgentMon self-protection: agent cannot edit its own policy/logs/binaries.
   - name: deny-self-write
-    description: Prevent the agent from tampering with AgentSH state.
+    description: Prevent the agent from tampering with AgentMon state.
     paths:
-      - "/etc/agentsh/**"
-      - "/usr/lib/agentsh/**"
-      - "/usr/share/agentsh/**"
-      - "/run/agentsh/**"
-      - "/var/lib/agentsh/**"
-      - "/var/log/agentsh/**"
+      - "/etc/agentmon/**"
+      - "/usr/lib/agentmon/**"
+      - "/usr/share/agentmon/**"
+      - "/run/agentmon/**"
+      - "/var/lib/agentmon/**"
+      - "/var/log/agentmon/**"
     operations: [write, create, mkdir, chmod, rename, delete, rmdir]
     decision: deny
-    message: "Write to AgentSH-controlled path {{.Path}} is denied."
+    message: "Write to AgentMon-controlled path {{.Path}} is denied."
 
   # ---- Workspace: full read/write; deletes are soft so rm -rf is recoverable.
   - name: allow-workspace-read
@@ -168,7 +168,7 @@ file_rules:
     decision: allow
 
   - name: soft-delete-workspace
-    description: Soft-delete workspace files (recoverable via /var/lib/agentsh/trash).
+    description: Soft-delete workspace files (recoverable via /var/lib/agentmon/trash).
     paths: ["/workspace", "/workspace/**"]
     operations: [delete, rmdir]
     decision: soft_delete
@@ -243,7 +243,7 @@ command_rules:
     message: "Privilege escalation via {{.Command}} is denied inside a Docker Sandbox."
 
   - name: audit-curl-pipe-to-shell
-    description: Audit curl/wget piped to sh/bash. v1.1 will replace this with redirect to agentsh-fetch.
+    description: Audit curl/wget piped to sh/bash. v1.1 will replace this with redirect to agentmon-fetch.
     commands: [curl, wget]
     args_patterns:
       - ".*\\|\\s*(sh|bash|zsh).*"
@@ -281,14 +281,14 @@ signal_rules:
     decision: deny
     message: "Signaling PID 1 is denied."
 
-  - name: deny-signal-agentsh
-    description: The agent must not signal AgentSH processes.
+  - name: deny-signal-agentmon
+    description: The agent must not signal AgentMon processes.
     signals: ["@fatal"]
     target:
       type: external
-      pattern: "agentsh*"
+      pattern: "agentmon*"
     decision: deny
-    message: "Signaling AgentSH is denied."
+    message: "Signaling AgentMon is denied."
 
   - name: allow-signal-own-tree
     description: Allow signals within the agent's own subprocess tree.
@@ -453,8 +453,8 @@ package policy
 // If either argument is nil, the other is returned unchanged. This lets
 // callers handle "no user override" without a nil check at the call site.
 //
-// Used by cmd/agentsh-sbx-bootstrap to combine the baked coding-agent
-// template with /home/agent/.agentsh/policy.yaml at sandbox startup.
+// Used by cmd/agentmon-sbx-bootstrap to combine the baked coding-agent
+// template with /home/agent/.agentmon/policy.yaml at sandbox startup.
 func MergeOverlay(base, overlay *Policy) *Policy {
 	if base == nil {
 		return overlay
@@ -590,17 +590,17 @@ git commit -m "policy: add MergeOverlay helper for sbx bootstrap policy stacking
 ## Task 3: Bootstrap binary — policy merge + write
 
 **Files:**
-- Create: `cmd/agentsh-sbx-bootstrap/main.go`
-- Create: `cmd/agentsh-sbx-bootstrap/policy.go`
-- Test: `cmd/agentsh-sbx-bootstrap/policy_test.go`
+- Create: `cmd/agentmon-sbx-bootstrap/main.go`
+- Create: `cmd/agentmon-sbx-bootstrap/policy.go`
+- Test: `cmd/agentmon-sbx-bootstrap/policy_test.go`
 
 The bootstrap binary is the brains of the kit's `startup` phase. This task lands only the policy-merge step in isolation so we can TDD it without conflating it with daemon launch and probing (later tasks).
 
-The merge step's job: read `/usr/share/agentsh/coding-agent.template.yaml`, read `/home/agent/.agentsh/policy.yaml` if present and parseable, merge via `policy.MergeOverlay`, write the result atomically to `/etc/agentsh/policies/default.yaml`. On any failure, fall back to writing just the bare template — never leave the file half-written.
+The merge step's job: read `/usr/share/agentmon/coding-agent.template.yaml`, read `/home/agent/.agentmon/policy.yaml` if present and parseable, merge via `policy.MergeOverlay`, write the result atomically to `/etc/agentmon/policies/default.yaml`. On any failure, fall back to writing just the bare template — never leave the file half-written.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `cmd/agentsh-sbx-bootstrap/policy_test.go`:
+Create `cmd/agentmon-sbx-bootstrap/policy_test.go`:
 
 ```go
 package main
@@ -744,18 +744,18 @@ func TestMergeAndWritePolicy_AtomicWrite(t *testing.T) {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `go test ./cmd/agentsh-sbx-bootstrap/... -v`
+Run: `go test ./cmd/agentmon-sbx-bootstrap/... -v`
 Expected: FAIL — package does not exist.
 
 - [ ] **Step 3: Create the `main.go` skeleton**
 
-Create `cmd/agentsh-sbx-bootstrap/main.go`:
+Create `cmd/agentmon-sbx-bootstrap/main.go`:
 
 ```go
-// agentsh-sbx-bootstrap is the startup entrypoint installed into Docker
-// Sandboxes by the AgentSH mixin kit. It merges the baked coding-agent
-// policy with any user override, spawns the agentsh server, then probes
-// the active enforcement tier and writes /run/agentsh/tier so the agent's
+// agentmon-sbx-bootstrap is the startup entrypoint installed into Docker
+// Sandboxes by the AgentMon mixin kit. It merges the baked coding-agent
+// policy with any user override, spawns the agentmon server, then probes
+// the active enforcement tier and writes /run/agentmon/tier so the agent's
 // SKILL.md can read it.
 package main
 
@@ -766,10 +766,10 @@ import (
 )
 
 const (
-	defaultTemplatePath = "/usr/share/agentsh/coding-agent.template.yaml"
-	defaultOverlayPath  = "/home/agent/.agentsh/policy.yaml"
-	defaultPolicyPath   = "/etc/agentsh/policies/default.yaml"
-	defaultTierPath     = "/run/agentsh/tier"
+	defaultTemplatePath = "/usr/share/agentmon/coding-agent.template.yaml"
+	defaultOverlayPath  = "/home/agent/.agentmon/policy.yaml"
+	defaultPolicyPath   = "/etc/agentmon/policies/default.yaml"
+	defaultTierPath     = "/run/agentmon/tier"
 )
 
 func main() {
@@ -781,7 +781,7 @@ func main() {
 	flag.Parse()
 
 	if err := mergeAndWritePolicy(*tmpl, *overlay, *policy); err != nil {
-		fmt.Fprintf(os.Stderr, "agentsh-sbx-bootstrap: policy merge failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "agentmon-sbx-bootstrap: policy merge failed: %v\n", err)
 		os.Exit(1)
 	}
 	// Daemon spawn + tier probe land in Task 4 and Task 5.
@@ -790,7 +790,7 @@ func main() {
 
 - [ ] **Step 4: Implement `mergeAndWritePolicy`**
 
-Create `cmd/agentsh-sbx-bootstrap/policy.go`:
+Create `cmd/agentmon-sbx-bootstrap/policy.go`:
 
 ```go
 package main
@@ -800,7 +800,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/policy"
 	"gopkg.in/yaml.v3"
 )
 
@@ -829,11 +829,11 @@ func mergeAndWritePolicy(tmpl, overlay, out string) error {
 		case os.IsNotExist(ovErr):
 			// No override file: fine. Bare template wins.
 		case ovErr != nil:
-			fmt.Fprintf(os.Stderr, "agentsh-sbx-bootstrap: read overlay %q: %v (falling back to template only)\n", overlay, ovErr)
+			fmt.Fprintf(os.Stderr, "agentmon-sbx-bootstrap: read overlay %q: %v (falling back to template only)\n", overlay, ovErr)
 		default:
 			parsed, pErr := policy.LoadFromBytes(ovBytes)
 			if pErr != nil {
-				fmt.Fprintf(os.Stderr, "agentsh-sbx-bootstrap: parse overlay %q: %v (falling back to template only)\n", overlay, pErr)
+				fmt.Fprintf(os.Stderr, "agentmon-sbx-bootstrap: parse overlay %q: %v (falling back to template only)\n", overlay, pErr)
 			} else {
 				ov = parsed
 			}
@@ -864,19 +864,19 @@ func mergeAndWritePolicy(tmpl, overlay, out string) error {
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `go test ./cmd/agentsh-sbx-bootstrap/... -v`
+Run: `go test ./cmd/agentmon-sbx-bootstrap/... -v`
 Expected: PASS — all five test functions.
 
 - [ ] **Step 6: Build the binary**
 
-Run: `go build ./cmd/agentsh-sbx-bootstrap`
+Run: `go build ./cmd/agentmon-sbx-bootstrap`
 Expected: success, binary created in cwd.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add cmd/agentsh-sbx-bootstrap/main.go cmd/agentsh-sbx-bootstrap/policy.go cmd/agentsh-sbx-bootstrap/policy_test.go
-git commit -m "bootstrap: cmd/agentsh-sbx-bootstrap with policy merge step"
+git add cmd/agentmon-sbx-bootstrap/main.go cmd/agentmon-sbx-bootstrap/policy.go cmd/agentmon-sbx-bootstrap/policy_test.go
+git commit -m "bootstrap: cmd/agentmon-sbx-bootstrap with policy merge step"
 ```
 
 ---
@@ -884,17 +884,17 @@ git commit -m "bootstrap: cmd/agentsh-sbx-bootstrap with policy merge step"
 ## Task 4: Bootstrap binary — daemon spawn + socket wait
 
 **Files:**
-- Create: `cmd/agentsh-sbx-bootstrap/daemon.go`
-- Test: `cmd/agentsh-sbx-bootstrap/daemon_test.go`
-- Modify: `cmd/agentsh-sbx-bootstrap/main.go`
+- Create: `cmd/agentmon-sbx-bootstrap/daemon.go`
+- Test: `cmd/agentmon-sbx-bootstrap/daemon_test.go`
+- Modify: `cmd/agentmon-sbx-bootstrap/main.go`
 
-This task adds the daemon-spawn step to the bootstrap. It fork-execs `agentsh server --config /etc/agentsh/config.yaml` in the background and waits up to 2s for the daemon's Unix socket to appear. On timeout, the bootstrap logs to `/var/log/agentsh/bootstrap.log` and continues — the tier probe (next task) will record `tier=none` if the socket is absent.
+This task adds the daemon-spawn step to the bootstrap. It fork-execs `agentmon server --config /etc/agentmon/config.yaml` in the background and waits up to 2s for the daemon's Unix socket to appear. On timeout, the bootstrap logs to `/var/log/agentmon/bootstrap.log` and continues — the tier probe (next task) will record `tier=none` if the socket is absent.
 
-The daemon spawn is tested with a fake `agentsh` binary in the test's PATH that just touches the socket path. That keeps the test hermetic and avoids depending on the real `agentsh server` startup time.
+The daemon spawn is tested with a fake `agentmon` binary in the test's PATH that just touches the socket path. That keeps the test hermetic and avoids depending on the real `agentmon server` startup time.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `cmd/agentsh-sbx-bootstrap/daemon_test.go`:
+Create `cmd/agentmon-sbx-bootstrap/daemon_test.go`:
 
 ```go
 package main
@@ -912,11 +912,11 @@ func TestSpawnDaemonAndWait_SocketAppears(t *testing.T) {
 		t.Skip("unix sockets only")
 	}
 	dir := t.TempDir()
-	sock := filepath.Join(dir, "agentsh.sock")
+	sock := filepath.Join(dir, "agentmon.sock")
 
 	// Fake "daemon": a shell script that writes the socket file after a small
 	// delay. The bootstrap should observe it within the 2s window.
-	fakeBin := filepath.Join(dir, "fake-agentsh")
+	fakeBin := filepath.Join(dir, "fake-agentmon")
 	script := "#!/bin/sh\n(sleep 0.1; touch " + sock + ") &\nexec sleep 5\n"
 	if err := os.WriteFile(fakeBin, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
@@ -950,12 +950,12 @@ func TestWaitForSocket_TimesOut(t *testing.T) {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `go test ./cmd/agentsh-sbx-bootstrap/... -run TestSpawnDaemonAndWait -v`
+Run: `go test ./cmd/agentmon-sbx-bootstrap/... -run TestSpawnDaemonAndWait -v`
 Expected: FAIL — `spawnDaemon` and `waitForSocket` are undefined.
 
 - [ ] **Step 3: Implement daemon spawn + socket wait**
 
-Create `cmd/agentsh-sbx-bootstrap/daemon.go`:
+Create `cmd/agentmon-sbx-bootstrap/daemon.go`:
 
 ```go
 package main
@@ -1015,13 +1015,13 @@ func waitForSocket(sockPath string, deadline time.Duration) error {
 
 - [ ] **Step 4: Wire it into `main.go`**
 
-Replace `cmd/agentsh-sbx-bootstrap/main.go` with:
+Replace `cmd/agentmon-sbx-bootstrap/main.go` with:
 
 ```go
-// agentsh-sbx-bootstrap is the startup entrypoint installed into Docker
-// Sandboxes by the AgentSH mixin kit. It merges the baked coding-agent
-// policy with any user override, spawns the agentsh server, then probes
-// the active enforcement tier and writes /run/agentsh/tier so the agent's
+// agentmon-sbx-bootstrap is the startup entrypoint installed into Docker
+// Sandboxes by the AgentMon mixin kit. It merges the baked coding-agent
+// policy with any user override, spawns the agentmon server, then probes
+// the active enforcement tier and writes /run/agentmon/tier so the agent's
 // SKILL.md can read it.
 package main
 
@@ -1033,15 +1033,15 @@ import (
 )
 
 const (
-	defaultTemplatePath  = "/usr/share/agentsh/coding-agent.template.yaml"
-	defaultOverlayPath   = "/home/agent/.agentsh/policy.yaml"
-	defaultPolicyPath    = "/etc/agentsh/policies/default.yaml"
-	defaultTierPath      = "/run/agentsh/tier"
-	defaultBootstrapLog  = "/var/log/agentsh/bootstrap.log"
-	defaultDaemonLog     = "/var/log/agentsh/daemon.log"
-	defaultAgentshBin    = "/usr/bin/agentsh"
-	defaultServerConfig  = "/etc/agentsh/config.yaml"
-	defaultDaemonSocket  = "/run/agentsh/agentsh.sock"
+	defaultTemplatePath  = "/usr/share/agentmon/coding-agent.template.yaml"
+	defaultOverlayPath   = "/home/agent/.agentmon/policy.yaml"
+	defaultPolicyPath    = "/etc/agentmon/policies/default.yaml"
+	defaultTierPath      = "/run/agentmon/tier"
+	defaultBootstrapLog  = "/var/log/agentmon/bootstrap.log"
+	defaultDaemonLog     = "/var/log/agentmon/daemon.log"
+	defaultAgentmonBin    = "/usr/bin/agentmon"
+	defaultServerConfig  = "/etc/agentmon/config.yaml"
+	defaultDaemonSocket  = "/run/diffsec/agentmon.sock"
 	defaultSocketTimeout = 2 * time.Second
 )
 
@@ -1050,24 +1050,24 @@ func main() {
 		tmpl       = flag.String("template", defaultTemplatePath, "Baked policy template path")
 		overlay    = flag.String("overlay", defaultOverlayPath, "User override fragment path")
 		policy     = flag.String("policy", defaultPolicyPath, "Output merged policy path")
-		agentshBin = flag.String("agentsh", defaultAgentshBin, "Path to the agentsh binary")
-		srvConfig  = flag.String("server-config", defaultServerConfig, "Path to the agentsh server config")
+		agentmonBin = flag.String("agentmon", defaultAgentmonBin, "Path to the agentmon binary")
+		srvConfig  = flag.String("server-config", defaultServerConfig, "Path to the agentmon server config")
 		sock       = flag.String("socket", defaultDaemonSocket, "Daemon socket path to poll for readiness")
 	)
 	flag.Parse()
 
 	if err := mergeAndWritePolicy(*tmpl, *overlay, *policy); err != nil {
-		fmt.Fprintf(os.Stderr, "agentsh-sbx-bootstrap: policy merge failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "agentmon-sbx-bootstrap: policy merge failed: %v\n", err)
 		os.Exit(1)
 	}
 
-	if _, err := spawnDaemon(*agentshBin, []string{"server", "--config", *srvConfig}, defaultDaemonLog); err != nil {
-		fmt.Fprintf(os.Stderr, "agentsh-sbx-bootstrap: spawn daemon: %v\n", err)
+	if _, err := spawnDaemon(*agentmonBin, []string{"server", "--config", *srvConfig}, defaultDaemonLog); err != nil {
+		fmt.Fprintf(os.Stderr, "agentmon-sbx-bootstrap: spawn daemon: %v\n", err)
 		os.Exit(1)
 	}
 
 	if err := waitForSocket(*sock, defaultSocketTimeout); err != nil {
-		fmt.Fprintf(os.Stderr, "agentsh-sbx-bootstrap: %v (continuing with degraded tier)\n", err)
+		fmt.Fprintf(os.Stderr, "agentmon-sbx-bootstrap: %v (continuing with degraded tier)\n", err)
 		// Don't exit — tier probe will record tier=none.
 	}
 
@@ -1077,19 +1077,19 @@ func main() {
 
 - [ ] **Step 5: Run tests**
 
-Run: `go test ./cmd/agentsh-sbx-bootstrap/... -v`
+Run: `go test ./cmd/agentmon-sbx-bootstrap/... -v`
 Expected: PASS — all merge tests plus the two new daemon tests.
 
 - [ ] **Step 6: Build to verify the package still compiles**
 
-Run: `go build ./cmd/agentsh-sbx-bootstrap`
+Run: `go build ./cmd/agentmon-sbx-bootstrap`
 Expected: success.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add cmd/agentsh-sbx-bootstrap/daemon.go cmd/agentsh-sbx-bootstrap/daemon_test.go cmd/agentsh-sbx-bootstrap/main.go
-git commit -m "bootstrap: spawn agentsh server and wait for socket"
+git add cmd/agentmon-sbx-bootstrap/daemon.go cmd/agentmon-sbx-bootstrap/daemon_test.go cmd/agentmon-sbx-bootstrap/main.go
+git commit -m "bootstrap: spawn agentmon server and wait for socket"
 ```
 
 ---
@@ -1097,15 +1097,15 @@ git commit -m "bootstrap: spawn agentsh server and wait for socket"
 ## Task 5: Bootstrap binary — tier-1 (shim) probe and tier file
 
 **Files:**
-- Create: `cmd/agentsh-sbx-bootstrap/tier.go`
-- Test: `cmd/agentsh-sbx-bootstrap/tier_test.go`
-- Modify: `cmd/agentsh-sbx-bootstrap/main.go`
+- Create: `cmd/agentmon-sbx-bootstrap/tier.go`
+- Test: `cmd/agentmon-sbx-bootstrap/tier_test.go`
+- Modify: `cmd/agentmon-sbx-bootstrap/main.go`
 
-This task adds the shim-tier probe. The probe spawns `/bin/sh -c 'command -v curl'` and checks the resolved path starts with the shim directory. The active tier (`shim` or `none`) is written to `/run/agentsh/tier`.
+This task adds the shim-tier probe. The probe spawns `/bin/sh -c 'command -v curl'` and checks the resolved path starts with the shim directory. The active tier (`shim` or `none`) is written to `/run/agentmon/tier`.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `cmd/agentsh-sbx-bootstrap/tier_test.go`:
+Create `cmd/agentmon-sbx-bootstrap/tier_test.go`:
 
 ```go
 package main
@@ -1184,12 +1184,12 @@ func TestWriteTierFile(t *testing.T) {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `go test ./cmd/agentsh-sbx-bootstrap/... -run "TestProbeShimTier|TestWriteTierFile" -v`
+Run: `go test ./cmd/agentmon-sbx-bootstrap/... -run "TestProbeShimTier|TestWriteTierFile" -v`
 Expected: FAIL — `probeShimTier` and `writeTierFile` are undefined.
 
 - [ ] **Step 3: Implement the probe and tier-file writer**
 
-Create `cmd/agentsh-sbx-bootstrap/tier.go`:
+Create `cmd/agentmon-sbx-bootstrap/tier.go`:
 
 ```go
 package main
@@ -1248,27 +1248,27 @@ func writeTierFile(path, tier string) error {
 
 - [ ] **Step 4: Wire into main**
 
-Replace the trailing `// Tier probe lands in Task 5.` comment in `cmd/agentsh-sbx-bootstrap/main.go` with the probe step:
+Replace the trailing `// Tier probe lands in Task 5.` comment in `cmd/agentmon-sbx-bootstrap/main.go` with the probe step:
 
 ```go
-	const defaultShimDir = "/usr/lib/agentsh/shims"
+	const defaultShimDir = "/usr/lib/agentmon/shims"
 	shimDir := defaultShimDir
-	if env := os.Getenv("AGENTSH_SHIM_DIR"); env != "" {
+	if env := os.Getenv("AGENTMON_SHIM_DIR"); env != "" {
 		shimDir = env
 	}
 
 	tier := "none"
 	if ok, resolved, probeErr := probeShimTier(shimDir); probeErr != nil {
-		fmt.Fprintf(os.Stderr, "agentsh-sbx-bootstrap: shim probe failed: %v\n", probeErr)
+		fmt.Fprintf(os.Stderr, "agentmon-sbx-bootstrap: shim probe failed: %v\n", probeErr)
 	} else if ok {
 		tier = "shim"
-		fmt.Fprintf(os.Stdout, "agentsh-sbx-bootstrap: shim tier active (curl -> %s)\n", resolved)
+		fmt.Fprintf(os.Stdout, "agentmon-sbx-bootstrap: shim tier active (curl -> %s)\n", resolved)
 	} else {
-		fmt.Fprintf(os.Stderr, "agentsh-sbx-bootstrap: shim tier NOT active (PATH did not yield %s)\n", shimDir)
+		fmt.Fprintf(os.Stderr, "agentmon-sbx-bootstrap: shim tier NOT active (PATH did not yield %s)\n", shimDir)
 	}
 
 	if err := writeTierFile(defaultTierPath, tier); err != nil {
-		fmt.Fprintf(os.Stderr, "agentsh-sbx-bootstrap: write tier file: %v\n", err)
+		fmt.Fprintf(os.Stderr, "agentmon-sbx-bootstrap: write tier file: %v\n", err)
 		os.Exit(1)
 	}
 ```
@@ -1277,7 +1277,7 @@ Replace the trailing `// Tier probe lands in Task 5.` comment in `cmd/agentsh-sb
 
 - [ ] **Step 5: Run tests**
 
-Run: `go test ./cmd/agentsh-sbx-bootstrap/... -v`
+Run: `go test ./cmd/agentmon-sbx-bootstrap/... -v`
 Expected: PASS.
 
 - [ ] **Step 6: Run a quick end-to-end smoke locally**
@@ -1290,12 +1290,12 @@ cat <<'EOF' >/tmp/sbx-bootstrap-test/shims/curl
 exit 0
 EOF
 chmod +x /tmp/sbx-bootstrap-test/shims/curl
-PATH=/tmp/sbx-bootstrap-test/shims:$PATH AGENTSH_SHIM_DIR=/tmp/sbx-bootstrap-test/shims \
-  go run ./cmd/agentsh-sbx-bootstrap \
+PATH=/tmp/sbx-bootstrap-test/shims:$PATH AGENTMON_SHIM_DIR=/tmp/sbx-bootstrap-test/shims \
+  go run ./cmd/agentmon-sbx-bootstrap \
     --template configs/policies/coding-agent.yaml \
     --overlay /dev/null \
     --policy /tmp/sbx-bootstrap-test/etc/default.yaml \
-    --agentsh /bin/true \
+    --agentmon /bin/true \
     --server-config /dev/null \
     --socket /tmp/sbx-bootstrap-test/run/sock 2>&1 | tee /tmp/sbx-bootstrap-test/log
 ```
@@ -1304,8 +1304,8 @@ Expected: log line "shim tier active (curl -> /tmp/sbx-bootstrap-test/shims/curl
 - [ ] **Step 7: Commit**
 
 ```bash
-git add cmd/agentsh-sbx-bootstrap/tier.go cmd/agentsh-sbx-bootstrap/tier_test.go cmd/agentsh-sbx-bootstrap/main.go
-git commit -m "bootstrap: shim-tier probe + /run/agentsh/tier writer"
+git add cmd/agentmon-sbx-bootstrap/tier.go cmd/agentmon-sbx-bootstrap/tier_test.go cmd/agentmon-sbx-bootstrap/main.go
+git commit -m "bootstrap: shim-tier probe + /run/agentmon/tier writer"
 ```
 
 ---
@@ -1315,7 +1315,7 @@ git commit -m "bootstrap: shim-tier probe + /run/agentsh/tier writer"
 **Files:**
 - Modify: `.goreleaser.yml`
 
-Add the new bootstrap binary build, the shim symlinks under `/usr/lib/agentsh/shims/`, and the packaged policy template at `/usr/share/agentsh/coding-agent.template.yaml`. The existing `configs/policies/*.yaml` glob already installs the new `coding-agent.yaml` to `/etc/agentsh/policies/`, so that side is automatic.
+Add the new bootstrap binary build, the shim symlinks under `/usr/lib/agentmon/shims/`, and the packaged policy template at `/usr/share/agentmon/coding-agent.template.yaml`. The existing `configs/policies/*.yaml` glob already installs the new `coding-agent.yaml` to `/etc/agentmon/policies/`, so that side is automatic.
 
 - [ ] **Step 1: Add the bootstrap build target**
 
@@ -1323,8 +1323,8 @@ In `.goreleaser.yml`, after the `shim-darwin` build (around line 130, before the
 
 ```yaml
   - id: sbx-bootstrap-linux
-    main: ./cmd/agentsh-sbx-bootstrap
-    binary: agentsh-sbx-bootstrap
+    main: ./cmd/agentmon-sbx-bootstrap
+    binary: agentmon-sbx-bootstrap
     env:
       - CGO_ENABLED=0
     goos:
@@ -1338,15 +1338,15 @@ In `.goreleaser.yml`, after the `shim-darwin` build (around line 130, before the
 
 - [ ] **Step 2: Add the sbx-bootstrap build id to the linux .deb/.rpm nfpm `ids:` list**
 
-In the `nfpms:` block (around line 300), the linux Debian/RPM package's `ids:` list already contains the agentsh and shim builds. Add `sbx-bootstrap-linux`:
+In the `nfpms:` block (around line 300), the linux Debian/RPM package's `ids:` list already contains the agentmon and shim builds. Add `sbx-bootstrap-linux`:
 
 ```yaml
 nfpms:
-  - id: agentsh
-    package_name: agentsh
+  - id: agentmon
+    package_name: agentmon
     ids:
-      - agentsh-linux-amd64
-      - agentsh-linux-arm64
+      - agentmon-linux-amd64
+      - agentmon-linux-arm64
       - shim-linux
       - unixwrap-linux-amd64
       - unixwrap-linux-arm64
@@ -1356,64 +1356,64 @@ nfpms:
 
 - [ ] **Step 3: Add packaged template + shim symlink directory**
 
-In the same `nfpms:` block's `contents:` section, after the existing `/usr/lib/agentsh/bash_startup.sh` entry, append:
+In the same `nfpms:` block's `contents:` section, after the existing `/usr/lib/agentmon/bash_startup.sh` entry, append:
 
 ```yaml
       # Coding-agent policy template for Docker Sandboxes mixin bootstrap.
       # Installed read-only — the bootstrap writes the merged result to
-      # /etc/agentsh/policies/default.yaml on each sandbox start.
+      # /etc/agentmon/policies/default.yaml on each sandbox start.
       - src: configs/policies/coding-agent.yaml
-        dst: /usr/share/agentsh/coding-agent.template.yaml
+        dst: /usr/share/agentmon/coding-agent.template.yaml
         file_info:
           mode: 0644
 
       # Shim directory + symlinks (Docker Sandboxes mixin support).
-      # /usr/lib/agentsh/shims is prepended to PATH inside sandboxes via
-      # /etc/profile.d/agentsh.sh (written by the mixin kit's initFiles).
-      - dst: /usr/lib/agentsh/shims
+      # /usr/lib/agentmon/shims is prepended to PATH inside sandboxes via
+      # /etc/profile.d/agentmon.sh (written by the mixin kit's initFiles).
+      - dst: /usr/lib/agentmon/shims
         type: dir
         file_info:
           mode: 0755
-      - dst: /usr/lib/agentsh/shims/bash
-        src: /usr/bin/agentsh-shell-shim
+      - dst: /usr/lib/agentmon/shims/bash
+        src: /usr/bin/agentmon-shell-shim
         type: symlink
-      - dst: /usr/lib/agentsh/shims/sh
-        src: /usr/bin/agentsh-shell-shim
+      - dst: /usr/lib/agentmon/shims/sh
+        src: /usr/bin/agentmon-shell-shim
         type: symlink
-      - dst: /usr/lib/agentsh/shims/curl
-        src: /usr/bin/agentsh-shell-shim
+      - dst: /usr/lib/agentmon/shims/curl
+        src: /usr/bin/agentmon-shell-shim
         type: symlink
-      - dst: /usr/lib/agentsh/shims/wget
-        src: /usr/bin/agentsh-shell-shim
+      - dst: /usr/lib/agentmon/shims/wget
+        src: /usr/bin/agentmon-shell-shim
         type: symlink
-      - dst: /usr/lib/agentsh/shims/pip
-        src: /usr/bin/agentsh-shell-shim
+      - dst: /usr/lib/agentmon/shims/pip
+        src: /usr/bin/agentmon-shell-shim
         type: symlink
-      - dst: /usr/lib/agentsh/shims/pip3
-        src: /usr/bin/agentsh-shell-shim
+      - dst: /usr/lib/agentmon/shims/pip3
+        src: /usr/bin/agentmon-shell-shim
         type: symlink
-      - dst: /usr/lib/agentsh/shims/npm
-        src: /usr/bin/agentsh-shell-shim
+      - dst: /usr/lib/agentmon/shims/npm
+        src: /usr/bin/agentmon-shell-shim
         type: symlink
-      - dst: /usr/lib/agentsh/shims/node
-        src: /usr/bin/agentsh-shell-shim
+      - dst: /usr/lib/agentmon/shims/node
+        src: /usr/bin/agentmon-shell-shim
         type: symlink
-      - dst: /usr/lib/agentsh/shims/git
-        src: /usr/bin/agentsh-shell-shim
+      - dst: /usr/lib/agentmon/shims/git
+        src: /usr/bin/agentmon-shell-shim
         type: symlink
-      - dst: /usr/lib/agentsh/shims/python
-        src: /usr/bin/agentsh-shell-shim
+      - dst: /usr/lib/agentmon/shims/python
+        src: /usr/bin/agentmon-shell-shim
         type: symlink
-      - dst: /usr/lib/agentsh/shims/python3
-        src: /usr/bin/agentsh-shell-shim
+      - dst: /usr/lib/agentmon/shims/python3
+        src: /usr/bin/agentmon-shell-shim
         type: symlink
-      - dst: /usr/lib/agentsh/shims/rm
-        src: /usr/bin/agentsh-shell-shim
+      - dst: /usr/lib/agentmon/shims/rm
+        src: /usr/bin/agentmon-shell-shim
         type: symlink
 
       # Packaged policy reference (also lives in repo at docs/policy-reference.md).
       - src: docs/policy-reference.md
-        dst: /usr/share/doc/agentsh/policy-reference.md
+        dst: /usr/share/doc/agentmon/policy-reference.md
         file_info:
           mode: 0644
 ```
@@ -1428,7 +1428,7 @@ Expected: PASS, no warnings. (If goreleaser is not installed, install with `go i
 - [ ] **Step 5: Build a snapshot to confirm artifacts produce**
 
 Run: `goreleaser build --snapshot --clean --single-target --id sbx-bootstrap-linux`
-Expected: success; binary at `dist/sbx-bootstrap-linux_linux_amd64_v1/agentsh-sbx-bootstrap`.
+Expected: success; binary at `dist/sbx-bootstrap-linux_linux_amd64_v1/agentmon-sbx-bootstrap`.
 
 - [ ] **Step 6: Commit**
 
@@ -1444,7 +1444,7 @@ git commit -m "release: package sbx-bootstrap binary, shim symlinks, policy temp
 **Files:**
 - Create: `docs/policy-reference.md`
 
-The SKILL.md points the agent at `/usr/share/doc/agentsh/policy-reference.md` for the full grammar. This task lands a single user-facing reference that lives in the repo and is packaged into the OS bundle by Task 6's `nfpms.contents` entry.
+The SKILL.md points the agent at `/usr/share/doc/agentmon/policy-reference.md` for the full grammar. This task lands a single user-facing reference that lives in the repo and is packaged into the OS bundle by Task 6's `nfpms.contents` entry.
 
 This document is descriptive — no tests run against it directly. The validation gate is: SKILL.md (Task 9) references it and the smoke test (Task 9) confirms the file exists in the sandbox.
 
@@ -1453,27 +1453,27 @@ This document is descriptive — no tests run against it directly. The validatio
 Create `docs/policy-reference.md`:
 
 ```markdown
-# AgentSH policy reference (Docker Sandboxes edition)
+# AgentMon policy reference (Docker Sandboxes edition)
 
-This file ships at `/usr/share/doc/agentsh/policy-reference.md` inside any
-Docker Sandbox that has the AgentSH mixin kit installed. It's the canonical
+This file ships at `/usr/share/doc/agentmon/policy-reference.md` inside any
+Docker Sandbox that has the AgentMon mixin kit installed. It's the canonical
 reference the agent's SKILL.md points at when you (or the agent) want to add
 or change a rule.
 
 For the full schema documented inline with examples, see
-`/etc/agentsh/policies/default.yaml` — the merged policy the daemon is
+`/etc/agentmon/policies/default.yaml` — the merged policy the daemon is
 currently enforcing.
 
 ## Inspecting the live state
 
 | Question | Run |
 |---|---|
-| What enforcement tier is active? | `cat /run/agentsh/tier` (one of `shim`, `none`) |
-| What policy is being enforced right now? | `cat /etc/agentsh/policies/default.yaml` |
-| What are my overrides on top of the baked policy? | `cat /home/agent/.agentsh/policy.yaml` |
-| Is the daemon running? | `pgrep -af 'agentsh server'` |
+| What enforcement tier is active? | `cat /run/agentmon/tier` (one of `shim`, `none`) |
+| What policy is being enforced right now? | `cat /etc/agentmon/policies/default.yaml` |
+| What are my overrides on top of the baked policy? | `cat /home/agent/.agentmon/policy.yaml` |
+| Is the daemon running? | `pgrep -af 'agentmon server'` |
 
-## Adding rules — `~/.agentsh/policy.yaml`
+## Adding rules — `~/.agentmon/policy.yaml`
 
 Write a partial policy. The bootstrap merges it on top of the baked
 `coding-agent` template on next sandbox start. Rules that share a `name` with
@@ -1506,7 +1506,7 @@ command_rules:
 - `file_rules` — file open/read/write/delete/stat/list, by glob path. Decisions: `allow`, `deny`, `approve`, `audit`, `soft_delete`, `redirect`.
 - `command_rules` — process exec, by command name + optional argument regex. Decisions: `allow`, `deny`, `approve`, `audit`, `redirect`.
 - `signal_rules` — signal sending. Decisions: `allow`, `deny`, `audit`, `approve`, `redirect`, `absorb`.
-- `network_rules` — outbound connect by domain / port / CIDR. The Docker Sandbox proxy is the primary outbound-network gate inside a sandbox; AgentSH's network rules are layered on top and apply *before* the proxy.
+- `network_rules` — outbound connect by domain / port / CIDR. The Docker Sandbox proxy is the primary outbound-network gate inside a sandbox; AgentMon's network rules are layered on top and apply *before* the proxy.
 - `unix_socket_rules` — AF_UNIX socket connect/bind/listen.
 
 Each rule has `name`, `description`, the kind-specific selectors, `decision`, and an optional `message` (Go template; available variables: `.Path`, `.Command`, `.Args`, `.Decision`, `.Signal`, `.PID`).
@@ -1515,14 +1515,14 @@ Each rule has `name`, `description`, the kind-specific selectors, `decision`, an
 
 | Path | Owner | Purpose |
 |---|---|---|
-| `/usr/share/agentsh/coding-agent.template.yaml` | OS package, read-only | Baked-in policy the bootstrap reads |
-| `/home/agent/.agentsh/policy.yaml` | You | Override fragment (optional) |
-| `/etc/agentsh/policies/default.yaml` | bootstrap (regenerated each start) | What the daemon enforces |
-| `/etc/agentsh/config.yaml` | OS package | Daemon server config |
-| `/run/agentsh/tier` | bootstrap | Active enforcement tier |
-| `/run/agentsh/agentsh.sock` | daemon | Daemon control socket |
-| `/var/log/agentsh/daemon.log` | daemon | Daemon stdout+stderr |
-| `/var/log/agentsh/bootstrap.log` | bootstrap | Startup banner + tier probe result |
+| `/usr/share/agentmon/coding-agent.template.yaml` | OS package, read-only | Baked-in policy the bootstrap reads |
+| `/home/agent/.agentmon/policy.yaml` | You | Override fragment (optional) |
+| `/etc/agentmon/policies/default.yaml` | bootstrap (regenerated each start) | What the daemon enforces |
+| `/etc/agentmon/config.yaml` | OS package | Daemon server config |
+| `/run/agentmon/tier` | bootstrap | Active enforcement tier |
+| `/run/diffsec/agentmon.sock` | daemon | Daemon control socket |
+| `/var/log/agentmon/daemon.log` | daemon | Daemon stdout+stderr |
+| `/var/log/agentmon/bootstrap.log` | bootstrap | Startup banner + tier probe result |
 
 ## Decision semantics quick reference
 
@@ -1530,13 +1530,13 @@ Each rule has `name`, `description`, the kind-specific selectors, `decision`, an
 - `audit` — operation proceeds, emit an audit event.
 - `deny` — operation refused; the agent gets EACCES (or equivalent).
 - `approve` — operation blocks until a human approves out-of-band.
-- `soft_delete` — for file delete/rmdir only: the path is moved to `/var/lib/agentsh/trash/` instead of being removed. Recoverable.
+- `soft_delete` — for file delete/rmdir only: the path is moved to `/var/lib/agentmon/trash/` instead of being removed. Recoverable.
 - `redirect` — for `command_rules` and `connect_redirects`: the operation is rewritten to a different command or destination.
 
 ## Reloading
 
 In v1, the bootstrap re-runs only at sandbox start. To pick up a new
-`~/.agentsh/policy.yaml`, restart the sandbox via Docker Sandboxes. v1.1 may
+`~/.agentmon/policy.yaml`, restart the sandbox via Docker Sandboxes. v1.1 may
 add an in-place reload.
 ```
 
@@ -1552,8 +1552,8 @@ git commit -m "docs: policy-reference.md packaged with the kit for in-sandbox us
 ## Task 8: install.sh installer script
 
 **Files:**
-- Create: `scripts/install-agentsh.sh`
-- Test: `scripts/install-agentsh_test.sh`
+- Create: `scripts/install-agentmon.sh`
+- Test: `scripts/install-agentmon_test.sh`
 
 The mixin kit's `install` command does `curl … install.sh | sh`. This task creates the script. It detects the package manager and installs the matching release artifact for the host's architecture.
 
@@ -1561,22 +1561,22 @@ The script is self-contained Bash. Validation is via `shellcheck` plus a tiny dr
 
 - [ ] **Step 1: Write a failing test**
 
-Create `scripts/install-agentsh_test.sh`:
+Create `scripts/install-agentmon_test.sh`:
 
 ```bash
 #!/usr/bin/env bash
-# Smoke test for scripts/install-agentsh.sh.
-# Runs the script with AGENTSH_DRY_RUN=1 and asserts it picks the right
-# package manager + URL based on AGENTSH_FORCE_DETECT.
+# Smoke test for scripts/install-agentmon.sh.
+# Runs the script with AGENTMON_DRY_RUN=1 and asserts it picks the right
+# package manager + URL based on AGENTMON_FORCE_DETECT.
 
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
-script="$here/install-agentsh.sh"
+script="$here/install-agentmon.sh"
 
 # Test 1: detects dpkg
-out=$(AGENTSH_DRY_RUN=1 AGENTSH_FORCE_DETECT=dpkg AGENTSH_ARCH=amd64 "$script" 2>&1 || true)
-echo "$out" | grep -q "dpkg.*agentsh_.*_linux_amd64.deb" || {
+out=$(AGENTMON_DRY_RUN=1 AGENTMON_FORCE_DETECT=dpkg AGENTMON_ARCH=amd64 "$script" 2>&1 || true)
+echo "$out" | grep -q "dpkg.*agentmon_.*_linux_amd64.deb" || {
   echo "FAIL: dpkg branch missing or wrong URL"
   echo "----- output -----"
   echo "$out"
@@ -1584,8 +1584,8 @@ echo "$out" | grep -q "dpkg.*agentsh_.*_linux_amd64.deb" || {
 }
 
 # Test 2: detects rpm
-out=$(AGENTSH_DRY_RUN=1 AGENTSH_FORCE_DETECT=rpm AGENTSH_ARCH=amd64 "$script" 2>&1 || true)
-echo "$out" | grep -q "rpm.*agentsh-.*\.x86_64\.rpm" || {
+out=$(AGENTMON_DRY_RUN=1 AGENTMON_FORCE_DETECT=rpm AGENTMON_ARCH=amd64 "$script" 2>&1 || true)
+echo "$out" | grep -q "rpm.*agentmon-.*\.x86_64\.rpm" || {
   echo "FAIL: rpm branch missing or wrong URL"
   echo "----- output -----"
   echo "$out"
@@ -1593,8 +1593,8 @@ echo "$out" | grep -q "rpm.*agentsh-.*\.x86_64\.rpm" || {
 }
 
 # Test 3: detects apk
-out=$(AGENTSH_DRY_RUN=1 AGENTSH_FORCE_DETECT=apk AGENTSH_ARCH=amd64 "$script" 2>&1 || true)
-echo "$out" | grep -q "apk.*agentsh_.*_linux_amd64.apk" || {
+out=$(AGENTMON_DRY_RUN=1 AGENTMON_FORCE_DETECT=apk AGENTMON_ARCH=amd64 "$script" 2>&1 || true)
+echo "$out" | grep -q "apk.*agentmon_.*_linux_amd64.apk" || {
   echo "FAIL: apk branch missing or wrong URL"
   echo "----- output -----"
   echo "$out"
@@ -1602,46 +1602,46 @@ echo "$out" | grep -q "apk.*agentsh_.*_linux_amd64.apk" || {
 }
 
 # Test 4: unknown package manager fails fast
-if AGENTSH_DRY_RUN=1 AGENTSH_FORCE_DETECT=none "$script" 2>/dev/null; then
+if AGENTMON_DRY_RUN=1 AGENTMON_FORCE_DETECT=none "$script" 2>/dev/null; then
   echo "FAIL: expected non-zero exit when no package manager detected"
   exit 1
 fi
 
 # Test 5: arm64 selects arm64 artifact
-out=$(AGENTSH_DRY_RUN=1 AGENTSH_FORCE_DETECT=dpkg AGENTSH_ARCH=arm64 "$script" 2>&1 || true)
-echo "$out" | grep -q "agentsh_.*_linux_arm64.deb" || {
+out=$(AGENTMON_DRY_RUN=1 AGENTMON_FORCE_DETECT=dpkg AGENTMON_ARCH=arm64 "$script" 2>&1 || true)
+echo "$out" | grep -q "agentmon_.*_linux_arm64.deb" || {
   echo "FAIL: arm64 URL not generated"
   echo "----- output -----"
   echo "$out"
   exit 1
 }
 
-echo "OK install-agentsh.sh"
+echo "OK install-agentmon.sh"
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `chmod +x scripts/install-agentsh_test.sh && ./scripts/install-agentsh_test.sh`
-Expected: FAIL — `scripts/install-agentsh.sh` does not exist.
+Run: `chmod +x scripts/install-agentmon_test.sh && ./scripts/install-agentmon_test.sh`
+Expected: FAIL — `scripts/install-agentmon.sh` does not exist.
 
 - [ ] **Step 3: Create the installer**
 
-Create `scripts/install-agentsh.sh`:
+Create `scripts/install-agentmon.sh`:
 
 ```bash
 #!/bin/sh
-# install-agentsh.sh — install AgentSH into a Linux container/VM.
+# install-agentmon.sh — install AgentMon into a Linux container/VM.
 #
 # Used by the Docker Sandboxes mixin kit; also safe to run interactively
 # on any supported Linux. Detects the host's package manager and
 # downloads the matching `.deb`, `.rpm`, or `.apk` from the latest
-# AgentSH GitHub release.
+# AgentMon GitHub release.
 #
 # Env knobs (all optional):
-#   AGENTSH_VERSION    Pinned release tag (default: latest)
-#   AGENTSH_ARCH       amd64 | arm64 (default: detected via uname -m)
-#   AGENTSH_DRY_RUN    1 = print actions without downloading/installing
-#   AGENTSH_FORCE_DETECT  dpkg | rpm | apk | none (test hook)
+#   AGENTMON_VERSION    Pinned release tag (default: latest)
+#   AGENTMON_ARCH       amd64 | arm64 (default: detected via uname -m)
+#   AGENTMON_DRY_RUN    1 = print actions without downloading/installing
+#   AGENTMON_FORCE_DETECT  dpkg | rpm | apk | none (test hook)
 #
 # Exit codes:
 #   0 success
@@ -1652,16 +1652,16 @@ Create `scripts/install-agentsh.sh`:
 set -eu
 
 base_url() {
-  if [ -n "${AGENTSH_VERSION:-}" ]; then
-    printf '%s' "https://github.com/erans/agentsh/releases/download/${AGENTSH_VERSION}"
+  if [ -n "${AGENTMON_VERSION:-}" ]; then
+    printf '%s' "https://github.com/erans/agentmon/releases/download/${AGENTMON_VERSION}"
   else
-    printf '%s' "https://github.com/erans/agentsh/releases/latest/download"
+    printf '%s' "https://github.com/erans/agentmon/releases/latest/download"
   fi
 }
 
 detect_arch() {
-  if [ -n "${AGENTSH_ARCH:-}" ]; then
-    printf '%s' "$AGENTSH_ARCH"
+  if [ -n "${AGENTMON_ARCH:-}" ]; then
+    printf '%s' "$AGENTMON_ARCH"
     return
   fi
   case "$(uname -m)" in
@@ -1672,8 +1672,8 @@ detect_arch() {
 }
 
 detect_pm() {
-  if [ -n "${AGENTSH_FORCE_DETECT:-}" ]; then
-    printf '%s' "$AGENTSH_FORCE_DETECT"
+  if [ -n "${AGENTMON_FORCE_DETECT:-}" ]; then
+    printf '%s' "$AGENTMON_FORCE_DETECT"
     return
   fi
   if command -v dpkg >/dev/null 2>&1; then printf 'dpkg'; return; fi
@@ -1683,7 +1683,7 @@ detect_pm() {
 }
 
 run() {
-  if [ "${AGENTSH_DRY_RUN:-}" = "1" ]; then
+  if [ "${AGENTMON_DRY_RUN:-}" = "1" ]; then
     echo "DRY: $*"
   else
     "$@"
@@ -1693,45 +1693,45 @@ run() {
 main() {
   arch=$(detect_arch)
   if [ "$arch" = "unsupported" ]; then
-    echo "install-agentsh: unsupported architecture $(uname -m)" >&2
+    echo "install-agentmon: unsupported architecture $(uname -m)" >&2
     exit 1
   fi
 
   pm=$(detect_pm)
   case "$pm" in
     dpkg)
-      url="$(base_url)/agentsh_VERSION_linux_${arch}.deb"
-      tmp="/tmp/agentsh.deb"
-      echo "install-agentsh: using dpkg ($url)"
+      url="$(base_url)/agentmon_VERSION_linux_${arch}.deb"
+      tmp="/tmp/agentmon.deb"
+      echo "install-agentmon: using dpkg ($url)"
       run sh -c "curl -fsSL '$url' -o '$tmp'" || exit 2
       run dpkg -i "$tmp" || exit 3
       ;;
     rpm)
       rpmarch=$([ "$arch" = "amd64" ] && echo x86_64 || echo aarch64)
-      url="$(base_url)/agentsh-VERSION.${rpmarch}.rpm"
-      tmp="/tmp/agentsh.rpm"
-      echo "install-agentsh: using rpm ($url)"
+      url="$(base_url)/agentmon-VERSION.${rpmarch}.rpm"
+      tmp="/tmp/agentmon.rpm"
+      echo "install-agentmon: using rpm ($url)"
       run sh -c "curl -fsSL '$url' -o '$tmp'" || exit 2
       run rpm -Uvh --replacepkgs "$tmp" || exit 3
       ;;
     apk)
-      url="$(base_url)/agentsh_VERSION_linux_${arch}.apk"
-      tmp="/tmp/agentsh.apk"
-      echo "install-agentsh: using apk ($url)"
+      url="$(base_url)/agentmon_VERSION_linux_${arch}.apk"
+      tmp="/tmp/agentmon.apk"
+      echo "install-agentmon: using apk ($url)"
       run sh -c "curl -fsSL '$url' -o '$tmp'" || exit 2
       run apk add --allow-untrusted "$tmp" || exit 3
       ;;
     none)
-      echo "install-agentsh: no supported package manager (dpkg/rpm/apk) found" >&2
+      echo "install-agentmon: no supported package manager (dpkg/rpm/apk) found" >&2
       exit 1
       ;;
     *)
-      echo "install-agentsh: unknown package manager $pm" >&2
+      echo "install-agentmon: unknown package manager $pm" >&2
       exit 1
       ;;
   esac
 
-  echo "install-agentsh: done"
+  echo "install-agentmon: done"
 }
 
 main "$@"
@@ -1739,19 +1739,19 @@ main "$@"
 
 - [ ] **Step 4: Run the test**
 
-Run: `chmod +x scripts/install-agentsh.sh && ./scripts/install-agentsh_test.sh`
-Expected: PASS, prints `OK install-agentsh.sh`.
+Run: `chmod +x scripts/install-agentmon.sh && ./scripts/install-agentmon_test.sh`
+Expected: PASS, prints `OK install-agentmon.sh`.
 
 - [ ] **Step 5: Run shellcheck on both scripts**
 
-Run: `shellcheck scripts/install-agentsh.sh scripts/install-agentsh_test.sh`
+Run: `shellcheck scripts/install-agentmon.sh scripts/install-agentmon_test.sh`
 Expected: no errors. (If shellcheck isn't installed: `sudo apt-get install -y shellcheck` or skip with a note.)
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add scripts/install-agentsh.sh scripts/install-agentsh_test.sh
-git commit -m "scripts: install-agentsh.sh for the Docker Sandboxes mixin kit"
+git add scripts/install-agentmon.sh scripts/install-agentmon_test.sh
+git commit -m "scripts: install-agentmon.sh for the Docker Sandboxes mixin kit"
 ```
 
 ---
@@ -1761,8 +1761,8 @@ git commit -m "scripts: install-agentsh.sh for the Docker Sandboxes mixin kit"
 **Files:**
 - Create: `docker/sbx-kit/spec.yaml`
 - Create: `docker/sbx-kit/README.md`
-- Create: `docker/sbx-kit/files/workspace/.claude/skills/agentsh/SKILL.md`
-- Create: `docker/sbx-kit/files/home/agent/.agentsh/policy.yaml`
+- Create: `docker/sbx-kit/files/workspace/.claude/skills/agentmon/SKILL.md`
+- Create: `docker/sbx-kit/files/home/agent/.agentmon/policy.yaml`
 - Create: `docker/sbx-kit/tests/coding-agent-smoke.sh`
 - Test: `docker/sbx-kit/spec_test.go`
 
@@ -1842,8 +1842,8 @@ func TestSpecYAML_TopLevel(t *testing.T) {
 	if s.Kind != "mixin" {
 		t.Errorf("kind = %q, want %q", s.Kind, "mixin")
 	}
-	if s.Name != "agentsh" {
-		t.Errorf("name = %q, want %q", s.Name, "agentsh")
+	if s.Name != "agentmon" {
+		t.Errorf("name = %q, want %q", s.Name, "agentmon")
 	}
 }
 
@@ -1865,24 +1865,24 @@ func TestSpecYAML_InitFilesSetShimPath(t *testing.T) {
 	s := loadSpec(t)
 	var foundProfile, foundEnv bool
 	for _, f := range s.Commands.InitFiles {
-		if f.Path == "/etc/profile.d/agentsh.sh" {
+		if f.Path == "/etc/profile.d/agentmon.sh" {
 			foundProfile = true
-			if !strings.Contains(f.Content, "/usr/lib/agentsh/shims") {
+			if !strings.Contains(f.Content, "/usr/lib/agentmon/shims") {
 				t.Errorf("profile.d entry does not export shim PATH: %q", f.Content)
 			}
 		}
-		if f.Path == "/etc/environment.d/10-agentsh.conf" {
+		if f.Path == "/etc/environment.d/10-agentmon.conf" {
 			foundEnv = true
-			if !strings.Contains(f.Content, "/usr/lib/agentsh/shims") {
+			if !strings.Contains(f.Content, "/usr/lib/agentmon/shims") {
 				t.Errorf("environment.d entry does not include shim PATH: %q", f.Content)
 			}
 		}
 	}
 	if !foundProfile {
-		t.Error("initFiles missing /etc/profile.d/agentsh.sh entry")
+		t.Error("initFiles missing /etc/profile.d/agentmon.sh entry")
 	}
 	if !foundEnv {
-		t.Error("initFiles missing /etc/environment.d/10-agentsh.conf entry")
+		t.Error("initFiles missing /etc/environment.d/10-agentmon.conf entry")
 	}
 }
 
@@ -1892,8 +1892,8 @@ func TestSpecYAML_StartupInvokesBootstrap(t *testing.T) {
 		t.Fatalf("expected exactly one startup command, got %d", len(s.Commands.Startup))
 	}
 	cmd := s.Commands.Startup[0]
-	if len(cmd.Command) == 0 || cmd.Command[0] != "/usr/bin/agentsh-sbx-bootstrap" {
-		t.Errorf("startup command = %v, want first element /usr/bin/agentsh-sbx-bootstrap", cmd.Command)
+	if len(cmd.Command) == 0 || cmd.Command[0] != "/usr/bin/agentmon-sbx-bootstrap" {
+		t.Errorf("startup command = %v, want first element /usr/bin/agentmon-sbx-bootstrap", cmd.Command)
 	}
 	if !cmd.Background {
 		t.Error("startup command must be background:true")
@@ -1901,13 +1901,13 @@ func TestSpecYAML_StartupInvokesBootstrap(t *testing.T) {
 }
 
 func TestKitFiles_SkillExists(t *testing.T) {
-	if _, err := os.Stat(filepath.Join("files", "workspace", ".claude", "skills", "agentsh", "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join("files", "workspace", ".claude", "skills", "agentmon", "SKILL.md")); err != nil {
 		t.Errorf("SKILL.md missing: %v", err)
 	}
 }
 
 func TestKitFiles_OverrideStubExists(t *testing.T) {
-	if _, err := os.Stat(filepath.Join("files", "home", "agent", ".agentsh", "policy.yaml")); err != nil {
+	if _, err := os.Stat(filepath.Join("files", "home", "agent", ".agentmon", "policy.yaml")); err != nil {
 		t.Errorf("override stub missing: %v", err)
 	}
 }
@@ -1923,51 +1923,51 @@ Expected: FAIL — spec.yaml missing.
 Create `docker/sbx-kit/spec.yaml`:
 
 ```yaml
-# AgentSH mixin kit for Docker Sandboxes.
+# AgentMon mixin kit for Docker Sandboxes.
 # See docs/superpowers/specs/2026-05-11-docker-sandboxes-mixin-kit-design.md
-# Invoke: sbx run <agent> --kit git+https://github.com/erans/agentsh.git#dir=docker/sbx-kit
+# Invoke: sbx run <agent> --kit git+https://github.com/erans/agentmon.git#dir=docker/sbx-kit
 
 schemaVersion: "1"
 kind: mixin
-name: agentsh
-displayName: AgentSH
+name: agentmon
+displayName: AgentMon
 description: Policy-enforced execution gateway for AI coding agents
 
 commands:
   install:
-    - command: "/bin/sh -c 'curl -fsSL https://github.com/erans/agentsh/releases/latest/download/install.sh | sh'"
+    - command: "/bin/sh -c 'curl -fsSL https://github.com/erans/agentmon/releases/latest/download/install.sh | sh'"
       user: "0"
-      description: Install agentsh from the latest GitHub release
+      description: Install agentmon from the latest GitHub release
 
   initFiles:
-    - path: /etc/profile.d/agentsh.sh
-      content: 'export PATH=/usr/lib/agentsh/shims:$PATH'
+    - path: /etc/profile.d/agentmon.sh
+      content: 'export PATH=/usr/lib/agentmon/shims:$PATH'
       mode: "0644"
 
-    - path: /etc/environment.d/10-agentsh.conf
-      content: 'PATH=/usr/lib/agentsh/shims:/usr/local/bin:/usr/bin:/bin'
+    - path: /etc/environment.d/10-agentmon.conf
+      content: 'PATH=/usr/lib/agentmon/shims:/usr/local/bin:/usr/bin:/bin'
       mode: "0644"
 
   startup:
-    - command: ["/usr/bin/agentsh-sbx-bootstrap"]
+    - command: ["/usr/bin/agentmon-sbx-bootstrap"]
       user: "0"
       background: true
-      description: Merge policy, start agentsh server, probe enforcement tier
+      description: Merge policy, start agentmon server, probe enforcement tier
 ```
 
 - [ ] **Step 4: Create the override stub**
 
-Create `docker/sbx-kit/files/home/agent/.agentsh/policy.yaml`:
+Create `docker/sbx-kit/files/home/agent/.agentmon/policy.yaml`:
 
 ```yaml
-# AgentSH user-override fragment.
+# AgentMon user-override fragment.
 #
 # Anything you write here merges on top of the baked coding-agent policy at
-# /usr/share/agentsh/coding-agent.template.yaml on the next sandbox start.
+# /usr/share/agentmon/coding-agent.template.yaml on the next sandbox start.
 # Rules that share a `name` with a baked rule replace it; rules with new
 # names append after the baked set.
 #
-# Reference: /usr/share/doc/agentsh/policy-reference.md
+# Reference: /usr/share/doc/agentmon/policy-reference.md
 #
 # Example (uncomment to use):
 #
@@ -1982,17 +1982,17 @@ Create `docker/sbx-kit/files/home/agent/.agentsh/policy.yaml`:
 
 - [ ] **Step 5: Create the SKILL.md**
 
-Create `docker/sbx-kit/files/workspace/.claude/skills/agentsh/SKILL.md`:
+Create `docker/sbx-kit/files/workspace/.claude/skills/agentmon/SKILL.md`:
 
 ```markdown
 ---
-name: agentsh
-description: Use when the user asks about AgentSH policy, sandbox enforcement, audit events, or what file/network/command operations are allowed inside this Docker Sandbox. Read /run/agentsh/tier for the active enforcement mode, /etc/agentsh/policies/default.yaml for the merged active policy, and /home/agent/.agentsh/policy.yaml for the user-overlay fragment.
+name: agentmon
+description: Use when the user asks about AgentMon policy, sandbox enforcement, audit events, or what file/network/command operations are allowed inside this Docker Sandbox. Read /run/agentmon/tier for the active enforcement mode, /etc/agentmon/policies/default.yaml for the merged active policy, and /home/agent/.agentmon/policy.yaml for the user-overlay fragment.
 ---
 
-# AgentSH in this sandbox
+# AgentMon in this sandbox
 
-This sandbox has AgentSH installed via the Docker Sandboxes mixin kit. It
+This sandbox has AgentMon installed via the Docker Sandboxes mixin kit. It
 enforces a policy on file, network, command, and signal operations performed
 by you and your subprocesses.
 
@@ -2000,15 +2000,15 @@ by you and your subprocesses.
 
 | Question | Run |
 |---|---|
-| What enforcement tier is active? | `cat /run/agentsh/tier` (one of `shim`, `none`) |
-| What policy is being enforced right now? | `cat /etc/agentsh/policies/default.yaml` |
-| What are my overrides on top of the baked policy? | `cat /home/agent/.agentsh/policy.yaml` |
-| Is the daemon running? | `pgrep -af 'agentsh server'` |
-| Full grammar reference | `cat /usr/share/doc/agentsh/policy-reference.md` |
+| What enforcement tier is active? | `cat /run/agentmon/tier` (one of `shim`, `none`) |
+| What policy is being enforced right now? | `cat /etc/agentmon/policies/default.yaml` |
+| What are my overrides on top of the baked policy? | `cat /home/agent/.agentmon/policy.yaml` |
+| Is the daemon running? | `pgrep -af 'agentmon server'` |
+| Full grammar reference | `cat /usr/share/doc/agentmon/policy-reference.md` |
 
 ## Extend the policy
 
-Write a partial YAML policy to `/home/agent/.agentsh/policy.yaml`. The
+Write a partial YAML policy to `/home/agent/.agentmon/policy.yaml`. The
 bootstrap merges it on top of the baked `coding-agent` template on the next
 sandbox start. Rules that share a `name` with a baked rule replace it;
 rules with new names append.
@@ -2036,14 +2036,14 @@ reload is not supported in v1.
 - Audit (don't block) a pattern: `decision: audit`.
 
 For the full grammar — every field, every decision value, available
-templating variables — read `/usr/share/doc/agentsh/policy-reference.md`.
+templating variables — read `/usr/share/doc/agentmon/policy-reference.md`.
 
 ## When the tier is `none`
 
 That means the bootstrap couldn't confirm the shim PATH made it past the
 agent's entrypoint, OR the daemon failed to start. Check
-`/var/log/agentsh/bootstrap.log` and `/var/log/agentsh/daemon.log` for the
-reason. The agent will continue to run — AgentSH never blocks the agent's
+`/var/log/agentmon/bootstrap.log` and `/var/log/agentmon/daemon.log` for the
+reason. The agent will continue to run — AgentMon never blocks the agent's
 startup — but enforcement is degraded to advisory.
 ```
 
@@ -2053,9 +2053,9 @@ Create `docker/sbx-kit/tests/coding-agent-smoke.sh`:
 
 ```bash
 #!/usr/bin/env bash
-# Manual smoke test exercised inside a Docker Sandbox that has the AgentSH
+# Manual smoke test exercised inside a Docker Sandbox that has the AgentMon
 # mixin kit installed. Run via:
-#   sbx exec <session> bash /workspace/.claude/skills/agentsh/coding-agent-smoke.sh
+#   sbx exec <session> bash /workspace/.claude/skills/agentmon/coding-agent-smoke.sh
 #
 # Or copy this file into the sandbox manually and run it as the agent user.
 #
@@ -2097,12 +2097,12 @@ assert_contains() {
 }
 
 # Check 1: tier file says shim
-got=$(cat /run/agentsh/tier 2>/dev/null || echo missing)
+got=$(cat /run/agentmon/tier 2>/dev/null || echo missing)
 assert "tier file = shim" "$got" "shim"
 
 # Check 2: curl resolves under the shim dir
 resolved=$(command -v curl)
-assert_contains "curl resolves under shim dir" "$resolved" "/usr/lib/agentsh/shims"
+assert_contains "curl resolves under shim dir" "$resolved" "/usr/lib/agentmon/shims"
 
 # Check 3: cat ~/.ssh/id_rsa is denied (no such file is fine; we expect either ENOENT or EACCES via deny)
 mkdir -p "$HOME/.ssh"
@@ -2142,7 +2142,7 @@ if [ -f /workspace/smoke.tmp ]; then
   fail=$((fail+1))
 else
   # Look for it in the trash directory
-  if find /var/lib/agentsh/trash -name smoke.tmp 2>/dev/null | grep -q smoke.tmp; then
+  if find /var/lib/agentmon/trash -name smoke.tmp 2>/dev/null | grep -q smoke.tmp; then
     echo "PASS: soft-delete recoverable"
     pass=$((pass+1))
   else
@@ -2161,17 +2161,17 @@ exit $([ "$fail" -eq 0 ] && echo 0 || echo 1)
 Create `docker/sbx-kit/README.md`:
 
 ```markdown
-# AgentSH mixin kit for Docker Sandboxes
+# AgentMon mixin kit for Docker Sandboxes
 
 This is a [Docker Sandboxes mixin kit](https://docs.docker.com/ai/sandboxes/customize/kits/)
-that installs [AgentSH](https://github.com/erans/agentsh) into any sandbox at
+that installs [AgentMon](https://github.com/erans/agentmon) into any sandbox at
 creation and routes the agent's command-level activity through a
 coding-agent-tuned policy.
 
 ## Use
 
 ```
-sbx run <agent> --kit git+https://github.com/erans/agentsh.git#dir=docker/sbx-kit
+sbx run <agent> --kit git+https://github.com/erans/agentmon.git#dir=docker/sbx-kit
 ```
 
 Works with `claude`, `opencode`, `gemini`, and any agent kit derived from
@@ -2180,9 +2180,9 @@ Works with `claude`, `opencode`, `gemini`, and any agent kit derived from
 ## Verify
 
 ```
-sbx exec <session> cat /run/agentsh/tier              # expect: shim
-sbx exec <session> cat /etc/agentsh/policies/default.yaml
-sbx exec <session> pgrep -af 'agentsh server'
+sbx exec <session> cat /run/agentmon/tier              # expect: shim
+sbx exec <session> cat /etc/agentmon/policies/default.yaml
+sbx exec <session> pgrep -af 'agentmon server'
 ```
 
 For a deeper smoke test, run `tests/coding-agent-smoke.sh` inside the
@@ -2190,11 +2190,11 @@ sandbox.
 
 ## OpenCode / Gemini setup
 
-Claude Code auto-discovers `.claude/skills/agentsh/SKILL.md`. For other
+Claude Code auto-discovers `.claude/skills/agentmon/SKILL.md`. For other
 agents, copy the SKILL into your agent's discovery path:
 
 ```
-sbx exec <session> cp /workspace/.claude/skills/agentsh/SKILL.md /workspace/AGENTS.md
+sbx exec <session> cp /workspace/.claude/skills/agentmon/SKILL.md /workspace/AGENTS.md
 ```
 
 (Or symlink, or merge with your own `AGENTS.md` — whatever fits your flow.)
@@ -2203,20 +2203,20 @@ sbx exec <session> cp /workspace/.claude/skills/agentsh/SKILL.md /workspace/AGEN
 
 | File | Purpose |
 |---|---|
-| `/var/log/agentsh/bootstrap.log` | Startup banner, policy-merge result, tier-probe result |
-| `/var/log/agentsh/daemon.log`    | Daemon stdout+stderr |
+| `/var/log/agentmon/bootstrap.log` | Startup banner, policy-merge result, tier-probe result |
+| `/var/log/agentmon/daemon.log`    | Daemon stdout+stderr |
 
 ## v1 enforcement tier
 
 v1 ships shim-tier interception only: subprocess execs of common commands
-are routed through AgentSH's shim binary. LD_PRELOAD and ptrace tiers are
+are routed through AgentMon's shim binary. LD_PRELOAD and ptrace tiers are
 planned (see the spec under
 `docs/superpowers/specs/2026-05-11-docker-sandboxes-mixin-kit-design.md`).
 
 ## Override the policy
 
-Write a partial YAML policy to `/home/agent/.agentsh/policy.yaml` inside the
-sandbox. See `/usr/share/doc/agentsh/policy-reference.md` for the grammar.
+Write a partial YAML policy to `/home/agent/.agentmon/policy.yaml` inside the
+sandbox. See `/usr/share/doc/agentmon/policy-reference.md` for the grammar.
 Restart the sandbox to apply.
 ```
 
@@ -2245,7 +2245,7 @@ git commit -m "sbx: Docker Sandboxes mixin kit at docker/sbx-kit/"
 - Modify: `.github/workflows/release.yml`
 - Modify: `.goreleaser.yml`
 
-The mixin's `install` step curls `https://github.com/erans/agentsh/releases/latest/download/install.sh`. For that URL to resolve, the release pipeline must upload `scripts/install-agentsh.sh` as a release asset on every tag. GoReleaser's `release.extra_files` is the right hook.
+The mixin's `install` step curls `https://github.com/erans/agentmon/releases/latest/download/install.sh`. For that URL to resolve, the release pipeline must upload `scripts/install-agentmon.sh` as a release asset on every tag. GoReleaser's `release.extra_files` is the right hook.
 
 - [ ] **Step 1: Add install.sh as a release extra file**
 
@@ -2254,7 +2254,7 @@ In `.goreleaser.yml`, find the `release:` top-level key (or add one if missing �
 ```yaml
 release:
   extra_files:
-    - glob: scripts/install-agentsh.sh
+    - glob: scripts/install-agentmon.sh
       name_template: install.sh
 ```
 
@@ -2307,18 +2307,18 @@ Expected: PASS. The bootstrap binary is Linux-only by goreleaser config; verify 
 
 Run: `goreleaser release --snapshot --clean --skip=publish`
 Expected: `dist/` contains:
-- `agentsh-sbx-bootstrap` binaries (linux amd64+arm64)
-- `agentsh_<version>_linux_amd64.deb` (and arm64, rpm, archlinux variants)
+- `agentmon-sbx-bootstrap` binaries (linux amd64+arm64)
+- `agentmon_<version>_linux_amd64.deb` (and arm64, rpm, archlinux variants)
 - `install.sh`
 
 - [ ] **Step 4: Inspect a .deb to confirm payload layout**
 
-Run: `dpkg-deb -c dist/agentsh_*_linux_amd64.deb | grep -E '/(usr/lib/agentsh/shims|usr/share/agentsh|usr/bin/agentsh-sbx-bootstrap)'`
+Run: `dpkg-deb -c dist/agentmon_*_linux_amd64.deb | grep -E '/(usr/lib/agentmon/shims|usr/share/agentmon|usr/bin/agentmon-sbx-bootstrap)'`
 Expected: lists the new shim symlinks, `coding-agent.template.yaml`, and the bootstrap binary.
 
 - [ ] **Step 5: Manual sandbox validation matrix**
 
-Run the matrix from spec §11 against a live Docker Sandboxes install. Each agent gets `--kit git+https://github.com/erans/agentsh.git#dir=docker/sbx-kit&ref=<branch>`:
+Run the matrix from spec §11 against a live Docker Sandboxes install. Each agent gets `--kit git+https://github.com/erans/agentmon.git#dir=docker/sbx-kit&ref=<branch>`:
 
 ```
 sbx run claude   --kit git+...#dir=docker/sbx-kit
@@ -2328,7 +2328,7 @@ sbx run gemini   --kit git+...#dir=docker/sbx-kit
 
 For each, run `tests/coding-agent-smoke.sh` and record results. Pass criteria:
 - tier=shim
-- curl resolves under `/usr/lib/agentsh/shims/`
+- curl resolves under `/usr/lib/agentmon/shims/`
 - `cat ~/.ssh/id_rsa.smoke` denied
 - `sudo whoami` denied
 - soft-delete recoverable

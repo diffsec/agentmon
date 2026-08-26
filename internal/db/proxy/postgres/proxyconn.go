@@ -11,10 +11,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/preparedcache"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/preparedcache"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 // connState is the per-connection state carried through the 04b handshake.
@@ -235,7 +235,7 @@ func (pc *proxyConn) emitFrameTooLarge(ctx context.Context, size int) {
 		ClientIdentity: pc.state.clientIdentity,
 		Kind:           "db_handshake_fail",
 		ErrorCode:      "FRAME_TOO_LARGE",
-		Reason:         fmt.Sprintf("statement too large for AgentSH proxy: %d bytes > %d cap", size, pc.srv.cfg.MaxQueryBytes),
+		Reason:         fmt.Sprintf("statement too large for AgentMon proxy: %d bytes > %d cap", size, pc.srv.cfg.MaxQueryBytes),
 		PeerUID:        pc.state.peerUID,
 	})
 }
@@ -256,7 +256,7 @@ func (pc *proxyConn) emitUnsupportedFrame(ctx context.Context, errorCode, frameT
 		ClientIdentity: pc.state.clientIdentity,
 		Kind:           "db_handshake_fail",
 		ErrorCode:      errorCode,
-		Reason:         "frame " + frameType + " not supported in AgentSH proxy phase 1",
+		Reason:         "frame " + frameType + " not supported in AgentMon proxy phase 1",
 		PeerUID:        pc.state.peerUID,
 	})
 }

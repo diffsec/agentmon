@@ -590,9 +590,9 @@ Process info via Win32 APIs:
 
 ```
 t0: Process A spawns Process B
-t1: agentsh intercepts B's exec, starts policy check
+t1: agentmon intercepts B's exec, starts policy check
 t2: Process A exits
-t3: agentsh tries to validate A → ENOENT
+t3: agentmon tries to validate A → ENOENT
 ```
 
 ### Solution: Multi-Layer Defense
@@ -704,19 +704,19 @@ func (d *AgentBehaviorDetector) IsLikelyAgent(pid int) (bool, float64) {
 
 ```bash
 # View active taints
-agentsh taint list
-agentsh taint show <pid>
+agentmon taint list
+agentmon taint show <pid>
 
 # Debug chain analysis
-agentsh taint trace <pid>    # Show full ancestry and taint propagation
+agentmon taint trace <pid>    # Show full ancestry and taint propagation
 
 # Test policy
-agentsh policy test --parent cursor --command "git push"
-agentsh policy test --ancestry "cursor,bash,npm,node" --command "curl example.com"
+agentmon policy test --parent cursor --command "git push"
+agentmon policy test --ancestry "cursor,bash,npm,node" --command "curl example.com"
 
 # Monitor in real-time
-agentsh taint watch              # Stream taint events
-agentsh taint watch --agent-only # Only show agent-detected processes
+agentmon taint watch              # Stream taint events
+agentmon taint watch --agent-only # Only show agent-detected processes
 ```
 
 ## Testing Strategy
@@ -781,7 +781,7 @@ func TestChainRules_ShellLaundering(t *testing.T) {
 
 ```go
 func TestFullFlow_AgentBlocked(t *testing.T) {
-    // 1. Start agentsh with test policy
+    // 1. Start agentmon with test policy
     // 2. Spawn "fake-cursor" process
     // 3. From fake-cursor, spawn bash
     // 4. From bash, run "git push"
@@ -789,7 +789,7 @@ func TestFullFlow_AgentBlocked(t *testing.T) {
 }
 
 func TestFullFlow_UserTerminalAllowed(t *testing.T) {
-    // 1. Start agentsh with test policy
+    // 1. Start agentmon with test policy
     // 2. Spawn "fake-cursor" process
     // 3. From fake-cursor, spawn bash (simulating integrated terminal)
     // 4. From bash, run "git push"
@@ -850,8 +850,8 @@ func TestFullFlow_UserTerminalAllowed(t *testing.T) {
 
 ### Phase 6: CLI & Observability
 
-- Add `agentsh taint` commands
-- Add `agentsh policy test` with ancestry simulation
+- Add `agentmon taint` commands
+- Add `agentmon policy test` with ancestry simulation
 - Event emission for taint/untaint events
 - Documentation and examples
 

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/policy/pattern"
+	"github.com/diffsec/agentmon/internal/policy/pattern"
 )
 
 // DetectionSignal represents a signal source for agent detection.
@@ -256,7 +256,7 @@ func (d *AgentDetector) checkUserDeclared(ctx *DetectContext, result *AgentDetec
 // checkSelfRegistration checks if the process self-registered as an agent.
 func (d *AgentDetector) checkSelfRegistration(ctx *DetectContext, result *AgentDetectionResult) bool {
 	// Check environment variable for self-registration
-	if agentID := ctx.Env["AGENTSH_AGENT_ID"]; agentID != "" {
+	if agentID := ctx.Env["AGENTMON_AGENT_ID"]; agentID != "" {
 		result.Signals = append(result.Signals, SignalSelfRegistered)
 		result.Details["self_registered"] = agentID
 		return true
@@ -443,14 +443,14 @@ func (r *AgentRegistry) GetInfo(pid int) (RegistrationInfo, bool) {
 }
 
 // CheckMarkerFile checks for an agent marker file.
-// Agents can create ~/.agentsh/agent-<pid> to self-register.
+// Agents can create ~/.agentmon/agent-<pid> to self-register.
 func (r *AgentRegistry) CheckMarkerFile(pid int) bool {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return false
 	}
 
-	markerPath := filepath.Join(home, ".agentsh", "agent-"+strconv.Itoa(pid))
+	markerPath := filepath.Join(home, ".agentmon", "agent-"+strconv.Itoa(pid))
 	_, err = os.Stat(markerPath)
 	return err == nil
 }

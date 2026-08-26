@@ -7,10 +7,10 @@
 
 arm64 Linux releases ship with kernel-level enforcement effectively off:
 
-1. `agentsh-unixwrap` is not built for arm64 — `.goreleaser.yml` only has an amd64 target because cross-compiling requires `libseccomp-dev:arm64`.
+1. `agentmon-unixwrap` is not built for arm64 — `.goreleaser.yml` only has an amd64 target because cross-compiling requires `libseccomp-dev:arm64`.
 2. The arm64 server binary is built with `CGO_ENABLED=0`, so seccomp/signal/notify handlers compile as no-op stubs.
 3. On arm64, the server logs "running without seccomp enforcement" at startup and skips seccomp filter installation and Landlock setup.
-4. `agentsh detect` still reports 100/100 because it probes kernel capabilities (seccomp, Landlock, FUSE support), not whether the wrapper binary is present or enforcement is active.
+4. `agentmon detect` still reports 100/100 because it probes kernel capabilities (seccomp, Landlock, FUSE support), not whether the wrapper binary is present or enforcement is active.
 
 Net effect: arm64 installs have no seccomp interception, no Landlock scoping, and no signal filtering — but the self-test reports full capability.
 
@@ -51,8 +51,8 @@ The `ci.yml` cross-compile matrix keeps `CGO_ENABLED=0` for arm64 — that job i
 
 ```yaml
 - id: unixwrap-linux-arm64
-  main: ./cmd/agentsh-unixwrap
-  binary: agentsh-unixwrap
+  main: ./cmd/agentmon-unixwrap
+  binary: agentmon-unixwrap
   env:
     - CGO_ENABLED=1
     - CC=aarch64-linux-gnu-gcc
@@ -70,9 +70,9 @@ This mirrors how `build-envshim.sh` and `build-ptracer.sh` already cross-compile
 **Flip server arm64 build to CGO_ENABLED=1:**
 
 ```yaml
-- id: agentsh-linux-arm64
-  main: ./cmd/agentsh
-  binary: agentsh
+- id: agentmon-linux-arm64
+  main: ./cmd/agentmon
+  binary: agentmon
   env:
     - CGO_ENABLED=1
     - CC=aarch64-linux-gnu-gcc
@@ -89,9 +89,9 @@ The arm64 server binary now compiles with real signal/notify handlers instead of
 
 **Add unixwrap-linux-arm64 to packaging:**
 
-Archives section — add `unixwrap-linux-arm64` to the `agentsh-linux` archive's `ids` list. Remove `allow_different_binary_count: true` since both architectures now produce the same binary set.
+Archives section — add `unixwrap-linux-arm64` to the `agentmon-linux` archive's `ids` list. Remove `allow_different_binary_count: true` since both architectures now produce the same binary set.
 
-nfpms section — add `unixwrap-linux-arm64` to the `agentsh` package's `ids` list. Remove the "unixwrap not available for arm64" comment.
+nfpms section — add `unixwrap-linux-arm64` to the `agentmon` package's `ids` list. Remove the "unixwrap not available for arm64" comment.
 
 ## Part 2: Detect Wrapper Check
 
@@ -101,7 +101,7 @@ nfpms section — add `unixwrap-linux-arm64` to the `agentsh` package's `ids` li
 
 ### Logic
 
-After building domains from `buildLinuxDomains()` but before calling `ComputeScore()`, check whether `agentsh-unixwrap` is on PATH via `exec.LookPath`. If not found, mark the following backends as unavailable:
+After building domains from `buildLinuxDomains()` but before calling `ComputeScore()`, check whether `agentmon-unixwrap` is on PATH via `exec.LookPath`. If not found, mark the following backends as unavailable:
 
 | Domain | Backend | Why |
 |--------|---------|-----|
@@ -123,7 +123,7 @@ After building domains from `buildLinuxDomains()` but before calling `ComputeSco
 
 Add a helper function `applyWrapperAvailability(domains []ProtectionDomain)` that:
 
-1. Calls `exec.LookPath("agentsh-unixwrap")`.
+1. Calls `exec.LookPath("agentmon-unixwrap")`.
 2. If the binary is not found, iterates over domains and sets `Available = false` for the three affected backends (`seccomp-notify`, `landlock`, `seccomp-execve`).
 3. Returns a boolean indicating whether the wrapper was found (used for tip generation).
 
@@ -139,7 +139,7 @@ When the wrapper is missing, add a tip to the result:
 Feature: seccomp-wrapper
 Status:  missing
 Impact:  seccomp and Landlock enforcement disabled — processes run without kernel-level interception
-Action:  install agentsh-unixwrap or rebuild the package with CGO_ENABLED=1
+Action:  install agentmon-unixwrap or rebuild the package with CGO_ENABLED=1
 ```
 
 ### FileEnforcement Update
@@ -168,7 +168,7 @@ Add a unit test in `detect_linux_test.go` (or the existing test file for detect)
 
 | File | Change |
 |------|--------|
-| `.goreleaser.yml` | New `unixwrap-linux-arm64` build; flip `agentsh-linux-arm64` to CGO=1; update archives + nfpms |
+| `.goreleaser.yml` | New `unixwrap-linux-arm64` build; flip `agentmon-linux-arm64` to CGO=1; update archives + nfpms |
 | `.github/workflows/release.yml` | Add `dpkg --add-architecture arm64` + `libseccomp-dev:arm64` |
 | `internal/capabilities/detect_linux.go` | Add `applyWrapperAvailability()`, call from `Detect()` |
 | `internal/capabilities/detect_linux_test.go` | Test for wrapper-missing scenario |

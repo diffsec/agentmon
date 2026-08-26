@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/ptrace"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/internal/store/composite"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/ptrace"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
 	"golang.org/x/sys/unix"
 )
 
@@ -108,7 +108,7 @@ func TestDBProxySessionResolver_TestOverrideWins(t *testing.T) {
 // Regression test for the bug where TargetPID was parsed/validated but never
 // reached the tracer (initPtraceTracer started Run() and returned without
 // calling AttachPID), causing all enforcement to silently no-op on hosts
-// where commands aren't children of the agentsh server.
+// where commands aren't children of the agentmon server.
 func TestInitPtraceTracer_AttachModePidFromTargetPID(t *testing.T) {
 	requirePtrace(t)
 

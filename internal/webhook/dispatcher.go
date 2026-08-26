@@ -11,7 +11,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Dispatcher manages multiple webhook configurations and dispatches events to them.
@@ -336,7 +336,7 @@ func PagerDutyWebhook(name, url, routingKey string, events []string) WebhookConf
   "event_action": "trigger",
   "payload": {
     "summary": "{{.Event.Type}}: {{.Event.Path}}",
-    "source": "agentsh",
+    "source": "agentmon",
     "severity": "warning",
     "custom_details": {
       "session_id": "{{.Event.SessionID}}",

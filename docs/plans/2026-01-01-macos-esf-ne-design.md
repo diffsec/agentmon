@@ -34,34 +34,34 @@ This document describes the architecture for implementing Apple's Endpoint Secur
 
 ## Architecture Overview
 
-The ESF/NE implementation adds a System Extension that runs as a separate privileged process, communicating with the agentsh server via XPC.
+The ESF/NE implementation adds a System Extension that runs as a separate privileged process, communicating with the agentmon server via XPC.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        AgentSH.app bundle                       │
+│                        AgentMon.app bundle                       │
 ├─────────────────────────────────────────────────────────────────┤
 │  Contents/                                                       │
 │  ├── MacOS/                                                      │
-│  │   └── agentsh              ← Main CLI binary (Go)            │
+│  │   └── agentmon              ← Main CLI binary (Go)            │
 │  ├── Library/SystemExtensions/                                   │
-│  │   └── com.agentsh.sysext.systemextension/                    │
+│  │   └── com.agentmon.sysext.systemextension/                    │
 │  │       └── Contents/MacOS/                                     │
-│  │           └── com.agentsh.sysext  ← ESF + NE extension       │
+│  │           └── com.agentmon.sysext  ← ESF + NE extension       │
 │  ├── XPCServices/                                                │
-│  │   └── com.agentsh.xpc.xpc  ← XPC bridge service              │
+│  │   └── com.agentmon.xpc.xpc  ← XPC bridge service              │
 │  └── Info.plist                                                  │
 └─────────────────────────────────────────────────────────────────┘
          │
          │ symlink
          ▼
-/usr/local/bin/agentsh
+/usr/local/bin/agentmon
 ```
 
 ### Component Responsibilities
 
 | Component | Language | Role |
 |-----------|----------|------|
-| `agentsh` CLI | Go | Server, session management, policy engine (unchanged) |
+| `agentmon` CLI | Go | Server, session management, policy engine (unchanged) |
 | System Extension | Swift | ESF client + NE providers, runs with elevated privileges |
 | XPC Service | Swift | Bridges CLI ↔ System Extension, handles policy queries |
 
@@ -93,7 +93,7 @@ The ESF component subscribes to file and process events, using AUTH for blocking
 ### Decision Flow
 
 ```
-ESF Event → Extract path/process info → XPC query to agentsh
+ESF Event → Extract path/process info → XPC query to agentmon
                                               │
                     ┌─────────────────────────┴─────────────────────────┐
                     ▼                                                   ▼
@@ -111,7 +111,7 @@ ESF Event → Extract path/process info → XPC query to agentsh
 
 ### Session Scoping
 
-ESF sees all system events. The extension filters by checking if the process belongs to an active agentsh session. Non-session processes are allowed through immediately (no policy check).
+ESF sees all system events. The extension filters by checking if the process belongs to an active agentmon session. Non-session processes are allowed through immediately (no policy check).
 
 ## Network Extension (NE) Component
 
@@ -122,7 +122,7 @@ The NE component uses two providers: DNS Proxy for domain-based filtering and Co
 Intercepts all DNS queries for domain-based policy enforcement.
 
 ```
-DNS Query → Extract domain → XPC query to agentsh
+DNS Query → Extract domain → XPC query to agentmon
                                     │
                           policy.CheckNetwork(domain, 53)
                                     │
@@ -174,7 +174,7 @@ network_rules:
 
 ## XPC Communication Layer
 
-XPC bridges the Swift System Extension and the Go agentsh server. Since Go can't directly use XPC, we use a small Swift XPC service that communicates with Go via a Unix socket.
+XPC bridges the Swift System Extension and the Go agentmon server. Since Go can't directly use XPC, we use a small Swift XPC service that communicates with Go via a Unix socket.
 
 ### Architecture
 
@@ -186,7 +186,7 @@ XPC bridges the Swift System Extension and the Go agentsh server. Since Go can't
                                                  │ Unix Socket
                                                  │ (JSON messages)
                                       ┌──────────▼───────────┐
-                                      │   agentsh server     │
+                                      │   agentmon server     │
                                       │   (Go, policy engine)│
                                       └──────────────────────┘
 ```
@@ -194,7 +194,7 @@ XPC bridges the Swift System Extension and the Go agentsh server. Since Go can't
 ### XPC Protocol (Swift)
 
 ```swift
-@objc protocol AgentshXPCProtocol {
+@objc protocol AgentmonXPCProtocol {
     func checkFile(path: String, operation: String, pid: pid_t,
                    sessionID: String?, reply: @escaping (Bool, String?) -> Void)
 
@@ -216,7 +216,7 @@ New endpoint for policy queries from XPC service:
 
 | Endpoint | Purpose |
 |----------|---------|
-| `/var/run/agentsh/policy.sock` | Policy queries from XPC service |
+| `/var/run/agentmon/policy.sock` | Policy queries from XPC service |
 | Request format | JSON: `{"type":"file","path":"/x","op":"read","pid":123}` |
 | Response format | JSON: `{"allow":true,"rule":"allow-workspace"}` |
 
@@ -229,14 +229,14 @@ New endpoint for policy queries from XPC service:
 
 ## Session Scoping and Process Tracking
 
-The System Extension sees all system events but must only enforce policy on processes within agentsh sessions.
+The System Extension sees all system events but must only enforce policy on processes within agentmon sessions.
 
 ### Process Tree Tracking
 
 ```
 Session created (workspace=/Users/dev/project)
     │
-    └── agentsh exec $SID -- zsh
+    └── agentmon exec $SID -- zsh
             │ pid=1234, tracked
             │
             ├── zsh (child)
@@ -258,7 +258,7 @@ Session created (workspace=/Users/dev/project)
 |--------|--------------|
 | Process tree | Track `fork()`/`exec()` via ESF NOTIFY events, maintain parent→child map |
 | Audit token | Each process has unique audit token, cached in session→tokens map |
-| Environment marker | Child processes inherit `AGENTSH_SESSION_ID` env var (backup check) |
+| Environment marker | Child processes inherit `AGENTMON_SESSION_ID` env var (backup check) |
 
 ### Lookup Flow
 
@@ -276,7 +276,7 @@ Walk parent chain (ppid lookup) ──found parent in cache──► Add to cach
     not found
     │
     ▼
-Not an agentsh process → Allow immediately (no policy check)
+Not an agentmon process → Allow immediately (no policy check)
 ```
 
 ### Performance
@@ -296,7 +296,7 @@ The System Extension must handle failures gracefully without blocking the system
 | XPC service unreachable | Allow + log warning | Fail-open prevents system lockup |
 | Socket timeout (>5s) | Allow + log error | ESF deadline is 60s, but UX matters |
 | Malformed response | Allow + log error | Don't block on bugs |
-| agentsh server not running | Allow all + periodic retry | Extension survives server restarts |
+| agentmon server not running | Allow all + periodic retry | Extension survives server restarts |
 
 ### ESF-Specific Errors
 
@@ -324,7 +324,7 @@ The System Extension must handle failures gracefully without blocking the system
 │ 1. Ping XPC service                                     │
 │ 2. Check pending AUTH queue depth                       │
 │ 3. Verify session cache isn't stale                     │
-│ 4. Report metrics to agentsh server                     │
+│ 4. Report metrics to agentmon server                     │
 │ 5. If unhealthy for 5min → restart extension            │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -346,38 +346,38 @@ esf:
 
 ```
 build/
-├── AgentSH.app/
+├── AgentMon.app/
 │   └── Contents/
 │       ├── Info.plist
 │       ├── MacOS/
-│       │   └── agentsh                 ← Go binary (main CLI)
+│       │   └── agentmon                 ← Go binary (main CLI)
 │       ├── Library/
 │       │   └── SystemExtensions/
-│       │       └── com.agentsh.sysext.systemextension/
+│       │       └── com.agentmon.sysext.systemextension/
 │       │           └── Contents/
 │       │               ├── Info.plist
 │       │               └── MacOS/
-│       │                   └── com.agentsh.sysext   ← Swift binary
+│       │                   └── com.agentmon.sysext   ← Swift binary
 │       ├── XPCServices/
-│       │   └── com.agentsh.xpc.xpc/
+│       │   └── com.agentmon.xpc.xpc/
 │       │       └── Contents/
 │       │           ├── Info.plist
 │       │           └── MacOS/
-│       │               └── com.agentsh.xpc         ← Swift XPC bridge
+│       │               └── com.agentmon.xpc         ← Swift XPC bridge
 │       └── Resources/
 │           └── embedded.provisionprofile
 └── pkg/
-    └── AgentSH-1.0.0.pkg               ← Installer package
+    └── AgentMon-1.0.0.pkg               ← Installer package
 ```
 
 ### Build Steps
 
 | Step | Tool | Output |
 |------|------|--------|
-| 1. Build Go CLI | `go build` | `agentsh` binary |
-| 2. Build Swift extension | `xcodebuild` | `com.agentsh.sysext` |
-| 3. Build Swift XPC service | `xcodebuild` | `com.agentsh.xpc` |
-| 4. Assemble bundle | shell script | `AgentSH.app` |
+| 1. Build Go CLI | `go build` | `agentmon` binary |
+| 2. Build Swift extension | `xcodebuild` | `com.agentmon.sysext` |
+| 3. Build Swift XPC service | `xcodebuild` | `com.agentmon.xpc` |
+| 4. Assemble bundle | shell script | `AgentMon.app` |
 | 5. Sign extension | `codesign` | Signed with entitlements |
 | 6. Sign app | `codesign` | Signed bundle |
 | 7. Notarize | `notarytool` | Apple-approved |
@@ -433,11 +433,11 @@ When building without Apple entitlements, skip Swift components. The CLI detects
 
 ```bash
 # Extension activation
-agentsh sysext install
-agentsh sysext status
+agentmon sysext install
+agentmon sysext status
 
 # File blocking
-agentsh session create --workspace /tmp/test
+agentmon session create --workspace /tmp/test
 echo "test" > /tmp/test/blocked.txt  # Should be denied by policy
 
 # Network blocking
@@ -477,19 +477,19 @@ internal/platform/darwin/
 
 ```bash
 # Install/uninstall System Extension
-agentsh sysext install      # Request user approval, activate extension
-agentsh sysext uninstall    # Deactivate and remove extension
-agentsh sysext status       # Show extension state and health
+agentmon sysext install      # Request user approval, activate extension
+agentmon sysext uninstall    # Deactivate and remove extension
+agentmon sysext status       # Show extension state and health
 
 # Included in existing commands
-agentsh server              # Starts policy socket for XPC
-agentsh session create      # Extension auto-scopes new session
+agentmon server              # Starts policy socket for XPC
+agentmon session create      # Extension auto-scopes new session
 ```
 
 ## Security Considerations
 
-1. **XPC validation**: Extension validates XPC connection is from signed agentsh binary
-2. **Socket permissions**: `/var/run/agentsh/policy.sock` restricted to root
+1. **XPC validation**: Extension validates XPC connection is from signed agentmon binary
+2. **Socket permissions**: `/var/run/agentmon/policy.sock` restricted to root
 3. **No secrets in extension**: All policy logic in Go; extension only asks yes/no
 4. **Audit logging**: All decisions logged regardless of allow/deny
 5. **Entitlement scope**: Request minimal entitlements needed

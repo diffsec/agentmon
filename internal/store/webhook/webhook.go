@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type Store struct {

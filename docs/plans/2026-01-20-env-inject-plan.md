@@ -13,7 +13,7 @@
 ## Task 1: Create bash_startup.sh Script
 
 **Files:**
-- Create: `/home/eran/work/agentsh/packaging/bash_startup.sh`
+- Create: `/home/eran/work/agentmon/packaging/bash_startup.sh`
 
 **Step 1: Create the bash startup script**
 
@@ -32,11 +32,11 @@ enable -n command   # Function/alias bypass
 
 **Step 2: Make script executable**
 
-Run: `chmod +x /home/eran/work/agentsh/packaging/bash_startup.sh`
+Run: `chmod +x /home/eran/work/agentmon/packaging/bash_startup.sh`
 
 **Step 3: Verify script syntax**
 
-Run: `bash -n /home/eran/work/agentsh/packaging/bash_startup.sh`
+Run: `bash -n /home/eran/work/agentmon/packaging/bash_startup.sh`
 Expected: No output (valid syntax)
 
 **Step 4: Commit**
@@ -54,8 +54,8 @@ that can bypass seccomp policy enforcement. Used via BASH_ENV injection."
 ## Task 2: Add EnvInject to Config Struct
 
 **Files:**
-- Modify: `/home/eran/work/agentsh/internal/config/config.go`
-- Test: `/home/eran/work/agentsh/internal/config/config_test.go`
+- Modify: `/home/eran/work/agentmon/internal/config/config.go`
+- Test: `/home/eran/work/agentmon/internal/config/config_test.go`
 
 **Step 1: Write the failing test for config parsing**
 
@@ -68,7 +68,7 @@ func TestLoad_EnvInjectConfig(t *testing.T) {
 	if err := os.WriteFile(cfgPath, []byte(`
 sandbox:
   env_inject:
-    BASH_ENV: "/usr/lib/agentsh/bash_startup.sh"
+    BASH_ENV: "/usr/lib/agentmon/bash_startup.sh"
     MY_CUSTOM_VAR: "custom_value"
 `), 0o600); err != nil {
 		t.Fatal(err)
@@ -82,8 +82,8 @@ sandbox:
 	if cfg.Sandbox.EnvInject == nil {
 		t.Fatal("env_inject should not be nil")
 	}
-	if cfg.Sandbox.EnvInject["BASH_ENV"] != "/usr/lib/agentsh/bash_startup.sh" {
-		t.Errorf("BASH_ENV = %q, want %q", cfg.Sandbox.EnvInject["BASH_ENV"], "/usr/lib/agentsh/bash_startup.sh")
+	if cfg.Sandbox.EnvInject["BASH_ENV"] != "/usr/lib/agentmon/bash_startup.sh" {
+		t.Errorf("BASH_ENV = %q, want %q", cfg.Sandbox.EnvInject["BASH_ENV"], "/usr/lib/agentmon/bash_startup.sh")
 	}
 	if cfg.Sandbox.EnvInject["MY_CUSTOM_VAR"] != "custom_value" {
 		t.Errorf("MY_CUSTOM_VAR = %q, want %q", cfg.Sandbox.EnvInject["MY_CUSTOM_VAR"], "custom_value")
@@ -166,8 +166,8 @@ filtering. Primary use case is BASH_ENV for bash builtin disabling."
 ## Task 3: Add EnvInject to Policy Model
 
 **Files:**
-- Modify: `/home/eran/work/agentsh/internal/policy/model.go`
-- Test: `/home/eran/work/agentsh/internal/policy/model_test.go`
+- Modify: `/home/eran/work/agentmon/internal/policy/model.go`
+- Test: `/home/eran/work/agentmon/internal/policy/model_test.go`
 
 **Step 1: Write the failing test for policy parsing**
 
@@ -269,8 +269,8 @@ global config values. Used for per-policy customization of BASH_ENV."
 ## Task 4: Add GetEnvInject Method to Policy Engine
 
 **Files:**
-- Modify: `/home/eran/work/agentsh/internal/policy/engine.go`
-- Test: `/home/eran/work/agentsh/internal/policy/engine_test.go`
+- Modify: `/home/eran/work/agentmon/internal/policy/engine.go`
+- Test: `/home/eran/work/agentmon/internal/policy/engine_test.go`
 
 **Step 1: Write the failing test for GetEnvInject**
 
@@ -371,8 +371,8 @@ Returns empty map if engine/policy is nil for safe access."
 ## Task 5: Implement Merge Logic and Injection in exec.go
 
 **Files:**
-- Modify: `/home/eran/work/agentsh/internal/api/exec.go`
-- Test: `/home/eran/work/agentsh/internal/api/exec_test.go` (create if needed)
+- Modify: `/home/eran/work/agentmon/internal/api/exec.go`
+- Test: `/home/eran/work/agentmon/internal/api/exec_test.go` (create if needed)
 
 **Step 1: Write the failing test for merge logic**
 
@@ -384,8 +384,8 @@ package api
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestMergeEnvInject(t *testing.T) {
@@ -397,9 +397,9 @@ func TestMergeEnvInject(t *testing.T) {
 	}{
 		{
 			name:    "only global config",
-			cfgEnv:  map[string]string{"BASH_ENV": "/usr/lib/agentsh/bash_startup.sh"},
+			cfgEnv:  map[string]string{"BASH_ENV": "/usr/lib/agentmon/bash_startup.sh"},
 			polEnv:  nil,
-			wantEnv: map[string]string{"BASH_ENV": "/usr/lib/agentsh/bash_startup.sh"},
+			wantEnv: map[string]string{"BASH_ENV": "/usr/lib/agentmon/bash_startup.sh"},
 		},
 		{
 			name:    "only policy",
@@ -409,7 +409,7 @@ func TestMergeEnvInject(t *testing.T) {
 		},
 		{
 			name:    "policy overrides config",
-			cfgEnv:  map[string]string{"BASH_ENV": "/usr/lib/agentsh/bash_startup.sh", "GLOBAL": "value"},
+			cfgEnv:  map[string]string{"BASH_ENV": "/usr/lib/agentmon/bash_startup.sh", "GLOBAL": "value"},
 			polEnv:  map[string]string{"BASH_ENV": "/custom/path", "POLICY": "value"},
 			wantEnv: map[string]string{"BASH_ENV": "/custom/path", "GLOBAL": "value", "POLICY": "value"},
 		},
@@ -528,7 +528,7 @@ taking precedence on key conflicts."
 ## Task 6: Integrate env_inject into Command Execution
 
 **Files:**
-- Modify: `/home/eran/work/agentsh/internal/api/exec.go`
+- Modify: `/home/eran/work/agentmon/internal/api/exec.go`
 
 **Step 1: Review current env building location**
 
@@ -584,7 +584,7 @@ After the existing extra.env block and before `cmd.Env = env`, add:
 
 Search for where `extraProcConfig` is populated. This will likely be in the HTTP handler or wherever commands are executed. The caller needs to call `mergeEnvInject(cfg, policyEngine)` and pass the result.
 
-Run: `grep -rn "extraProcConfig{" /home/eran/work/agentsh/internal/`
+Run: `grep -rn "extraProcConfig{" /home/eran/work/agentmon/internal/`
 
 Update each caller to include:
 ```go
@@ -614,18 +614,18 @@ policy filtering. Bypasses env policy checks for operator-trusted vars."
 ## Task 7: Update Goreleaser Packaging
 
 **Files:**
-- Modify: `/home/eran/work/agentsh/.goreleaser.yml`
+- Modify: `/home/eran/work/agentmon/.goreleaser.yml`
 
 **Step 1: Add bash_startup.sh to Linux archives**
 
-Find the `archives` section for `agentsh-linux` and add the script:
+Find the `archives` section for `agentmon-linux` and add the script:
 
 ```yaml
 archives:
-  - id: agentsh-linux
+  - id: agentmon-linux
     ids:
-      - agentsh-linux-amd64
-      - agentsh-linux-arm64
+      - agentmon-linux-amd64
+      - agentmon-linux-arm64
       - shim-linux
       - unixwrap-linux-amd64
     formats: [tar.gz]
@@ -648,13 +648,13 @@ Find the `nfpms` section and add to `contents`:
 
 ```yaml
 nfpms:
-  - id: agentsh
+  - id: agentmon
     # ... existing fields ...
     contents:
       # ... existing contents ...
       # Bash startup script for BASH_ENV injection
       - src: packaging/bash_startup.sh
-        dst: /usr/lib/agentsh/bash_startup.sh
+        dst: /usr/lib/agentmon/bash_startup.sh
         file_info:
           mode: 0755
 ```
@@ -671,7 +671,7 @@ git add .goreleaser.yml
 git commit -m "feat(packaging): add bash_startup.sh to goreleaser builds
 
 Includes the script in Linux tarballs and installs to
-/usr/lib/agentsh/bash_startup.sh for deb/rpm/arch packages."
+/usr/lib/agentmon/bash_startup.sh for deb/rpm/arch packages."
 ```
 
 ---
@@ -679,7 +679,7 @@ Includes the script in Linux tarballs and installs to
 ## Task 8: Update Alpine Workflow Packaging
 
 **Files:**
-- Modify: `/home/eran/work/agentsh/.github/workflows/release.yml`
+- Modify: `/home/eran/work/agentmon/.github/workflows/release.yml`
 
 **Step 1: Add bash_startup.sh to Alpine tarball**
 
@@ -691,10 +691,10 @@ Find the "Create Alpine tarball" step and update:
           VERSION: ${{ github.ref_name }}
         run: |
           mkdir -p dist
-          tar -czvf "dist/agentsh_${VERSION}_linux_amd64_musl.tar.gz" \
-            agentsh \
-            agentsh-unixwrap \
-            agentsh-shell-shim \
+          tar -czvf "dist/agentmon_${VERSION}_linux_amd64_musl.tar.gz" \
+            agentmon \
+            agentmon-unixwrap \
+            agentmon-shell-shim \
             packaging/bash_startup.sh \
             README.md \
             LICENSE \
@@ -721,7 +721,7 @@ Includes the bash startup script in musl/Alpine builds."
 ## Task 9: Add Integration Test
 
 **Files:**
-- Create: `/home/eran/work/agentsh/internal/api/exec_envInject_test.go`
+- Create: `/home/eran/work/agentmon/internal/api/exec_envInject_test.go`
 
 **Step 1: Write integration test for env_inject**
 
@@ -735,10 +735,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestEnvInject_AppearsInCommandEnv(t *testing.T) {
@@ -845,7 +845,7 @@ Tests merge behavior and policy override precedence for env_inject."
 ## Task 10: Add End-to-End Test for BASH_ENV
 
 **Files:**
-- Create: `/home/eran/work/agentsh/internal/api/exec_bashenv_test.go`
+- Create: `/home/eran/work/agentmon/internal/api/exec_bashenv_test.go`
 
 **Step 1: Write E2E test for bash builtin blocking**
 
@@ -927,7 +927,7 @@ when used via BASH_ENV."
 ## Task 11: Update Documentation (Optional)
 
 **Files:**
-- Modify: `/home/eran/work/agentsh/config.yml` (example config)
+- Modify: `/home/eran/work/agentmon/config.yml` (example config)
 
 **Step 1: Add env_inject example to config.yml**
 
@@ -941,7 +941,7 @@ sandbox:
   # These bypass env policy filtering (operator-trusted)
   # Primary use: BASH_ENV to disable bash builtins that bypass seccomp
   env_inject:
-    BASH_ENV: "/usr/lib/agentsh/bash_startup.sh"
+    BASH_ENV: "/usr/lib/agentmon/bash_startup.sh"
     # MY_CUSTOM_VAR: "value"  # Add custom vars as needed
 ```
 

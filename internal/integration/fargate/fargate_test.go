@@ -28,7 +28,7 @@ func TestFargateE2E(t *testing.T) {
 	subnet := requiredEnv(t, "AWS_ECS_SUBNET")
 	sg := requiredEnv(t, "AWS_ECS_SECURITY_GROUP")
 	execRole := requiredEnv(t, "AWS_ECS_EXECUTION_ROLE_ARN")
-	agentshImage := requiredEnv(t, "AGENTSH_TEST_IMAGE")
+	agentmonImage := requiredEnv(t, "AGENTMON_TEST_IMAGE")
 	workloadImage := requiredEnv(t, "WORKLOAD_TEST_IMAGE")
 	region := requiredEnv(t, "AWS_REGION")
 
@@ -43,12 +43,12 @@ func TestFargateE2E(t *testing.T) {
 	cwlClient := cloudwatchlogs.NewFromConfig(cfg)
 
 	runID := time.Now().Format("20060102-150405")
-	logGroup := "/agentsh/fargate-e2e"
+	logGroup := "/agentmon/fargate-e2e"
 	logStreamPrefix := "test-" + runID
 
 	taskDefInput := BuildTaskDefinition(TaskDefParams{
-		Family:           "agentsh-e2e-" + runID,
-		AgentshImage:     agentshImage,
+		Family:           "agentmon-e2e-" + runID,
+		AgentmonImage:     agentmonImage,
 		WorkloadImage:    workloadImage,
 		ExecutionRoleARN: execRole,
 		LogGroup:         logGroup,
@@ -108,12 +108,12 @@ func TestFargateE2E(t *testing.T) {
 	agentLogCtx, agentLogCancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer agentLogCancel()
 
-	agentshLogs, err := fetchLogs(agentLogCtx, cwlClient, logGroup, logStreamPrefix+"-agentsh")
+	agentmonLogs, err := fetchLogs(agentLogCtx, cwlClient, logGroup, logStreamPrefix+"-agentmon")
 	if err != nil {
-		t.Fatalf("fetch agentsh logs: %v", err)
+		t.Fatalf("fetch agentmon logs: %v", err)
 	}
-	t.Logf("agentsh logs (%d lines):", len(agentshLogs))
-	for _, line := range agentshLogs {
+	t.Logf("agentmon logs (%d lines):", len(agentmonLogs))
+	for _, line := range agentmonLogs {
 		t.Logf("  %s", line)
 	}
 
@@ -156,7 +156,7 @@ func TestFargateE2E(t *testing.T) {
 
 	t.Logf("seccomp probe result: %s", result.SeccompAvailable)
 
-	events := ParseAuditEvents(agentshLogs)
+	events := ParseAuditEvents(agentmonLogs)
 	t.Logf("found %d audit events", len(events))
 
 	denyEvents := 0
@@ -167,6 +167,6 @@ func TestFargateE2E(t *testing.T) {
 		}
 	}
 	if denyEvents == 0 {
-		t.Error("no deny audit events found in agentsh logs — tracer may not be making enforcement decisions")
+		t.Error("no deny audit events found in agentmon logs — tracer may not be making enforcement decisions")
 	}
 }

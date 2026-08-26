@@ -11,7 +11,7 @@
 **Cross-references:**
 - Shared design (covers 05a/05b/05c): `docs/superpowers/specs/2026-05-11-db-plan-05-pg-extended-tx-design.md`
 - Roadmap: `docs/superpowers/specs/2026-05-08-db-access-phase-1-roadmap-design.md` §3 Plan 05
-- Spec: `docs/agentsh-db-access-spec.md` v0.8 §7.1, §14.2, §14.3, §14.4
+- Spec: `docs/agentmon-db-access-spec.md` v0.8 §7.1, §14.2, §14.3, §14.4
 - Predecessor plan: `docs/superpowers/plans/2026-05-10-db-plan-04c-simple-query-events.md`
 
 **Settled in brainstorming (2026-05-11):**
@@ -254,7 +254,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func TestCache_PutGet_RoundTrip(t *testing.T) {
@@ -375,8 +375,8 @@ import (
 	"container/list"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 const DefaultCapacity = 4096
@@ -564,7 +564,7 @@ Create `internal/db/proxy/postgres/statemachine/state.go`:
 //go:build linux
 
 // Package statemachine implements the PostgreSQL proxy's Extended Query and
-// transaction state machine per docs/agentsh-db-access-spec.md §14 and the
+// transaction state machine per docs/agentmon-db-access-spec.md §14 and the
 // design doc 2026-05-11-db-plan-05-pg-extended-tx-design.md §4.
 //
 // Transition is a pure function: it consumes (state, frame, cache, rules,
@@ -1153,7 +1153,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 func TestDenyRoute_OutOfTx_NotDirty(t *testing.T) {
@@ -1269,7 +1269,7 @@ Create `internal/db/proxy/postgres/statemachine/denyroute.go`:
 package statemachine
 
 import (
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 // DenyRoute returns the Action sequence implementing the spec §14.3 + §14.4
@@ -1349,7 +1349,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 // dummyRules constructs an empty *policy.RuleSet usable for transition tests
@@ -1421,7 +1421,7 @@ Create `internal/db/proxy/postgres/statemachine/transition.go`:
 package statemachine
 
 import (
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 // Transition is the pure state-transition function. It consumes the current
@@ -1603,9 +1603,9 @@ Open `internal/db/proxy/postgres/statemachine/transition.go`. Add the necessary 
 package statemachine
 
 import (
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 // PolicyClassifier is the minimal classifier surface Transition needs at the
@@ -1750,12 +1750,12 @@ func lookupStatementRule(rs *policy.RuleSet, name string) policy.StatementRule {
 
 func renderDenyMessage(d policy.Decision) string {
 	if d.RuleName != "" {
-		return "denied by AgentSH policy: " + d.RuleName
+		return "denied by AgentMon policy: " + d.RuleName
 	}
 	if d.Reason != "" {
-		return "denied by AgentSH policy: " + d.Reason
+		return "denied by AgentMon policy: " + d.Reason
 	}
-	return "denied by AgentSH policy"
+	return "denied by AgentMon policy"
 }
 
 func sqlstateForDecision(d policy.Decision) string {
@@ -2376,7 +2376,7 @@ type PolicyRuleSet = policyRuleSetAlias // see init below
 The `PolicyRuleSet` alias is a workaround for the property tests not importing `policy` directly to avoid a cycle through `_test.go` files. If the import is clean, simplify by importing `policy` and using `*policy.RuleSet` directly — the property test in production form should just do:
 
 ```go
-import "github.com/agentsh/agentsh/internal/db/policy"
+import "github.com/diffsec/agentmon/internal/db/policy"
 
 var cachedRules *policy.RuleSet
 
@@ -2460,8 +2460,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/preparedcache"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/preparedcache"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 // extqueryFixture wires a proxyConn-equivalent struct against in-process
@@ -2544,8 +2544,8 @@ Open `internal/db/proxy/postgres/proxyconn.go`. Add fields and an accessor:
 
 ```go
 // Add to import block:
-//   "github.com/agentsh/agentsh/internal/db/proxy/postgres/preparedcache"
-//   "github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+//   "github.com/diffsec/agentmon/internal/db/proxy/postgres/preparedcache"
+//   "github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 
 // In connState struct, replace:
 //   lastUpstreamRFQ byte
@@ -2619,8 +2619,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 // handleExtendedFrame translates a pgproto3 frontend frame into a Transition
@@ -2782,7 +2782,7 @@ func effectsFromCacheValue(v statemachine.CacheValue) effects.ClassifiedStatemen
 }
 ```
 
-Add `"github.com/agentsh/agentsh/internal/db/effects"` to the import block.
+Add `"github.com/diffsec/agentmon/internal/db/effects"` to the import block.
 
 - [ ] **Step 5: Wire the dispatcher into the simpleQueryLoop**
 
@@ -3244,7 +3244,7 @@ func TestSpine_ExtendedQuery_DenyOutOfTx(t *testing.T) {
 func TestSpine_InTxDeny_RollbackThenContinue(t *testing.T) {
 	yaml := `
 db_services:
-  appdb: { family: postgres, dialect: postgres, upstream: "127.0.0.1:5432", tls_mode: terminate_reissue, listener: {unix: "/tmp/agentsh-appdb.sock"} }
+  appdb: { family: postgres, dialect: postgres, upstream: "127.0.0.1:5432", tls_mode: terminate_reissue, listener: {unix: "/tmp/agentmon-appdb.sock"} }
 database_rules:
   - name: block-delete-soft
     db_service: appdb

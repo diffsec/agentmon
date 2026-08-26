@@ -204,7 +204,7 @@ func TestValidateHTTPServices_SecretAndRules(t *testing.T) {
 		Name:     "github",
 		Upstream: "https://api.github.com",
 		Default:  "deny",
-		Secret:   &policy.HTTPServiceSecret{Ref: "keyring://agentsh/github_token", Format: "ghp_{rand:36}"},
+		Secret:   &policy.HTTPServiceSecret{Ref: "keyring://agentmon/github_token", Format: "ghp_{rand:36}"},
 		Inject:   &policy.HTTPServiceInject{Header: &policy.HTTPServiceInjectHeader{Name: "Authorization", Template: "Bearer {{secret}}"}},
 		Rules: []policy.HTTPServiceRule{{
 			Name: "read", Methods: []string{"GET"}, Paths: []string{"/repos/**"}, Decision: "allow",
@@ -220,7 +220,7 @@ func TestValidateHTTPServices_SecretOnly(t *testing.T) {
 	svcs := []policy.HTTPService{{
 		Name:     "anthropic",
 		Upstream: "https://api.anthropic.com",
-		Secret:   &policy.HTTPServiceSecret{Ref: "keyring://agentsh/key", Format: "sk-ant-{rand:93}"},
+		Secret:   &policy.HTTPServiceSecret{Ref: "keyring://agentmon/key", Format: "sk-ant-{rand:93}"},
 		Inject:   &policy.HTTPServiceInject{Header: &policy.HTTPServiceInjectHeader{Name: "x-api-key", Template: "{{secret}}"}},
 	}}
 	providers := map[string]yaml.Node{"keyring": mustYAMLNode(t, "type: keyring")}
@@ -290,7 +290,7 @@ func TestValidateHTTPServices_SecretRefUndeclaredProvider(t *testing.T) {
 func TestValidateHTTPServices_InvalidFakeFormat(t *testing.T) {
 	svcs := []policy.HTTPService{{
 		Name: "bad", Upstream: "https://api.example.com",
-		Secret: &policy.HTTPServiceSecret{Ref: "keyring://agentsh/key", Format: "short{rand:5}"},
+		Secret: &policy.HTTPServiceSecret{Ref: "keyring://agentmon/key", Format: "short{rand:5}"},
 	}}
 	providers := map[string]yaml.Node{"keyring": mustYAMLNode(t, "type: keyring")}
 	err := policy.ValidateHTTPServicesWithProviders(svcs, providers)
@@ -302,7 +302,7 @@ func TestValidateHTTPServices_InvalidFakeFormat(t *testing.T) {
 func TestValidateHTTPServices_MissingSecretPlaceholder(t *testing.T) {
 	svcs := []policy.HTTPService{{
 		Name: "bad", Upstream: "https://api.example.com",
-		Secret: &policy.HTTPServiceSecret{Ref: "keyring://agentsh/key", Format: "ghp_{rand:36}"},
+		Secret: &policy.HTTPServiceSecret{Ref: "keyring://agentmon/key", Format: "ghp_{rand:36}"},
 		Inject: &policy.HTTPServiceInject{Header: &policy.HTTPServiceInjectHeader{Name: "Auth", Template: "Bearer MISSING"}},
 	}}
 	providers := map[string]yaml.Node{"keyring": mustYAMLNode(t, "type: keyring")}
@@ -330,7 +330,7 @@ func TestValidateHTTPServices_InjectNoHeader_Rejected(t *testing.T) {
 	// inject is set but has no header → useless config, reject.
 	svcs := []policy.HTTPService{{
 		Name: "bad", Upstream: "https://api.example.com",
-		Secret: &policy.HTTPServiceSecret{Ref: "keyring://agentsh/key", Format: "ghp_{rand:36}"},
+		Secret: &policy.HTTPServiceSecret{Ref: "keyring://agentmon/key", Format: "ghp_{rand:36}"},
 		Inject: &policy.HTTPServiceInject{}, // no Header
 	}}
 	providers := map[string]yaml.Node{"keyring": mustYAMLNode(t, "type: keyring")}
@@ -343,7 +343,7 @@ func TestValidateHTTPServices_InjectNoHeader_Rejected(t *testing.T) {
 func TestValidateHTTPServices_InjectHeaderNameEmpty_Rejected(t *testing.T) {
 	svcs := []policy.HTTPService{{
 		Name: "bad", Upstream: "https://api.example.com",
-		Secret: &policy.HTTPServiceSecret{Ref: "keyring://agentsh/key", Format: "ghp_{rand:36}"},
+		Secret: &policy.HTTPServiceSecret{Ref: "keyring://agentmon/key", Format: "ghp_{rand:36}"},
 		Inject: &policy.HTTPServiceInject{Header: &policy.HTTPServiceInjectHeader{Name: "", Template: "{{secret}}"}},
 	}}
 	providers := map[string]yaml.Node{"keyring": mustYAMLNode(t, "type: keyring")}
@@ -362,7 +362,7 @@ func TestValidateHTTPServices_MultipleServicesMultipleProviders(t *testing.T) {
 		},
 		{
 			Name: "anthropic", Upstream: "https://api.anthropic.com",
-			Secret: &policy.HTTPServiceSecret{Ref: "keyring://agentsh/anthropic_key", Format: "sk-ant-{rand:93}"},
+			Secret: &policy.HTTPServiceSecret{Ref: "keyring://agentmon/anthropic_key", Format: "sk-ant-{rand:93}"},
 			Inject: &policy.HTTPServiceInject{Header: &policy.HTTPServiceInjectHeader{Name: "x-api-key", Template: "{{secret}}"}},
 		},
 	}
@@ -426,8 +426,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/proxy/secrets"
-	"github.com/agentsh/agentsh/internal/proxy/secrets/fakegen"
+	"github.com/diffsec/agentmon/internal/proxy/secrets"
+	"github.com/diffsec/agentmon/internal/proxy/secrets/fakegen"
 	"github.com/gobwas/glob"
 )
 ```
@@ -511,8 +511,8 @@ func ValidateHTTPServicesWithProviders(svcs []HTTPService, providers map[string]
 ```
 
 Note: the import paths for `secrets` and `fakegen` are:
-- `"github.com/agentsh/agentsh/internal/proxy/secrets"`
-- `"github.com/agentsh/agentsh/internal/proxy/secrets/fakegen"`
+- `"github.com/diffsec/agentmon/internal/proxy/secrets"`
+- `"github.com/diffsec/agentmon/internal/proxy/secrets/fakegen"`
 
 Check the actual import paths in the codebase (they might use a different module path). Look at `internal/policy/secrets.go` line 9-10 for the correct import path.
 
@@ -556,7 +556,7 @@ func TestCheckHTTPService_CredentialsOnlyDefaultAllow(t *testing.T) {
 			Upstream: "https://api.anthropic.com",
 			// No Default set, no Rules — credentials-only.
 			Secret: &policy.HTTPServiceSecret{
-				Ref:    "keyring://agentsh/key",
+				Ref:    "keyring://agentmon/key",
 				Format: "sk-ant-{rand:93}",
 			},
 		}},
@@ -605,7 +605,7 @@ func TestCheckHTTPService_ExplicitDenyOnCredentialsOnly(t *testing.T) {
 			Upstream: "https://api.example.com",
 			Default:  "deny",
 			Secret: &policy.HTTPServiceSecret{
-				Ref:    "keyring://agentsh/key",
+				Ref:    "keyring://agentmon/key",
 				Format: "ghp_{rand:36}",
 			},
 		}},
@@ -677,7 +677,7 @@ func TestResolveServiceConfigs_FromHTTPService(t *testing.T) {
 		{
 			Name:     "github",
 			Upstream: "https://api.github.com",
-			Secret:   &policy.HTTPServiceSecret{Ref: "keyring://agentsh/github_token", Format: "ghp_{rand:36}"},
+			Secret:   &policy.HTTPServiceSecret{Ref: "keyring://agentmon/github_token", Format: "ghp_{rand:36}"},
 			Inject:   &policy.HTTPServiceInject{Header: &policy.HTTPServiceInjectHeader{Name: "Authorization", Template: "Bearer {{secret}}"}},
 			ScrubResponse: &scrubTrue,
 		},
@@ -726,7 +726,7 @@ func TestResolveServiceConfigs_ScrubResponseDefault(t *testing.T) {
 	svcs := []policy.HTTPService{{
 		Name:     "svc",
 		Upstream: "https://api.example.com",
-		Secret:   &policy.HTTPServiceSecret{Ref: "keyring://agentsh/key", Format: "ghp_{rand:36}"},
+		Secret:   &policy.HTTPServiceSecret{Ref: "keyring://agentmon/key", Format: "ghp_{rand:36}"},
 	}}
 	resolved, err := session.ResolveServiceConfigs(svcs)
 	if err != nil {
@@ -809,7 +809,7 @@ func ResolveServiceConfigs(svcs []policy.HTTPService) (*ResolvedServices, error)
 }
 ```
 
-Remove the `"github.com/agentsh/agentsh/internal/proxy/services"` import and the `ServiceEnvVar` type (no longer needed — env vars are handled by `Proxy.EnvVars()`).
+Remove the `"github.com/diffsec/agentmon/internal/proxy/services"` import and the `ServiceEnvVar` type (no longer needed — env vars are handled by `Proxy.EnvVars()`).
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -875,7 +875,7 @@ Remove the matcher construction and SetMatcher call (lines 160-162):
 		// p.SetMatcher(matcher)
 ```
 
-Remove the `"github.com/agentsh/agentsh/internal/proxy/services"` import.
+Remove the `"github.com/diffsec/agentmon/internal/proxy/services"` import.
 
 Also remove `BuildServiceEnvVars` and `CheckEnvCollisions` calls if they reference the old `resolved.EnvVars` (lines 133-146), since env vars are now handled by `Proxy.EnvVars()`.
 
@@ -966,7 +966,7 @@ services:
     match:
       hosts: ["api.github.com"]
     secret:
-      ref: keyring://agentsh/github_token
+      ref: keyring://agentmon/github_token
 `
 	var p policy.Policy
 	if err := yaml.Unmarshal([]byte(input), &p); err != nil {
@@ -1025,7 +1025,7 @@ rm internal/proxy/services/matcher.go internal/proxy/services/matcher_test.go
 In `internal/proxy/proxy.go`, remove:
 - The `matcher *services.Matcher` field from the `Proxy` struct (line 78)
 - The `SetMatcher` method (lines 209-215)
-- The `import "github.com/agentsh/agentsh/internal/proxy/services"` line
+- The `import "github.com/diffsec/agentmon/internal/proxy/services"` line
 - Any Host-header matching code in `ServeHTTP` that uses the matcher (lines 419-423) — set `serviceName` from `declaredService()` path dispatch only, which already happens earlier
 
 - [ ] **Step 3: Verify build compiles**
@@ -1621,10 +1621,10 @@ Add a new section after the "How http_services routing works" section, before th
 ```markdown
 ## How credential substitution works
 
-When an `http_services` entry includes a `secret:` block, agentsh performs credential
+When an `http_services` entry includes a `secret:` block, agentmon performs credential
 substitution so the agent never sees the real credential:
 
-1. **At session start**, agentsh fetches the real secret from the provider declared
+1. **At session start**, agentmon fetches the real secret from the provider declared
    in `providers:` (Vault, keyring, AWS SM, etc.).
 2. **A fake credential** with the same format and length is generated using `secret.format`.
 3. **The agent receives** `<NAME>_API_URL=http://127.0.0.1:PORT/svc/<name>/` and interacts
@@ -1657,7 +1657,7 @@ providers:
     address: https://vault.corp.internal
     auth:
       method: token
-      token_ref: keyring://agentsh/vault_token
+      token_ref: keyring://agentmon/vault_token
   keyring:
     type: keyring
 
@@ -1702,7 +1702,7 @@ http_services:
   - name: anthropic
     upstream: https://api.anthropic.com
     secret:
-      ref: keyring://agentsh/anthropic_key
+      ref: keyring://agentmon/anthropic_key
       format: "sk-ant-{rand:93}"
     inject:
       header:

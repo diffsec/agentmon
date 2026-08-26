@@ -2,7 +2,7 @@
 
 package api
 
-import "github.com/agentsh/agentsh/internal/seccomp"
+import "github.com/diffsec/agentmon/internal/seccomp"
 
 // resolvableBlockListCount returns how many of the given syscall names
 // resolve to a syscall number on the current arch. Used by

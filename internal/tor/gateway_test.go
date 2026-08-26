@@ -3,7 +3,7 @@ package tor
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
+	"github.com/diffsec/agentmon/internal/config"
 )
 
 func gwPolicy(t *testing.T, rules []config.TorOnionRule) *Policy {

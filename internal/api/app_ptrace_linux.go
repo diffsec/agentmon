@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/capabilities"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/ptrace"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/ptrace"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // ptraceFamilyEmitter adapts the API's event store/broker to the
@@ -144,7 +144,7 @@ func (a *App) initPtraceTracer() {
 	// parsed and validated but the runtime never calls AttachPID — the tracer
 	// runs with zero tracees and policy enforcement silently no-ops.
 	//
-	// Useful for hosts where the agentsh server is not the ancestor of the
+	// Useful for hosts where the agentmon server is not the ancestor of the
 	// process tree being governed (OpenComputer's osb-agent, generic Docker
 	// exec setups, sidecar deployments, etc.).
 	if cfg.AttachMode == "pid" {

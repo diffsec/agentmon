@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
-	"github.com/agentsh/agentsh/internal/db/effects"
-	dbpolicy "github.com/agentsh/agentsh/internal/db/policy"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	dbpolicy "github.com/diffsec/agentmon/internal/db/policy"
 )
 
 func Run(rs *dbpolicy.RuleSet, warns []dbpolicy.Warning, opts Options) (Report, error) {

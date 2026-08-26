@@ -337,10 +337,10 @@ func describeOpaqueByte(b byte) string {
 // shell-targeted allow rules.
 //
 // A trailing ".real" suffix is stripped so shell detection also covers
-// the agentsh shell shim's install layout. `agentsh shim install-shell`
+// the agentmon shell shim's install layout. `agentmon shim install-shell`
 // renames the original shell to `<name>.real` and places the shim at
 // the original path (`/bin/sh` → shim, `/bin/sh.real` → real shell).
-// When the shim forwards to `agentsh exec`, the server sees the real
+// When the shim forwards to `agentmon exec`, the server sees the real
 // shell's `.real` path as the outer command. Without this normalization,
 // `sh.real`/`bash.real` would miss isKnownShell, shell-c derivation
 // would be skipped, and the policy would fall through to the outer

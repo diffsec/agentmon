@@ -204,7 +204,7 @@ func TestLaunchdPlistTemplate(t *testing.T) {
 	if !strings.Contains(launchdPlistTemplate, "RunAtLoad") {
 		t.Error("template should have RunAtLoad key")
 	}
-	if !strings.Contains(launchdPlistTemplate, "ai.canyonroad.agentsh.daemon") {
+	if !strings.Contains(launchdPlistTemplate, "dev.diffsec.agentmon.daemon") {
 		t.Error("template should have correct label")
 	}
 }
@@ -313,13 +313,13 @@ func argvFromLaunchdPlist(t *testing.T, plist string) []string {
 // #437: an unregistered flag, a renamed or removed `server` subcommand, and a
 // structurally broken ExecStart / ProgramArguments all fail here.
 func TestDaemonTemplates_GenerateRunnableCommand(t *testing.T) {
-	const exePath = "/usr/local/bin/agentsh"
+	const exePath = "/usr/local/bin/agentmon"
 
 	systemdUnit := fmt.Sprintf(systemdServiceTemplate,
-		exePath, "/home/testuser", "1000", "/home/testuser/.local/share/agentsh")
+		exePath, "/home/testuser", "1000", "/home/testuser/.local/share/agentmon")
 	launchdPlist := fmt.Sprintf(launchdPlistTemplate,
-		exePath, "/home/testuser/Library/Logs/agentsh",
-		"/home/testuser/Library/Logs/agentsh", "/home/testuser")
+		exePath, "/home/testuser/Library/Logs/agentmon",
+		"/home/testuser/Library/Logs/agentmon", "/home/testuser")
 
 	for _, tc := range []struct {
 		name string

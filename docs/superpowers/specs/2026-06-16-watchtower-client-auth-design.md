@@ -1,4 +1,4 @@
-# Approved-Instance Authentication to Watchtower (agentsh client side, v1)
+# Approved-Instance Authentication to Watchtower (agentmon client side, v1)
 
 **Date:** 2026-06-16
 **Status:** Design — brainstormed, awaiting spec review before planning
@@ -6,7 +6,7 @@
 
 ## Summary
 
-Only **approved** agentsh and Beacon instances should be allowed to connect to
+Only **approved** agentmon and Beacon instances should be allowed to connect to
 Watchtower (WT). Both connect over the **same** WTP gRPC bidirectional stream, so
 one credential scheme covers both, distinguished by a **type** carried on the
 credential's server-side record (not self-asserted by the client).
@@ -19,7 +19,7 @@ backed by a per-key registry row on the WT side) gives us granular revocation an
 per-instance attribution immediately, and turns the eventual identity-based trust
 (Phase 2) into a server-side validation change rather than a re-architecture.
 
-This document is scoped to the **agentsh client side only** (this repo). Watchtower
+This document is scoped to the **agentmon client side only** (this repo). Watchtower
 is a separate repo (`canyonroad/watchtower`); its key registry, auth interceptor,
 and the binding of the authenticated principal to policy resolution are specified
 here **only as the contract the client depends on**, and are tracked for a separate
@@ -33,7 +33,7 @@ WT-side spec (see Non-goals).
   (`internal/store/watchtower/dialer.go`, `internal/config/config.go:1224`).
   So this work is **convention + hardening + a forward-compat seam**, not new
   transport plumbing.
-- agentsh is increasingly deployed inside **ephemeral agent sandboxes**. The
+- agentmon is increasingly deployed inside **ephemeral agent sandboxes**. The
   credential is expected to be **injected at spawn time as an environment
   variable** (`token_env`), not baked into the image. The injection channel need
   not be secret; the value must instead be **per-instance and revocable** (and,
@@ -42,7 +42,7 @@ WT-side spec (see Non-goals).
 - The decision-context policy-resolution feature
   (`2026-06-16-identity-context-policy-request-design.md`) has WT resolve the
   enforced policy from a **self-reported** `DecisionContext`. Its security note
-  explicitly assumes the connection is authentic ("agentsh reports context
+  explicitly assumes the connection is authentic ("agentmon reports context
   honestly… it already holds the WT bearer/cert; WT decides how much to trust").
   Authenticating *which* instance is connecting is what makes that assumption
   hold. The complementary fix — having WT bind the authenticated principal to an
@@ -59,7 +59,7 @@ WT-side spec (see Non-goals).
 2. **v1 trust = validity only.** Present + unexpired + unrevoked ⇒ trusted.
    No identity binding logic in v1.
 3. **Type is a server-side property of the key**, not self-asserted by the
-   client. agentsh and Beacon present their own keys; a `type` (`agentsh` |
+   client. agentmon and Beacon present their own keys; a `type` (`agentmon` |
    `beacon`) lives on the WT registry row. A self-asserted type would be
    untrusted, so the client does not send one.
 4. **Transport unchanged in shape:** credential rides `authorization: Bearer`
@@ -132,8 +132,8 @@ chain.
 
 ```
 spawn ephemeral sandbox
-  -> control plane sets env var (e.g. AGENTSH_WT_TOKEN = "<kid>.<secret>")
-config: audit.watchtower.auth.token_env = AGENTSH_WT_TOKEN
+  -> control plane sets env var (e.g. AGENTMON_WT_TOKEN = "<kid>.<secret>")
+config: audit.watchtower.auth.token_env = AGENTMON_WT_TOKEN
   -> envCredentialSource selected, wired into watchtower.Options
 WTP Dial (each connect / reconnect)
   -> CredentialSource.Bearer(ctx) -> "<kid>.<secret>"
@@ -174,8 +174,8 @@ audit:
       insecure: false          # warn-only coupling: auth + insecure => startup WARN
     auth:
       # exactly one of:
-      token_env: AGENTSH_WT_TOKEN   # ephemeral agentsh: spawner-injected env var
-      token_file: /etc/agentsh/wt.key  # persistent Beacon: on-disk credential
+      token_env: AGENTMON_WT_TOKEN   # ephemeral agentmon: spawner-injected env var
+      token_file: /etc/agentmon/wt.key  # persistent Beacon: on-disk credential
       client_cert_auth: false        # alternative: mTLS (isolated/persistent)
 ```
 
@@ -222,7 +222,7 @@ Validation changes:
 - Implement the **WT-side principal→approved-identity binding + context
   narrowing** that closes the forged-context escalation.
 
-## Testing (agentsh side, TDD)
+## Testing (agentmon side, TDD)
 
 - **CredentialSource (unit, table-driven):** env source reads the named var;
   file source reads the file (and re-reads on the next Dial); empty value ⇒ no

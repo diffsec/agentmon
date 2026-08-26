@@ -1,4 +1,4 @@
-# Spec: ptrace Syscall Tracer Backend for agentsh
+# Spec: ptrace Syscall Tracer Backend for agentmon
 
 **Version:** 0.1 — Draft  
 **Date:** 2026-03-11  
@@ -9,11 +9,11 @@
 
 ## 1. Motivation
 
-agentsh's kernel-level enforcement (seccomp user-notify, eBPF, FUSE) requires Linux capabilities that are unavailable in restricted container runtimes — most notably **AWS Fargate**, where the Firecracker microVM blocks `SYS_ADMIN`, seccomp user-notify, eBPF, and `/dev/fuse`.
+agentmon's kernel-level enforcement (seccomp user-notify, eBPF, FUSE) requires Linux capabilities that are unavailable in restricted container runtimes — most notably **AWS Fargate**, where the Firecracker microVM blocks `SYS_ADMIN`, seccomp user-notify, eBPF, and `/dev/fuse`.
 
 Fargate does, however, support exactly one additional capability: **`SYS_PTRACE`**, combined with `pidMode: "task"` (shared PID namespace across containers in an ECS task). This is the same mechanism used by Datadog CWS, Falco, Lacework, and Sysdig for runtime security on Fargate.
 
-A ptrace-based tracer backend would allow agentsh to provide strong enforcement on Fargate and similar restricted environments — full allow/deny/audit for all four syscall planes (exec, file, network, signal), with steering/redirect support (Phases 4a-4b). Entirely opt-in and feature-flagged off by default.
+A ptrace-based tracer backend would allow agentmon to provide strong enforcement on Fargate and similar restricted environments — full allow/deny/audit for all four syscall planes (exec, file, network, signal), with steering/redirect support (Phases 4a-4b). Entirely opt-in and feature-flagged off by default.
 
 ### 1.1 Non-Goals
 
@@ -39,7 +39,7 @@ The ptrace tracer runs as a **sidecar container** in the same ECS task (or Kuber
 - `pidMode: "task"` (ECS) or `shareProcessNamespace: true` (K8s)
 - Shared PID namespace allows the sidecar to see and trace all processes in the workload container
 
-The agentsh server process in the sidecar runs the ptrace tracer loop, which attaches to the root process of the workload container and automatically inherits tracing to all descendants.
+The agentmon server process in the sidecar runs the ptrace tracer loop, which attaches to the root process of the workload container and automatically inherits tracing to all descendants.
 
 ### 2.3 Component Placement
 
@@ -103,17 +103,17 @@ sandbox:
     enabled: false
 
     # How to discover the initial tracee process.
-    #   "children"  — agentsh forks the workload and traces from exec (recommended for Phase 1)
-    #   "pid"       — attach to a specific PID (set via target_pid, target_pid_file, or AGENTSH_PTRACE_TARGET_PID)
+    #   "children"  — agentmon forks the workload and traces from exec (recommended for Phase 1)
+    #   "pid"       — attach to a specific PID (set via target_pid, target_pid_file, or AGENTMON_PTRACE_TARGET_PID)
     #   "sidecar"   — [Phase 3] auto-discover workload container's root process via /proc
     attach_mode: "children"
 
     # Explicit target PID (only used when attach_mode: "pid")
-    # Can also be set via AGENTSH_PTRACE_TARGET_PID env var.
+    # Can also be set via AGENTMON_PTRACE_TARGET_PID env var.
     target_pid: 0
 
     # Path to a file containing the target PID (only used when attach_mode: "pid").
-    # agentsh polls this file on startup until it appears or a timeout is reached.
+    # agentmon polls this file on startup until it appears or a timeout is reached.
     # Useful for sidecar deployments where the workload writes its PID to a shared volume.
     target_pid_file: ""
 
@@ -151,7 +151,7 @@ sandbox:
       max_hold_ms: 5000
 
     # Anti-detection mitigation
-    # Controls whether and how agentsh masks TracerPid in /proc/<pid>/status.
+    # Controls whether and how agentmon masks TracerPid in /proc/<pid>/status.
     #   "off"        — no masking (default)
     #   "ptrace"     — intercept /proc reads via ptrace (works everywhere, including Fargate)
     #   "ld_preload" — inject LD_PRELOAD library to hook read() (lower overhead, no static binaries)
@@ -168,12 +168,12 @@ sandbox:
 
 | Variable | Maps To | Notes |
 |----------|---------|-------|
-| `AGENTSH_PTRACE_ENABLED` | `sandbox.ptrace.enabled` | `"true"` / `"1"` enables |
-| `AGENTSH_PTRACE_TARGET_PID` | `sandbox.ptrace.target_pid` | Integer PID |
-| `AGENTSH_PTRACE_TARGET_PID_FILE` | `sandbox.ptrace.target_pid_file` | Path to file containing PID |
-| `AGENTSH_PTRACE_ATTACH_MODE` | `sandbox.ptrace.attach_mode` | `"children"`, `"pid"` (Phase 1); `"sidecar"` (Phase 3) |
-| `AGENTSH_PTRACE_PREFILTER` | `sandbox.ptrace.performance.seccomp_prefilter` | `"true"` / `"false"` (only effective in children mode) |
-| `AGENTSH_PTRACE_ARG_FILTER` | `sandbox.ptrace.performance.arg_level_filter` | `"true"` / `"false"` (requires seccomp_prefilter) |
+| `AGENTMON_PTRACE_ENABLED` | `sandbox.ptrace.enabled` | `"true"` / `"1"` enables |
+| `AGENTMON_PTRACE_TARGET_PID` | `sandbox.ptrace.target_pid` | Integer PID |
+| `AGENTMON_PTRACE_TARGET_PID_FILE` | `sandbox.ptrace.target_pid_file` | Path to file containing PID |
+| `AGENTMON_PTRACE_ATTACH_MODE` | `sandbox.ptrace.attach_mode` | `"children"`, `"pid"` (Phase 1); `"sidecar"` (Phase 3) |
+| `AGENTMON_PTRACE_PREFILTER` | `sandbox.ptrace.performance.seccomp_prefilter` | `"true"` / `"false"` (only effective in children mode) |
+| `AGENTMON_PTRACE_ARG_FILTER` | `sandbox.ptrace.performance.arg_level_filter` | `"true"` / `"false"` (requires seccomp_prefilter) |
 
 ### 3.3 Security Mode Integration
 
@@ -318,7 +318,7 @@ func probePtraceAttach() bool {
 }
 ```
 
-### 4.2 `agentsh detect` Output
+### 4.2 `agentmon detect` Output
 
 ```
 CAPABILITIES
@@ -926,7 +926,7 @@ With a seccomp-BPF pre-filter installed in the tracee, only interesting syscalls
 
 ### 7.2 Children Mode (Phase 1): Pre-exec Filter Installation
 
-In `children` mode, agentsh forks the workload process. Before `exec`, the child installs the seccomp filter itself. This is the standard, well-understood pattern:
+In `children` mode, agentmon forks the workload process. Before `exec`, the child installs the seccomp filter itself. This is the standard, well-understood pattern:
 
 ```go
 // In the forked child, before exec:
@@ -967,7 +967,7 @@ Instead, `pid` mode uses `PTRACE_O_TRACESYSGOOD`, which stops on every syscall. 
 
 ### 7.4 Syscalls to Trace
 
-The default set, matching agentsh's existing seccomp and file/network/signal interception:
+The default set, matching agentmon's existing seccomp and file/network/signal interception:
 
 **Exec:** `execve` (59), `execveat` (322)
 
@@ -990,7 +990,7 @@ Phase 1 supports two discovery modes only. Automatic sidecar discovery is deferr
 
 **Mode: `children` (recommended for Phase 1)**
 
-agentsh forks the workload process directly. The tracer attaches before `exec`. This is the simplest and most reliable path — no discovery needed, no race between process start and attach.
+agentmon forks the workload process directly. The tracer attaches before `exec`. This is the simplest and most reliable path — no discovery needed, no race between process start and attach.
 
 ```go
 func (t *Tracer) startAndTrace(ctx context.Context, cmd string, args []string) (int, error) {
@@ -1005,7 +1005,7 @@ func (t *Tracer) startAndTrace(ctx context.Context, cmd string, args []string) (
 
 **Mode: `pid` (for sidecar deployments)**
 
-The operator provides an explicit PID via config or environment variable (`AGENTSH_PTRACE_TARGET_PID`). For Fargate sidecar deployments, the workload container's entrypoint writes its own PID to a shared volume, and agentsh reads it:
+The operator provides an explicit PID via config or environment variable (`AGENTMON_PTRACE_TARGET_PID`). For Fargate sidecar deployments, the workload container's entrypoint writes its own PID to a shared volume, and agentmon reads it:
 
 ```bash
 # Workload container entrypoint
@@ -1014,7 +1014,7 @@ exec "$@"
 ```
 
 ```yaml
-# agentsh config
+# agentmon config
 sandbox:
   ptrace:
     enabled: true
@@ -1216,7 +1216,7 @@ func readTGID(tid int) (int, error) {
 }
 ```
 
-**Note on `children` mode:** When agentsh forks the child, the child is created with `PTRACE_TRACEME` (or the parent uses `PTRACE_SEIZE` before `exec`). In this case the child is already stopped at `PTRACE_EVENT_EXEC` before executing its first instruction — no interrupt/wait sequence is needed.
+**Note on `children` mode:** When agentmon forks the child, the child is created with `PTRACE_TRACEME` (or the parent uses `PTRACE_SEIZE` before `exec`). In this case the child is already stopped at `PTRACE_EVENT_EXEC` before executing its first instruction — no interrupt/wait sequence is needed.
 
 **Step 3: seccomp pre-filter (children mode only in Phase 1)**
 
@@ -1378,7 +1378,7 @@ The ptrace layer is responsible for:
 3. Calling `handler.Handle()`
 4. Translating the `ExecveResult` into ptrace actions (allow/deny/redirect)
 
-For redirect, ptrace rewrites the filename pointer in the tracee's registers to point to the agentsh-stub path, analogous to how the seccomp handler uses `handleRedirect`.
+For redirect, ptrace rewrites the filename pointer in the tracee's registers to point to the agentmon-stub path, analogous to how the seccomp handler uses `handleRedirect`.
 
 ### 9.2 FileHandler
 
@@ -1528,7 +1528,7 @@ Reference ECS task definition for the sidecar deployment. Uses `pid` mode with a
 
 ```json
 {
-  "family": "agentsh-fargate",
+  "family": "agentmon-fargate",
   "cpu": "512",
   "memory": "1024",
   "networkMode": "awsvpc",
@@ -1536,13 +1536,13 @@ Reference ECS task definition for the sidecar deployment. Uses `pid` mode with a
   "requiresCompatibilities": ["FARGATE"],
   "volumes": [
     {
-      "name": "agentsh-shared"
+      "name": "agentmon-shared"
     }
   ],
   "containerDefinitions": [
     {
-      "name": "agentsh",
-      "image": "ghcr.io/canyonroad/agentsh:latest",
+      "name": "agentmon",
+      "image": "ghcr.io/diffsec/agentmon:latest",
       "essential": true,
       "linuxParameters": {
         "capabilities": {
@@ -1550,14 +1550,14 @@ Reference ECS task definition for the sidecar deployment. Uses `pid` mode with a
         }
       },
       "environment": [
-        { "name": "AGENTSH_PTRACE_ENABLED", "value": "true" },
-        { "name": "AGENTSH_PTRACE_ATTACH_MODE", "value": "pid" },
-        { "name": "AGENTSH_PTRACE_TARGET_PID_FILE", "value": "/shared/workload.pid" },
-        { "name": "AGENTSH_HTTP_ADDR", "value": "0.0.0.0:18080" },
-        { "name": "AGENTSH_LOG_LEVEL", "value": "info" }
+        { "name": "AGENTMON_PTRACE_ENABLED", "value": "true" },
+        { "name": "AGENTMON_PTRACE_ATTACH_MODE", "value": "pid" },
+        { "name": "AGENTMON_PTRACE_TARGET_PID_FILE", "value": "/shared/workload.pid" },
+        { "name": "AGENTMON_HTTP_ADDR", "value": "0.0.0.0:18080" },
+        { "name": "AGENTMON_LOG_LEVEL", "value": "info" }
       ],
       "mountPoints": [
-        { "sourceVolume": "agentsh-shared", "containerPath": "/shared", "readOnly": false }
+        { "sourceVolume": "agentmon-shared", "containerPath": "/shared", "readOnly": false }
       ],
       "portMappings": [
         { "containerPort": 18080, "protocol": "tcp" }
@@ -1574,32 +1574,32 @@ Reference ECS task definition for the sidecar deployment. Uses `pid` mode with a
       "name": "agent-workload",
       "image": "your-agent-image:latest",
       "essential": true,
-      "entryPoint": ["/usr/local/bin/agentsh-pid-writer", "/shared/workload.pid"],
+      "entryPoint": ["/usr/local/bin/agentmon-pid-writer", "/shared/workload.pid"],
       "environment": [
-        { "name": "AGENTSH_SERVER", "value": "http://127.0.0.1:18080" }
+        { "name": "AGENTMON_SERVER", "value": "http://127.0.0.1:18080" }
       ],
       "mountPoints": [
-        { "sourceVolume": "agentsh-shared", "containerPath": "/shared", "readOnly": false }
+        { "sourceVolume": "agentmon-shared", "containerPath": "/shared", "readOnly": false }
       ],
       "dependsOn": [
-        { "containerName": "agentsh", "condition": "HEALTHY" }
+        { "containerName": "agentmon", "condition": "HEALTHY" }
       ]
     }
   ]
 }
 ```
 
-**How it works:** The workload container's entrypoint uses a small wrapper script (`agentsh-pid-writer`) that writes `$$` to the shared volume, then `exec`s the real command. This is cleaner than inlining `sh -c` in the task definition. A minimal implementation:
+**How it works:** The workload container's entrypoint uses a small wrapper script (`agentmon-pid-writer`) that writes `$$` to the shared volume, then `exec`s the real command. This is cleaner than inlining `sh -c` in the task definition. A minimal implementation:
 
 ```bash
 #!/bin/sh
-# /usr/local/bin/agentsh-pid-writer — bake into your workload image
+# /usr/local/bin/agentmon-pid-writer — bake into your workload image
 echo $$ > "$1"
 shift
 exec "$@"
 ```
 
-The agentsh sidecar polls the PID file on startup and attaches once it appears. The `pidMode: "task"` shared PID namespace ensures the PID is valid across containers.
+The agentmon sidecar polls the PID file on startup and attaches once it appears. The `pidMode: "task"` shared PID namespace ensures the PID is valid across containers.
 
 ---
 
@@ -1637,9 +1637,9 @@ The agentsh sidecar polls the PID file on startup and attaches once it appears. 
 - `trace.file: false` — disable file tracing if file policy is not needed, reducing overhead further
 
 **Monitoring:** Phase 3 Prometheus metrics track operational overhead:
-- `agentsh_ptrace_tracees_active` — current thread count (correlates with context switch load)
-- `agentsh_ptrace_attach_failures_total{reason}` — attach failures by reason
-- `agentsh_ptrace_timeouts_total` — max_hold_ms timeout events (high count indicates policy latency problems)
+- `agentmon_ptrace_tracees_active` — current thread count (correlates with context switch load)
+- `agentmon_ptrace_attach_failures_total{reason}` — attach failures by reason
+- `agentmon_ptrace_timeouts_total` — max_hold_ms timeout events (high count indicates policy latency problems)
 
 **Benchmarking:** `BenchmarkExecOverhead` and `BenchmarkFileIOOverhead` (behind `//go:build integration && linux`) provide reproducible measurements. Run via Docker with `--cap-add SYS_PTRACE`.
 
@@ -1653,7 +1653,7 @@ The agentsh sidecar polls the PID file on startup and attaches once it appears. 
 
 **Issue:** If the workload container already has a seccomp profile (common in Kubernetes), interactions with ptrace tracing need care.
 
-**Mitigation:** In `pid` mode (Phase 1), no pre-filter is installed, so existing filters are irrelevant — the tracer uses `PTRACE_O_TRACESYSGOOD` only. In `children` mode, the pre-filter is installed in the child process before `exec`, under conditions agentsh controls. seccomp filters stack (most restrictive wins), so agentsh's `SECCOMP_RET_TRACE` rules cannot weaken any existing or subsequently-applied `RET_KILL` or `RET_ERRNO` rules. If a container runtime applies its own seccomp profile after exec (e.g., via the OCI runtime spec), that profile stacks on top of ours.
+**Mitigation:** In `pid` mode (Phase 1), no pre-filter is installed, so existing filters are irrelevant — the tracer uses `PTRACE_O_TRACESYSGOOD` only. In `children` mode, the pre-filter is installed in the child process before `exec`, under conditions agentmon controls. seccomp filters stack (most restrictive wins), so agentmon's `SECCOMP_RET_TRACE` rules cannot weaken any existing or subsequently-applied `RET_KILL` or `RET_ERRNO` rules. If a container runtime applies its own seccomp profile after exec (e.g., via the OCI runtime spec), that profile stacks on top of ours.
 
 ### 12.7 vfork Deadlock Hazard
 
@@ -1731,7 +1731,7 @@ RUN go test -tags "integration,ptrace" -v ./internal/ptrace/...
 ### 13.4 Fargate E2E Test
 
 A separate integration test deploys the full sidecar task definition to Fargate and validates:
-1. agentsh detects ptrace mode
+1. agentmon detects ptrace mode
 2. Workload process is traced
 3. Policy deny on blocked command works
 4. Audit events are emitted
@@ -1755,7 +1755,7 @@ A separate integration test deploys the full sidecar task definition to Fargate 
 - Basic integration tests (require `SYS_PTRACE`)
 - No redirect/steering, no sidecar auto-discovery, no percentage scores
 
-**Deliverable:** agentsh can trace a workload process, enforce command allow/deny via ptrace, and emit execve audit events. `children` mode has seccomp prefilter for low overhead. `pid` mode works on Fargate with explicit target PID.
+**Deliverable:** agentmon can trace a workload process, enforce command allow/deny via ptrace, and emit execve audit events. `children` mode has seccomp prefilter for low overhead. `pid` mode works on Fargate with explicit target PID.
 
 ### Phase 2: Full Syscall Coverage ✓
 
@@ -1774,9 +1774,9 @@ A separate integration test deploys the full sidecar task definition to Fargate 
 
 - `max_hold_ms` timeout enforcement: `ParkedAt` timestamp on `TraceeState`, `ParkTracee()` method, `sweepParkedTimeouts()` runs every event loop iteration. Expired tracees denied with `EACCES` (fail-closed). Kill fallback if deny fails, retry if both fail.
 - Ptrace-specific Prometheus metrics via `Metrics` interface (decoupled from observability package):
-  - `agentsh_ptrace_tracees_active` (gauge) — current traced thread count
-  - `agentsh_ptrace_attach_failures_total{reason}` (counter) — attach failures by reason (eperm, esrch, other)
-  - `agentsh_ptrace_timeouts_total` (counter) — max_hold_ms timeout events
+  - `agentmon_ptrace_tracees_active` (gauge) — current traced thread count
+  - `agentmon_ptrace_attach_failures_total{reason}` (counter) — attach failures by reason (eperm, esrch, other)
+  - `agentmon_ptrace_timeouts_total` (counter) — max_hold_ms timeout events
 - `nopMetrics` zero-value fallback when no collector configured; `PtraceMetricsCollector` adapter avoids import dependency from ptrace → observability
 - Graceful degradation: parked tracees cleaned up on exit, `handleResumeRequest` guards against dead tracees, ESRCH handling in `allowSyscall`/`denySyscall` triggers `handleExit` cleanup instead of SIGKILL fallback
 - Overhead benchmarks behind `//go:build integration && linux`: `BenchmarkExecOverhead`, `BenchmarkFileIOOverhead` with synchronized attach verification
@@ -1814,12 +1814,12 @@ Phase 4 brings ptrace mode to full feature parity with seccomp+FUSE for redirect
 - Seccomp availability probe binary (`cmd/seccomp-probe/`) — tests whether `seccomp(SECCOMP_SET_MODE_FILTER)` is available in the container runtime
 - Fargate E2E test workload (`Dockerfile.fargate-workload`, `scripts/fargate-workload-test.sh`) — positive/negative controls for exec, file, network enforcement
 - ECS task definition builder (`internal/integration/fargate/task_definition.go`) — builds multi-container Fargate task with PID namespace sharing, SYS_PTRACE, shared volume
-- Log parser (`internal/integration/fargate/log_parser.go`) — quote-aware logfmt parser for workload markers and agentsh audit events, with escape and tab handling
+- Log parser (`internal/integration/fargate/log_parser.go`) — quote-aware logfmt parser for workload markers and agentmon audit events, with escape and tab handling
 - Test harness (`internal/integration/fargate/fargate_test.go`, `helpers.go`) — full E2E orchestration with deadline-driven CloudWatch log retry and per-phase timeouts
 - CI integration (`.github/workflows/ci.yml` `fargate-e2e` job) — gated on `vars.AWS_ECS_CLUSTER`, `continue-on-error: true`, runs after unit + integration tests
 - Setup documentation (`docs/fargate-e2e-setup.md`) — AWS resource provisioning and GitHub Actions configuration
 
-**Deliverable:** Complete Fargate E2E test infrastructure. Tests validate policy enforcement end-to-end on real Fargate tasks with both workload exit markers and agentsh audit event assertions.
+**Deliverable:** Complete Fargate E2E test infrastructure. Tests validate policy enforcement end-to-end on real Fargate tasks with both workload exit markers and agentmon audit event assertions.
 
 ### Phase 4d: Sidecar Discovery and EKS Fargate (Planned)
 
@@ -1877,7 +1877,7 @@ Phase 4 brings ptrace mode to full feature parity with seccomp+FUSE for redirect
 
 ### 15.1 The Problem
 
-The seccomp redirect path (Phases 1-3) uses `SECCOMP_IOCTL_NOTIF_ADDFD` to inject a socketpair fd into the tracee, then overwrites the filename pointer to point at the agentsh-stub symlink. The tracee executes agentsh-stub, which discovers the injected fd at well-known fd 100 and connects back to the server.
+The seccomp redirect path (Phases 1-3) uses `SECCOMP_IOCTL_NOTIF_ADDFD` to inject a socketpair fd into the tracee, then overwrites the filename pointer to point at the agentmon-stub symlink. The tracee executes agentmon-stub, which discovers the injected fd at well-known fd 100 and connects back to the server.
 
 ptrace has no equivalent of `SECCOMP_ADDFD`. We need a different mechanism to inject the socketpair fd and redirect the exec.
 
@@ -1909,12 +1909,12 @@ execve("/usr/bin/curl", ...)
   │                             4. Create socketpair in tracer process
   │                             5. Inject dup2() syscall → places stub fd at fd 100
   │                             6. Overwrite filename in tracee memory → stub symlink path
-  │                             7. Overwrite AGENTSH_STUB_FD in tracee environ (optional)
+  │                             7. Overwrite AGENTMON_STUB_FD in tracee environ (optional)
   │                             8. Restore original registers with modified filename ptr
   │                             9. Resume tracee
   ↓
 execve("/tmp/as-xxxxx/s", ...)  ← kernel re-reads modified filename
-  ↓ agentsh-stub runs
+  ↓ agentmon-stub runs
   ↓ discovers fd 100 → connects back to tracer
   ↓ tracer runs original command, proxies I/O
 ```
@@ -2066,7 +2066,7 @@ This is more complex (5-6 injected syscalls vs 3) but works on any Linux kernel.
 ```go
 func (t *Tracer) injectFDViaSCMRights(tracee int, srcFD int, targetFD int) error {
     // Create abstract socket with random name
-    name := fmt.Sprintf("\x00agentsh-inject-%d-%d", tracee, time.Now().UnixNano())
+    name := fmt.Sprintf("\x00agentmon-inject-%d-%d", tracee, time.Now().UnixNano())
 
     // Tracer side: create listening socket
     srvFD, err := unix.Socket(unix.AF_UNIX, unix.SOCK_STREAM, 0)
@@ -2248,7 +2248,7 @@ if sp, ok := t.scratchPages[tid]; ok {
 
 ### 16.4 File Redirect Policy Integration
 
-File redirect rules already exist in agentsh policy:
+File redirect rules already exist in agentmon policy:
 
 ```yaml
 file_rules:
@@ -2518,7 +2518,7 @@ Any traced process can read `/proc/self/status` and see `TracerPid: <nonzero>`, 
 Inject an `LD_PRELOAD` library that hooks `fopen` and `read` to mask `TracerPid` in `/proc/self/status` and `/proc/<own-pid>/status`.
 
 ```c
-// libagentsh-mask.so
+// libagentmon-mask.so
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <string.h>
@@ -2556,14 +2556,14 @@ ssize_t read(int fd, void *buf, size_t count) {
 }
 ```
 
-The library is compiled as part of agentsh's build and injected via `env_inject`:
+The library is compiled as part of agentmon's build and injected via `env_inject`:
 
 ```yaml
 sandbox:
   ptrace:
     mask_tracer_pid: true
   env_inject:
-    LD_PRELOAD: "/usr/lib/agentsh/libagentsh-mask.so"
+    LD_PRELOAD: "/usr/lib/agentmon/libagentmon-mask.so"
 ```
 
 **Limitations:**
@@ -2655,11 +2655,11 @@ As of March 2026, `SYS_PTRACE` is supported on ECS Fargate but **not** on EKS Fa
 
 ### 20.2 Preparation
 
-The ptrace tracer is architecturally compatible with EKS Fargate — the only missing piece is the capability grant. When AWS ships `SYS_PTRACE` for EKS Fargate, agentsh needs:
+The ptrace tracer is architecturally compatible with EKS Fargate — the only missing piece is the capability grant. When AWS ships `SYS_PTRACE` for EKS Fargate, agentmon needs:
 
 1. **Helm chart update:** Add `securityContext.capabilities.add: ["SYS_PTRACE"]` to the sidecar container spec and `shareProcessNamespace: true` to the pod spec.
 
-2. **Sidecar discovery update:** On EKS, the pod's init process is the Kubernetes `pause` container (not the workload). The sidecar discovery logic needs to identify the workload container's root process by excluding `pause` and the agentsh container:
+2. **Sidecar discovery update:** On EKS, the pod's init process is the Kubernetes `pause` container (not the workload). The sidecar discovery logic needs to identify the workload container's root process by excluding `pause` and the agentmon container:
 
 ```go
 func (t *Tracer) discoverTargetEKS() (int, error) {
@@ -2672,8 +2672,8 @@ func (t *Tracer) discoverTargetEKS() (int, error) {
             continue
         }
         comm := readComm(pid)
-        // Skip pause container and agentsh processes
-        if comm == "pause" || strings.HasPrefix(comm, "agentsh") {
+        // Skip pause container and agentmon processes
+        if comm == "pause" || strings.HasPrefix(comm, "agentmon") {
             continue
         }
         ppid := readPPID(pid)
@@ -2687,7 +2687,7 @@ func (t *Tracer) discoverTargetEKS() (int, error) {
 
 3. **K8s sidecar integration:** Extend `pkg/k8s/sidecar.go` to support ptrace mode sidecars with the correct security context and shared PID namespace.
 
-4. **Admission controller:** For EKS deployments using the Datadog-style admission controller pattern, provide a mutating webhook that automatically injects the agentsh sidecar with ptrace configuration into pods matching a label selector.
+4. **Admission controller:** For EKS deployments using the Datadog-style admission controller pattern, provide a mutating webhook that automatically injects the agentmon sidecar with ptrace configuration into pods matching a label selector.
 
 ### 20.3 Configuration
 
@@ -2699,7 +2699,7 @@ sandbox:
     # Kubernetes-specific: how to identify the workload container
     kubernetes:
       # Skip these process names when discovering the target
-      skip_processes: ["pause", "agentsh", "agentsh-server"]
+      skip_processes: ["pause", "agentmon", "agentmon-server"]
       # Or specify the workload container name explicitly
       # container_name: "agent-workload"
 ```
@@ -2716,15 +2716,15 @@ spec:
     spec:
       shareProcessNamespace: true
       containers:
-        - name: agentsh
-          image: ghcr.io/canyonroad/agentsh:latest
+        - name: agentmon
+          image: ghcr.io/diffsec/agentmon:latest
           securityContext:
             capabilities:
               add: ["SYS_PTRACE"]
           env:
-            - name: AGENTSH_PTRACE_ENABLED
+            - name: AGENTMON_PTRACE_ENABLED
               value: "true"
-            - name: AGENTSH_PTRACE_ATTACH_MODE
+            - name: AGENTMON_PTRACE_ATTACH_MODE
               value: "sidecar"
           ports:
             - containerPort: 18080
@@ -2735,7 +2735,7 @@ spec:
         - name: agent-workload
           image: your-agent-image:latest
           env:
-            - name: AGENTSH_SERVER
+            - name: AGENTMON_SERVER
               value: "http://127.0.0.1:18080"
 ```
 
@@ -2784,7 +2784,7 @@ The following matrix describes what ptrace mode can and cannot do at each phase,
 
 **Phase 4a-4b (with steering):** Near-complete feature parity with full mode for the common cases that matter to AI agent security: exec redirect, file redirect, connect redirect, DNS redirect, SNI rewrite, TracerPid masking. DNS and SNI rewriting are best-effort and should not be relied on as primary controls — use the LLM proxy for API routing instead.
 
-**Phase 4c (Fargate E2E):** Full test infrastructure validates enforcement end-to-end on real Fargate tasks. CI integration with gated job, positive/negative controls, and dual assertion (workload markers + agentsh audit events).
+**Phase 4c (Fargate E2E):** Full test infrastructure validates enforcement end-to-end on real Fargate tasks. CI integration with gated job, positive/negative controls, and dual assertion (workload markers + agentmon audit events).
 
-**For the target use case** (AI agents running untrusted code from packages, repos, and MCP tools on Fargate): ptrace mode provides equivalent practical protection to full mode. The evasion gap (TracerPid, timing) requires a targeted adversary who knows agentsh is running and has built anti-ptrace checks — this is not the threat model agentsh is designed for. Supply chain attacks, MCP exfiltration, and agent prompt injection do not check for ptrace.
+**For the target use case** (AI agents running untrusted code from packages, repos, and MCP tools on Fargate): ptrace mode provides equivalent practical protection to full mode. The evasion gap (TracerPid, timing) requires a targeted adversary who knows agentmon is running and has built anti-ptrace checks — this is not the threat model agentmon is designed for. Supply chain attacks, MCP exfiltration, and agent prompt injection do not check for ptrace.
 

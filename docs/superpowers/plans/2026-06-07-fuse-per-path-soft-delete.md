@@ -22,7 +22,7 @@
 - `internal/api/core.go` — wire `TrashConfig` + `AuditMode` for the primary workspace mount when soft-delete is possible (Task 5).
 - `internal/config/config.go` — warn on unknown keys under `sandbox.fuse` (Task 6).
 - `internal/fsmonitor/fuse_softdelete_perpath_test.go` — new unit tests (Task 4).
-- `internal/integration/agentsh_soft_delete_perpath_test.go` — new integration test (Task 7).
+- `internal/integration/agentmon_soft_delete_perpath_test.go` — new integration test (Task 7).
 
 ---
 
@@ -205,7 +205,7 @@ func resolveOpMode(dec policy.Decision, globalMode string) string {
 }
 ```
 
-Add the imports to `internal/fsmonitor/policy.go` if not present: `"github.com/agentsh/agentsh/internal/policy"` and `"github.com/agentsh/agentsh/pkg/types"`. (Check the existing import block first; `config` and `trash` are already imported.)
+Add the imports to `internal/fsmonitor/policy.go` if not present: `"github.com/diffsec/agentmon/internal/policy"` and `"github.com/diffsec/agentmon/pkg/types"`. (Check the existing import block first; `config` and `trash` are already imported.)
 
 - [ ] **Step 3: Update the four call sites in `fuse.go` to pass the global mode**
 
@@ -281,8 +281,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // TestFUSE_PerPathSoftDelete_UnderMonitorMode is the regression test for #417:
@@ -327,7 +327,7 @@ func TestFUSE_PerPathSoftDelete_UnderMonitorMode(t *testing.T) {
 			Config: config.FUSEAuditConfig{
 				Enabled:   &enabled,
 				Mode:      "monitor",
-				TrashPath: ".agentsh_trash",
+				TrashPath: ".agentmon_trash",
 			},
 			NotifySoftDelete: func(path, token string) {
 				notifiedPath, notifiedToken = path, token
@@ -352,7 +352,7 @@ func TestFUSE_PerPathSoftDelete_UnderMonitorMode(t *testing.T) {
 	}
 
 	// The trash directory must now contain the diverted file.
-	trashDir := filepath.Join(workspace, ".agentsh_trash")
+	trashDir := filepath.Join(workspace, ".agentmon_trash")
 	entries, err := os.ReadDir(trashDir)
 	if err != nil {
 		t.Fatalf("read trash dir: %v", err)
@@ -399,7 +399,7 @@ func TestFUSE_PerPathAllow_UnderMonitorMode(t *testing.T) {
 		Policy:    engine,
 		Emit:      &typeCaptureEmitter{},
 		FUSEAudit: &FUSEAuditHooks{
-			Config: config.FUSEAuditConfig{Enabled: &enabled, Mode: "monitor", TrashPath: ".agentsh_trash"},
+			Config: config.FUSEAuditConfig{Enabled: &enabled, Mode: "monitor", TrashPath: ".agentmon_trash"},
 		},
 	}
 
@@ -413,7 +413,7 @@ func TestFUSE_PerPathAllow_UnderMonitorMode(t *testing.T) {
 		t.Fatalf("os.Remove returned %v; expected nil", err)
 	}
 
-	trashDir := filepath.Join(workspace, ".agentsh_trash")
+	trashDir := filepath.Join(workspace, ".agentmon_trash")
 	if entries, err := os.ReadDir(trashDir); err == nil && len(entries) > 0 {
 		t.Fatalf("expected no trash under allow+monitor, found %d entries", len(entries))
 	}
@@ -563,7 +563,7 @@ with (keep the existing `NotifySoftDelete` closure body verbatim — only the gu
 				Path:      path,
 				Fields: map[string]any{
 					"trash_token":  token,
-					"restore_hint": fmt.Sprintf("agentsh trash restore %s", token),
+					"restore_hint": fmt.Sprintf("agentmon trash restore %s", token),
 				},
 			}
 			persistCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -629,7 +629,7 @@ sandbox:
     enabled: true
     session:
       mode: soft_delete
-      trash_path: /var/lib/agentsh/trash
+      trash_path: /var/lib/agentmon/trash
 `)
 	got := unknownFUSEKeys(bad)
 	if len(got) != 1 || got[0] != "session" {
@@ -747,21 +747,21 @@ git commit -m "feat(#417): warn on unknown sandbox.fuse config keys"
 Mirror the existing global-mode soft-delete integration test, but drive it with a per-path `decision: soft_delete` rule and the default global audit mode.
 
 **Files:**
-- Read first (pattern source): `internal/integration/agentsh_soft_delete_test.go`
-- Test: `internal/integration/agentsh_soft_delete_perpath_test.go` (new)
+- Read first (pattern source): `internal/integration/agentmon_soft_delete_test.go`
+- Test: `internal/integration/agentmon_soft_delete_perpath_test.go` (new)
 
 - [ ] **Step 1: Read the existing test to copy its harness**
 
-Run: `sed -n '1,200p' internal/integration/agentsh_soft_delete_test.go`
+Run: `sed -n '1,200p' internal/integration/agentmon_soft_delete_test.go`
 Note how it: builds the YAML config, starts the app, runs a delete through the exec path, and waits for a `file_soft_deleted` event (it skips when FUSE is unavailable). Reuse that exact harness.
 
 - [ ] **Step 2: Write the new test**
 
-Create `internal/integration/agentsh_soft_delete_perpath_test.go`. Copy the structure of `agentsh_soft_delete_test.go` and change only the config so that:
+Create `internal/integration/agentmon_soft_delete_perpath_test.go`. Copy the structure of `agentmon_soft_delete_test.go` and change only the config so that:
 - `sandbox.fuse.audit.mode` is left at the default (omit it, or set `monitor`), and `sandbox.fuse.audit.trash_path` is set.
 - the policy includes a file rule with `decision: soft_delete` covering the workspace (use the same path scoping the existing test uses for its workspace files).
 
-The assertion is identical to the existing test: after the delete, a `file_soft_deleted` event is observed and `agentsh trash list` (or the equivalent in-test query the original uses) reports the entry. Keep the same FUSE-unavailable `t.Skipf` guard.
+The assertion is identical to the existing test: after the delete, a `file_soft_deleted` event is observed and `agentmon trash list` (or the equivalent in-test query the original uses) reports the entry. Keep the same FUSE-unavailable `t.Skipf` guard.
 
 Because the exact harness symbols live in the existing file, base the new test on what Step 1 prints rather than inventing helper names here. The only substantive differences from the original are the two config changes above.
 
@@ -773,7 +773,7 @@ Expected: PASS where `/dev/fuse` is available; SKIP otherwise (same as the origi
 - [ ] **Step 4: Commit**
 
 ```bash
-git add internal/integration/agentsh_soft_delete_perpath_test.go
+git add internal/integration/agentmon_soft_delete_perpath_test.go
 git commit -m "test(#417): integration test for per-path FUSE soft-delete"
 ```
 
@@ -795,7 +795,7 @@ Expected: PASS. Note: per project memory, a few tests fail only in the local env
 
 - [ ] **Step 3: Manual sanity against the issue repro (optional, requires /dev/fuse)**
 
-With a config that has a `decision: soft_delete` rule on the workspace and the default audit mode, run `rm /workspace/testfile.txt` through a session and confirm `agentsh trash list` shows the file and `agentsh trash restore <token>` recovers it.
+With a config that has a `decision: soft_delete` rule on the workspace and the default audit mode, run `rm /workspace/testfile.txt` through a session and confirm `agentmon trash list` shows the file and `agentmon trash restore <token>` recovers it.
 
 - [ ] **Step 4: Final commit if any verification fixups were needed**
 
@@ -810,5 +810,5 @@ git commit -m "chore(#417): verification fixups"
 
 - **Spec coverage:** §Detailed-design.1 → Tasks 2 & 5; §2 → Tasks 3 & 4; §3 (unknown-key warning) → Task 6; §Testing → Tasks 1,4,6,7 + regression in 3/5 and full run in 8. `HasSoftDeleteFileRule` (spec §1 bullet) → Task 1.
 - **Precedence:** global `soft_delete` and per-path `soft_delete` both resolve to a divert (no conflict). Default `monitor` + non-matching delete → unchanged real delete (covered by the negative test in Task 4).
-- **Trash-path source:** `Sandbox.FUSE.Audit.TrashPath` (default `.agentsh_trash` via `makeDivertFunc`), identical to the ptrace path.
+- **Trash-path source:** `Sandbox.FUSE.Audit.TrashPath` (default `.agentmon_trash` via `makeDivertFunc`), identical to the ptrace path.
 - **Out of scope (unchanged):** the multi-mount loop at `core.go:362` never wired trash even before this change; ptrace `EXDEV` handling; trash TTL/quota/purge; macOS/Windows parity.

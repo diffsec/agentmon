@@ -4,7 +4,7 @@
 
 **Goal:** Replace FUSE-T with ESF as the sole file monitoring mechanism on macOS, rename the XPC package to policysock, add secure socket authentication, and add NE proxy enforcement for eBPF parity.
 
-**Architecture:** The ESF system extension handles file/process monitoring via AUTH/NOTIFY events. The Go server communicates with the sysext via a secure Unix socket (policy socket) at `/var/run/agentsh/policy.sock`. The NetworkExtension content filter enforces that session PIDs connect through the HTTP proxy, blocking direct external connections. FUSE-T is removed entirely from macOS (Linux/Windows FUSE unaffected).
+**Architecture:** The ESF system extension handles file/process monitoring via AUTH/NOTIFY events. The Go server communicates with the sysext via a secure Unix socket (policy socket) at `/var/run/agentmon/policy.sock`. The NetworkExtension content filter enforces that session PIDs connect through the HTTP proxy, blocking direct external connections. FUSE-T is removed entirely from macOS (Linux/Windows FUSE unaffected).
 
 **Tech Stack:** Go (server), Swift (sysext), Unix domain sockets, macOS code signing APIs, Endpoint Security Framework, NetworkExtension
 
@@ -48,9 +48,9 @@ All 14 files: `server.go`, `server_test.go`, `protocol.go`, `protocol_test.go`, 
 ### Files to Modify (Swift)
 | File | Responsibility |
 |------|---------------|
-| `macos/AgentSH/PolicySocketClient.swift` | Add server validation after connect |
-| `macos/AgentSH/SessionPolicyCache.swift` | Add proxyAddr, directAllow to SessionCache |
-| `macos/AgentSH/FilterDataProvider.swift` | Add proxy enforcement in handleNewFlow() |
+| `macos/AgentMon/PolicySocketClient.swift` | Add server validation after connect |
+| `macos/AgentMon/SessionPolicyCache.swift` | Add proxyAddr, directAllow to SessionCache |
+| `macos/AgentMon/FilterDataProvider.swift` | Add proxy enforcement in handleNewFlow() |
 
 ---
 
@@ -60,22 +60,22 @@ All 14 files: `server.go`, `server_test.go`, `protocol.go`, `protocol_test.go`, 
 - Modify: `internal/platform/darwin/sysext.go:38`
 - Modify: `internal/platform/darwin/sysext_test.go:14,29,38,53,162,163,168,190,205`
 
-**Context:** The canonical sysext bundle ID is `ai.canyonroad.agentsh.SysExt` (matches the Xcode project's `PRODUCT_BUNDLE_IDENTIFIER` which overrides Info.plist at build time, and matches `systemextensionsctl` output). The Go code uses lowercase `ai.canyonroad.agentsh.sysext`. This must be fixed before other tasks reference the bundle ID. Note: `Info.plist` has lowercase `CFBundleIdentifier` but Xcode's build setting overrides it — no Info.plist change needed.
+**Context:** The canonical sysext bundle ID is `dev.diffsec.agentmon.SysExt` (matches the Xcode project's `PRODUCT_BUNDLE_IDENTIFIER` which overrides Info.plist at build time, and matches `systemextensionsctl` output). The Go code uses lowercase `dev.diffsec.agentmon.SysExt`. This must be fixed before other tasks reference the bundle ID. Note: `Info.plist` has lowercase `CFBundleIdentifier` but Xcode's build setting overrides it — no Info.plist change needed.
 
 - [ ] **Step 1: Update the bundle ID constant in sysext.go**
 
 In `internal/platform/darwin/sysext.go`, change line 38:
 ```go
 // Before:
-bundleID:   "ai.canyonroad.agentsh.sysext",
+bundleID:   "dev.diffsec.agentmon.SysExt",
 
 // After:
-bundleID:   "ai.canyonroad.agentsh.SysExt",
+bundleID:   "dev.diffsec.agentmon.SysExt",
 ```
 
 - [ ] **Step 2: Update all bundle ID references in sysext_test.go**
 
-In `internal/platform/darwin/sysext_test.go`, replace all occurrences of `"ai.canyonroad.agentsh.sysext"` with `"ai.canyonroad.agentsh.SysExt"`. There are references at lines 14, 15, 29, 30, 38, 53, 162, 163, 168, 190, 205.
+In `internal/platform/darwin/sysext_test.go`, replace all occurrences of `"dev.diffsec.agentmon.SysExt"` with `"dev.diffsec.agentmon.SysExt"`. There are references at lines 14, 15, 29, 30, 38, 53, 162, 163, 168, 190, 205.
 
 - [ ] **Step 3: Run tests**
 
@@ -281,7 +281,7 @@ Also remove the `checkEntitlement()` function (lines 128–136) — it is no lon
 Delete `checkFuseT()` (lines 138–158) and `checkMacFUSE()` (lines 160–172). Add:
 
 ```go
-// checkSysExtInstalled checks if the agentsh system extension is installed and activated.
+// checkSysExtInstalled checks if the agentmon system extension is installed and activated.
 func checkSysExtInstalled() bool {
 	cmd := exec.Command("systemextensionsctl", "list")
 	output, err := cmd.Output()
@@ -289,7 +289,7 @@ func checkSysExtInstalled() bool {
 		return false
 	}
 	// Check for activated extension with canonical bundle ID
-	return strings.Contains(string(output), "ai.canyonroad.agentsh.SysExt") &&
+	return strings.Contains(string(output), "dev.diffsec.agentmon.SysExt") &&
 		strings.Contains(string(output), "activated enabled")
 }
 ```
@@ -324,7 +324,7 @@ func (p *Permissions) computeMissingPermissions() {
 			Name:        "System Extension",
 			Description: "ESF-based file/process monitoring and Network Extension filtering",
 			Impact:      "Cannot intercept or block file operations. File monitoring unavailable.",
-			HowToEnable: "Install the agentsh macOS app bundle which includes the system extension.\n" +
+			HowToEnable: "Install the agentmon macOS app bundle which includes the system extension.\n" +
 				"After installation, approve it in System Settings > Privacy & Security.",
 			Required: false,
 		})
@@ -335,7 +335,7 @@ func (p *Permissions) computeMissingPermissions() {
 			Name:        "Root Access",
 			Description: "Administrator privileges for pf network interception",
 			Impact:      "Cannot use pf for network interception. Network policy enforcement disabled.",
-			HowToEnable: "Run agentsh with sudo:\n  sudo agentsh server",
+			HowToEnable: "Run agentmon with sudo:\n  sudo agentmon server",
 			Required:    false,
 		})
 	}
@@ -346,8 +346,8 @@ func (p *Permissions) computeMissingPermissions() {
 			Description: "Access to protected directories (Mail, Messages, Safari, etc.)",
 			Impact:      "Cannot monitor file operations in protected system directories.",
 			HowToEnable: "1. Open System Settings > Privacy & Security > Full Disk Access\n" +
-				"2. Click '+' and add Terminal.app or the agentsh binary\n" +
-				"3. Restart agentsh",
+				"2. Click '+' and add Terminal.app or the agentmon binary\n" +
+				"3. Restart agentmon",
 			Required: false,
 		})
 	}
@@ -546,7 +546,7 @@ In `internal/capabilities/detect_darwin.go`, delete `checkFuseT()` (lines 118–
 Reuse the `checkSysExtInstalled()` function from `internal/platform/darwin/permissions.go` (added in Task 3). Import it via the `darwin` package:
 
 ```go
-import "github.com/agentsh/agentsh/internal/platform/darwin"
+import "github.com/diffsec/agentmon/internal/platform/darwin"
 ```
 
 If the `darwin` package's `checkSysExtInstalled()` is unexported (lowercase), either export it as `CheckSysExtInstalled()` or duplicate it here. The preferred approach is to export it from `permissions.go` and call `darwin.CheckSysExtInstalled()` here. Update the function name in Task 3 accordingly (capitalize the `C`).
@@ -629,7 +629,7 @@ func TestSelectDarwinMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.needsMacwrap && !hasMacwrap {
-				t.Skip("agentsh-macwrap not in PATH")
+				t.Skip("agentmon-macwrap not in PATH")
 			}
 			if !tt.needsMacwrap && hasMacwrap {
 				if tt.wantMode == "sandbox-exec" {
@@ -696,7 +696,7 @@ Update the `esf` tip's action text to reference sysext installation instead:
     Feature:  "esf",
     CheckKey: "esf",
     Impact:   "Using sandbox-exec instead of Endpoint Security",
-    Action:   "Install the agentsh macOS app bundle which includes the system extension.",
+    Action:   "Install the agentmon macOS app bundle which includes the system extension.",
 },
 ```
 
@@ -710,7 +710,7 @@ Remove line 153:
 
 Update the `"esf"` entry to reference sysext:
 ```go
-"esf": {Feature: "esf", Impact: "Endpoint Security Framework unavailable", Action: "Install the agentsh macOS app bundle with system extension"},
+"esf": {Feature: "esf", Impact: "Endpoint Security Framework unavailable", Action: "Install the agentmon macOS app bundle with system extension"},
 ```
 
 - [ ] **Step 3: Run tests**
@@ -769,7 +769,7 @@ Files to update: `server.go`, `server_test.go`, `protocol.go`, `protocol_test.go
 
 In `sessions.go` and `sessions_test.go`, if they import the xpc package path, update to:
 ```go
-"github.com/agentsh/agentsh/internal/platform/darwin/policysock"
+"github.com/diffsec/agentmon/internal/platform/darwin/policysock"
 ```
 
 - [ ] **Step 4: Update XPC-specific strings**
@@ -786,10 +786,10 @@ In `handler.go`:
 In `internal/platform/darwin/es_exec.go`, update the import (line 14):
 ```go
 // Before:
-"github.com/agentsh/agentsh/internal/platform/darwin/xpc"
+"github.com/diffsec/agentmon/internal/platform/darwin/xpc"
 
 // After:
-"github.com/agentsh/agentsh/internal/platform/darwin/policysock"
+"github.com/diffsec/agentmon/internal/platform/darwin/policysock"
 ```
 
 Update all references from `xpc.` to `policysock.` in the file body.
@@ -844,13 +844,13 @@ import (
 )
 
 func TestValidateCodeSignature_InvalidPath(t *testing.T) {
-	err := validateCodeSignature("/nonexistent/binary", "WCKWMMKJ35")
+	err := validateCodeSignature("/nonexistent/binary", "LWSYS6YTUZ")
 	assert.Error(t, err, "should fail for nonexistent binary")
 }
 
 func TestValidateCodeSignature_UnsignedBinary(t *testing.T) {
 	// /usr/bin/true is Apple-signed, not our team ID
-	err := validateCodeSignature("/usr/bin/true", "WCKWMMKJ35")
+	err := validateCodeSignature("/usr/bin/true", "LWSYS6YTUZ")
 	assert.Error(t, err, "should fail for binary signed by different team")
 }
 
@@ -1037,11 +1037,11 @@ if err := os.Chmod(s.sockPath, 0600); err != nil {
 Update the TODO comment above it:
 ```go
 // Policy socket: root-only access (0600). Approval operations have been
-// separated to the main HTTP API socket (data/agentsh.sock) which remains
+// separated to the main HTTP API socket (data/agentmon.sock) which remains
 // user-accessible. The ApprovalDialog.app should use the HTTP API instead.
 ```
 
-**Note:** This permission change means the ApprovalDialog.app can no longer connect to this socket. Approval operations (get pending approvals, submit decisions) should go through the existing HTTP API at `data/agentsh.sock` or `127.0.0.1:18080` instead. The approval dialog already has HTTP capability since it connects to the server. No new approval socket is needed — the HTTP API is the approval channel.
+**Note:** This permission change means the ApprovalDialog.app can no longer connect to this socket. Approval operations (get pending approvals, submit decisions) should go through the existing HTTP API at `data/agentmon.sock` or `127.0.0.1:18080` instead. The approval dialog already has HTTP capability since it connects to the server. No new approval socket is needed — the HTTP API is the approval channel.
 
 - [ ] **Step 7: Run tests**
 
@@ -1060,13 +1060,13 @@ git commit -m "feat(darwin): add policy socket peer authentication (UID + code s
 ### Task 9: Add Server-Side Validation to PolicySocketClient.swift
 
 **Files:**
-- Modify: `macos/AgentSH/PolicySocketClient.swift`
+- Modify: `macos/AgentMon/PolicySocketClient.swift`
 
 **Context:** The sysext must validate that the process at the other end of the policy socket is signed by the expected team ID. This prevents a rogue process from squatting on the socket path. Uses native `Security.framework` APIs (no shell-out needed in Swift).
 
 - [ ] **Step 1: Add validateServer() method**
 
-In `macos/AgentSH/PolicySocketClient.swift`, add a method after the `sendSync()` method:
+In `macos/AgentMon/PolicySocketClient.swift`, add a method after the `sendSync()` method:
 
 ```swift
 import Security
@@ -1093,7 +1093,7 @@ private func validateServer(fd: Int32) -> Bool {
     }
 
     // Validate code signing against our team ID
-    let requirementStr = "anchor apple generic and certificate leaf[subject.OU] = \"WCKWMMKJ35\""
+    let requirementStr = "anchor apple generic and certificate leaf[subject.OU] = \"LWSYS6YTUZ\""
     var requirement: SecRequirement?
     let reqStatus = SecRequirementCreateWithString(requirementStr as CFString, [], &requirement)
     guard reqStatus == errSecSuccess, let requirement = requirement else {
@@ -1125,13 +1125,13 @@ guard validateServer(fd: sockFD) else {
 
 - [ ] **Step 3: Build the sysext to verify compilation**
 
-Run: `xcodebuild -project macos/AgentSH/agentsh.xcodeproj -scheme SysExt -configuration Release build CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO 2>&1 | tail -5`
+Run: `xcodebuild -project macos/AgentMon/agentmon.xcodeproj -scheme SysExt -configuration Release build CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO 2>&1 | tail -5`
 Expected: BUILD SUCCEEDED
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add macos/AgentSH/PolicySocketClient.swift
+git add macos/AgentMon/PolicySocketClient.swift
 git commit -m "feat(sysext): add server-side code signing validation on policy socket"
 ```
 
@@ -1226,14 +1226,14 @@ git commit -m "feat(policysock): add proxy_addr and direct_allow to session snap
 ### Task 11: Add Proxy Enforcement to Sysext
 
 **Files:**
-- Modify: `macos/AgentSH/SessionPolicyCache.swift`
-- Modify: `macos/AgentSH/FilterDataProvider.swift`
+- Modify: `macos/AgentMon/SessionPolicyCache.swift`
+- Modify: `macos/AgentMon/FilterDataProvider.swift`
 
 **Context:** Parse `proxy_addr` and `direct_allow` from session snapshots. In the NE content filter, enforce that session PIDs connect through the proxy. Non-session PIDs pass through freely. When `blockingEnabled` is false, audit only (no enforcement).
 
 - [ ] **Step 1: Add proxy fields to SessionPolicyCache**
 
-In `macos/AgentSH/SessionPolicyCache.swift`, add the `DirectAllowEntry` struct and fields to `SessionCache`:
+In `macos/AgentMon/SessionPolicyCache.swift`, add the `DirectAllowEntry` struct and fields to `SessionCache`:
 
 ```swift
 struct DirectAllowEntry {
@@ -1268,7 +1268,7 @@ if let directAllowArr = json["direct_allow"] as? [[String: Any]] {
 
 - [ ] **Step 3: Add proxy enforcement helpers to FilterDataProvider**
 
-In `macos/AgentSH/FilterDataProvider.swift`, add helper methods:
+In `macos/AgentMon/FilterDataProvider.swift`, add helper methods:
 
 ```swift
 /// Check if an IP address is localhost.
@@ -1343,13 +1343,13 @@ func cacheForSession(_ sessionID: String) -> SessionCache? {
 
 - [ ] **Step 6: Build the sysext**
 
-Run: `xcodebuild -project macos/AgentSH/agentsh.xcodeproj -scheme SysExt -configuration Release build CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO 2>&1 | tail -5`
+Run: `xcodebuild -project macos/AgentMon/agentmon.xcodeproj -scheme SysExt -configuration Release build CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO 2>&1 | tail -5`
 Expected: BUILD SUCCEEDED
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add macos/AgentSH/SessionPolicyCache.swift macos/AgentSH/FilterDataProvider.swift
+git add macos/AgentMon/SessionPolicyCache.swift macos/AgentMon/FilterDataProvider.swift
 git commit -m "feat(sysext): add NE proxy enforcement for eBPF parity"
 ```
 
@@ -1358,7 +1358,7 @@ git commit -m "feat(sysext): add NE proxy enforcement for eBPF parity"
 ### Task 12: Wire Policy Socket Server into Main Server Startup
 
 **Files:**
-- Modify: server startup code (likely `cmd/agentsh/` or `internal/server/`)
+- Modify: server startup code (likely `cmd/agentmon/` or `internal/server/`)
 - Modify: `internal/config/config.go` (add policy_socket config section)
 
 **Context:** The policysock.Server needs to be started during server init. It should listen on the configured path, push session snapshots when sessions change, and receive events from the sysext. This task requires exploring the server startup code to find the right integration point.
@@ -1387,8 +1387,8 @@ PolicySocket PolicySocketConfig `yaml:"policy_socket" json:"policy_socket"`
 Default values:
 ```go
 PolicySocket: PolicySocketConfig{
-    Path:   "/var/run/agentsh/policy.sock",
-    TeamID: "WCKWMMKJ35",
+    Path:   "/var/run/agentmon/policy.sock",
+    TeamID: "LWSYS6YTUZ",
 },
 ```
 
@@ -1402,14 +1402,14 @@ Add to `config.yml`:
 # =============================================================================
 
 policy_socket:
-  path: "/var/run/agentsh/policy.sock"
-  team_id: "WCKWMMKJ35"
+  path: "/var/run/agentmon/policy.sock"
+  team_id: "LWSYS6YTUZ"
 ```
 
 - [ ] **Step 3: Start policysock.Server in server init**
 
 Find the server startup code and add policysock initialization. The server should:
-1. Create `/var/run/agentsh/` directory if it doesn't exist (requires root)
+1. Create `/var/run/agentmon/` directory if it doesn't exist (requires root)
 2. Create `policysock.NewServer(cfg.PolicySocket.Path, handler, teamID)`
 3. Start listening in a goroutine
 4. Shut down on server stop
@@ -1425,9 +1425,9 @@ Route incoming events from the sysext (file events, proxy_bypass_blocked, etc.) 
 - [ ] **Step 6: Run the server and verify**
 
 ```bash
-sudo ./agentsh server --config ./config.yml
+sudo ./agentmon server --config ./config.yml
 # In another terminal:
-ls -la /var/run/agentsh/policy.sock
+ls -la /var/run/agentmon/policy.sock
 # Should show root:wheel 0600
 ```
 
@@ -1439,7 +1439,7 @@ Expected: All tests PASS
 - [ ] **Step 8: Commit**
 
 ```bash
-git add internal/config/config.go config.yml cmd/agentsh/ internal/server/
+git add internal/config/config.go config.yml cmd/agentmon/ internal/server/
 git commit -m "feat(server): wire policy socket server into main startup"
 ```
 
@@ -1456,7 +1456,7 @@ git commit -m "feat(server): wire policy socket server into main startup"
 ```bash
 make build-macos-go
 # Build sysext
-xcodebuild -project macos/AgentSH/agentsh.xcodeproj -scheme SysExt -configuration Release build
+xcodebuild -project macos/AgentMon/agentmon.xcodeproj -scheme SysExt -configuration Release build
 ```
 
 - [ ] **Step 2: Assemble, sign, notarize**
@@ -1465,9 +1465,9 @@ xcodebuild -project macos/AgentSH/agentsh.xcodeproj -scheme SysExt -configuratio
 make assemble-bundle
 make sign-bundle
 # Create zip and notarize
-ditto -c -k --keepParent build/AgentSH.app build/AgentSH.zip
-xcrun notarytool submit build/AgentSH.zip --keychain-profile agentsh --wait
-xcrun stapler staple build/AgentSH.app
+ditto -c -k --keepParent build/AgentMon.app build/AgentMon.zip
+xcrun notarytool submit build/AgentMon.zip --keychain-profile agentmon --wait
+xcrun stapler staple build/AgentMon.app
 ```
 
 - [ ] **Step 3: Install and enable**
@@ -1477,19 +1477,19 @@ Install the app bundle, approve the system extension in System Settings, enable 
 - [ ] **Step 4: Start server and verify socket**
 
 ```bash
-sudo ./agentsh server --config ./config.yml
+sudo ./agentmon server --config ./config.yml
 # Check socket exists
-ls -la /var/run/agentsh/policy.sock
+ls -la /var/run/agentmon/policy.sock
 # Check sysext connects (in server logs)
 ```
 
 - [ ] **Step 5: Test file I/O via ESF**
 
 ```bash
-SID=$(./agentsh session create --policy agent-observe --workspace /tmp/test --json | jq -r .id)
-./agentsh exec "$SID" -- bash -c 'echo test > /tmp/test/file.txt'
-./agentsh exec "$SID" -- cat /tmp/test/file.txt
-./agentsh events query "$SID" | python3 -c "
+SID=$(./agentmon session create --policy agent-observe --workspace /tmp/test --json | jq -r .id)
+./agentmon exec "$SID" -- bash -c 'echo test > /tmp/test/file.txt'
+./agentmon exec "$SID" -- cat /tmp/test/file.txt
+./agentmon events query "$SID" | python3 -c "
 import json, sys
 events = json.load(sys.stdin)
 file_events = [e for e in events if 'fs_' in e.get('type','')]
@@ -1508,8 +1508,8 @@ Switch to a policy with file deny rules, run a file operation, verify it's block
 - [ ] **Step 7: Test network via proxy**
 
 ```bash
-./agentsh exec "$SID" -- curl -s -o /dev/null -w '%{http_code}' https://example.com
-./agentsh events query "$SID" | python3 -c "
+./agentmon exec "$SID" -- curl -s -o /dev/null -w '%{http_code}' https://example.com
+./agentmon events query "$SID" | python3 -c "
 import json, sys
 events = json.load(sys.stdin)
 net_events = [e for e in events if 'net_' in e.get('type','')]
@@ -1524,8 +1524,8 @@ Expected: `net_connect` and `net_close` events appear.
 - [ ] **Step 8: Test proxy bypass blocking**
 
 ```bash
-./agentsh exec "$SID" -- python3 -c "import urllib.request; urllib.request.urlopen('https://example.com')"
-./agentsh events query "$SID" | grep proxy_bypass_blocked
+./agentmon exec "$SID" -- python3 -c "import urllib.request; urllib.request.urlopen('https://example.com')"
+./agentmon events query "$SID" | grep proxy_bypass_blocked
 ```
 
 Expected: Connection blocked, `proxy_bypass_blocked` event appears.

@@ -18,9 +18,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/audit"
-	"github.com/agentsh/agentsh/internal/store/jsonl"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/audit"
+	"github.com/diffsec/agentmon/internal/store/jsonl"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 var testKey = []byte("test-key-32-bytes-for-hmac-sha!!")

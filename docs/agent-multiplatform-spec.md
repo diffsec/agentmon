@@ -1,8 +1,8 @@
-# agentsh Multi-Platform Support Specification
+# agentmon Multi-Platform Support Specification
 
 ## Executive Summary
 
-This document specifies the architecture for cross-platform agentsh support, enabling secure AI agent execution on Linux, macOS, Windows (native), and Windows (WSL2). The goal is to maintain API compatibility while leveraging platform-native security primitives, with clear documentation of security trade-offs.
+This document specifies the architecture for cross-platform agentmon support, enabling secure AI agent execution on Linux, macOS, Windows (native), and Windows (WSL2). The goal is to maintain API compatibility while leveraging platform-native security primitives, with clear documentation of security trade-offs.
 
 ---
 
@@ -28,7 +28,7 @@ This document specifies the architecture for cross-platform agentsh support, ena
 
 ### 1.1 Core Components
 
-agentsh requires five core security components:
+agentmon requires five core security components:
 
 | Component | Purpose | Security Impact |
 |-----------|---------|-----------------|
@@ -514,7 +514,7 @@ The core capability that enables blocking, redirecting, and manual approval is *
 │                     Synchronous Interception Flow                            │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  Agent Process              agentsh                     Policy Engine        │
+│  Agent Process              agentmon                     Policy Engine        │
 │       │                        │                             │               │
 │       │  1. open("/etc/passwd")│                             │               │
 │       │───────────────────────>│                             │               │
@@ -556,7 +556,7 @@ The core capability that enables blocking, redirecting, and manual approval is *
 
 | Operation | Redirect Capability | Example |
 |-----------|---------------------|---------|
-| **File Read** | Different file path | `/etc/passwd` → `/opt/agentsh/fake/passwd` |
+| **File Read** | Different file path | `/etc/passwd` → `/opt/agentmon/fake/passwd` |
 | **File Write** | Different file path | `~/.ssh/authorized_keys` → `/dev/null` |
 | **Network Connect** | Different host:port | `api.openai.com:443` → `localhost:8443` |
 | **DNS Query** | Different IP response | `malware.com` → `0.0.0.0` |
@@ -569,7 +569,7 @@ The core capability that enables blocking, redirecting, and manual approval is *
 │                        Manual Approval Flow                                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  Agent          agentsh              Approval UI            Human            │
+│  Agent          agentmon              Approval UI            Human            │
 │    │               │                      │                   │              │
 │    │ 1. DELETE     │                      │                   │              │
 │    │   /important  │                      │                   │              │
@@ -632,7 +632,7 @@ The core capability that enables blocking, redirecting, and manual approval is *
 │  └── Data flows through proxy                                               │
 │                                                                              │
 │  DNS QUERIES (DNS Proxy)                                                     │
-│  ├── DNS redirected to local resolver (port 53 → agentsh)                   │
+│  ├── DNS redirected to local resolver (port 53 → agentmon)                   │
 │  ├── Resolver holds query                                                   │
 │  ├── Policy engine evaluates → decision                                     │
 │  ├── Return real IP, redirect IP, or NXDOMAIN                               │
@@ -951,7 +951,7 @@ The LD_PRELOAD shim can synchronously hold getenv() calls while waiting for poli
 #include <sys/un.h>
 #include <pthread.h>
 
-#define AGENTSH_SOCKET "/tmp/agentsh-env.sock"
+#define AGENTMON_SOCKET "/tmp/agentmon-env.sock"
 #define RESPONSE_TIMEOUT_MS 5000
 
 static char* (*original_getenv)(const char*) = NULL;
@@ -975,7 +975,7 @@ static EnvResponse query_daemon(const char* varname) {
         daemon_socket = socket(AF_UNIX, SOCK_STREAM, 0);
         struct sockaddr_un addr = {0};
         addr.sun_family = AF_UNIX;
-        strncpy(addr.sun_path, AGENTSH_SOCKET, sizeof(addr.sun_path) - 1);
+        strncpy(addr.sun_path, AGENTMON_SOCKET, sizeof(addr.sun_path) - 1);
         
         if (connect(daemon_socket, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
             close(daemon_socket);
@@ -1067,7 +1067,7 @@ Registry synchronous interception requires a kernel-mode minifilter driver. The 
 │                                                                              │
 │  User Mode                                                                   │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  agentsh daemon                                                      │    │
+│  │  agentmon daemon                                                      │    │
 │  │  ├── Policy Engine                                                   │    │
 │  │  ├── Approval Service                                                │    │
 │  │  └── Filter Port Listener ◄──── Decision requests from driver       │    │
@@ -1079,7 +1079,7 @@ Registry synchronous interception requires a kernel-mode minifilter driver. The 
 │  Kernel Mode                 │                                               │
 │                              ▼                                               │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  agentsh-regflt.sys (Registry Minifilter)                           │    │
+│  │  agentmon-regflt.sys (Registry Minifilter)                           │    │
 │  │  ├── CmRegisterCallbackEx() - Registry callback registration        │    │
 │  │  ├── Pre-operation callbacks (HOLD operation)                       │    │
 │  │  ├── Filter communication port                                      │    │
@@ -1604,7 +1604,7 @@ func (fs *FuseTFilesystem) Mount(config FSConfig) (FSMount, error) {
     // FUSE-T specific mount options
     opts := []string{
         "-o", "local",
-        "-o", "volname=agentsh",
+        "-o", "volname=agentmon",
         "-o", "noappledouble",
         "-o", "noapplexattr",
         "-o", "defer_permissions",  // Let our FUSE handle permissions
@@ -2002,7 +2002,7 @@ type PFNetwork struct {
 
 func NewPFNetwork(logger *zap.Logger) *PFNetwork {
     return &PFNetwork{
-        anchorName: "com.agentsh",
+        anchorName: "com.agentmon",
         logger:     logger,
     }
 }
@@ -2018,7 +2018,7 @@ func (n *PFNetwork) Implementation() string {
 
 func (n *PFNetwork) Setup(config NetConfig) error {
     if os.Geteuid() != 0 {
-        return fmt.Errorf("pf requires root access. Run with: sudo agentsh server")
+        return fmt.Errorf("pf requires root access. Run with: sudo agentmon server")
     }
     
     n.proxyPort = config.ProxyPort
@@ -2032,7 +2032,7 @@ func (n *PFNetwork) Setup(config NetConfig) error {
     rules := n.generatePFRules()
     
     // Write rules to temp file
-    rulesFile := "/tmp/agentsh-pf.rules"
+    rulesFile := "/tmp/agentmon-pf.rules"
     if err := os.WriteFile(rulesFile, []byte(rules), 0600); err != nil {
         return err
     }
@@ -2057,7 +2057,7 @@ func (n *PFNetwork) Setup(config NetConfig) error {
 
 func (n *PFNetwork) generatePFRules() string {
     return fmt.Sprintf(`
-# agentsh network interception rules
+# agentmon network interception rules
 
 # Redirect outbound TCP to transparent proxy
 rdr pass on lo0 proto tcp from any to any port 1:65535 -> 127.0.0.1 port %d
@@ -2080,7 +2080,7 @@ func (n *PFNetwork) Teardown() error {
 
 ### 4.4 Graceful Degradation System
 
-agentsh automatically detects available permissions and enables the best possible feature set.
+agentmon automatically detects available permissions and enables the best possible feature set.
 
 #### 4.4.1 Permission Tiers (Updated)
 
@@ -2339,7 +2339,7 @@ func (p *DarwinPermissions) computeMissingPermissions() {
             Name:        "Root Access",
             Description: "Administrator privileges for pf network interception",
             Impact:      "Cannot use pf for network interception. Network policy enforcement disabled.",
-            HowToEnable: "Run agentsh with sudo:\n  sudo agentsh server",
+            HowToEnable: "Run agentmon with sudo:\n  sudo agentmon server",
             Required:    false,
         })
     }
@@ -2350,8 +2350,8 @@ func (p *DarwinPermissions) computeMissingPermissions() {
             Description: "Access to protected directories (Mail, Messages, Safari, etc.)",
             Impact:      "Cannot monitor file operations in protected system directories.",
             HowToEnable: "1. Open System Settings > Privacy & Security > Full Disk Access\n" +
-                        "2. Click '+' and add Terminal.app or the agentsh binary\n" +
-                        "3. Restart agentsh",
+                        "2. Click '+' and add Terminal.app or the agentmon binary\n" +
+                        "3. Restart agentmon",
             Required:    false,
         })
     }
@@ -2677,7 +2677,7 @@ func (p *DarwinPlatform) Resources() ResourceLimiter {
 }
 
 func (p *DarwinPlatform) Initialize(ctx context.Context, config Config) error {
-    p.logger.Info("Initializing agentsh on macOS",
+    p.logger.Info("Initializing agentmon on macOS",
         zap.String("tier", p.permissions.Tier.String()),
         zap.Int("security_score", p.permissions.Tier.SecurityScore()),
     )
@@ -2697,7 +2697,7 @@ func (p *DarwinPlatform) Shutdown(ctx context.Context) error {
 
 set -e
 
-echo "agentsh macOS Installer"
+echo "agentmon macOS Installer"
 echo "======================="
 echo ""
 
@@ -2716,8 +2716,8 @@ install_fuse_t() {
     echo "   No restart or security approval required."
 }
 
-# Install agentsh binary
-install_agentsh() {
+# Install agentmon binary
+install_agentmon() {
     local version="${1:-latest}"
     local arch=$(uname -m)
     
@@ -2727,12 +2727,12 @@ install_agentsh() {
     esac
     
     echo ""
-    echo "Installing agentsh..."
-    curl -fsSL "https://github.com/agentsh/agentsh/releases/download/${version}/agentsh-darwin-${arch}" \
-        -o /tmp/agentsh
-    chmod +x /tmp/agentsh
-    sudo mv /tmp/agentsh /usr/local/bin/agentsh
-    echo "✅ agentsh installed to /usr/local/bin/agentsh"
+    echo "Installing agentmon..."
+    curl -fsSL "https://github.com/diffsec/agentmon/releases/download/${version}/agentmon-darwin-${arch}" \
+        -o /tmp/agentmon
+    chmod +x /tmp/agentmon
+    sudo mv /tmp/agentmon /usr/local/bin/agentmon
+    echo "✅ agentmon installed to /usr/local/bin/agentmon"
 }
 
 # Show menu
@@ -2773,20 +2773,20 @@ case $choice in
         ;;
 esac
 
-install_agentsh "$@"
+install_agentmon "$@"
 
 echo ""
 echo "============================================"
 echo "Installation complete!"
 echo ""
-echo "To start agentsh with full network interception:"
-echo "  sudo agentsh server"
+echo "To start agentmon with full network interception:"
+echo "  sudo agentmon server"
 echo ""
 echo "To check your permission tier:"
-echo "  agentsh status"
+echo "  agentmon status"
 echo ""
 echo "For Tier 0 (Enterprise) features, you need Apple entitlements."
-echo "See: https://agentsh.dev/docs/macos-enterprise"
+echo "See: https://agentmon.dev/docs/macos-enterprise"
 echo "============================================"
 ```
 
@@ -2900,7 +2900,7 @@ func (p *WindowsPlatform) checkWinDivert() bool {
 func (p *WindowsPlatform) checkRegistryDriver() bool {
     // Check if our registry filter driver is loaded
     // This is optional - monitoring works without it, but blocking requires it
-    dll, err := syscall.LoadDLL("agentsh_regfilter.sys")
+    dll, err := syscall.LoadDLL("agentmon_regfilter.sys")
     if err != nil {
         return false
     }
@@ -2971,7 +2971,7 @@ func (fs *WindowsFilesystem) Mount(config FSConfig) (FSMount, error) {
     opts := []string{
         "-o", "uid=-1,gid=-1",           // Map to current user
         "-o", "FileSystemName=agentfs",
-        "-o", fmt.Sprintf("volprefix=\\agentsh\\%s", filepath.Base(config.SourcePath)),
+        "-o", fmt.Sprintf("volprefix=\\agentmon\\%s", filepath.Base(config.SourcePath)),
     }
     
     go func() {
@@ -3185,7 +3185,7 @@ func (n *WindowsWFPNetwork) Implementation() string {
 
 func (n *WindowsWFPNetwork) Setup(config NetConfig) error {
     session, err := wf.New(&wf.Options{
-        Name:    "agentsh",
+        Name:    "agentmon",
         Dynamic: true, // Rules removed when process exits
     })
     if err != nil {
@@ -3196,7 +3196,7 @@ func (n *WindowsWFPNetwork) Setup(config NetConfig) error {
     // Create sublayer
     sublayer := wf.Sublayer{
         Key:    generateGUID(),
-        Name:   "agentsh network filter",
+        Name:   "agentmon network filter",
         Weight: 0x100,
     }
     if err := session.AddSublayer(&sublayer); err != nil {
@@ -3302,7 +3302,7 @@ func (s *WindowsAppContainerSandbox) ID() string {
 
 func (s *WindowsAppContainerSandbox) createProfile() error {
     namePtr, _ := syscall.UTF16PtrFromString(s.name)
-    displayName, _ := syscall.UTF16PtrFromString("agentsh sandbox: " + s.name)
+    displayName, _ := syscall.UTF16PtrFromString("agentmon sandbox: " + s.name)
     desc, _ := syscall.UTF16PtrFromString("Sandbox for AI agent execution")
     
     var sid *windows.SID
@@ -3446,7 +3446,7 @@ func (s *WindowsAppContainerSandbox) Close() error {
 
 ### 5.7 Registry Monitoring (Windows-Only)
 
-The Windows Registry is a critical attack vector. Malware commonly modifies registry keys for persistence, privilege escalation, and defense evasion. agentsh monitors and can block registry operations.
+The Windows Registry is a critical attack vector. Malware commonly modifies registry keys for persistence, privilege escalation, and defense evasion. agentmon monitors and can block registry operations.
 
 #### 5.7.1 Registry Event Types
 
@@ -4018,7 +4018,7 @@ func LoadRegistryFilter(driverPath string) (*RegistryFilter, error) {
 #### 5.7.5 Registry Policy Configuration
 
 ```yaml
-# agentsh.yaml - Registry policy section
+# agentmon.yaml - Registry policy section
 
 policy:
   # Registry-specific rules (Windows only)
@@ -4045,7 +4045,7 @@ policy:
       
     - name: allow-app-settings
       paths:
-        - "HKCU\\SOFTWARE\\agentsh\\*"
+        - "HKCU\\SOFTWARE\\agentmon\\*"
       operations: [query_value, set_value, create_key, delete_key]
       action: allow
       
@@ -4262,8 +4262,8 @@ func NewWindowsWSL2Platform() (*WindowsWSL2Platform, error) {
         }
     }
     
-    // Ensure agentsh is installed in WSL2
-    if err := p.ensureAgentshInstalled(); err != nil {
+    // Ensure agentmon is installed in WSL2
+    if err := p.ensureAgentmonInstalled(); err != nil {
         return nil, err
     }
     
@@ -4319,12 +4319,12 @@ func (p *WindowsWSL2Platform) installDistro() error {
     return cmd.Run()
 }
 
-func (p *WindowsWSL2Platform) ensureAgentshInstalled() error {
-    // Check if agentsh exists in WSL2
-    cmd := p.wslCommand("which", "agentsh")
+func (p *WindowsWSL2Platform) ensureAgentmonInstalled() error {
+    // Check if agentmon exists in WSL2
+    cmd := p.wslCommand("which", "agentmon")
     if err := cmd.Run(); err != nil {
-        // Install agentsh
-        install := p.wslCommand("bash", "-c", "curl -fsSL https://get.agentsh.dev | bash")
+        // Install agentmon
+        install := p.wslCommand("bash", "-c", "curl -fsSL https://get.agentmon.dev | bash")
         return install.Run()
     }
     return nil
@@ -4375,7 +4375,7 @@ func (p *WindowsWSL2Platform) Resources() ResourceLimiter {
 │                         Windows Host                                     │
 │                                                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │                    agentsh Windows Wrapper                       │   │
+│  │                    agentmon Windows Wrapper                       │   │
 │  │              (API server, forwards to WSL2)                      │   │
 │  └───────────────────────────┬─────────────────────────────────────┘   │
 │                              │ WSL interop                              │
@@ -4383,7 +4383,7 @@ func (p *WindowsWSL2Platform) Resources() ResourceLimiter {
 │  │                      WSL2 VM (Linux)                             │   │
 │  │                           │                                      │   │
 │  │  ┌────────────────────────┴────────────────────────────────┐    │   │
-│  │  │                    agentsh (Linux)                       │    │   │
+│  │  │                    agentmon (Linux)                       │    │   │
 │  │  │                                                          │    │   │
 │  │  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐  │    │   │
 │  │  │  │   FUSE   │  │ iptables │  │Namespaces│  │ seccomp │  │    │   │
@@ -4455,7 +4455,7 @@ Environment variables are a critical attack vector for AI agents. Agents may att
 - Enumerate all environment variables to discover sensitive data
 - Use environment variables to exfiltrate data or modify behavior
 
-agentsh implements a multi-layer defense:
+agentmon implements a multi-layer defense:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -4804,8 +4804,8 @@ The most comprehensive protection on Linux, intercepting runtime access to envir
 #include <sys/socket.h>
 #include <sys/un.h>
 
-// Socket path for communicating with agentsh daemon
-#define AGENTSH_SOCKET "/tmp/agentsh-env.sock"
+// Socket path for communicating with agentmon daemon
+#define AGENTMON_SOCKET "/tmp/agentmon-env.sock"
 
 // Original function pointers
 static char* (*original_getenv)(const char*) = NULL;
@@ -4813,7 +4813,7 @@ static int (*original_putenv)(char*) = NULL;
 static int (*original_setenv)(const char*, const char*, int) = NULL;
 static int (*original_unsetenv)(const char*) = NULL;
 
-// Cached policy (loaded from agentsh daemon)
+// Cached policy (loaded from agentmon daemon)
 static char** allowed_vars = NULL;
 static int allowed_count = 0;
 static char** blocked_patterns = NULL;
@@ -4831,7 +4831,7 @@ static void init_shim(void) {
     original_setenv = dlsym(RTLD_NEXT, "setenv");
     original_unsetenv = dlsym(RTLD_NEXT, "unsetenv");
     
-    // Connect to agentsh daemon to get policy
+    // Connect to agentmon daemon to get policy
     load_policy_from_daemon();
     
     // Open logging socket
@@ -4839,21 +4839,21 @@ static void init_shim(void) {
     if (log_socket >= 0) {
         struct sockaddr_un addr = {0};
         addr.sun_family = AF_UNIX;
-        strncpy(addr.sun_path, AGENTSH_SOCKET, sizeof(addr.sun_path) - 1);
+        strncpy(addr.sun_path, AGENTMON_SOCKET, sizeof(addr.sun_path) - 1);
         connect(log_socket, (struct sockaddr*)&addr, sizeof(addr));
     }
 }
 
 static void load_policy_from_daemon(void) {
-    // Read policy from environment (set by agentsh before exec)
-    const char* policy = original_getenv("__AGENTSH_ENV_POLICY");
+    // Read policy from environment (set by agentmon before exec)
+    const char* policy = original_getenv("__AGENTMON_ENV_POLICY");
     if (!policy) {
         policy_loaded = 0;
         return;
     }
     
     // Parse policy from file or IPC
-    // Policy format in /etc/agentsh/env-policy.conf or received via socket
+    // Policy format in /etc/agentmon/env-policy.conf or received via socket
     // ... parsing implementation
     
     policy_loaded = 1;
@@ -4864,10 +4864,10 @@ static char** sensitive_patterns = NULL;
 static int sensitive_count = 0;
 
 static void load_sensitive_patterns(void) {
-    // Load from policy file: /etc/agentsh/env-policy.conf
+    // Load from policy file: /etc/agentmon/env-policy.conf
     // Format: sensitive_patterns=KEY,TOKEN,SECRET,PASSWORD
     // No hardcoded defaults - must be configured
-    FILE* f = fopen("/etc/agentsh/env-policy.conf", "r");
+    FILE* f = fopen("/etc/agentmon/env-policy.conf", "r");
     if (!f) return;
     
     char line[1024];
@@ -4942,7 +4942,7 @@ static int match_pattern(const char* str, const char* pattern) {
     return !*str;
 }
 
-// Emit structured event to agentsh daemon
+// Emit structured event to agentmon daemon
 static void emit_env_event(const char* var, const char* op, int allowed, int sensitive) {
     if (log_socket < 0) return;
     
@@ -5139,8 +5139,8 @@ static void filter_environ(void) {
     environ = filtered_environ;
 }
 
-// Allow agentsh internal code to access original
-char** __agentsh_get_original_environ(void) {
+// Allow agentmon internal code to access original
+char** __agentmon_get_original_environ(void) {
     return original_environ;
 }
 
@@ -5260,7 +5260,7 @@ func (w *DarwinEnvWrapper) WrapCommand(cmd *exec.Cmd) *exec.Cmd {
         
         // Pass policy to shim
         policyStr := w.filter.PolicyToString()
-        cmd.Env = append(cmd.Env, "__AGENTSH_ENV_POLICY="+policyStr)
+        cmd.Env = append(cmd.Env, "__AGENTMON_ENV_POLICY="+policyStr)
     }
     
     return cmd
@@ -5299,8 +5299,8 @@ func (w *DarwinEnvWrapper) isSIPProtected(path string) bool {
 func (w *DarwinEnvWrapper) getShimPath() string {
     // Check standard locations
     paths := []string{
-        "/usr/local/lib/agentsh/libenvshim.dylib",
-        "/opt/homebrew/lib/agentsh/libenvshim.dylib",
+        "/usr/local/lib/agentmon/libenvshim.dylib",
+        "/opt/homebrew/lib/agentmon/libenvshim.dylib",
     }
     
     for _, p := range paths {
@@ -5368,9 +5368,9 @@ bool IsVarAllowed(const std::wstring& name) {
 }
 
 void LogAccess(const wchar_t* name, const char* op, bool allowed) {
-    // Send to agentsh daemon via named pipe
+    // Send to agentmon daemon via named pipe
     HANDLE pipe = CreateFileW(
-        L"\\\\.\\pipe\\agentsh-env",
+        L"\\\\.\\pipe\\agentmon-env",
         GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
     
     if (pipe != INVALID_HANDLE_VALUE) {
@@ -5605,7 +5605,7 @@ func (s *WindowsSecureSpawner) SpawnWithEnvProtection(ctx context.Context, name 
 ### 7.7 Configuration
 
 ```yaml
-# agentsh.yaml - Environment protection section
+# agentmon.yaml - Environment protection section
 
 env_protection:
   enabled: true
@@ -5627,7 +5627,7 @@ env_protection:
     - TMPDIR
     - EDITOR
     - VISUAL
-    - AGENTSH_*
+    - AGENTMON_*
     
   # Always blocked (overrides allowlist)
   blocklist:
@@ -5663,15 +5663,15 @@ env_protection:
   # Platform-specific
   linux:
     use_ld_preload: true
-    shim_path: /usr/local/lib/agentsh/libenvshim.so
+    shim_path: /usr/local/lib/agentmon/libenvshim.so
     
   darwin:
     use_dyld_insert: true  # Only works for non-SIP binaries
-    shim_path: /usr/local/lib/agentsh/libenvshim.dylib
+    shim_path: /usr/local/lib/agentmon/libenvshim.dylib
     
   windows:
     use_detours: true
-    shim_path: C:\Program Files\agentsh\envshim.dll
+    shim_path: C:\Program Files\agentmon\envshim.dll
 ```
 
 ### 7.8 Environment Event Examples
@@ -5803,7 +5803,7 @@ env_protection:
   "operation": "read",
   "redirected": true,
   "original_target": "/etc/passwd",
-  "redirect_target": "/opt/agentsh/honeypot/fake-passwd",
+  "redirect_target": "/opt/agentmon/honeypot/fake-passwd",
   "policy_rule": "honeypot-passwd",
   "held_ms": 1,
   "pid": 12345,
@@ -6771,7 +6771,7 @@ import (
     "context"
     "syscall"
     
-    "github.com/agentsh/agentsh/internal/trash"
+    "github.com/diffsec/agentmon/internal/trash"
     "github.com/hanwen/go-fuse/v2/fuse"
 )
 
@@ -6866,7 +6866,7 @@ func (fs *AgentFS) softDelete(ctx context.Context, path string, op *InterceptedO
             "soft_delete":   "true",
             "trash_token":   entry.Token,
             "original_path": entry.OriginalPath,
-            "restore_cmd":   fmt.Sprintf("agentsh restore %s", entry.Token),
+            "restore_cmd":   fmt.Sprintf("agentmon restore %s", entry.Token),
         },
     })
     
@@ -6888,8 +6888,8 @@ When a file is soft-deleted, the agent receives a structured response that helps
     "soft_delete": "true",
     "trash_token": "1736951400123456789-a1b2c3",
     "original_path": "/workspace/important-data.json",
-    "restore_hint": "File moved to trash. To restore, use: agentsh restore 1736951400123456789-a1b2c3",
-    "restore_cmd": "agentsh restore 1736951400123456789-a1b2c3",
+    "restore_hint": "File moved to trash. To restore, use: agentmon restore 1736951400123456789-a1b2c3",
+    "restore_cmd": "agentmon restore 1736951400123456789-a1b2c3",
     "trash_size_bytes": 1024,
     "trash_hash": "sha256:abc123..."
   }
@@ -7004,7 +7004,7 @@ func (c *Cleaner) Stop() {
 #### 8.7.3 Quota-Based Cleanup
 
 ```yaml
-# agentsh.yaml
+# agentmon.yaml
 
 trash:
   enabled: true
@@ -7045,14 +7045,14 @@ trash:
 
 ```bash
 # List trash contents
-$ agentsh trash list
+$ agentmon trash list
 TOKEN                           ORIGINAL PATH                    SIZE     AGE
 1736951400123456789-a1b2c3      /workspace/important.json        1.2 KB   2h
 1736951300987654321-d4e5f6      /workspace/old-config.yaml       856 B    5h
 1736950200111111111-g7h8i9      /workspace/src/deleted.go        4.3 KB   1d
 
 # List with details
-$ agentsh trash list --json
+$ agentmon trash list --json
 [
   {
     "token": "1736951400123456789-a1b2c3",
@@ -7066,35 +7066,35 @@ $ agentsh trash list --json
 ]
 
 # Restore a file
-$ agentsh trash restore 1736951400123456789-a1b2c3
+$ agentmon trash restore 1736951400123456789-a1b2c3
 Restored: /workspace/important.json
 
 # Restore to different location
-$ agentsh trash restore 1736951400123456789-a1b2c3 --dest /workspace/recovered.json
+$ agentmon trash restore 1736951400123456789-a1b2c3 --dest /workspace/recovered.json
 Restored: /workspace/recovered.json
 
 # Restore with force overwrite
-$ agentsh trash restore 1736951400123456789-a1b2c3 --force
+$ agentmon trash restore 1736951400123456789-a1b2c3 --force
 
 # Purge old entries
-$ agentsh trash purge --ttl 24h
+$ agentmon trash purge --ttl 24h
 Purged 5 entries, reclaimed 12.3 MB
 
 # Purge by quota
-$ agentsh trash purge --quota 100MB
+$ agentmon trash purge --quota 100MB
 Purged 3 entries, reclaimed 8.1 MB
 
 # Purge session trash
-$ agentsh trash purge --session sess_xyz
+$ agentmon trash purge --session sess_xyz
 Purged 2 entries, reclaimed 1.5 MB
 
 # Dry run
-$ agentsh trash purge --ttl 1h --dry-run
+$ agentmon trash purge --ttl 1h --dry-run
 Would purge:
   1736950200111111111-g7h8i9  /workspace/src/deleted.go  4.3 KB
 
 # Empty all trash
-$ agentsh trash empty --confirm
+$ agentmon trash empty --confirm
 Emptied trash: 10 entries, 45.2 MB reclaimed
 ```
 
@@ -7139,7 +7139,7 @@ trash:
     - "*.p12"
     - "*secret*"
     - "*password*"
-  encryption_key_env: "AGENTSH_TRASH_KEY"
+  encryption_key_env: "AGENTMON_TRASH_KEY"
   
   # Immediately purge (don't soft delete) these patterns
   hard_delete_patterns:
@@ -7159,7 +7159,7 @@ trash:
 
 ### 9.1 Overview
 
-The **shell shim** intercepts all shell invocations (`/bin/sh`, `/bin/bash`, `cmd.exe`, `powershell.exe`) and routes them through agentsh. This ensures that:
+The **shell shim** intercepts all shell invocations (`/bin/sh`, `/bin/bash`, `cmd.exe`, `powershell.exe`) and routes them through agentmon. This ensures that:
 
 1. **All commands are governed** - Even when tools spawn subshells
 2. **Policy persists** - Commands inherit the session's policy
@@ -7184,10 +7184,10 @@ import (
 
 // ShimConfig for Linux
 type LinuxShimConfig struct {
-    ShimBinary     string   // Path to agentsh-shell-shim
+    ShimBinary     string   // Path to agentmon-shell-shim
     TargetShells   []string // Shells to intercept
     BackupSuffix   string   // Suffix for original binaries
-    ServerSocket   string   // Unix socket to agentsh server
+    ServerSocket   string   // Unix socket to agentmon server
     SessionID      string   // Current session
 }
 
@@ -7242,7 +7242,7 @@ func (c *LinuxShimConfig) Uninstall() error {
 #### 9.2.1 Shell Shim Binary
 
 ```go
-// cmd/agentsh-shell-shim/main.go
+// cmd/agentmon-shell-shim/main.go
 
 package main
 
@@ -7261,25 +7261,25 @@ func main() {
     realShell := findRealShell(invokedAs)
     
     // Get server connection
-    serverAddr := os.Getenv("AGENTSH_SERVER")
+    serverAddr := os.Getenv("AGENTMON_SERVER")
     if serverAddr == "" {
         serverAddr = "http://127.0.0.1:18080"
     }
     
     // Get or create session
-    sessionID := os.Getenv("AGENTSH_SESSION")
+    sessionID := os.Getenv("AGENTMON_SESSION")
     if sessionID == "" {
         // Autostart: create session if needed
         sessionID = autoCreateSession(serverAddr)
     }
     
-    // Build command to execute via agentsh
+    // Build command to execute via agentmon
     args := os.Args[1:]
     
     // Handle -c flag specially (most common case)
     if len(args) >= 2 && args[0] == "-c" {
-        // Execute command string via agentsh
-        executeViaAgentsh(serverAddr, sessionID, args[1])
+        // Execute command string via agentmon
+        executeViaAgentmon(serverAddr, sessionID, args[1])
     } else if len(args) == 0 {
         // Interactive shell - attach to session
         attachInteractive(serverAddr, sessionID, realShell)
@@ -7305,9 +7305,9 @@ func findRealShell(name string) string {
     return "/bin/sh.real"
 }
 
-func executeViaAgentsh(server, session, command string) {
-    // Connect to agentsh and execute
-    client := NewAgentshClient(server)
+func executeViaAgentmon(server, session, command string) {
+    // Connect to agentmon and execute
+    client := NewAgentmonClient(server)
     
     result, err := client.Exec(session, ExecRequest{
         Command: "/bin/sh",
@@ -7318,7 +7318,7 @@ func executeViaAgentsh(server, session, command string) {
     })
     
     if err != nil {
-        fmt.Fprintf(os.Stderr, "agentsh: %v\n", err)
+        fmt.Fprintf(os.Stderr, "agentmon: %v\n", err)
         os.Exit(1)
     }
     
@@ -7327,11 +7327,11 @@ func executeViaAgentsh(server, session, command string) {
 
 func autoCreateSession(server string) string {
     // Check if server is running
-    client := NewAgentshClient(server)
+    client := NewAgentmonClient(server)
     
     if !client.IsHealthy() {
-        // Start server if AGENTSH_NO_AUTO is not set
-        if os.Getenv("AGENTSH_NO_AUTO") == "" {
+        // Start server if AGENTMON_NO_AUTO is not set
+        if os.Getenv("AGENTMON_NO_AUTO") == "" {
             startServer()
         }
     }
@@ -7340,10 +7340,10 @@ func autoCreateSession(server string) string {
     cwd, _ := os.Getwd()
     session, err := client.CreateSession(SessionConfig{
         Workspace: cwd,
-        Policy:    os.Getenv("AGENTSH_POLICY_NAME"),
+        Policy:    os.Getenv("AGENTMON_POLICY_NAME"),
     })
     if err != nil {
-        fmt.Fprintf(os.Stderr, "agentsh: failed to create session: %v\n", err)
+        fmt.Fprintf(os.Stderr, "agentmon: failed to create session: %v\n", err)
         os.Exit(1)
     }
     
@@ -7397,7 +7397,7 @@ const (
 // Strategy 1: Create shims in a directory that comes first in PATH
 
 func (c *DarwinShimConfig) InstallPATH() error {
-    shimDir := filepath.Join(os.Getenv("HOME"), ".agentsh", "bin")
+    shimDir := filepath.Join(os.Getenv("HOME"), ".agentmon", "bin")
     if err := os.MkdirAll(shimDir, 0755); err != nil {
         return err
     }
@@ -7407,7 +7407,7 @@ func (c *DarwinShimConfig) InstallPATH() error {
     for _, shell := range shells {
         shimPath := filepath.Join(shimDir, shell)
         script := fmt.Sprintf(`#!/bin/bash
-# agentsh shell shim for %s
+# agentmon shell shim for %s
 exec %s shim-exec %s "$@"
 `, shell, c.ShimBinary, shell)
         
@@ -7417,7 +7417,7 @@ exec %s shim-exec %s "$@"
     }
     
     // User must add to PATH in their shell profile:
-    // export PATH="$HOME/.agentsh/bin:$PATH"
+    // export PATH="$HOME/.agentmon/bin:$PATH"
     
     return nil
 }
@@ -7428,24 +7428,24 @@ exec %s shim-exec %s "$@"
 ```bash
 # ~/.zshrc or ~/.bashrc addition
 
-# agentsh shell wrapper
-if [[ -n "$AGENTSH_ENABLED" ]]; then
+# agentmon shell wrapper
+if [[ -n "$AGENTMON_ENABLED" ]]; then
     # Wrap command execution
     preexec() {
-        # Send command to agentsh before execution
-        agentsh pre-exec "$1"
+        # Send command to agentmon before execution
+        agentmon pre-exec "$1"
     }
     
     precmd() {
-        # Report completion to agentsh
-        agentsh post-exec $?
+        # Report completion to agentmon
+        agentmon post-exec $?
     }
 fi
 
 # Or more comprehensively, replace the shell entirely:
-if [[ -z "$AGENTSH_INSIDE" && -n "$AGENTSH_ENABLED" ]]; then
-    export AGENTSH_INSIDE=1
-    exec agentsh session attach "$AGENTSH_SESSION"
+if [[ -z "$AGENTMON_INSIDE" && -n "$AGENTMON_ENABLED" ]]; then
+    export AGENTMON_INSIDE=1
+    exec agentmon session attach "$AGENTMON_SESSION"
 fi
 ```
 
@@ -7454,7 +7454,7 @@ fi
 For full shim support on macOS, use Lima which runs Linux:
 
 ```yaml
-# lima/agentsh.yaml
+# lima/agentmon.yaml
 
 # Lima VM with full shell shim support
 vmType: vz
@@ -7469,17 +7469,17 @@ provision:
   - mode: system
     script: |
       #!/bin/bash
-      # Install agentsh
-      curl -fsSL https://get.agentsh.dev | bash
+      # Install agentmon
+      curl -fsSL https://get.agentmon.dev | bash
       
       # Install shell shim (works fully in Linux)
-      agentsh shim install-shell \
+      agentmon shim install-shell \
         --root / \
         --bash --sh --zsh \
         --i-understand-this-modifies-the-host
 
 env:
-  AGENTSH_SERVER: "http://127.0.0.1:18080"
+  AGENTMON_SERVER: "http://127.0.0.1:18080"
 ```
 
 ### 9.4 Windows Implementation
@@ -7524,16 +7524,16 @@ const (
 ```powershell
 # $PROFILE (e.g., ~\Documents\PowerShell\Microsoft.PowerShell_profile.ps1)
 
-# agentsh PowerShell integration
-if ($env:AGENTSH_ENABLED) {
+# agentmon PowerShell integration
+if ($env:AGENTMON_ENABLED) {
     # Wrap command execution
     Set-PSReadLineKeyHandler -Key Enter -ScriptBlock {
         $line = $null
         [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$null)
         
         if ($line.Trim()) {
-            # Execute via agentsh
-            $result = agentsh exec $env:AGENTSH_SESSION -- powershell -Command $line
+            # Execute via agentmon
+            $result = agentmon exec $env:AGENTMON_SESSION -- powershell -Command $line
             [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
             [Microsoft.PowerShell.PSConsoleReadLine]::Insert("")
         } else {
@@ -7543,17 +7543,17 @@ if ($env:AGENTSH_ENABLED) {
 }
 
 # Alternative: Function wrapper for common commands
-function Invoke-AgentshCommand {
+function Invoke-AgentmonCommand {
     param([string]$Command)
-    agentsh exec $env:AGENTSH_SESSION -- cmd /c $Command
+    agentmon exec $env:AGENTMON_SESSION -- cmd /c $Command
 }
-Set-Alias -Name ash -Value Invoke-AgentshCommand
+Set-Alias -Name ash -Value Invoke-AgentmonCommand
 ```
 
 #### 9.4.2 CMD Wrapper Executable
 
 ```go
-// cmd/agentsh-cmd-shim/main_windows.go
+// cmd/agentmon-cmd-shim/main_windows.go
 
 package main
 
@@ -7568,11 +7568,11 @@ func main() {
     // Check if we're being invoked as cmd.exe replacement
     args := os.Args[1:]
     
-    server := os.Getenv("AGENTSH_SERVER")
-    session := os.Getenv("AGENTSH_SESSION")
+    server := os.Getenv("AGENTMON_SERVER")
+    session := os.Getenv("AGENTMON_SESSION")
     
     if server == "" || session == "" {
-        // Not in agentsh mode, passthrough to real cmd
+        // Not in agentmon mode, passthrough to real cmd
         realCmd := `C:\Windows\System32\cmd.exe`
         cmd := exec.Command(realCmd, args...)
         cmd.Stdin = os.Stdin
@@ -7586,7 +7586,7 @@ func main() {
     for i, arg := range args {
         if strings.EqualFold(arg, "/c") && i+1 < len(args) {
             command := strings.Join(args[i+1:], " ")
-            executeViaAgentsh(server, session, command)
+            executeViaAgentmon(server, session, command)
             return
         }
     }
@@ -7605,14 +7605,14 @@ func main() {
     "profiles": {
         "list": [
             {
-                "name": "agentsh",
-                "commandline": "agentsh session attach --create",
+                "name": "agentmon",
+                "commandline": "agentmon session attach --create",
                 "icon": "🛡️",
                 "startingDirectory": "%USERPROFILE%"
             },
             {
-                "name": "PowerShell (agentsh)",
-                "commandline": "agentsh exec --session auto -- powershell",
+                "name": "PowerShell (agentmon)",
+                "commandline": "agentmon exec --session auto -- powershell",
                 "hidden": false
             }
         ]
@@ -7636,26 +7636,26 @@ func main() {
 
 ```bash
 # Linux - Full shell replacement (in container or with root)
-agentsh shim install-shell \
+agentmon shim install-shell \
     --root / \
     --bash --sh --zsh \
     --i-understand-this-modifies-the-host
 
 # macOS - PATH-based (no root required)
-agentsh shim install-path
-echo 'export PATH="$HOME/.agentsh/bin:$PATH"' >> ~/.zshrc
+agentmon shim install-path
+echo 'export PATH="$HOME/.agentmon/bin:$PATH"' >> ~/.zshrc
 
 # macOS - Profile hook
-agentsh shim install-profile --zsh --bash
+agentmon shim install-profile --zsh --bash
 
 # Windows - PowerShell profile
-agentsh shim install-psprofile
+agentmon shim install-psprofile
 
 # Windows - Windows Terminal
-agentsh shim install-terminal
+agentmon shim install-terminal
 
 # All platforms - Verify installation
-agentsh shim verify
+agentmon shim verify
 ```
 
 ---
@@ -7664,10 +7664,10 @@ agentsh shim verify
 
 ### 10.1 Overview
 
-Beyond file and network operations, agentsh can intercept and **redirect commands** themselves. This enables:
+Beyond file and network operations, agentmon can intercept and **redirect commands** themselves. This enables:
 
 1. **Blocking dangerous commands** - `rm -rf /`, `shutdown`, etc.
-2. **Redirecting to safe alternatives** - `curl` → `agentsh-fetch`
+2. **Redirecting to safe alternatives** - `curl` → `agentmon-fetch`
 3. **Auditing tool usage** - Track all `git`, `npm`, `pip` invocations
 4. **Path redirection** - Writes outside workspace → workspace subdirectory
 
@@ -7795,8 +7795,8 @@ command_rules:
     decision: redirect
     message: "Network requests routed through audited fetch"
     redirect_to:
-      command: agentsh-fetch
-      args: ["--audit", "--session", "${AGENTSH_SESSION}"]
+      command: agentmon-fetch
+      args: ["--audit", "--session", "${AGENTMON_SESSION}"]
       # Original args are appended automatically
       
   - name: redirect-git-clone
@@ -7804,7 +7804,7 @@ command_rules:
     args_patterns: ["clone*", "pull*", "fetch*", "push*"]
     decision: redirect
     redirect_to:
-      command: agentsh-git
+      command: agentmon-git
       args: ["--audit"]
 ```
 
@@ -7903,7 +7903,7 @@ func (fs *AgentFS) Create(name string, flags uint32, mode uint32) (nodefs.File, 
 ### 10.6 Audited Command Wrappers
 
 ```go
-// cmd/agentsh-fetch/main.go
+// cmd/agentmon-fetch/main.go
 // Audited replacement for curl/wget
 
 package main
@@ -7915,14 +7915,14 @@ import (
 )
 
 func main() {
-    session := os.Getenv("AGENTSH_SESSION")
-    server := os.Getenv("AGENTSH_SERVER")
+    session := os.Getenv("AGENTMON_SESSION")
+    server := os.Getenv("AGENTMON_SERVER")
     
     // Parse curl-like arguments
     url, opts := parseArgs(os.Args[1:])
     
-    // Log the request to agentsh
-    client := NewAgentshClient(server)
+    // Log the request to agentmon
+    client := NewAgentmonClient(server)
     client.LogNetworkRequest(session, NetworkRequest{
         Type:   "http",
         URL:    url,
@@ -8063,7 +8063,7 @@ import (
 )
 
 type CgroupsV2Limiter struct {
-    basePath string // e.g., /sys/fs/cgroup/agentsh
+    basePath string // e.g., /sys/fs/cgroup/agentmon
 }
 
 func NewCgroupsV2Limiter(basePath string) (*CgroupsV2Limiter, error) {
@@ -8720,7 +8720,7 @@ func (t *LinuxProcessTracker) Track(pid int) error {
 }
 
 func (t *LinuxProcessTracker) setupCgroup(pid int) (string, error) {
-    cgroupBase := "/sys/fs/cgroup/agentsh"
+    cgroupBase := "/sys/fs/cgroup/agentmon"
     cgroupPath := filepath.Join(cgroupBase, fmt.Sprintf("session-%d", pid))
     
     if err := os.MkdirAll(cgroupPath, 0755); err != nil {
@@ -10055,7 +10055,7 @@ func (m *WindowsIPCMonitor) startETWTrace() error {
     )
     
     // Create trace session
-    sessionName := "AgentshIPCMonitor"
+    sessionName := "AgentmonIPCMonitor"
     // ... ETW setup code
     
     return nil
@@ -10229,7 +10229,7 @@ ipc_rules:
 
 ### 14.1 Overview
 
-agentsh emits structured events for all intercepted operations. This section documents the complete event schema including new events introduced by cross-platform features (shell shim, command interception, resource limits, process tree tracking, and IPC monitoring).
+agentmon emits structured events for all intercepted operations. This section documents the complete event schema including new events introduced by cross-platform features (shell shim, command interception, resource limits, process tree tracking, and IPC monitoring).
 
 ### 14.2 Base Event Structure
 
@@ -10363,10 +10363,10 @@ type BaseEvent struct {
     Arch           string `json:"arch"` // "amd64", "arm64", "arm"
     
     // ============================================================
-    // AGENTSH PLATFORM DETAILS
+    // AGENTMON PLATFORM DETAILS
     // ============================================================
     
-    // Which agentsh implementation variant is running
+    // Which agentmon implementation variant is running
     PlatformVariant string `json:"platform_variant"` 
     // Values: "linux-native", "darwin-esf", "darwin-fuse-t", "darwin-network-extension",
     //         "darwin-lima", "windows-native", "windows-wsl2"
@@ -10393,12 +10393,12 @@ type BaseEvent struct {
     // VERSIONING
     // ============================================================
     
-    // agentsh binary version
-    AgentshVersion    string `json:"agentsh_version"` // "1.2.3"
+    // agentmon binary version
+    AgentmonVersion    string `json:"agentmon_version"` // "1.2.3"
     
-    // agentsh build info
-    AgentshCommit     string `json:"agentsh_commit,omitempty"` // "abc123f"
-    AgentshBuildTime  string `json:"agentsh_build_time,omitempty"` // "2025-01-15T10:00:00Z"
+    // agentmon build info
+    AgentmonCommit     string `json:"agentmon_commit,omitempty"` // "abc123f"
+    AgentmonBuildTime  string `json:"agentmon_build_time,omitempty"` // "2025-01-15T10:00:00Z"
     
     // Event schema version (for forward/backward compatibility)
     EventSchemaVersion string `json:"event_schema_version"` // "1.0"
@@ -10414,7 +10414,7 @@ type BaseEvent struct {
     // Unique event identifier
     EventID        string `json:"event_id"` // "evt-7f3a9b2c"
     
-    // agentsh session ID
+    // agentmon session ID
     SessionID      string `json:"session_id"` // "session-abc123"
     
     // Command ID that triggered this event
@@ -10638,9 +10638,9 @@ type RuntimeContext struct {
     IPCBackend      string
     
     // Version
-    AgentshVersion  string
-    AgentshCommit   string
-    AgentshBuildTime string
+    AgentmonVersion  string
+    AgentmonCommit   string
+    AgentmonBuildTime string
     EventSchemaVersion string
 }
 
@@ -10660,7 +10660,7 @@ func DetectRuntimeContext() *RuntimeContext {
     
     // Container detection
     ctx.ContainerID, ctx.ContainerRuntime = detectContainer()
-    ctx.ContainerImage = os.Getenv("AGENTSH_CONTAINER_IMAGE")
+    ctx.ContainerImage = os.Getenv("AGENTMON_CONTAINER_IMAGE")
     
     // Kubernetes detection
     ctx.K8sNamespace = os.Getenv("KUBERNETES_NAMESPACE")
@@ -10865,9 +10865,9 @@ func (f *EventFactory) NewEvent(eventType EventType, pid int) *BaseEvent {
         IPCBackend:      f.ctx.IPCBackend,
         
         // Version
-        AgentshVersion:     f.ctx.AgentshVersion,
-        AgentshCommit:      f.ctx.AgentshCommit,
-        AgentshBuildTime:   f.ctx.AgentshBuildTime,
+        AgentmonVersion:     f.ctx.AgentmonVersion,
+        AgentmonCommit:      f.ctx.AgentmonCommit,
+        AgentmonBuildTime:   f.ctx.AgentmonBuildTime,
         EventSchemaVersion: f.ctx.EventSchemaVersion,
         
         // Correlation
@@ -11138,7 +11138,7 @@ func DefaultEventConfig() *EventConfig {
 #### 14.2.5 YAML Configuration Example
 
 ```yaml
-# In agentsh.yaml
+# In agentmon.yaml
 
 events:
   # Enable/disable event emission
@@ -11211,7 +11211,7 @@ events:
     
   # Default labels (K8s-style)
   default_labels:
-    app.kubernetes.io/name: "agentsh"
+    app.kubernetes.io/name: "agentmon"
     app.kubernetes.io/component: "sandbox"
     team: "platform"
   
@@ -11234,7 +11234,7 @@ events:
       
     # File output with rotation
     - type: "file"
-      path: "/var/log/agentsh/events.jsonl.gz"
+      path: "/var/log/agentmon/events.jsonl.gz"
       format: "jsonl"
       compress: true
       rotate:
@@ -11256,7 +11256,7 @@ events:
       brokers:
         - "kafka-1.example.com:9092"
         - "kafka-2.example.com:9092"
-      topic: "agentsh-events"
+      topic: "agentmon-events"
       format: "json"
       compress: true
 ```
@@ -11297,9 +11297,9 @@ events:
   "process_backend": "proc-poll",
   "ipc_backend": "poll",
   
-  "agentsh_version": "1.2.3",
-  "agentsh_commit": "abc123f",
-  "agentsh_build_time": "2025-01-10T10:00:00Z",
+  "agentmon_version": "1.2.3",
+  "agentmon_commit": "abc123f",
+  "agentmon_build_time": "2025-01-10T10:00:00Z",
   "event_schema_version": "1.0",
   "policy_version": "default@sha256:abc123def456",
   "policy_name": "default",
@@ -11329,7 +11329,7 @@ events:
   
   "agent_id": "claude-coder-1",
   "agent_type": "claude",
-  "agent_framework": "agentsh-native",
+  "agent_framework": "agentmon-native",
   "operator_id": "user@example.com",
   "tenant_id": "acme-corp",
   "workspace_id": "project-xyz",
@@ -11364,7 +11364,7 @@ events:
   },
   "tags": ["ai-agent", "monitored"],
   "labels": {
-    "app.kubernetes.io/name": "agentsh",
+    "app.kubernetes.io/name": "agentmon",
     "team": "platform"
   },
   
@@ -11411,14 +11411,14 @@ type ShellInvokeEvent struct {
     // Script path (if script mode)
     Script      string   `json:"script,omitempty"`
     
-    // Was this routed through agentsh?
+    // Was this routed through agentmon?
     Intercepted bool     `json:"intercepted"`
     
     // Shim strategy used
     Strategy    string   `json:"strategy"`     // "binary_replace", "path", "profile", "terminal"
 }
 
-// ShellPassthroughEvent - Shell shim bypassed (not in agentsh mode)
+// ShellPassthroughEvent - Shell shim bypassed (not in agentmon mode)
 type ShellPassthroughEvent struct {
     BaseEvent
     
@@ -11479,7 +11479,7 @@ type SessionAutostartEvent struct {
   "platform": "darwin",
   "decision": "allow",
   "start_method": "fork",
-  "config_path": "/Users/dev/.agentsh/config.yaml",
+  "config_path": "/Users/dev/.agentmon/config.yaml",
   "new_session_id": "session-abc123",
   "workspace": "/Users/dev/project",
   "startup_ms": 245
@@ -11597,7 +11597,7 @@ type PathRedirectEvent struct {
   "policy_rule": "redirect-curl",
   "original_command": "curl",
   "original_args": ["https://example.com/file.zip"],
-  "new_command": "agentsh-fetch",
+  "new_command": "agentmon-fetch",
   "new_args": ["--audit", "--session", "session-abc123", "https://example.com/file.zip"],
   "reason": "Network tools redirected through audited wrapper",
   "message": "Downloads routed through audited fetch",
@@ -11762,7 +11762,7 @@ type ResourceUsageEvent struct {
     "max_processes": 100
   },
   "linux_cgroup": {
-    "path": "/sys/fs/cgroup/agentsh/session-12345",
+    "path": "/sys/fs/cgroup/agentmon/session-12345",
     "controllers": ["cpu", "memory", "pids"],
     "version": 2
   }
@@ -11911,7 +11911,7 @@ type ProcessKillInfo struct {
     {"pid": 12346, "comm": "node"}
   ],
   "depth": 2,
-  "linux_cgroup_path": "/sys/fs/cgroup/agentsh/session-abc123",
+  "linux_cgroup_path": "/sys/fs/cgroup/agentmon/session-abc123",
   "expected": true
 }
 ```
@@ -12281,7 +12281,7 @@ Legend:
 Configure which events to emit:
 
 ```yaml
-# In agentsh.yaml
+# In agentmon.yaml
 
 events:
   # Global enable/disable
@@ -12338,7 +12338,7 @@ events:
   outputs:
     - type: "stream"      # SSE to clients
     - type: "file"
-      path: "/var/log/agentsh/events.jsonl"
+      path: "/var/log/agentmon/events.jsonl"
       rotate_size_mb: 100
     - type: "webhook"
       url: "https://siem.example.com/events"
@@ -12352,7 +12352,7 @@ events:
 ### 15.1 Configuration File
 
 ```yaml
-# agentsh.yaml - Cross-platform configuration
+# agentmon.yaml - Cross-platform configuration
 
 # Platform selection
 platform:
@@ -12373,10 +12373,10 @@ filesystem:
   enabled: true
   # Platform-specific mount points
   mount_point:
-    linux: "/tmp/agentsh/workspace"
-    darwin: "/tmp/agentsh/workspace"
+    linux: "/tmp/agentmon/workspace"
+    darwin: "/tmp/agentmon/workspace"
     windows: "X:"
-    windows_wsl2: "/tmp/agentsh/workspace"
+    windows_wsl2: "/tmp/agentmon/workspace"
 
 # Network interception
 network:
@@ -12432,7 +12432,7 @@ policy:
       operations: [read]
       action: redirect
       redirect:
-        file_path: "/opt/agentsh/honeypot/fake-passwd"
+        file_path: "/opt/agentmon/honeypot/fake-passwd"
         
     # Redirect: capture writes to /dev/null
     - name: protect-ssh
@@ -12440,7 +12440,7 @@ policy:
       operations: [write, create]
       action: redirect
       redirect:
-        file_path: "/opt/agentsh/captures/${TIMESTAMP}-ssh-write"
+        file_path: "/opt/agentmon/captures/${TIMESTAMP}-ssh-write"
         
     # Manual approval for destructive operations
     - name: require-approval-delete
@@ -12542,11 +12542,11 @@ logging:
 
 ### 15.2 Sample Policy Files
 
-agentsh uses policy files for all rules - **there are no hardcoded defaults**. You must provide policy configuration for the features you want to use.
+agentmon uses policy files for all rules - **there are no hardcoded defaults**. You must provide policy configuration for the features you want to use.
 
 #### 15.2.1 Environment Variable Policy
 
-Create `/etc/agentsh/policies/env.yaml`:
+Create `/etc/agentmon/policies/env.yaml`:
 
 ```yaml
 # Environment Variable Protection Policy
@@ -12574,8 +12574,8 @@ env_protection:
     - "EDITOR"
     - "VISUAL"
     - "PAGER"
-    # agentsh-specific
-    - "AGENTSH_*"
+    # agentmon-specific
+    - "AGENTMON_*"
     
   # Blocklist: These are always blocked, even if in allowlist
   blocklist:
@@ -12609,7 +12609,7 @@ env_protection:
 
 #### 15.2.2 File Policy
 
-Create `/etc/agentsh/policies/files.yaml`:
+Create `/etc/agentmon/policies/files.yaml`:
 
 ```yaml
 # File Access Policy
@@ -12659,7 +12659,7 @@ file_policy:
 
 #### 15.2.3 Network Policy
 
-Create `/etc/agentsh/policies/network.yaml`:
+Create `/etc/agentmon/policies/network.yaml`:
 
 ```yaml
 # Network Access Policy
@@ -12718,7 +12718,7 @@ dns_policy:
 
 #### 15.2.4 Registry Policy (Windows)
 
-Create `C:\ProgramData\agentsh\policies\registry.yaml`:
+Create `C:\ProgramData\agentmon\policies\registry.yaml`:
 
 ```yaml
 # Windows Registry Policy
@@ -12757,7 +12757,7 @@ registry_policy:
 
 #### 15.2.5 Minimal Starter Policy
 
-For quick setup, create `/etc/agentsh/policies/minimal.yaml`:
+For quick setup, create `/etc/agentmon/policies/minimal.yaml`:
 
 ```yaml
 # Minimal starter policy - customize for your needs
@@ -12785,7 +12785,7 @@ network_policy:
       action: allow
 ```
 
-**Important:** Without policy files, agentsh will refuse to start. This ensures you consciously configure security rules rather than relying on potentially insecure defaults.
+**Important:** Without policy files, agentmon will refuse to start. This ensures you consciously configure security rules rather than relying on potentially insecure defaults.
 
 ### 15.3 Platform Detection and Initialization
 
@@ -12881,7 +12881,7 @@ check_iptables() {
 }
 
 # Download and install
-install_agentsh() {
+install_agentmon() {
     local version="${1:-latest}"
     local arch=$(uname -m)
     
@@ -12890,18 +12890,18 @@ install_agentsh() {
         aarch64) arch="arm64" ;;
     esac
     
-    curl -fsSL "https://github.com/agentsh/agentsh/releases/download/${version}/agentsh-linux-${arch}" \
-        -o /tmp/agentsh
-    chmod +x /tmp/agentsh
-    sudo mv /tmp/agentsh /usr/local/bin/agentsh
+    curl -fsSL "https://github.com/diffsec/agentmon/releases/download/${version}/agentmon-linux-${arch}" \
+        -o /tmp/agentmon
+    chmod +x /tmp/agentmon
+    sudo mv /tmp/agentmon /usr/local/bin/agentmon
 }
 
 check_fuse
 check_iptables
-install_agentsh "$@"
+install_agentmon "$@"
 
-echo "agentsh installed successfully!"
-echo "Run 'agentsh server' to start the server."
+echo "agentmon installed successfully!"
+echo "Run 'agentmon server' to start the server."
 ```
 
 ### 16.2 macOS Installation
@@ -12912,7 +12912,7 @@ echo "Run 'agentsh server' to start the server."
 
 set -e
 
-echo "agentsh macOS Installer"
+echo "agentmon macOS Installer"
 echo "======================="
 
 # Check for Homebrew
@@ -12933,17 +12933,17 @@ install_lima() {
     echo "Installing Lima for full isolation..."
     brew install lima
     
-    # Create agentsh VM
-    if ! limactl list 2>/dev/null | grep -q "agentsh"; then
-        limactl create --name=agentsh template://ubuntu-lts
-        limactl start agentsh
-        limactl shell agentsh -- bash -c 'curl -fsSL https://get.agentsh.dev | bash'
+    # Create agentmon VM
+    if ! limactl list 2>/dev/null | grep -q "agentmon"; then
+        limactl create --name=agentmon template://ubuntu-lts
+        limactl start agentmon
+        limactl shell agentmon -- bash -c 'curl -fsSL https://get.agentmon.dev | bash'
     fi
     echo "✅ Lima VM ready with full Linux security"
 }
 
-# Download and install agentsh binary
-install_agentsh() {
+# Download and install agentmon binary
+install_agentmon() {
     local version="${1:-latest}"
     local arch=$(uname -m)
     
@@ -12952,12 +12952,12 @@ install_agentsh() {
         arm64) arch="arm64" ;;
     esac
     
-    echo "Installing agentsh binary..."
-    curl -fsSL "https://github.com/agentsh/agentsh/releases/download/${version}/agentsh-darwin-${arch}" \
-        -o /tmp/agentsh
-    chmod +x /tmp/agentsh
-    sudo mv /tmp/agentsh /usr/local/bin/agentsh
-    echo "✅ agentsh installed to /usr/local/bin/"
+    echo "Installing agentmon binary..."
+    curl -fsSL "https://github.com/diffsec/agentmon/releases/download/${version}/agentmon-darwin-${arch}" \
+        -o /tmp/agentmon
+    chmod +x /tmp/agentmon
+    sudo mv /tmp/agentmon /usr/local/bin/agentmon
+    echo "✅ agentmon installed to /usr/local/bin/"
 }
 
 echo ""
@@ -12987,32 +12987,32 @@ read -p "Choice [1/2/3]: " choice
 case $choice in
     1)
         install_fuse_t
-        install_agentsh "$@"
+        install_agentmon "$@"
         echo ""
-        echo "Run with: sudo agentsh server"
+        echo "Run with: sudo agentmon server"
         ;;
     2)
         install_lima
-        install_agentsh "$@"
+        install_agentmon "$@"
         echo ""
-        echo "Run with: limactl shell agentsh -- agentsh server"
+        echo "Run with: limactl shell agentmon -- agentmon server"
         ;;
     3)
-        install_agentsh "$@"
+        install_agentmon "$@"
         echo ""
-        echo "Run with: sudo agentsh server"
+        echo "Run with: sudo agentmon server"
         echo "Note: File monitoring is observation-only without FUSE-T"
         ;;
     *)
         echo "Invalid choice, installing FUSE-T (recommended)"
         install_fuse_t
-        install_agentsh "$@"
+        install_agentmon "$@"
         ;;
 esac
 
 echo ""
 echo "Installation complete!"
-echo "Check status with: agentsh status"
+echo "Check status with: agentmon status"
 ```
 
 ### 16.3 Windows Installation
@@ -13068,22 +13068,22 @@ function Install-WSL2 {
     Write-Host "Setting up WSL2..."
     wsl --install -d Ubuntu-24.04
     
-    Write-Host "Installing agentsh in WSL2..."
-    wsl -d Ubuntu-24.04 -- bash -c 'curl -fsSL https://get.agentsh.dev | bash'
+    Write-Host "Installing agentmon in WSL2..."
+    wsl -d Ubuntu-24.04 -- bash -c 'curl -fsSL https://get.agentmon.dev | bash'
 }
 
-function Install-AgentshNative {
+function Install-AgentmonNative {
     $arch = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { "386" }
-    $url = "https://github.com/agentsh/agentsh/releases/download/$Version/agentsh-windows-$arch.exe"
+    $url = "https://github.com/diffsec/agentmon/releases/download/$Version/agentmon-windows-$arch.exe"
     
-    $installPath = "$env:LOCALAPPDATA\agentsh"
+    $installPath = "$env:LOCALAPPDATA\agentmon"
     New-Item -ItemType Directory -Force -Path $installPath | Out-Null
     
-    Invoke-WebRequest -Uri $url -OutFile "$installPath\agentsh.exe"
+    Invoke-WebRequest -Uri $url -OutFile "$installPath\agentmon.exe"
     
     # Add to PATH
     $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    if ($currentPath -notlike "*agentsh*") {
+    if ($currentPath -notlike "*agentmon*") {
         [Environment]::SetEnvironmentVariable("Path", "$currentPath;$installPath", "User")
     }
 }
@@ -13109,24 +13109,24 @@ switch ($Mode) {
     'native' {
         Install-WinFsp
         Install-WinDivert
-        Install-AgentshNative
+        Install-AgentmonNative
         
         Write-Host ""
-        Write-Host "agentsh installed in native Windows mode."
+        Write-Host "agentmon installed in native Windows mode."
         Write-Host "Note: Native mode provides partial isolation. Use WSL2 for full security."
     }
     'wsl2' {
         Install-WSL2
-        Install-AgentshNative  # Also install native wrapper
+        Install-AgentmonNative  # Also install native wrapper
         
         Write-Host ""
-        Write-Host "agentsh installed with WSL2 backend."
+        Write-Host "agentmon installed with WSL2 backend."
         Write-Host "Full Linux security features are available."
     }
 }
 
 Write-Host ""
-Write-Host "Installation complete! Run 'agentsh server' to start."
+Write-Host "Installation complete! Run 'agentmon server' to start."
 ```
 
 ---
@@ -13145,7 +13145,7 @@ import (
     "testing"
     "time"
     
-    "agentsh/pkg/platform"
+    "agentmon/pkg/platform"
 )
 
 // TestPlatformCapabilities verifies platform detection
@@ -13498,7 +13498,7 @@ Understanding the performance overhead of each interception mechanism is critica
 ```
 Network Latency Impact (HTTP request to localhost):
 
-                    Without agentsh     With agentsh       Overhead
+                    Without agentmon     With agentmon       Overhead
 iptables proxy:          0.5ms              1.2ms           +0.7ms
 Network Extension:       0.5ms              0.6ms           +0.1ms  
 pf proxy:                0.5ms              1.3ms           +0.8ms
@@ -13560,7 +13560,7 @@ When operations are held for policy decisions or manual approval:
 #### 18.4.7 Optimization Strategies
 
 ```yaml
-# agentsh.yaml - Performance-optimized configuration
+# agentmon.yaml - Performance-optimized configuration
 
 performance:
   # Cache policy decisions
@@ -13746,10 +13746,10 @@ performance:
 
 | Platform | Command | Requirements |
 |----------|---------|--------------|
-| **Linux** | `curl -fsSL https://get.agentsh.dev \| bash` | root for full features |
-| **macOS FUSE-T** | `brew install fuse-t && brew install agentsh` | root for pf network |
-| **macOS Lima** | `brew install lima && limactl start agentsh` | Lima VM |
-| **Windows Native** | `winget install agentsh` | Admin, WinFsp, WinDivert |
+| **Linux** | `curl -fsSL https://get.agentmon.dev \| bash` | root for full features |
+| **macOS FUSE-T** | `brew install fuse-t && brew install agentmon` | root for pf network |
+| **macOS Lima** | `brew install lima && limactl start agentmon` | Lima VM |
+| **Windows Native** | `winget install agentmon` | Admin, WinFsp, WinDivert |
 | **Windows WSL2** | `wsl --install -d Ubuntu && ...` | WSL2 enabled |
 
 ---
@@ -14062,7 +14062,7 @@ type TenantConfig struct {
 
 type IsolationConfig struct {
     // Filesystem isolation
-    WorkspaceRoot   string `yaml:"workspace_root"`   // e.g., /var/agentsh/tenants/{tenant_id}
+    WorkspaceRoot   string `yaml:"workspace_root"`   // e.g., /var/agentmon/tenants/{tenant_id}
     SharedReadOnly  []string `yaml:"shared_readonly"` // Paths readable by all tenants
     
     // Network isolation
@@ -14139,12 +14139,12 @@ func (m *SessionManager) StartSession(ctx context.Context, req StartSessionReque
 ### 21.1 HTTP/gRPC API
 
 ```protobuf
-// api/agentsh.proto
+// api/agentmon.proto
 
 syntax = "proto3";
-package agentsh.v1;
+package agentmon.v1;
 
-service AgentshService {
+service AgentmonService {
     // Session management
     rpc CreateSession(CreateSessionRequest) returns (Session);
     rpc GetSession(GetSessionRequest) returns (Session);
@@ -14246,7 +14246,7 @@ paths:
 ### 21.3 Webhook Integration
 
 ```yaml
-# agentsh.yaml
+# agentmon.yaml
 
 webhooks:
   # Approval notifications
@@ -14310,48 +14310,48 @@ webhooks:
 var (
     // Session metrics
     sessionsActive = prometheus.NewGauge(prometheus.GaugeOpts{
-        Name: "agentsh_sessions_active",
+        Name: "agentmon_sessions_active",
         Help: "Number of currently active sessions",
     })
     
     sessionsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-        Name: "agentsh_sessions_total",
+        Name: "agentmon_sessions_total",
         Help: "Total sessions by state",
     }, []string{"state", "tenant_id"})
     
     sessionDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-        Name:    "agentsh_session_duration_seconds",
+        Name:    "agentmon_session_duration_seconds",
         Help:    "Session duration in seconds",
         Buckets: []float64{1, 10, 60, 300, 900, 3600},
     }, []string{"tenant_id", "exit_state"})
     
     // Operation metrics
     operationsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-        Name: "agentsh_operations_total",
+        Name: "agentmon_operations_total",
         Help: "Total operations by type and decision",
     }, []string{"type", "decision"})
     
     operationLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-        Name:    "agentsh_operation_latency_seconds",
+        Name:    "agentmon_operation_latency_seconds",
         Help:    "Operation interception latency",
         Buckets: []float64{0.0001, 0.001, 0.01, 0.1, 1, 10},
     }, []string{"type"})
     
     // Approval metrics
     approvalsPending = prometheus.NewGauge(prometheus.GaugeOpts{
-        Name: "agentsh_approvals_pending",
+        Name: "agentmon_approvals_pending",
         Help: "Number of pending approvals",
     })
     
     approvalLatency = prometheus.NewHistogram(prometheus.HistogramOpts{
-        Name:    "agentsh_approval_latency_seconds",
+        Name:    "agentmon_approval_latency_seconds",
         Help:    "Time to receive approval decision",
         Buckets: []float64{1, 5, 10, 30, 60, 300},
     })
     
     // Resource metrics
     policyEvalLatency = prometheus.NewHistogram(prometheus.HistogramOpts{
-        Name:    "agentsh_policy_eval_latency_seconds",
+        Name:    "agentmon_policy_eval_latency_seconds",
         Help:    "Policy evaluation latency",
         Buckets: []float64{0.00001, 0.0001, 0.001, 0.01},
     })
@@ -14364,7 +14364,7 @@ var (
 // pkg/tracing/otel.go
 
 func TraceOperation(ctx context.Context, op *InterceptedOperation) (context.Context, trace.Span) {
-    tracer := otel.Tracer("agentsh")
+    tracer := otel.Tracer("agentmon")
     
     ctx, span := tracer.Start(ctx, op.Type.String(),
         trace.WithAttributes(
@@ -14441,7 +14441,7 @@ func (l *AuditLogger) LogOperation(event *IOEvent, decision Decision) {
 ### 23.1 Rate Limit Configuration
 
 ```yaml
-# agentsh.yaml
+# agentmon.yaml
 
 rate_limits:
   # Per-session limits
@@ -14533,7 +14533,7 @@ func (q *QuotaManager) CheckAndConsume(ctx context.Context, sessionID string, re
 ### 24.1 Dry-Run Mode
 
 ```yaml
-# agentsh.yaml
+# agentmon.yaml
 
 modes:
   # Dry-run: log what would happen without enforcing
@@ -14611,7 +14611,7 @@ tests:
       path: /etc/passwd
     expected:
       decision: redirect
-      redirect_to: /opt/agentsh/honeypot/fake-passwd
+      redirect_to: /opt/agentmon/honeypot/fake-passwd
 */
 
 // Run tests
@@ -14801,7 +14801,7 @@ func (c *RuntimeConfig) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 ### 26.1 Emergency Access
 
 ```yaml
-# agentsh.yaml
+# agentmon.yaml
 
 emergency:
   # Break-glass allows bypassing all policies temporarily
@@ -14840,7 +14840,7 @@ emergency:
 
 ```bash
 # Activate break-glass
-$ agentsh emergency activate \
+$ agentmon emergency activate \
     --reason "Production incident INC-12345" \
     --duration 30m \
     --mfa-token 123456
@@ -14855,14 +14855,14 @@ All policies suspended. All operations will be logged.
 Security team has been notified.
 
 # Check status
-$ agentsh emergency status
+$ agentmon emergency status
 Break-glass: ACTIVE
 Remaining: 28m 15s
 Activated by: admin@example.com
 Operations since activation: 1,247
 
 # Deactivate early
-$ agentsh emergency deactivate
+$ agentmon emergency deactivate
 Break-glass deactivated. Normal policies restored.
 ```
 
@@ -14910,7 +14910,7 @@ func (k *KillSwitch) Activate(reason string, actor string) error {
 ### 27.1 Container Sidecar Mode
 
 ```yaml
-# Kubernetes deployment with agentsh sidecar
+# Kubernetes deployment with agentmon sidecar
 
 apiVersion: apps/v1
 kind: Deployment
@@ -14924,28 +14924,28 @@ spec:
         - name: agent
           image: my-ai-agent:latest
           env:
-            - name: AGENTSH_SOCKET
-              value: /var/run/agentsh/agent.sock
+            - name: AGENTMON_SOCKET
+              value: /var/run/agentmon/agent.sock
           volumeMounts:
-            - name: agentsh-socket
-              mountPath: /var/run/agentsh
+            - name: agentmon-socket
+              mountPath: /var/run/agentmon
             - name: workspace
               mountPath: /workspace
               
-        # agentsh sidecar
-        - name: agentsh
-          image: agentsh/agentsh:latest
+        # agentmon sidecar
+        - name: agentmon
+          image: diffsec/agentmon:latest
           securityContext:
             privileged: true  # Required for FUSE
             capabilities:
               add: [SYS_ADMIN, NET_ADMIN]
           volumeMounts:
-            - name: agentsh-socket
-              mountPath: /var/run/agentsh
+            - name: agentmon-socket
+              mountPath: /var/run/agentmon
             - name: workspace
               mountPath: /workspace
             - name: policies
-              mountPath: /etc/agentsh/policies
+              mountPath: /etc/agentmon/policies
               readOnly: true
           ports:
             - containerPort: 9090
@@ -14954,13 +14954,13 @@ spec:
               name: metrics
               
       volumes:
-        - name: agentsh-socket
+        - name: agentmon-socket
           emptyDir: {}
         - name: workspace
           emptyDir: {}
         - name: policies
           configMap:
-            name: agentsh-policies
+            name: agentmon-policies
 ```
 
 ### 27.2 Kubernetes Operator
@@ -14971,13 +14971,13 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: agentshsessions.agentsh.io
+  name: agentmonsessions.agentmon.io
 spec:
-  group: agentsh.io
+  group: agentmon.io
   names:
-    kind: AgentshSession
-    plural: agentshsessions
-    singular: agentshsession
+    kind: AgentmonSession
+    plural: agentmonsessions
+    singular: agentmonsession
     shortNames: [as]
   scope: Namespaced
   versions:
@@ -15012,8 +15012,8 @@ spec:
 ---
 # Example session
 
-apiVersion: agentsh.io/v1
-kind: AgentshSession
+apiVersion: agentmon.io/v1
+kind: AgentmonSession
 metadata:
   name: coding-task-123
 spec:
@@ -15037,7 +15037,7 @@ spec:
 replicaCount: 3
 
 image:
-  repository: agentsh/agentsh
+  repository: diffsec/agentmon
   tag: latest
   pullPolicy: IfNotPresent
 
@@ -15097,46 +15097,46 @@ securityContext:
 
 ```bash
 # Session management
-agentsh session list [--tenant TENANT] [--state STATE]
-agentsh session get SESSION_ID
-agentsh session logs SESSION_ID [--follow]
-agentsh session events SESSION_ID [--type TYPE] [--since TIME]
-agentsh session terminate SESSION_ID [--force] [--reason REASON]
+agentmon session list [--tenant TENANT] [--state STATE]
+agentmon session get SESSION_ID
+agentmon session logs SESSION_ID [--follow]
+agentmon session events SESSION_ID [--type TYPE] [--since TIME]
+agentmon session terminate SESSION_ID [--force] [--reason REASON]
 
 # Policy management
-agentsh policy validate POLICY_FILE
-agentsh policy test POLICY_DIR --tests TEST_DIR
-agentsh policy diff OLD_POLICY NEW_POLICY
-agentsh policy lint POLICY_FILE
+agentmon policy validate POLICY_FILE
+agentmon policy test POLICY_DIR --tests TEST_DIR
+agentmon policy diff OLD_POLICY NEW_POLICY
+agentmon policy lint POLICY_FILE
 
 # Debugging
-agentsh debug trace SESSION_ID [--duration 30s]
-agentsh debug intercept --file /path/to/file --action log
-agentsh debug simulate --recording RECORDING_FILE --policy POLICY_DIR
+agentmon debug trace SESSION_ID [--duration 30s]
+agentmon debug intercept --file /path/to/file --action log
+agentmon debug simulate --recording RECORDING_FILE --policy POLICY_DIR
 
 # Status
-agentsh status
-agentsh status --json
-agentsh metrics
+agentmon status
+agentmon status --json
+agentmon metrics
 
 # Configuration
-agentsh config validate
-agentsh config show [--effective]
-agentsh config set KEY VALUE
+agentmon config validate
+agentmon config show [--effective]
+agentmon config set KEY VALUE
 
 # Emergency
-agentsh emergency status
-agentsh emergency activate --reason REASON --duration DURATION
-agentsh emergency deactivate
-agentsh emergency kill-all --reason REASON
+agentmon emergency status
+agentmon emergency activate --reason REASON --duration DURATION
+agentmon emergency deactivate
+agentmon emergency kill-all --reason REASON
 ```
 
 ### 28.2 Interactive Debugger
 
 ```bash
-$ agentsh debug attach SESSION_ID
+$ agentmon debug attach SESSION_ID
 
-agentsh debugger v1.0.0
+agentmon debugger v1.0.0
 Session: sess_abc123
 Agent: my-coding-agent
 State: running
@@ -15151,14 +15151,14 @@ Commands:
   trace     - Enable detailed tracing
   quit      - Detach from session
 
-(agentsh) events --last 10
+(agentmon) events --last 10
 TYPE         PATH                      DECISION  LATENCY
 file_read    /workspace/src/main.go    allow     0.2ms
 file_write   /workspace/src/main.go    allow     0.5ms
 net_connect  api.github.com:443        allow     1.2ms
 file_read    /etc/passwd               deny      0.1ms
 
-(agentsh) policy test
+(agentmon) policy test
 Operation type: file_read
 Path: /home/user/.ssh/id_rsa
 
@@ -15167,18 +15167,18 @@ Result:
   Rule: sensitive-block
   Reason: Path matches "**/.ssh/**"
 
-(agentsh) trace on
+(agentmon) trace on
 Tracing enabled. All operations will be logged in detail.
 ```
 
 ### 28.3 Diagnostic Report
 
 ```bash
-$ agentsh diagnostic report --output report.tar.gz
+$ agentmon diagnostic report --output report.tar.gz
 
 Collecting diagnostic information...
   ✓ System information
-  ✓ agentsh configuration (secrets redacted)
+  ✓ agentmon configuration (secrets redacted)
   ✓ Active policies
   ✓ Recent logs (last 1000 lines)
   ✓ Metrics snapshot
@@ -15199,7 +15199,7 @@ WARNING: Review report before sharing. May contain sensitive paths.
 ### 29.1 Controlled Secret Access
 
 ```yaml
-# agentsh.yaml
+# agentmon.yaml
 
 secret_managers:
   # HashiCorp Vault
@@ -15286,7 +15286,7 @@ func (p *JITSecretProvider) RequestSecret(ctx context.Context, req SecretRequest
 ### 30.1 Version Compatibility
 
 ```yaml
-# agentsh.yaml
+# agentmon.yaml
 
 compatibility:
   # Minimum supported client version
@@ -15312,27 +15312,27 @@ compatibility:
 # Rolling upgrade process
 
 # 1. Deploy new version alongside old
-$ agentsh upgrade prepare --version 1.2.0
+$ agentmon upgrade prepare --version 1.2.0
 
 # 2. Validate new version with canary traffic
-$ agentsh upgrade canary --percentage 10
+$ agentmon upgrade canary --percentage 10
 
 # 3. Monitor for errors
-$ agentsh upgrade status
+$ agentmon upgrade status
 Canary: 10% traffic
 Old version: 1.1.0 (90% traffic, 450 sessions)
 New version: 1.2.0 (10% traffic, 50 sessions)
 Errors: 0
 
 # 4. Gradually increase
-$ agentsh upgrade canary --percentage 50
-$ agentsh upgrade canary --percentage 100
+$ agentmon upgrade canary --percentage 50
+$ agentmon upgrade canary --percentage 100
 
 # 5. Complete upgrade
-$ agentsh upgrade complete
+$ agentmon upgrade complete
 
 # Rollback if needed
-$ agentsh upgrade rollback
+$ agentmon upgrade rollback
 ```
 
 ### 30.3 Policy Migration
@@ -15382,7 +15382,7 @@ func MigratePolicy(policy Policy, targetVersion string) (Policy, error) {
 ```go
 // go.mod
 
-module github.com/agentsh/agentsh
+module github.com/diffsec/agentmon
 
 go 1.22
 
@@ -15417,7 +15417,7 @@ require (
 
 ## 32. Conclusion
 
-This specification provides a comprehensive framework for running agentsh across all major platforms while clearly documenting security trade-offs:
+This specification provides a comprehensive framework for running agentmon across all major platforms while clearly documenting security trade-offs:
 
 1. **Linux** and **Windows WSL2** provide full security with all features
 2. **macOS + Lima** provides near-full security (85%) with a VM layer

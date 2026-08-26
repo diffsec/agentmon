@@ -392,8 +392,8 @@ package transport
 import (
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 func TestToWireReason_MapsKnownConstants(t *testing.T) {
@@ -470,8 +470,8 @@ Create `internal/store/watchtower/transport/loss_reason.go`:
 package transport
 
 import (
-	"github.com/agentsh/agentsh/internal/store/watchtower/wal"
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/internal/store/watchtower/wal"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 // ToWireReason maps an in-WAL wal.LossRecord.Reason string to its wire
@@ -960,7 +960,7 @@ Open `internal/store/watchtower/transport/state_live.go`. Above `encodeBatchMess
 var encoderMetrics *metrics.Collector
 ```
 
-Add the import: `"github.com/agentsh/agentsh/internal/metrics"`.
+Add the import: `"github.com/diffsec/agentmon/internal/metrics"`.
 
 - [ ] **Step 4: Rewrite the encoder**
 
@@ -2186,9 +2186,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower"
-	"github.com/agentsh/agentsh/internal/store/watchtower/testserver"
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/internal/store/watchtower"
+	"github.com/diffsec/agentmon/internal/store/watchtower/testserver"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 // TestStore_OverflowEmitsTransportLossOnWire — exercise WAL overflow,
@@ -2375,11 +2375,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower"
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
-	"github.com/agentsh/agentsh/internal/store/watchtower/testserver"
-	"github.com/agentsh/agentsh/pkg/types"
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/internal/store/watchtower"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/internal/store/watchtower/testserver"
+	"github.com/diffsec/agentmon/pkg/types"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 func TestStore_InFlightDrop_EmitsTransportLossOnWire(t *testing.T) {
@@ -2529,9 +2529,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower"
-	"github.com/agentsh/agentsh/internal/store/watchtower/testserver"
-	wtpv1 "github.com/agentsh/agentsh/proto/canyonroad/wtp/v1"
+	"github.com/diffsec/agentmon/internal/store/watchtower"
+	"github.com/diffsec/agentmon/internal/store/watchtower/testserver"
+	wtpv1 "github.com/diffsec/agentmon/proto/canyonroad/wtp/v1"
 )
 
 func TestStore_AckRegressionAfterGC_EmitsTransportLoss_WhenFlagOn(t *testing.T) {

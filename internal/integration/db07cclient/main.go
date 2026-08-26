@@ -33,7 +33,7 @@ type output struct {
 func main() {
 	var (
 		dsn      = flag.String("dsn", "", "direct PostgreSQL DSN")
-		socket   = flag.String("socket", "", "AgentSH DB proxy Unix socket path")
+		socket   = flag.String("socket", "", "AgentMon DB proxy Unix socket path")
 		mode     = flag.String("mode", "scalar", "scalar, exec, tx-deny, cancel, copy-to, copy-from, or prepared-repeat")
 		sqlText  = flag.String("sql", "select 1", "SQL statement")
 		data     = flag.String("data", "", "COPY FROM STDIN payload")

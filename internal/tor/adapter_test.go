@@ -4,8 +4,8 @@ import (
 	"net"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestPolicyAdapter_ImplementsTorChecker(t *testing.T) {

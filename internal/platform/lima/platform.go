@@ -1,6 +1,6 @@
 //go:build darwin
 
-// Package lima provides the macOS Lima VM platform implementation for agentsh.
+// Package lima provides the macOS Lima VM platform implementation for agentmon.
 // Lima runs a real Linux kernel in a lightweight VM, providing full Linux capabilities
 // including FUSE3, iptables, namespaces, seccomp, and cgroups v2.
 package lima
@@ -15,7 +15,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 func init() {

@@ -1,4 +1,4 @@
-// Package ratelimit provides rate limiting and quota management for agentsh.
+// Package ratelimit provides rate limiting and quota management for agentmon.
 package ratelimit
 
 import (

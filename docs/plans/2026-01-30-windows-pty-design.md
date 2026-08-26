@@ -253,7 +253,7 @@ var (
 
 1. **Unit tests** - Mock conpty for basic flow testing
 2. **Integration tests** - Skip on non-Windows or if ConPTY unavailable
-3. **Manual testing** - Interactive shell sessions via `agentsh exec --pty cmd.exe`
+3. **Manual testing** - Interactive shell sessions via `agentmon exec --pty cmd.exe`
 
 ## Requirements
 

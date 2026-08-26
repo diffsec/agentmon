@@ -89,7 +89,7 @@ const (
 
 1. CreateAppContainerProfile()
    - Creates a named container with a unique SID
-   - Container name: "agentsh-sandbox-{id}"
+   - Container name: "agentmon-sandbox-{id}"
    - Persists in registry until deleted
 
 2. Grant capabilities to container SID:
@@ -147,7 +147,7 @@ internal/platform/windows/
 ```go
 // appContainer wraps Windows AppContainer APIs
 type appContainer struct {
-    name        string           // "agentsh-sandbox-{id}"
+    name        string           // "agentmon-sandbox-{id}"
     sid         *windows.SID     // Container security identifier
     profile     windows.Handle   // Profile handle
     grantedACLs []string         // Paths we modified (for cleanup)

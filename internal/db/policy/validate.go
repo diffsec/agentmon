@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 const approveTimeoutMax = 600 * time.Second

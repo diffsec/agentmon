@@ -7,7 +7,7 @@
 
 ## 1. Problem
 
-When the ptrace tracer runs inside the agentsh server process (server wiring, Phase 5), the tracer's `Wait4(-1, ..., WNOHANG)` event loop races with Go's internal `wait4` used by `cmd.Wait()`. Both compete to reap child process exit events. When the tracer reaps a child's exit status, `cmd.Wait()` hangs forever because the exit event was already consumed.
+When the ptrace tracer runs inside the agentmon server process (server wiring, Phase 5), the tracer's `Wait4(-1, ..., WNOHANG)` event loop races with Go's internal `wait4` used by `cmd.Wait()`. Both compete to reap child process exit events. When the tracer reaps a child's exit status, `cmd.Wait()` hangs forever because the exit event was already consumed.
 
 This does not occur in standalone sidecar mode where the tracer runs in a separate OS process.
 

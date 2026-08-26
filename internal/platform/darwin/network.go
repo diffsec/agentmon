@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/platform"
+	"github.com/diffsec/agentmon/internal/platform"
 )
 
 // Network implements platform.NetworkInterceptor for macOS using pf (packet filter).
@@ -25,8 +25,8 @@ type Network struct {
 // NewNetwork creates a new macOS network interceptor.
 func NewNetwork() *Network {
 	n := &Network{
-		anchorName: "com.agentsh",
-		rulesFile:  "/tmp/agentsh-pf.rules",
+		anchorName: "com.agentmon",
+		rulesFile:  "/tmp/agentmon-pf.rules",
 	}
 	n.available = n.checkAvailable()
 	n.implementation = "pf"
@@ -57,7 +57,7 @@ func (n *Network) Setup(config platform.NetConfig) error {
 	defer n.mu.Unlock()
 
 	if os.Geteuid() != 0 {
-		return fmt.Errorf("pf requires root access. Run with: sudo agentsh server")
+		return fmt.Errorf("pf requires root access. Run with: sudo agentmon server")
 	}
 
 	n.config = config
@@ -96,7 +96,7 @@ func (n *Network) generatePFRules() string {
 		dnsPort = 5353
 	}
 
-	return fmt.Sprintf(`# agentsh network interception rules
+	return fmt.Sprintf(`# agentmon network interception rules
 # Anchor: %s
 
 # Redirect outbound TCP to transparent proxy

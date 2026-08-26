@@ -14,24 +14,24 @@ GOPATH ?= $(CURDIR)/.gopath
 
 build:
 	mkdir -p bin $(GOCACHE) $(GOMODCACHE) $(GOPATH)
-	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) GOPATH=$(GOPATH) go build $(LDFLAGS) -o bin/agentsh ./cmd/agentsh
-	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) GOPATH=$(GOPATH) go build $(LDFLAGS) -o bin/agentsh-shell-shim ./cmd/agentsh-shell-shim
-	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) GOPATH=$(GOPATH) go build $(LDFLAGS) -o bin/agentsh-unixwrap ./cmd/agentsh-unixwrap
+	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) GOPATH=$(GOPATH) go build $(LDFLAGS) -o bin/agentmon ./cmd/agentmon
+	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) GOPATH=$(GOPATH) go build $(LDFLAGS) -o bin/agentmon-shell-shim ./cmd/agentmon-shell-shim
+	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) GOPATH=$(GOPATH) go build $(LDFLAGS) -o bin/agentmon-unixwrap ./cmd/agentmon-unixwrap
 
 build-shim:
 	mkdir -p bin $(GOCACHE) $(GOMODCACHE) $(GOPATH)
-	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) GOPATH=$(GOPATH) go build $(LDFLAGS) -o bin/agentsh-shell-shim ./cmd/agentsh-shell-shim
+	GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) GOPATH=$(GOPATH) go build $(LDFLAGS) -o bin/agentmon-shell-shim ./cmd/agentmon-shell-shim
 
 # Build macwrap (requires macOS with Xcode - uses cgo for darwin-specific code)
 build-macwrap:
 	mkdir -p bin $(GOCACHE) $(GOMODCACHE) $(GOPATH)
-	GOOS=darwin CGO_ENABLED=1 GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) GOPATH=$(GOPATH) go build $(LDFLAGS) -o bin/agentsh-macwrap ./cmd/agentsh-macwrap
+	GOOS=darwin CGO_ENABLED=1 GOCACHE=$(GOCACHE) GOMODCACHE=$(GOMODCACHE) GOPATH=$(GOPATH) go build $(LDFLAGS) -o bin/agentmon-macwrap ./cmd/agentmon-macwrap
 
 proto:
 	protoc -I proto \
-	  --go_out=. --go_opt=module=github.com/agentsh/agentsh \
-	  --go-grpc_out=. --go-grpc_opt=module=github.com/agentsh/agentsh \
-	  proto/agentsh/v1/pty.proto
+	  --go_out=. --go_opt=module=github.com/diffsec/agentmon \
+	  --go-grpc_out=. --go-grpc_opt=module=github.com/diffsec/agentmon \
+	  proto/agentmon/v1/pty.proto
 
 test:
 	mkdir -p $(GOCACHE) $(GOMODCACHE) $(GOPATH)
@@ -41,12 +41,12 @@ smoke:
 	bash scripts/smoke.sh
 
 ptrace-test:
-	docker build -f Dockerfile.ptrace-test -t agentsh-ptrace-test .
-	docker run --rm --cap-add SYS_PTRACE agentsh-ptrace-test
+	docker build -f Dockerfile.ptrace-test -t agentmon-ptrace-test .
+	docker run --rm --cap-add SYS_PTRACE agentmon-ptrace-test
 
 dns-test:
-	docker build -f Dockerfile.dns-test -t agentsh-dns-test .
-	docker run --rm --cap-add SYS_PTRACE agentsh-dns-test
+	docker build -f Dockerfile.dns-test -t agentmon-dns-test .
+	docker run --rm --cap-add SYS_PTRACE agentmon-dns-test
 
 seccomp-probe:
 	mkdir -p build
@@ -68,9 +68,9 @@ ebpf:
 # Generate shell completions
 completions: build
 	mkdir -p packaging/completions
-	bin/agentsh completion bash > packaging/completions/agentsh.bash
-	bin/agentsh completion zsh > packaging/completions/agentsh.zsh
-	bin/agentsh completion fish > packaging/completions/agentsh.fish
+	bin/agentmon completion bash > packaging/completions/agentmon.bash
+	bin/agentmon completion zsh > packaging/completions/agentmon.zsh
+	bin/agentmon completion fish > packaging/completions/agentmon.fish
 
 # Build packages locally using goreleaser (snapshot mode, no publish)
 package-snapshot: completions
@@ -85,21 +85,21 @@ package-release:
 # NOTE: build-macos-go, build-swift, assemble-bundle, and sign-bundle require macOS with Xcode
 # =============================================================================
 
-# Build the Go binaries that ship in the app bundle. agentsh needs CGO for
+# Build the Go binaries that ship in the app bundle. agentmon needs CGO for
 # system extension support (nofuse: no macFUSE headers required), matching
 # the release pipeline's rebuild.
 build-macos-go:
 	rm -rf build/go-local
 	mkdir -p build/go-local
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -tags nofuse $(LDFLAGS) -o build/go-local/agentsh ./cmd/agentsh
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o build/go-local/agentsh-shell-shim ./cmd/agentsh-shell-shim
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o build/go-local/agentsh-stub ./cmd/agentsh-stub
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -tags nofuse $(LDFLAGS) -o build/go-local/agentmon ./cmd/agentmon
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o build/go-local/agentmon-shell-shim ./cmd/agentmon-shell-shim
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(LDFLAGS) -o build/go-local/agentmon-stub ./cmd/agentmon-stub
 
 # Build Swift components via Xcode (requires macOS with Xcode)
 build-swift:
 	xcodebuild \
-		-project macos/AgentSH/agentsh.xcodeproj \
-		-scheme agentsh \
+		-project macos/AgentMon/agentmon.xcodeproj \
+		-scheme agentmon \
 		-configuration Release \
 		-derivedDataPath build/DerivedData \
 		CODE_SIGN_IDENTITY="" \
@@ -108,14 +108,14 @@ build-swift:
 
 # Assemble app bundle (shared logic: scripts/assemble-macos-bundle.sh)
 assemble-bundle: build-macos-go build-swift
-	GO_BIN_DIR=build/go-local scripts/assemble-macos-bundle.sh build/AgentSH.app
+	GO_BIN_DIR=build/go-local scripts/assemble-macos-bundle.sh build/AgentMon.app
 
 # Sign bundle (requires SIGNING_IDENTITY env var; shared logic:
 # scripts/sign-macos-bundle.sh)
 sign-bundle:
-	scripts/sign-macos-bundle.sh build/AgentSH.app
+	scripts/sign-macos-bundle.sh build/AgentMon.app
 
 # Full enterprise build, gated on provisioning-profile verification (#440)
 build-macos-enterprise: assemble-bundle sign-bundle
-	scripts/verify-macos-bundle.sh build/AgentSH.app
-	@echo "Enterprise build complete: build/AgentSH.app"
+	scripts/verify-macos-bundle.sh build/AgentMon.app
+	@echo "Enterprise build complete: build/AgentMon.app"

@@ -11,7 +11,7 @@
 **Cross-references:**
 - Shared design: `docs/superpowers/specs/2026-05-11-db-plan-05-pg-extended-tx-design.md`
 - Predecessor plans: `2026-05-11-db-plan-05a-pg-extended-tx-statemachine.md`, `2026-05-11-db-plan-05b-sql-prepared-funccall.md`
-- Spec: `docs/agentsh-db-access-spec.md` v0.8 §7.1 (CopyData framing), §7.3 (COPY rows in mapping table), §14.5 (approval timeouts inside transactions)
+- Spec: `docs/agentmon-db-access-spec.md` v0.8 §7.1 (CopyData framing), §7.3 (COPY rows in mapping table), §14.5 (approval timeouts inside transactions)
 
 **Settled in brainstorming (2026-05-11):**
 
@@ -351,7 +351,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func TestNopApprover_Timeout_ReturnsFalseNoError(t *testing.T) {
@@ -402,7 +402,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 // ErrApproverNotConfigured is a sentinel for callers that want to require an
@@ -723,9 +723,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 // fakeApprover lets tests drive the approve / deny / err paths deterministically.
@@ -881,8 +881,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 // runApprovalWait executes a statemachine.ActionApproverWait. It spawns the
@@ -961,9 +961,9 @@ func (pc *proxyConn) routeApprovalDeny(
 	denyAction string,
 ) error {
 	pc.emitApprovalEvent(ctx, a, denyAction, "deny", origFrame)
-	msg := "denied by AgentSH policy: " + a.Rule.Name
+	msg := "denied by AgentMon policy: " + a.Rule.Name
 	if a.Rule.Name == "" {
-		msg = "denied by AgentSH policy"
+		msg = "denied by AgentMon policy"
 	}
 	actions := statemachine.DenyRoute(*pc.state.smState, a.Rule, msg, "42501")
 	return pc.executeActions(ctx, origFrame, actions)
@@ -1096,8 +1096,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 func TestCopyLoop_BulkLoad_PassesBytesAndExitsOnCopyDone(t *testing.T) {
@@ -1215,8 +1215,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 // runCopyLoop byte-passes CopyData frames for the duration of a bulk_load or
@@ -1569,7 +1569,7 @@ func TestSpine_CopyToStdout_BytesOutCount(t *testing.T) {
 func TestSpine_ApprovalTimeout_DenyAfterTimeout(t *testing.T) {
 	yaml := `
 db_services:
-  appdb: {family: postgres, dialect: postgres, upstream: "127.0.0.1:5432", tls_mode: terminate_reissue, listener: {unix: "/tmp/agentsh-appdb.sock"}}
+  appdb: {family: postgres, dialect: postgres, upstream: "127.0.0.1:5432", tls_mode: terminate_reissue, listener: {unix: "/tmp/agentmon-appdb.sock"}}
 database_rules:
   - name: review-deletes
     db_service: appdb

@@ -4,7 +4,7 @@
 
 **Goal:** Add CLI commands for viewing MCP tool registry and querying MCP-related events.
 
-**Architecture:** Extend SQLite store with mcp_tools table, add MCPToolStore interface in mcpinspect package, create `agentsh mcp` command group with subcommands for tools, servers, events, and detections.
+**Architecture:** Extend SQLite store with mcp_tools table, add MCPToolStore interface in mcpinspect package, create `agentmon mcp` command group with subcommands for tools, servers, events, and detections.
 
 **Tech Stack:** Go, Cobra CLI, SQLite (modernc.org/sqlite), existing store patterns.
 
@@ -471,7 +471,7 @@ Expected: Success
 
 **Step 4: Test command exists**
 
-Run: `go run ./cmd/agentsh mcp --help`
+Run: `go run ./cmd/agentmon mcp --help`
 Expected: Shows MCP subcommands (tools, servers, events, detections)
 
 **Step 5: Commit**
@@ -501,7 +501,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/store/sqlite"
+	"github.com/diffsec/agentmon/internal/store/sqlite"
 )
 
 func TestMCPToolsCmd_ListsTools(t *testing.T) {
@@ -565,7 +565,7 @@ func newMCPToolsCmd() *cobra.Command {
 			}
 
 			if dbPath == "" {
-				dbPath = getenvDefault("AGENTSH_DB_PATH", "./data/events.db")
+				dbPath = getenvDefault("AGENTMON_DB_PATH", "./data/events.db")
 			}
 			st, err := sqlite.Open(dbPath)
 			if err != nil {
@@ -629,7 +629,7 @@ Add imports at top of `mcp_cmd.go`:
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/store/sqlite"
+	"github.com/diffsec/agentmon/internal/store/sqlite"
 	"github.com/spf13/cobra"
 )
 ```
@@ -719,7 +719,7 @@ func newMCPServersCmd() *cobra.Command {
 			}
 
 			if dbPath == "" {
-				dbPath = getenvDefault("AGENTSH_DB_PATH", "./data/events.db")
+				dbPath = getenvDefault("AGENTMON_DB_PATH", "./data/events.db")
 			}
 			st, err := sqlite.Open(dbPath)
 			if err != nil {
@@ -829,7 +829,7 @@ Add import for `time` and `types` in test file:
 ```go
 import (
 	"time"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 ```
 
@@ -864,7 +864,7 @@ func newMCPEventsCmd() *cobra.Command {
 			}
 
 			if dbPath == "" {
-				dbPath = getenvDefault("AGENTSH_DB_PATH", "./data/events.db")
+				dbPath = getenvDefault("AGENTMON_DB_PATH", "./data/events.db")
 			}
 			st, err := sqlite.Open(dbPath)
 			if err != nil {
@@ -951,8 +951,8 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/store/sqlite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/store/sqlite"
+	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/spf13/cobra"
 )
 ```
@@ -1054,7 +1054,7 @@ func newMCPDetectionsCmd() *cobra.Command {
 			}
 
 			if dbPath == "" {
-				dbPath = getenvDefault("AGENTSH_DB_PATH", "./data/events.db")
+				dbPath = getenvDefault("AGENTMON_DB_PATH", "./data/events.db")
 			}
 			st, err := sqlite.Open(dbPath)
 			if err != nil {
@@ -1162,11 +1162,11 @@ Expected: Success
 
 Run:
 ```bash
-go run ./cmd/agentsh mcp --help
-go run ./cmd/agentsh mcp tools --help
-go run ./cmd/agentsh mcp servers --help
-go run ./cmd/agentsh mcp events --help
-go run ./cmd/agentsh mcp detections --help
+go run ./cmd/agentmon mcp --help
+go run ./cmd/agentmon mcp tools --help
+go run ./cmd/agentmon mcp servers --help
+go run ./cmd/agentmon mcp events --help
+go run ./cmd/agentmon mcp detections --help
 ```
 Expected: All show help text
 

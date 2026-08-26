@@ -6,9 +6,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/catalog"
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
-	"github.com/agentsh/agentsh/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/catalog"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
+	"github.com/diffsec/agentmon/internal/db/effects"
 )
 
 func testCatalogContext() catalogRuntimeContext {

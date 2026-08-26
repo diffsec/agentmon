@@ -6,7 +6,7 @@
 
 ## Background
 
-agentsh runs inside Deno Deploy Sandboxes (Firecracker microVMs) where neither FUSE (`/dev/fuse` not exposed) nor Landlock (`/sys/kernel/security/landlock/` not mounted) can enforce `file_rules`. The policy is parsed from YAML but not kernel-enforced — it is dead config in this environment.
+agentmon runs inside Deno Deploy Sandboxes (Firecracker microVMs) where neither FUSE (`/dev/fuse` not exposed) nor Landlock (`/sys/kernel/security/landlock/` not mounted) can enforce `file_rules`. The policy is parsed from YAML but not kernel-enforced — it is dead config in this environment.
 
 SECCOMP_RET_USER_NOTIF is available and already working for command interception (exec syscalls) and unix socket monitoring. The existing `file_monitor` seccomp path intercepts filesystem syscalls but uses `SECCOMP_USER_NOTIF_FLAG_CONTINUE` for allowed operations, which is vulnerable to TOCTOU races on pointer arguments.
 

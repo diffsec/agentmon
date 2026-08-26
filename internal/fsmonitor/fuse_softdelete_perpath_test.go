@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // TestFUSE_PerPathSoftDelete_UnderMonitorMode is the regression test for #417:
@@ -54,7 +54,7 @@ func TestFUSE_PerPathSoftDelete_UnderMonitorMode(t *testing.T) {
 			Config: config.FUSEAuditConfig{
 				Enabled:   &enabled,
 				Mode:      "monitor",
-				TrashPath: ".agentsh_trash",
+				TrashPath: ".agentmon_trash",
 			},
 			NotifySoftDelete: func(path, token string) {
 				notifiedPath, notifiedToken = path, token
@@ -79,7 +79,7 @@ func TestFUSE_PerPathSoftDelete_UnderMonitorMode(t *testing.T) {
 	}
 
 	// The trash directory must now contain the diverted file.
-	trashDir := filepath.Join(workspace, ".agentsh_trash")
+	trashDir := filepath.Join(workspace, ".agentmon_trash")
 	entries, err := os.ReadDir(trashDir)
 	if err != nil {
 		t.Fatalf("read trash dir: %v", err)
@@ -126,7 +126,7 @@ func TestFUSE_PerPathAllow_UnderMonitorMode(t *testing.T) {
 		Policy:    engine,
 		Emit:      &typeCaptureEmitter{},
 		FUSEAudit: &FUSEAuditHooks{
-			Config: config.FUSEAuditConfig{Enabled: &enabled, Mode: "monitor", TrashPath: ".agentsh_trash"},
+			Config: config.FUSEAuditConfig{Enabled: &enabled, Mode: "monitor", TrashPath: ".agentmon_trash"},
 		},
 	}
 
@@ -146,7 +146,7 @@ func TestFUSE_PerPathAllow_UnderMonitorMode(t *testing.T) {
 		t.Fatalf("expected backing file to be really deleted; stat err=%v", err)
 	}
 
-	trashDir := filepath.Join(workspace, ".agentsh_trash")
+	trashDir := filepath.Join(workspace, ".agentmon_trash")
 	if entries, err := os.ReadDir(trashDir); err == nil && len(entries) > 0 {
 		t.Fatalf("expected no trash under allow+monitor, found %d entries", len(entries))
 	}

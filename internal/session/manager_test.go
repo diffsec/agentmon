@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 func TestManager_ReapExpired_IdleTimeout(t *testing.T) {
@@ -608,7 +608,7 @@ func TestSession_DBProxyLifecycle(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	socketDir := filepath.Join(os.TempDir(), "agentsh-db-test")
+	socketDir := filepath.Join(os.TempDir(), "agentmon-db-test")
 	var closed int
 	s.SetDBProxy(socketDir, func() error {
 		closed++

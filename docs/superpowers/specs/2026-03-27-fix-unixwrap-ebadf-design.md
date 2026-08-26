@@ -1,8 +1,8 @@
-# Fix agentsh-unixwrap EBADF — Design Spec
+# Fix agentmon-unixwrap EBADF — Design Spec
 
 **Date:** 2026-03-27
 **Status:** Draft
-**Problem:** When `unix_sockets.enabled: true`, agentsh-unixwrap causes EBADF (Error 9) on bash.real loading shared libraries via the dynamic linker. The shell can't start at all.
+**Problem:** When `unix_sockets.enabled: true`, agentmon-unixwrap causes EBADF (Error 9) on bash.real loading shared libraries via the dynamic linker. The shell can't start at all.
 
 ## Root Cause
 

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/service"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/db/service"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func loadDB(t *testing.T, src string) (*RuleSet, []Warning, error) {

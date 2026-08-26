@@ -13,8 +13,8 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/pkg/types"
 	seccomp "github.com/seccomp/libseccomp-golang"
 	"golang.org/x/sys/unix"
 )
@@ -453,7 +453,7 @@ func handleExecveNotification(goCtx context.Context, fd seccomp.ScmpFd, req *sec
 			return
 		}
 		// handleRedirect succeeded — respond with CONTINUE to re-execute
-		// the modified execve (filename now points to agentsh-stub symlink).
+		// the modified execve (filename now points to agentmon-stub symlink).
 		if err := NotifRespondContinue(int(fd), req.ID); err != nil {
 			slog.Debug("execve handler: continue response failed", "pid", pid, "error", err)
 		}
@@ -619,7 +619,7 @@ func handleFileNotificationEmulated(goCtx context.Context, fd seccomp.ScmpFd, re
 
 	// Resolve primary path.
 	// Path resolution uses ProcessVMReadv which may fail under Yama
-	// ptrace_scope=1 for child processes in the `agentsh wrap` path
+	// ptrace_scope=1 for child processes in the `agentmon wrap` path
 	// (PR_SET_PTRACER does not inherit across fork()).
 	//
 	// For mutating operations (writes, deletes, mkdir, etc.), we retry

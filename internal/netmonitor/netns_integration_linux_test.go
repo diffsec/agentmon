@@ -36,7 +36,7 @@ func TestSetupNetNS_InstallsTorLoopbackDNAT(t *testing.T) {
 		t.Skip("requires 'iptables' binary in PATH")
 	}
 
-	const nsName = "agentsh-test-tordnat"
+	const nsName = "agentmon-test-tordnat"
 	const subnetBase = "10.250.0.0/16"
 
 	subnetCIDR, hostIPCIDR, nsIPCIDR, hostIf, nsIf := AllocateSubnet(subnetBase, nsName)

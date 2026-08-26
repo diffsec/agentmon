@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/approvals"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/skillcheck"
-	"github.com/agentsh/agentsh/internal/skillcheck/provider"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/approvals"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/skillcheck"
+	"github.com/diffsec/agentmon/internal/skillcheck/provider"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // buildSkillcheckProviders constructs a ProviderEntry map from the config.

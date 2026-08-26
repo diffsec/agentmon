@@ -34,7 +34,7 @@ FSKit is Apple's official API for implementing filesystems in userspace without 
 
 FSKit does not provide the Process ID (PID) of the process making filesystem requests. Linux FUSE provides this via `fuse_in_header.pid`.
 
-**Impact on agentsh:** Process attribution is fundamental to our security model. We need to know *which process* is accessing files to:
+**Impact on agentmon:** Process attribution is fundamental to our security model. We need to know *which process* is accessing files to:
 - Apply per-process policies
 - Track parent-child relationships
 - Generate accurate audit logs
@@ -50,13 +50,13 @@ FSKit lacks the kernel-level caching that FUSE provides:
 - **Negative lookup caching**: Cache "file not found" results
 - **Readdir caching**: Cache directory listings
 
-**Impact on agentsh:** Testing shows ~121μs overhead per `getdirentries` syscall due to FSKit-to-kernel communication. This overhead would significantly impact filesystem performance during normal development workflows.
+**Impact on agentmon:** Testing shows ~121μs overhead per `getdirentries` syscall due to FSKit-to-kernel communication. This overhead would significantly impact filesystem performance during normal development workflows.
 
 #### 3. Sandbox Restrictions
 
 Accessing user-provided file paths from FSKit extensions requires privileged helpers, adding complexity and reducing performance.
 
-**Impact on agentsh:** Our architecture requires mounting user directories. The sandbox restrictions would complicate deployment and potentially require additional privileged components.
+**Impact on agentmon:** Our architecture requires mounting user directories. The sandbox restrictions would complicate deployment and potentially require additional privileged components.
 
 ## Why FUSE-T Works
 

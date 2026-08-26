@@ -8,10 +8,10 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/agentsh/agentsh/internal/capabilities"
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/internal/landlock"
-	"github.com/agentsh/agentsh/internal/policy"
+	"github.com/diffsec/agentmon/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/landlock"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // LandlockHook is a post-fork hook that applies Landlock restrictions.

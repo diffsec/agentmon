@@ -8,8 +8,8 @@
   "metadata": {
     "version": "1.8.0",
     "product": {
-      "name": "agentsh",
-      "vendor_name": "agentsh"
+      "name": "agentmon",
+      "vendor_name": "agentmon"
     },
     "logged_time": "1777118400000000000",
     "event_code": "http",
@@ -27,7 +27,7 @@
   "http_request": {
     "http_method": "POST",
     "url": "https://api.example/v1/x",
-    "user_agent": "agentsh/1.0",
+    "user_agent": "agentmon/1.0",
     "version": "1.1",
     "host": "api.example"
   },

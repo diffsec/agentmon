@@ -13,7 +13,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 	ocsfpb "github.com/canyonroad/wtp-protos/gen/go/canyonroad/wtp/v1/ocsf"
 )
 
@@ -352,7 +352,7 @@ func goldenSampleEvents() []types.Event {
 		{ID: "ev-conn-allowed-1", Type: "connection_allowed", Timestamp: t0, PID: 301, Domain: "ok.example", Remote: "10.0.0.1"},
 		{ID: "ev-connect-redirect-1", Type: "connect_redirect", Timestamp: t0, PID: 302, Domain: "in.example", Remote: "10.1.2.3:443", Fields: map[string]any{"redirect_to": "out.example:443"}},
 		{ID: "ev-ptrace-network-1", Type: "ptrace_network", Timestamp: t0, PID: 303, Domain: "trace.example"},
-		{ID: "ev-unix-sock-1", Type: "unix_socket_op", Timestamp: t0, PID: 304, Path: "/run/agentsh.sock", Abstract: false},
+		{ID: "ev-unix-sock-1", Type: "unix_socket_op", Timestamp: t0, PID: 304, Path: "/run/agentmon.sock", Abstract: false},
 		{ID: "ev-tnet-failed-1", Type: "transparent_net_failed", Timestamp: t0},
 		{ID: "ev-tnet-ready-1", Type: "transparent_net_ready", Timestamp: t0},
 		{ID: "ev-tnet-setup-1", Type: "transparent_net_setup", Timestamp: t0},
@@ -364,7 +364,7 @@ func goldenSampleEvents() []types.Event {
 		// HTTP Activity (4002) — Task 19
 		{ID: "ev-http-1", Type: "http", Timestamp: t0, PID: 400, Domain: "api.example", Fields: map[string]any{
 			"method": "POST", "url": "https://api.example/v1/x", "host": "api.example",
-			"user_agent": "agentsh/1.0", "http_version": "1.1",
+			"user_agent": "agentmon/1.0", "http_version": "1.1",
 			"status_code": 200, "response_bytes": 1024,
 		}},
 		{ID: "ev-net-http-req-1", Type: "net_http_request", Timestamp: t0, PID: 401, Domain: "raw.example", Remote: "1.2.3.4:80",
@@ -422,7 +422,7 @@ func goldenSampleEvents() []types.Event {
 			Fields: map[string]any{
 				"mode":         "user_namespace",
 				"reason":       "no_root_cgroup_writable",
-				"own_cgroup":   "/user.slice/user-1000.slice/agentsh",
+				"own_cgroup":   "/user.slice/user-1000.slice/agentmon",
 				"slice_dir":    "/user.slice/user-1000.slice",
 				"io_available": true,
 				"leaf_moved":   false,

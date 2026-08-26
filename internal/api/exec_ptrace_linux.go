@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/agentsh/agentsh/internal/ptrace"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/ptrace"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // ptraceExecResult holds the result of waiting for a traced process to exit.

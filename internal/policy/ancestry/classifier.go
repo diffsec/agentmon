@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agentsh/agentsh/internal/policy/pattern"
+	"github.com/diffsec/agentmon/internal/policy/pattern"
 )
 
 // Classifier determines the ProcessClass for process names.

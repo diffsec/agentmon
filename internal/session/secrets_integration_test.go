@@ -10,9 +10,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/proxy"
-	"github.com/agentsh/agentsh/internal/proxy/secrets"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/proxy"
+	"github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 func TestCredentialPipeline_EndToEnd(t *testing.T) {
@@ -82,7 +82,7 @@ func TestIntegration_PolicyYAML_FullFlow(t *testing.T) {
 	// Setup: create a memory provider with a known secret.
 	memProvider := &memoryProvider{
 		secrets: map[string][]byte{
-			"agentsh/github_token": []byte("ghp_REAL1234567890abcdef12345678901234"),
+			"agentmon/github_token": []byte("ghp_REAL1234567890abcdef12345678901234"),
 		},
 	}
 
@@ -91,7 +91,7 @@ func TestIntegration_PolicyYAML_FullFlow(t *testing.T) {
 		{
 			Name:     "github",
 			Upstream: "https://api.github.com",
-			Secret:   &policy.HTTPServiceSecret{Ref: "keyring://agentsh/github_token", Format: "ghp_{rand:34}"},
+			Secret:   &policy.HTTPServiceSecret{Ref: "keyring://agentmon/github_token", Format: "ghp_{rand:34}"},
 			Inject:   &policy.HTTPServiceInject{Header: &policy.HTTPServiceInjectHeader{
 				Name: "Authorization", Template: "Bearer {{secret}}",
 			}},
@@ -175,7 +175,7 @@ func TestScrubResponse_CompositionFlow(t *testing.T) {
 		{
 			Name:          "github",
 			Upstream:      "https://api.github.com",
-			Secret:        &policy.HTTPServiceSecret{Ref: "keyring://agentsh/gh", Format: "ghp_{rand:36}"},
+			Secret:        &policy.HTTPServiceSecret{Ref: "keyring://agentmon/gh", Format: "ghp_{rand:36}"},
 			ScrubResponse: &scrubTrue,
 			Inject: &policy.HTTPServiceInject{
 				Header: &policy.HTTPServiceInjectHeader{
@@ -186,7 +186,7 @@ func TestScrubResponse_CompositionFlow(t *testing.T) {
 		{
 			Name:          "stripe",
 			Upstream:      "https://api.stripe.com",
-			Secret:        &policy.HTTPServiceSecret{Ref: "keyring://agentsh/stripe", Format: "xk_test_{rand:24}"},
+			Secret:        &policy.HTTPServiceSecret{Ref: "keyring://agentmon/stripe", Format: "xk_test_{rand:24}"},
 			ScrubResponse: &scrubFalse,
 		},
 	}
@@ -207,8 +207,8 @@ func TestScrubResponse_CompositionFlow(t *testing.T) {
 	// Bootstrap credentials.
 	mp := &memoryProvider{
 		secrets: map[string][]byte{
-			"agentsh/gh":     []byte("ghp_realABCDEFGHIJKLMNOPQRSTUVWXYZ123456"),
-			"agentsh/stripe": []byte("xk_test_realABCDEFGHIJKLMNOPQRST"),
+			"agentmon/gh":     []byte("ghp_realABCDEFGHIJKLMNOPQRSTUVWXYZ123456"),
+			"agentmon/stripe": []byte("xk_test_realABCDEFGHIJKLMNOPQRST"),
 		},
 	}
 	table, cleanup, err := BootstrapCredentials(context.Background(), mp, resolved.ServiceConfigs)

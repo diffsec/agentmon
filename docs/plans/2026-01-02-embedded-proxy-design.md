@@ -5,7 +5,7 @@
 
 ## Overview
 
-Add an embedded HTTP proxy to agentsh that intercepts LLM API requests from agents, providing:
+Add an embedded HTTP proxy to agentmon that intercepts LLM API requests from agents, providing:
 - DLP (Data Loss Prevention) via PII redaction/tokenization
 - Request/response logging for audit trails
 - Passthrough support for multiple LLM providers (Anthropic, OpenAI)
@@ -14,14 +14,14 @@ Add an embedded HTTP proxy to agentsh that intercepts LLM API requests from agen
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ agentsh                                                                  │
+│ agentmon                                                                  │
 │  ├── session manager                                                     │
 │  ├── embedded proxy (DLP)                                                │
 │  │     ├── Anthropic dialect handler                                     │
 │  │     ├── OpenAI dialect handler                                        │
 │  │     └── DLP processor                                                 │
 │  └── local storage                                                       │
-│        ~/.agentsh/sessions/<session-id>/                                 │
+│        ~/.agentmon/sessions/<session-id>/                                 │
 │            ├── events.jsonl      (existing execution events)             │
 │            └── llm-requests.jsonl (new: request/response logs)           │
 └──────────────────────────────────────────────────────────────────────────┘
@@ -31,7 +31,7 @@ Add an embedded HTTP proxy to agentsh that intercepts LLM API requests from agen
 
 ### Mode 1: Embedded (Default)
 
-Proxy runs inside agentsh process. Zero configuration required.
+Proxy runs inside agentmon process. Zero configuration required.
 
 ```
 Agent (Claude Code / Codex / OpenCode)
@@ -41,7 +41,7 @@ Agent (Claude Code / Codex / OpenCode)
     │ SESSION_ID=<session-id>
     │
     ▼
-Embedded Proxy (inside agentsh)
+Embedded Proxy (inside agentmon)
     │
     │ Forwards to upstream
     ▼
@@ -160,7 +160,7 @@ Reference: [Codex CLI Config](https://github.com/openai/codex/issues/2760) - `ch
 All data stored locally alongside existing session data:
 
 ```
-~/.agentsh/sessions/<session-id>/
+~/.agentmon/sessions/<session-id>/
 ├── events.jsonl           # existing execution events
 ├── llm-requests.jsonl     # new: LLM request/response logs
 └── dlp-tokens.json        # tokenization map (if using tokenize mode)
@@ -201,10 +201,10 @@ Note: Full bodies stored separately or configurable (size/privacy tradeoffs).
 When configured, events stream to hosted collector:
 
 ```yaml
-# ~/.agentsh/config.yaml
+# ~/.agentmon/config.yaml
 collector:
   enabled: true
-  endpoint: https://collector.agentsh.io
+  endpoint: https://collector.agentmon.io
   api_key: ask_xxx
 ```
 
@@ -229,14 +229,14 @@ Content-Type: application/json
 
 Local buffer for network failures:
 ```
-~/.agentsh/buffer/
+~/.agentmon/buffer/
 └── pending-events.jsonl  # flushed to collector on reconnect
 ```
 
 ## Configuration
 
 ```yaml
-# ~/.agentsh/config.yaml
+# ~/.agentmon/config.yaml
 
 proxy:
   # embedded (default) | external | disabled
@@ -281,18 +281,18 @@ collector:
 
 ```bash
 # Session start sets up proxy
-agentsh session start --policy=default
+agentmon session start --policy=default
 # Outputs: SESSION_ID=xxx ANTHROPIC_BASE_URL=http://localhost:18080 ...
 
 # Check proxy status
-agentsh proxy status
+agentmon proxy status
 # Outputs: Proxy running on :18080, mode: embedded, dialect: auto-detect
 
 # View LLM request logs
-agentsh session logs <session-id> --type=llm
+agentmon session logs <session-id> --type=llm
 
 # Report includes LLM stats
-agentsh report <session-id> --level=detailed
+agentmon report <session-id> --level=detailed
 # Now includes: token counts, request counts, DLP events
 ```
 

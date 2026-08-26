@@ -30,7 +30,7 @@ import (
 // microseconds; seconds in 't' is always a wedge (parked/keep-stopped tracees,
 // which legitimately sit stopped awaiting approval/resume, are excluded).
 //
-// On detection the watchdog (1) logs it and, when AGENTSH_PTRACE_TRACE is set,
+// On detection the watchdog (1) logs it and, when AGENTMON_PTRACE_TRACE is set,
 // dumps the trace ring to pin the mechanism, and (2) self-heals after a longer
 // grace period: SIGKILL the wedged tracee (releasing the leaked ptrace-stop so
 // the Run loop reaps it and runs proper cleanup on its own thread) and fire the

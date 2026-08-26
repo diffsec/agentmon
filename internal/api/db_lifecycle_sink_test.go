@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	dbevents "github.com/agentsh/agentsh/internal/db/events"
-	appevents "github.com/agentsh/agentsh/internal/events"
-	"github.com/agentsh/agentsh/internal/store/composite"
-	"github.com/agentsh/agentsh/pkg/types"
+	dbevents "github.com/diffsec/agentmon/internal/db/events"
+	appevents "github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 type failingEventStore struct {

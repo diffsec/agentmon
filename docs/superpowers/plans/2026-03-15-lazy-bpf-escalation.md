@@ -119,7 +119,7 @@ func buildPrefilterBPF() ([]unix.SockFilter, error) {
 
 - [ ] **Step 4: Build to verify compilation**
 
-Run: `cd /home/eran/work/agentsh && go build ./internal/ptrace/...`
+Run: `cd /home/eran/work/agentmon && go build ./internal/ptrace/...`
 Expected: Success.
 
 - [ ] **Step 5: Commit**
@@ -228,7 +228,7 @@ func (t *Tracer) injectEscalationFilter(tid int, syscalls []int) error {
 
 - [ ] **Step 2: Build to verify compilation**
 
-Run: `cd /home/eran/work/agentsh && go build ./internal/ptrace/...`
+Run: `cd /home/eran/work/agentmon && go build ./internal/ptrace/...`
 Expected: Success.
 
 - [ ] **Step 3: Commit**
@@ -336,12 +336,12 @@ And the `else` (new state) branch similarly:
 
 - [ ] **Step 4: Build to verify compilation**
 
-Run: `cd /home/eran/work/agentsh && go build ./internal/ptrace/...`
+Run: `cd /home/eran/work/agentmon && go build ./internal/ptrace/...`
 Expected: Success.
 
 - [ ] **Step 5: Run full integration test suite**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -v -count=1 ./internal/ptrace/`
 Expected: All PASS. The narrow filter still traces all exec/file/network/signal/close syscalls, so existing behavior is unchanged. Read/write handlers won't fire for processes that don't escalate, but that only affects TracerPid masking and SNI rewrite — not tested by most tests.
 
 **Important**: `TestIntegration_TracerPidMasked` will FAIL because reads are no longer in the BPF. This is expected and will be fixed in Task 4 (escalation triggers).
@@ -543,17 +543,17 @@ In `internal/ptrace/tracer.go`, in `handleSeccompStop` (line ~851), after settin
 
 - [ ] **Step 6: Build to verify compilation**
 
-Run: `cd /home/eran/work/agentsh && go build ./internal/ptrace/...`
+Run: `cd /home/eran/work/agentmon && go build ./internal/ptrace/...`
 Expected: Success.
 
 - [ ] **Step 7: Run TracerPid masking regression test**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -run TestIntegration_TracerPidMasked -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -run TestIntegration_TracerPidMasked -v -count=1 ./internal/ptrace/`
 Expected: PASS — openat detects `/proc/self/status`, triggers read escalation, reads are then traced and masked.
 
 - [ ] **Step 8: Run full integration test suite**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -v -count=1 ./internal/ptrace/`
 Expected: All PASS.
 
 - [ ] **Step 9: Commit**
@@ -885,12 +885,12 @@ func TestIntegration_SkipReinjectionForChildren(t *testing.T) {
 
 - [ ] **Step 6: Run all new tests**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -run "TestIntegration_NarrowBPF|TestIntegration_ReadEscalation|TestIntegration_ChildInheritsEscalation|TestIntegration_WriteEscalation|TestIntegration_SkipReinjection" -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -run "TestIntegration_NarrowBPF|TestIntegration_ReadEscalation|TestIntegration_ChildInheritsEscalation|TestIntegration_WriteEscalation|TestIntegration_SkipReinjection" -v -count=1 ./internal/ptrace/`
 Expected: All PASS.
 
 - [ ] **Step 7: Run the full integration test suite**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -v -count=1 ./internal/ptrace/`
 Expected: All tests PASS.
 
 - [ ] **Step 8: Commit**
@@ -913,20 +913,20 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Verify cross-compilation for Windows**
 
-Run: `cd /home/eran/work/agentsh && GOOS=windows go build ./...`
+Run: `cd /home/eran/work/agentmon && GOOS=windows go build ./...`
 Expected: Success.
 
 - [ ] **Step 2: Run `go vet`**
 
-Run: `cd /home/eran/work/agentsh && go vet ./internal/ptrace/...`
+Run: `cd /home/eran/work/agentmon && go vet ./internal/ptrace/...`
 Expected: No issues.
 
 - [ ] **Step 3: Run full project test suite**
 
-Run: `cd /home/eran/work/agentsh && go test ./...`
+Run: `cd /home/eran/work/agentmon && go test ./...`
 Expected: All PASS.
 
 - [ ] **Step 4: Run full integration test suite one final time**
 
-Run: `cd /home/eran/work/agentsh && go test -tags integration -v -count=1 ./internal/ptrace/`
+Run: `cd /home/eran/work/agentmon && go test -tags integration -v -count=1 ./internal/ptrace/`
 Expected: All PASS.

@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/agentsh/agentsh/internal/client"
+	"github.com/diffsec/agentmon/internal/client"
 	"github.com/spf13/cobra"
 )
 
@@ -27,13 +27,13 @@ func newProxyStatusCmd() *cobra.Command {
 
 Examples:
   # Status for latest session
-  agentsh proxy status
+  agentmon proxy status
 
   # Status for specific session
-  agentsh proxy status abc123
+  agentmon proxy status abc123
 
   # JSON output
-  agentsh proxy status --json`,
+  agentmon proxy status --json`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sessionID := ""

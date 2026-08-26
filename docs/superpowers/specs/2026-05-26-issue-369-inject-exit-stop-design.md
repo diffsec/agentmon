@@ -6,14 +6,14 @@ loses the tracee on exe.dev kernel `6.12.90`, surfacing as `exit_code=-1`
 
 ## Summary
 
-agentsh installs the ptrace `seccomp_prefilter` (and performs file/exec
+agentmon installs the ptrace `seccomp_prefilter` (and performs file/exec
 redirects) by **injecting syscalls into a stopped tracee**: it rewrites the
 tracee's registers (`PTRACE_SETREGS`), resumes with `PTRACE_SYSCALL`, and reads
 the injected syscall's return value out of `rax` (`PTRACE_GETREGS`). The read
 point assumes a fixed number of resume cycles lands the tracee at the
 syscall-**exit** stop.
 
-erans's strace on kernel `6.12.90` (agentsh `0.20.3-rc2`, no shim) pinned the
+erans's strace on kernel `6.12.90` (agentmon `0.20.3-rc2`, no shim) pinned the
 root cause: the readback happens at the syscall-**entry** stop instead of the
 **exit** stop. `injected syscall 9 (mmap) returned -38` is decisive — `-38`
 (`-ENOSYS`) is exactly the placeholder Linux parks in `rax` at the syscall-entry

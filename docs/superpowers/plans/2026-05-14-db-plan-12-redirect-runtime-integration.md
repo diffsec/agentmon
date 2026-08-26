@@ -532,8 +532,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 type fakeRedirectPlanner struct {
@@ -649,9 +649,9 @@ import (
 	"context"
 	"fmt"
 
-	classify_pg "github.com/agentsh/agentsh/internal/db/classify/postgres"
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
+	classify_pg "github.com/diffsec/agentmon/internal/db/classify/postgres"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 const sqlstateRedirectRejected = "0A000"
@@ -998,13 +998,13 @@ func (pc *proxyConn) runSimpleQueryRedirect(
 			RejectionReason: "multi_statement_redirect_unsupported",
 		}
 		pc.emitRedirectRejectedEvent(ctx, stmts[redirectIndex], decisions[redirectIndex], q.String, batchSHA, plan)
-		return pc.synthErrorAndRFQ(sqlstateRedirectRejected, "redirect rejected by AgentSH policy: multi-statement redirect unsupported")
+		return pc.synthErrorAndRFQ(sqlstateRedirectRejected, "redirect rejected by AgentMon policy: multi-statement redirect unsupported")
 	}
 
 	plan, ok := pc.planRuntimeRedirect(ctx, q.String, stmts[redirectIndex], decisions[redirectIndex])
 	if !ok {
 		pc.emitRedirectRejectedEvent(ctx, stmts[redirectIndex], decisions[redirectIndex], q.String, batchSHA, plan)
-		return pc.synthErrorAndRFQ(sqlstateRedirectRejected, "redirect rejected by AgentSH policy: "+plan.RejectionReason)
+		return pc.synthErrorAndRFQ(sqlstateRedirectRejected, "redirect rejected by AgentMon policy: "+plan.RejectionReason)
 	}
 
 	sentAt := timeNow()
@@ -1104,7 +1104,7 @@ git commit -m "db/proxy: execute simple-query redirects"
 - [ ] **Step 1: Write failing Extended Query Parse tests**
 
 Add tests to `internal/db/proxy/postgres/extquery_spine_test.go`.
-Add `github.com/agentsh/agentsh/internal/db/events` to the import block for the execute-audit test in Task 7.
+Add `github.com/diffsec/agentmon/internal/db/events` to the import block for the execute-audit test in Task 7.
 
 ```go
 func TestExtquery_RedirectParse_ForwardsRewrittenAndCachesMetadata(t *testing.T) {
@@ -1270,12 +1270,12 @@ func (pc *proxyConn) tryHandleRedirectParse(ctx context.Context, parse *pgproto3
 			RejectionReason: "multi_statement_redirect_unsupported",
 		}
 		pc.emitRedirectRejectedEvent(ctx, stmts[redirectIndex], decisions[redirectIndex], parse.Query, sha256HexBatch(parse.Query), plan)
-		return true, pc.executeActions(ctx, parse, statemachine.DenyRoute(*pc.state.smState, policy.StatementRule{}, "redirect rejected by AgentSH policy: multi-statement redirect unsupported", sqlstateRedirectRejected))
+		return true, pc.executeActions(ctx, parse, statemachine.DenyRoute(*pc.state.smState, policy.StatementRule{}, "redirect rejected by AgentMon policy: multi-statement redirect unsupported", sqlstateRedirectRejected))
 	}
 	plan, ok := pc.planRuntimeRedirect(ctx, parse.Query, stmts[0], decisions[0])
 	if !ok {
 		pc.emitRedirectRejectedEvent(ctx, stmts[0], decisions[0], parse.Query, sha256HexBatch(parse.Query), plan)
-		actions := statemachine.DenyRoute(*pc.state.smState, policy.StatementRule{}, "redirect rejected by AgentSH policy: "+plan.RejectionReason, sqlstateRedirectRejected)
+		actions := statemachine.DenyRoute(*pc.state.smState, policy.StatementRule{}, "redirect rejected by AgentMon policy: "+plan.RejectionReason, sqlstateRedirectRejected)
 		next := *pc.state.smState
 		if !containsCloseAction(actions) {
 			next.Absorbing = true
@@ -1380,7 +1380,7 @@ git commit -m "db/proxy: execute redirects at extended-query parse"
 - [ ] **Step 1: Write failing Bind/Execute audit test**
 
 Add this test to `internal/db/proxy/postgres/extquery_spine_test.go`.
-Add `strings` and `github.com/agentsh/agentsh/internal/db/events` to the import block.
+Add `strings` and `github.com/diffsec/agentmon/internal/db/events` to the import block.
 
 ```go
 func TestExtquery_RedirectExecute_UsesCachedMetadataAndEmitsEventAfterSync(t *testing.T) {

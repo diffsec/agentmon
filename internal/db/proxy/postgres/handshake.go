@@ -13,8 +13,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/events"
-	"github.com/agentsh/agentsh/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/events"
+	"github.com/diffsec/agentmon/internal/db/policy"
 )
 
 // Magic numbers from the Postgres frontend/backend protocol; same values
@@ -87,9 +87,9 @@ func (pc *proxyConn) handleStartupMessage(ctx context.Context, m *pgproto3.Start
 		msg := d.Reason
 		if msg == "" {
 			if pc.state.replication {
-				msg = "AgentSH DB proxy: replication denied by policy"
+				msg = "AgentMon DB proxy: replication denied by policy"
 			} else {
-				msg = "AgentSH DB proxy: connection denied by policy"
+				msg = "AgentMon DB proxy: connection denied by policy"
 			}
 		}
 		return pc.synthesizeError(connectionDenyErrorCode, msg)
@@ -112,11 +112,11 @@ func (pc *proxyConn) dialUpstreamAndForward(ctx context.Context, m *pgproto3.Sta
 	if err != nil {
 		code := upstreamDialFailEventCode
 		errCode := upstreamDialFailErrorCode
-		msg := fmt.Sprintf("AgentSH DB proxy: upstream unreachable: %v", err)
+		msg := fmt.Sprintf("AgentMon DB proxy: upstream unreachable: %v", err)
 		if isTLSError(err) {
 			code = upstreamTLSFailEventCode
 			errCode = upstreamTLSFailErrorCode
-			msg = fmt.Sprintf("AgentSH DB proxy: upstream TLS handshake failed: %v", err)
+			msg = fmt.Sprintf("AgentMon DB proxy: upstream TLS handshake failed: %v", err)
 		}
 		pc.emitHandshakeFail(ctx, code)
 		return pc.synthesizeError(errCode, msg)
@@ -127,7 +127,7 @@ func (pc *proxyConn) dialUpstreamAndForward(ctx context.Context, m *pgproto3.Sta
 	pc.state.upstreamFE.Send(m)
 	if err := pc.state.upstreamFE.Flush(); err != nil {
 		pc.emitHandshakeFail(ctx, upstreamDialFailEventCode)
-		return pc.synthesizeError(upstreamDialFailErrorCode, fmt.Sprintf("AgentSH DB proxy: upstream send StartupMessage: %v", err))
+		return pc.synthesizeError(upstreamDialFailErrorCode, fmt.Sprintf("AgentMon DB proxy: upstream send StartupMessage: %v", err))
 	}
 
 	if err := forwardAuth(ctx, pc); err != nil {
@@ -170,11 +170,11 @@ func (pc *proxyConn) forwardReplicationStartupAndPump(ctx context.Context, m *pg
 	if err != nil {
 		code := upstreamDialFailEventCode
 		errCode := upstreamDialFailErrorCode
-		msg := fmt.Sprintf("AgentSH DB proxy: upstream unreachable: %v", err)
+		msg := fmt.Sprintf("AgentMon DB proxy: upstream unreachable: %v", err)
 		if isTLSError(err) {
 			code = upstreamTLSFailEventCode
 			errCode = upstreamTLSFailErrorCode
-			msg = fmt.Sprintf("AgentSH DB proxy: upstream TLS handshake failed: %v", err)
+			msg = fmt.Sprintf("AgentMon DB proxy: upstream TLS handshake failed: %v", err)
 		}
 		pc.emitHandshakeFail(ctx, code)
 		return pc.synthesizeError(errCode, msg)
@@ -186,7 +186,7 @@ func (pc *proxyConn) forwardReplicationStartupAndPump(ctx context.Context, m *pg
 	pc.state.upstreamFE.Send(m)
 	if err := pc.state.upstreamFE.Flush(); err != nil {
 		pc.emitHandshakeFail(ctx, upstreamDialFailEventCode)
-		return pc.synthesizeError(upstreamDialFailErrorCode, fmt.Sprintf("AgentSH DB proxy: upstream send StartupMessage (replication): %v", err))
+		return pc.synthesizeError(upstreamDialFailErrorCode, fmt.Sprintf("AgentMon DB proxy: upstream send StartupMessage (replication): %v", err))
 	}
 
 	pc.emitDegradedVisibility(ctx, "replication_passthrough", "replication_opt_in")
@@ -336,7 +336,7 @@ func (pc *proxyConn) synthesizeError(sqlstate, message string) error {
 const (
 	// SCRAM-SHA-256-PLUS fail-closed under terminate_* modes. Spec §13.1.
 	scramPlusErrorCode = "28000"
-	scramPlusMessage   = "AgentSH DB proxy cannot terminate channel-bound SCRAM (SCRAM-SHA-256-PLUS). Disable channel binding upstream or use TLS passthrough; see docs/agentsh-db-access-spec.md §13."
+	scramPlusMessage   = "AgentMon DB proxy cannot terminate channel-bound SCRAM (SCRAM-SHA-256-PLUS). Disable channel binding upstream or use TLS passthrough; see docs/agentmon-db-access-spec.md §13."
 	scramPlusEventCode = "SCRAM_PLUS_FAIL_CLOSED"
 
 	// Connection denied by policy; also used for replication denied in Plan 04b₂.

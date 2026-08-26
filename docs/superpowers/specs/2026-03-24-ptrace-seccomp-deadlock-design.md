@@ -2,9 +2,9 @@
 
 ## Problem
 
-When both `ptrace.enabled: true` and `seccomp.file_monitor.enabled: true` are configured, the shell shim with `force=true` causes an immediate deadlock on the first command. The agentsh server stops responding to HTTP requests.
+When both `ptrace.enabled: true` and `seccomp.file_monitor.enabled: true` are configured, the shell shim with `force=true` causes an immediate deadlock on the first command. The agentmon server stops responding to HTTP requests.
 
-The deadlock occurs because ptrace attaches to the wrapper process (`agentsh-unixwrap`) BEFORE the wrapper sets up seccomp. Ptrace intercepts the wrapper's own syscalls during seccomp setup, preventing the wrapper from completing its initialization. The seccomp notify handler in the server can't receive the notify FD, and the system hangs.
+The deadlock occurs because ptrace attaches to the wrapper process (`agentmon-unixwrap`) BEFORE the wrapper sets up seccomp. Ptrace intercepts the wrapper's own syscalls during seccomp setup, preventing the wrapper from completing its initialization. The seccomp notify handler in the server can't receive the notify FD, and the system hangs.
 
 **What works:**
 - Ptrace alone + `force=true`: works perfectly (execve interception, blocking)
@@ -48,7 +48,7 @@ server → wrapper: ACK byte
 wrapper: closes socket, exec's
 ```
 
-New protocol (hybrid mode only, when `AGENTSH_PTRACE_SYNC=1` is set):
+New protocol (hybrid mode only, when `AGENTMON_PTRACE_SYNC=1` is set):
 ```
 wrapper → server: notify FD (SCM_RIGHTS)
 server → wrapper: ACK byte
@@ -58,7 +58,7 @@ server → wrapper: GO byte ('G')
 wrapper: closes socket, exec's → ptrace intercepts exec
 ```
 
-The wrapper detects hybrid mode via `AGENTSH_PTRACE_SYNC=1` in its environment, set by the server in `setupSeccompWrapper` when ptrace is active.
+The wrapper detects hybrid mode via `AGENTMON_PTRACE_SYNC=1` in its environment, set by the server in `setupSeccompWrapper` when ptrace is active.
 
 ### Server-side changes (`internal/api/exec.go` and `internal/api/exec_stream.go`)
 
@@ -101,9 +101,9 @@ go func() {
 
 `ServeNotifyWithExecve` is started in a nested goroutine BEFORE reading the READY byte. This eliminates the race between notification handling startup and wrapper exec after GO. By the time the server sends GO and the wrapper calls exec, `ServeNotifyWithExecve` is already running and ready to handle seccomp notifications.
 
-### Wrapper-side changes (`cmd/agentsh-unixwrap/main.go`)
+### Wrapper-side changes (`cmd/agentmon-unixwrap/main.go`)
 
-After ALL existing wrapper initialization (seccomp filter, signal filter, Landlock), when `AGENTSH_PTRACE_SYNC=1`:
+After ALL existing wrapper initialization (seccomp filter, signal filter, Landlock), when `AGENTMON_PTRACE_SYNC=1`:
 
 ```go
 // Existing initialization (unchanged):
@@ -115,33 +115,33 @@ sendFD(signalSockFD, signalFD)  // send signal FD
 waitForACK(signalSockFD)
 applyLandlock()                  // if Landlock enabled
 
-// NEW: ptrace sync handshake (only when AGENTSH_PTRACE_SYNC=1)
-if os.Getenv("AGENTSH_PTRACE_SYNC") == "1" {
+// NEW: ptrace sync handshake (only when AGENTMON_PTRACE_SYNC=1)
+if os.Getenv("AGENTMON_PTRACE_SYNC") == "1" {
     sendReadyByte(sockFD)        // all init done, about to exec
     waitForGO(sockFD, 30s)       // server attached ptrace, safe to exec (30s timeout, fatal on timeout)
 }
 
 // NOTE: unix.Close(sockFD) must be moved here (after READY/GO exchange)
-// when AGENTSH_PTRACE_SYNC=1. Currently it's at line 91 before exec.
+// when AGENTMON_PTRACE_SYNC=1. Currently it's at line 91 before exec.
 unix.Close(sockFD)
 syscall.Exec(...)
 ```
 
-The READY byte is sent AFTER all initialization (seccomp, signals, Landlock) to ensure the wrapper is fully set up before ptrace attaches. Without `AGENTSH_PTRACE_SYNC=1`, the wrapper behaves exactly as before.
+The READY byte is sent AFTER all initialization (seccomp, signals, Landlock) to ensure the wrapper is fully set up before ptrace attaches. Without `AGENTMON_PTRACE_SYNC=1`, the wrapper behaves exactly as before.
 
 ## Files to modify
 
 1. `internal/api/exec.go` — Reorder hybrid mode: move ptrace attach after wrapper ready signal
 2. `internal/api/exec_stream.go` — Identical hybrid mode reordering (parallel copy of exec.go hybrid block)
 3. `internal/api/notify_linux.go` — Start ServeNotifyWithExecve before READY read, read READY byte with timeout, signal ptraceReady channel with error
-4. `internal/api/core.go` — Set `AGENTSH_PTRACE_SYNC=1` in wrapper env when ptrace is active. This is only reachable in hybrid mode because `setupSeccompWrapper` returns early for full ptrace mode (when no wrapper is needed). The env var is set in the existing `if a.ptraceTracer != nil` block.
-5. `cmd/agentsh-unixwrap/main.go` — Send READY byte after all init, wait for GO byte, move socket close after handshake
+4. `internal/api/core.go` — Set `AGENTMON_PTRACE_SYNC=1` in wrapper env when ptrace is active. This is only reachable in hybrid mode because `setupSeccompWrapper` returns early for full ptrace mode (when no wrapper is needed). The env var is set in the existing `if a.ptraceTracer != nil` block.
+5. `cmd/agentmon-unixwrap/main.go` — Send READY byte after all init, wait for GO byte, move socket close after handshake
 
 ## Test plan
 
 **Unit tests:**
-- Wrapper with `AGENTSH_PTRACE_SYNC=1`: sends READY after ACK, waits for GO before exec
-- Wrapper without `AGENTSH_PTRACE_SYNC`: existing protocol unchanged
+- Wrapper with `AGENTMON_PTRACE_SYNC=1`: sends READY after ACK, waits for GO before exec
+- Wrapper without `AGENTMON_PTRACE_SYNC`: existing protocol unchanged
 
 **Integration tests:**
 - Hybrid mode (ptrace + seccomp file_monitor): command completes without deadlock

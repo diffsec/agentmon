@@ -51,10 +51,10 @@ func TestNewTenantConfig_InvalidID(t *testing.T) {
 
 func TestTenantConfig_WorkspacePath(t *testing.T) {
 	tenant, _ := NewTenantConfig("tenant1", "Test")
-	tenant.Isolation.WorkspaceRoot = "/var/agentsh/tenants/{tenant_id}/agents/{agent_id}/sessions/{session_id}"
+	tenant.Isolation.WorkspaceRoot = "/var/agentmon/tenants/{tenant_id}/agents/{agent_id}/sessions/{session_id}"
 
 	path := tenant.WorkspacePath("agent1", "sess1")
-	expected := "/var/agentsh/tenants/tenant1/agents/agent1/sessions/sess1"
+	expected := "/var/agentmon/tenants/tenant1/agents/agent1/sessions/sess1"
 	if path != expected {
 		t.Errorf("WorkspacePath() = %s, want %s", path, expected)
 	}

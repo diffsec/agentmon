@@ -4,12 +4,12 @@
 #   make bench
 #
 # Or manually:
-#   docker build -f Dockerfile.bench -t agentsh-bench:latest .
+#   docker build -f Dockerfile.bench -t agentmon-bench:latest .
 #   docker run --rm \
 #     --cap-add SYS_ADMIN --cap-add SYS_PTRACE \
 #     --device /dev/fuse \
 #     --security-opt seccomp=unconfined \
-#     agentsh-bench:latest
+#     agentmon-bench:latest
 
 # ---------------------------------------------------------------------------
 # Build stage
@@ -20,10 +20,10 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o /out/agentsh          ./cmd/agentsh && \
-    go build -o /out/agentsh-shell-shim ./cmd/agentsh-shell-shim && \
-    go build -o /out/agentsh-unixwrap  ./cmd/agentsh-unixwrap && \
-    go build -o /out/agentsh-stub      ./cmd/agentsh-stub
+RUN go build -o /out/agentmon          ./cmd/agentmon && \
+    go build -o /out/agentmon-shell-shim ./cmd/agentmon-shell-shim && \
+    go build -o /out/agentmon-unixwrap  ./cmd/agentmon-unixwrap && \
+    go build -o /out/agentmon-stub      ./cmd/agentmon-stub
 
 # ---------------------------------------------------------------------------
 # Runtime stage
@@ -35,12 +35,12 @@ RUN apt-get update && \
       libseccomp2 fuse3 libfuse3-dev curl bash git ca-certificates jq python3 && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /out/agentsh          /usr/bin/agentsh
-COPY --from=builder /out/agentsh-shell-shim /usr/bin/agentsh-shell-shim
-COPY --from=builder /out/agentsh-unixwrap  /usr/bin/agentsh-unixwrap
-COPY --from=builder /out/agentsh-stub      /usr/bin/agentsh-stub
+COPY --from=builder /out/agentmon          /usr/bin/agentmon
+COPY --from=builder /out/agentmon-shell-shim /usr/bin/agentmon-shell-shim
+COPY --from=builder /out/agentmon-unixwrap  /usr/bin/agentmon-unixwrap
+COPY --from=builder /out/agentmon-stub      /usr/bin/agentmon-stub
 
-COPY configs/policies/ /etc/agentsh/policies/
+COPY configs/policies/ /etc/agentmon/policies/
 
 # Create a bare git repo with 20 Go source files for the git-workflow phase.
 RUN mkdir -p /bench/repo.git && cd /bench/repo.git && git init --bare && \
@@ -61,7 +61,7 @@ COPY <<'WORKLOAD' /bench/workload.sh
 set -uo pipefail
 
 sid="$1"
-agentsh=/usr/bin/agentsh
+agentmon=/usr/bin/agentmon
 
 emit() { echo "BENCH:$1:$2"; }
 
@@ -70,17 +70,17 @@ ts_ms() { date +%s%3N; }
 # Phase 1 — Process spawning (120 flat processes)
 t0=$(ts_ms)
 for i in $(seq 1 30); do
-  "$agentsh" exec "$sid" -- /bin/true
-  "$agentsh" exec "$sid" -- /bin/echo "bench"  >/dev/null
-  "$agentsh" exec "$sid" -- /bin/cat /dev/null
-  "$agentsh" exec "$sid" -- /bin/ls /tmp        >/dev/null
+  "$agentmon" exec "$sid" -- /bin/true
+  "$agentmon" exec "$sid" -- /bin/echo "bench"  >/dev/null
+  "$agentmon" exec "$sid" -- /bin/cat /dev/null
+  "$agentmon" exec "$sid" -- /bin/ls /tmp        >/dev/null
 done
 t1=$(ts_ms)
 emit "spawn" $(( t1 - t0 ))
 
 # Phase 2 — File I/O (1000 ops inside single exec)
 t0=$(ts_ms)
-"$agentsh" exec "$sid" -- sh -c '
+"$agentmon" exec "$sid" -- sh -c '
   d=/tmp/bench-fio; mkdir -p $d
   for i in $(seq 1 500); do echo "data_$i" > $d/f$i; done
   for f in $d/f*; do cat "$f" > /dev/null; done
@@ -91,7 +91,7 @@ emit "fileio" $(( t1 - t0 ))
 
 # Phase 3 — Mixed git workflow (single exec)
 t0=$(ts_ms)
-"$agentsh" exec "$sid" -- sh -c '
+"$agentmon" exec "$sid" -- sh -c '
   cd /tmp && git clone /bench/repo.git bench-repo 2>/dev/null && cd bench-repo
   grep -r "Hello" . > /dev/null 2>&1
   for i in $(seq 1 5); do echo "// mod" >> src/pkg${i}/main.go; done
@@ -104,7 +104,7 @@ emit "git" $(( t1 - t0 ))
 # Phase 4 — Network (10 curl requests against local HTTP server)
 t0=$(ts_ms)
 for i in $(seq 1 10); do
-  "$agentsh" exec "$sid" -- curl -so /dev/null http://127.0.0.1:18888/bench
+  "$agentmon" exec "$sid" -- curl -so /dev/null http://127.0.0.1:18888/bench
 done
 t1=$(ts_ms)
 emit "network" $(( t1 - t0 ))
@@ -113,11 +113,11 @@ emit "network" $(( t1 - t0 ))
 # Trigger commands that bench-realistic policy denies.
 t0=$(ts_ms)
 for i in $(seq 1 10); do
-  "$agentsh" exec "$sid" -- sudo echo hi          2>/dev/null || true
-  "$agentsh" exec "$sid" -- shutdown -h now        2>/dev/null || true
-  "$agentsh" exec "$sid" -- nc -z 127.0.0.1 80    2>/dev/null || true
-  "$agentsh" exec "$sid" -- systemctl status       2>/dev/null || true
-  "$agentsh" exec "$sid" -- apt-get install curl   2>/dev/null || true
+  "$agentmon" exec "$sid" -- sudo echo hi          2>/dev/null || true
+  "$agentmon" exec "$sid" -- shutdown -h now        2>/dev/null || true
+  "$agentmon" exec "$sid" -- nc -z 127.0.0.1 80    2>/dev/null || true
+  "$agentmon" exec "$sid" -- systemctl status       2>/dev/null || true
+  "$agentmon" exec "$sid" -- apt-get install curl   2>/dev/null || true
 done
 t1=$(ts_ms)
 emit "deny" $(( t1 - t0 ))
@@ -126,11 +126,11 @@ emit "deny" $(( t1 - t0 ))
 # Trigger commands that bench-realistic policy redirects.
 t0=$(ts_ms)
 for i in $(seq 1 10); do
-  "$agentsh" exec "$sid" -- rm -rf /                 2>/dev/null || true
-  "$agentsh" exec "$sid" -- git push --force          2>/dev/null || true
-  "$agentsh" exec "$sid" -- git reset --hard HEAD     2>/dev/null || true
-  "$agentsh" exec "$sid" -- git clean -f              2>/dev/null || true
-  "$agentsh" exec "$sid" -- rm -fr ~/important        2>/dev/null || true
+  "$agentmon" exec "$sid" -- rm -rf /                 2>/dev/null || true
+  "$agentmon" exec "$sid" -- git push --force          2>/dev/null || true
+  "$agentmon" exec "$sid" -- git reset --hard HEAD     2>/dev/null || true
+  "$agentmon" exec "$sid" -- git clean -f              2>/dev/null || true
+  "$agentmon" exec "$sid" -- rm -fr ~/important        2>/dev/null || true
 done
 t1=$(ts_ms)
 emit "redirect" $(( t1 - t0 ))
@@ -140,7 +140,7 @@ emit "redirect" $(( t1 - t0 ))
 # Tests process tree tracking overhead in ptrace and seccomp.
 t0=$(ts_ms)
 for i in $(seq 1 20); do
-  "$agentsh" exec "$sid" -- sh -c 'sh -c "sh -c \"sh -c /bin/true\""'
+  "$agentmon" exec "$sid" -- sh -c 'sh -c "sh -c \"sh -c /bin/true\""'
 done
 t1=$(ts_ms)
 emit "tree_deep" $(( t1 - t0 ))
@@ -149,7 +149,7 @@ emit "tree_deep" $(( t1 - t0 ))
 # Single exec spawns 10 parallel children, each runs a command.
 t0=$(ts_ms)
 for i in $(seq 1 10); do
-  "$agentsh" exec "$sid" -- sh -c '
+  "$agentmon" exec "$sid" -- sh -c '
     for j in $(seq 1 10); do
       sh -c "/bin/true" &
     done
@@ -165,9 +165,9 @@ COPY <<'ENTRYPOINT_SCRIPT' /bench/entrypoint.sh
 #!/usr/bin/env bash
 set -euo pipefail
 
-export AGENTSH_SERVER="http://127.0.0.1:18080"
-base_url="$AGENTSH_SERVER"
-agentsh=/usr/bin/agentsh
+export AGENTMON_SERVER="http://127.0.0.1:18080"
+base_url="$AGENTMON_SERVER"
+agentmon=/usr/bin/agentmon
 
 # ---- helpers ----------------------------------------------------------------
 
@@ -266,7 +266,7 @@ health:
   readiness_path: "/ready"
 
 policies:
-  dir: "/etc/agentsh/policies"
+  dir: "/etc/agentmon/policies"
   default: "bench-realistic"
 
 sessions:
@@ -321,7 +321,7 @@ run_mode() {
   mkdir -p "$session_dir"
 
   # Start server
-  "$agentsh" server --config "$config_path" >/tmp/bench/${mode}/server.log 2>&1 &
+  "$agentmon" server --config "$config_path" >/tmp/bench/${mode}/server.log 2>&1 &
   SERVER_PID="$!"
 
   if ! wait_healthy; then
@@ -333,7 +333,7 @@ run_mode() {
 
   # Create session
   local sid_json sid
-  sid_json="$("$agentsh" session create --workspace /bench --json)"
+  sid_json="$("$agentmon" session create --workspace /bench --json)"
   sid="$(echo "$sid_json" | jq -r '.id')"
   if [[ -z "$sid" || "$sid" == "null" ]]; then
     echo "ERROR: failed to create session for mode=$mode" >&2
@@ -442,7 +442,7 @@ overhead() {
 }
 
 echo ""
-echo "=== agentsh mode benchmark (median of 3 runs) ==="
+echo "=== agentmon mode benchmark (median of 3 runs) ==="
 echo ""
 printf "| %-22s | %8s | %9s | %13s | %14s | %20s | %7s | %15s | %12s | %20s | %14s | %22s |\n" \
   "Phase" "Baseline" "Full mode" "Full overhead" "Seccomp-notify" "Seccomp-notify ohead" "Ptrace" "Ptrace overhead" "Ptrace-allow" "Ptrace-allow overhead" "Ptrace-seccomp" "Ptrace-seccomp ohead"

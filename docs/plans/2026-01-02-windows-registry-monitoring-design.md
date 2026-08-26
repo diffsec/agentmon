@@ -19,7 +19,7 @@ Implement full registry monitoring and blocking for Windows via the mini filter 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     User-Mode (agentsh.exe)                     │
+│                     User-Mode (agentmon.exe)                     │
 │  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐    │
 │  │ PolicyEngine │  │ PolicyAdapter│  │  ApprovalManager   │    │
 │  │ (rules eval) │◄─┤ .CheckReg()  │◄─┤ (timeout handling) │    │
@@ -34,7 +34,7 @@ Implement full registry monitoring and blocking for Windows via the mini filter 
 └─────────────────────────────┼───────────────────────────────────┘
                               │ FilterPort
 ┌─────────────────────────────┼───────────────────────────────────┐
-│  Kernel-Mode (agentsh.sys)  │                                   │
+│  Kernel-Mode (agentmon.sys)  │                                   │
 │  ┌──────────────────────────┴──────────────────────────────┐   │
 │  │              CmRegisterCallbackEx                        │   │
 │  │  - Intercepts: RegNtPreSetValueKey, RegNtPreCreateKey,  │   │

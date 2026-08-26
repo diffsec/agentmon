@@ -5,8 +5,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/agentsh/agentsh/internal/store/watchtower/compact"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/store/watchtower/compact"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // Mapper is the production OCSF v1.8.0 mapper. It implements
@@ -22,7 +22,7 @@ func New() *Mapper {
 	return &Mapper{registry: registry}
 }
 
-// Map projects an agentsh event into a compact.MappedEvent.
+// Map projects an agentmon event into a compact.MappedEvent.
 //
 // Returns ErrUnmappedType if ev.Type is not in the registry (or its
 // UnmappedTypeError wrapper which carries the offending Type). Returns

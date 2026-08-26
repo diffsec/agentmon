@@ -5,8 +5,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/config"
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // TestWrapInit_ResponseCarriesEnvInject is the regression guard for issue #374:
@@ -24,8 +24,8 @@ func TestWrapInit_ResponseCarriesEnvInject(t *testing.T) {
 	cfg.Sandbox.UnixSockets.Enabled = &enabled
 	cfg.Sandbox.UnixSockets.WrapperBin = "/bin/true"
 	cfg.Sandbox.EnvInject = map[string]string{
-		"BASH_ENV":          "/usr/lib/agentsh/bash_startup.sh",
-		"OTEL_SERVICE_NAME": "agentsh-blaxel",
+		"BASH_ENV":          "/usr/lib/agentmon/bash_startup.sh",
+		"OTEL_SERVICE_NAME": "agentmon-blaxel",
 	}
 
 	app, mgr := newTestAppForWrap(t, cfg)
@@ -49,10 +49,10 @@ func TestWrapInit_ResponseCarriesEnvInject(t *testing.T) {
 		t.Cleanup(func() { _ = os.RemoveAll(resp.NotifySocket) })
 	}
 
-	if got := resp.EnvInject["BASH_ENV"]; got != "/usr/lib/agentsh/bash_startup.sh" {
+	if got := resp.EnvInject["BASH_ENV"]; got != "/usr/lib/agentmon/bash_startup.sh" {
 		t.Errorf("resp.EnvInject[BASH_ENV] = %q, want the configured hardening path", got)
 	}
-	if got := resp.EnvInject["OTEL_SERVICE_NAME"]; got != "agentsh-blaxel" {
-		t.Errorf("resp.EnvInject[OTEL_SERVICE_NAME] = %q, want agentsh-blaxel", got)
+	if got := resp.EnvInject["OTEL_SERVICE_NAME"]; got != "agentmon-blaxel" {
+		t.Errorf("resp.EnvInject[OTEL_SERVICE_NAME] = %q, want agentmon-blaxel", got)
 	}
 }

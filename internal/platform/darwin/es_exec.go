@@ -11,8 +11,8 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/agentsh/agentsh/internal/platform/darwin/policysock"
-	"github.com/agentsh/agentsh/internal/stub"
+	"github.com/diffsec/agentmon/internal/platform/darwin/policysock"
+	"github.com/diffsec/agentmon/internal/stub"
 	"golang.org/x/sys/unix"
 )
 
@@ -35,14 +35,14 @@ type ESExecPolicyResult struct {
 
 // ESExecHandler handles exec pipeline checks from the ESF client.
 // It evaluates policy and, for redirect/approve decisions, spawns an
-// agentsh-stub server-side to run the command through the stub protocol.
+// agentmon-stub server-side to run the command through the stub protocol.
 //
 // On macOS, the ES framework cannot rewrite exec targets (unlike Linux seccomp
 // ADDFD). Instead, the original exec is denied (EPERM) and the command is run
 // server-side with I/O proxied through the stub binary.
 type ESExecHandler struct {
 	policyChecker ESExecPolicyChecker
-	stubBinary    string // Path to agentsh-stub binary
+	stubBinary    string // Path to agentmon-stub binary
 }
 
 // NewESExecHandler creates a new ES exec handler.
@@ -151,8 +151,8 @@ func createSocketPair() (stubFile *os.File, srvConn net.Conn, err error) {
 // On macOS, we can't rewrite the exec target in ES, so we deny the original
 // exec and run the command server-side, with I/O proxied through the stub.
 //
-// This creates a Unix socketpair: one end is passed to the agentsh-stub
-// subprocess as fd 3 (via AGENTSH_STUB_FD=3), and the other end is used by
+// This creates a Unix socketpair: one end is passed to the agentmon-stub
+// subprocess as fd 3 (via AGENTMON_STUB_FD=3), and the other end is used by
 // ServeStubConnection to execute the command and proxy its I/O.
 func (h *ESExecHandler) spawnStubServer(executable string, args []string, pid int32, parentPID int32, sessionID string, execCtx policysock.ExecContext) {
 	if h.stubBinary == "" {
@@ -195,14 +195,14 @@ func (h *ESExecHandler) spawnStubServer(executable string, args []string, pid in
 		}
 	}()
 
-	// Launch agentsh-stub with the socketpair fd.
+	// Launch agentmon-stub with the socketpair fd.
 	h.launchStub(stubFile, executable, pid, execCtx)
 }
 
-// launchStub spawns the agentsh-stub binary connected to the stub server.
+// launchStub spawns the agentmon-stub binary connected to the stub server.
 //
 // The stubFile is passed as fd 3 to the subprocess via ExtraFiles, and the
-// AGENTSH_STUB_FD=3 env var tells the stub which fd to use. Stdout/stderr
+// AGENTMON_STUB_FD=3 env var tells the stub which fd to use. Stdout/stderr
 // are connected to the denied process's TTY so output appears in the
 // original terminal.
 //
@@ -220,7 +220,7 @@ func (h *ESExecHandler) launchStub(stubFile *os.File, originalCmd string, origin
 	cmd := exec.Command(h.stubBinary)
 	cmd.ExtraFiles = []*os.File{stubFile} // fd 3
 	cmd.Env = []string{
-		"AGENTSH_STUB_FD=3",
+		"AGENTMON_STUB_FD=3",
 		"PATH=/usr/bin:/bin:/usr/sbin:/sbin",
 	}
 

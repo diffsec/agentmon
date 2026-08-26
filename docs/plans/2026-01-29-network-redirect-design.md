@@ -3,15 +3,15 @@
 **Status:** Implemented (Tasks 1-11 complete)
 **Branch:** feature/network-redirect
 
-DNS and connect-level redirect for agentsh-wrapped processes.
+DNS and connect-level redirect for agentmon-wrapped processes.
 
 ## Overview
 
-Intercept DNS resolution and TCP connections from processes running under agentsh, redirecting them to different destinations based on policy rules. Primary use case: route Anthropic API calls through GCP Vertex without application changes.
+Intercept DNS resolution and TCP connections from processes running under agentmon, redirecting them to different destinations based on policy rules. Primary use case: route Anthropic API calls through GCP Vertex without application changes.
 
 ## Scope
 
-- **Processes**: agentsh-wrapped only (not system-wide)
+- **Processes**: agentmon-wrapped only (not system-wide)
 - **Layers**: DNS resolution and connect-level redirect
 - **Platform**: Linux first (eBPF), macOS/Windows later
 

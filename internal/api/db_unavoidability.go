@@ -11,17 +11,17 @@ import (
 	"strconv"
 	"time"
 
-	dbevents "github.com/agentsh/agentsh/internal/db/events"
-	dbpolicy "github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres"
-	dbservice "github.com/agentsh/agentsh/internal/db/service"
-	"github.com/agentsh/agentsh/internal/policy"
-	"github.com/agentsh/agentsh/internal/session"
-	"github.com/agentsh/agentsh/pkg/types"
+	dbevents "github.com/diffsec/agentmon/internal/db/events"
+	dbpolicy "github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres"
+	dbservice "github.com/diffsec/agentmon/internal/db/service"
+	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/pkg/types"
 	"gopkg.in/yaml.v3"
 )
 
-const dbProxySessionIdentity = "agentsh-db-proxy"
+const dbProxySessionIdentity = "agentmon-db-proxy"
 
 type defaultDBResolver struct{}
 

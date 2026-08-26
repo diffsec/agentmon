@@ -6,8 +6,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/agentsh/agentsh/internal/proxy/credsub"
-	"github.com/agentsh/agentsh/internal/proxy/secrets"
+	"github.com/diffsec/agentmon/internal/proxy/credsub"
+	"github.com/diffsec/agentmon/internal/proxy/secrets"
 )
 
 // memoryProvider implements SecretFetcher for testing.

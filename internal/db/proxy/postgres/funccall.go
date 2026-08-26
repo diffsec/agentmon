@@ -7,9 +7,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgproto3"
 
-	"github.com/agentsh/agentsh/internal/db/effects"
-	"github.com/agentsh/agentsh/internal/db/policy"
-	"github.com/agentsh/agentsh/internal/db/proxy/postgres/statemachine"
+	"github.com/diffsec/agentmon/internal/db/effects"
+	"github.com/diffsec/agentmon/internal/db/policy"
+	"github.com/diffsec/agentmon/internal/db/proxy/postgres/statemachine"
 )
 
 // handleFunctionCall handles an 'F' FunctionCall frame. Default behavior
@@ -26,7 +26,7 @@ func (pc *proxyConn) handleFunctionCall(ctx context.Context, msg *pgproto3.Funct
 	if !liveSvc.AllowFunctionCallProtocol {
 		// 04c default path: preserve the existing stub behavior from handleUnsupportedFrame.
 		pc.emitUnsupportedFrame(ctx, "FUNCTION_CALL_PROTOCOL_DENIED", "FunctionCall")
-		_ = pc.synthesizeError(sqlstateInsufficientPrivilege, "FunctionCall sub-protocol denied by AgentSH policy")
+		_ = pc.synthesizeError(sqlstateInsufficientPrivilege, "FunctionCall sub-protocol denied by AgentMon policy")
 		return errUnsupportedFrame
 	}
 

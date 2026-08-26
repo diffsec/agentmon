@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/agentsh/agentsh/pkg/types"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // platformSetupWrap returns an error on unsupported platforms since exec

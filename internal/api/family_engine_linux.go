@@ -6,9 +6,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/agentsh/agentsh/internal/capabilities"
-	"github.com/agentsh/agentsh/internal/config"
-	seccompkg "github.com/agentsh/agentsh/internal/seccomp"
+	"github.com/diffsec/agentmon/internal/capabilities"
+	"github.com/diffsec/agentmon/internal/config"
+	seccompkg "github.com/diffsec/agentmon/internal/seccomp"
 )
 
 // familyEngine describes which enforcement engine should handle socket-family
@@ -26,7 +26,7 @@ const (
 // pattern in the capabilities package).
 var familyEngineLookPath = exec.LookPath
 
-// wrapperWillRun returns true when the seccomp wrapper (agentsh-unixwrap) is
+// wrapperWillRun returns true when the seccomp wrapper (agentmon-unixwrap) is
 // expected to actually run for the given config.  Two conditions must hold:
 //
 //  1. unix_sockets is enabled in config (nil defaults to true, per applyDefaults).
@@ -49,7 +49,7 @@ func wrapperWillRun(cfg *config.SandboxConfig) bool {
 
 	wrapperBin := strings.TrimSpace(cfg.UnixSockets.WrapperBin)
 	if wrapperBin == "" {
-		wrapperBin = "agentsh-unixwrap"
+		wrapperBin = "agentmon-unixwrap"
 	}
 
 	_, err := familyEngineLookPath(wrapperBin)
