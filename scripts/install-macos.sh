@@ -215,7 +215,12 @@ install_envshim() {
         sudo mv "$tmp_file" "${INSTALL_DIR}/envshim"
         info "envshim installed to ${INSTALL_DIR}/envshim"
     else
-        warn "envshim not available for this release (optional component)"
+        # Not "not available for this release" -- it is not built for macOS at
+        # all. scripts/build-envshim.sh compiles only shim/linux for Linux
+        # targets, so envshim-darwin-* is never published. shim/darwin/envshim.c
+        # exists but nothing builds it, so environment-variable interception is
+        # simply unimplemented on macOS.
+        warn "envshim is not built for macOS; environment-variable interception is unavailable"
     fi
 }
 
