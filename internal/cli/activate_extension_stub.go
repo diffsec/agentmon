@@ -14,3 +14,14 @@ func newActivateExtensionCmd() *cobra.Command {
 		},
 	}
 }
+
+func newDeactivateExtensionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:    "deactivate-extension",
+		Short:  "Deactivate the AgentMon system extension (macOS only)",
+		Hidden: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return &ExitError{code: 1, message: "deactivate-extension is only available on macOS"}
+		},
+	}
+}

@@ -60,3 +60,48 @@ func openFullDiskAccessSettings() {
 func openEndpointSecuritySettings() {
 	exec.Command("open", "x-apple.systempreferences:com.apple.preference.security?Privacy_EndpointSecurity").Run()
 }
+
+func newDeactivateExtensionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "deactivate-extension",
+		Short: "Deactivate the AgentMon system extension",
+		Long: "Submits a deactivation request for the AgentMon system extension.\n\n" +
+			"Run this before removing or replacing /Applications/AgentMon.app. Removing\n" +
+			"the app without deactivating leaves the extension registered and running\n" +
+			"with nothing behind it, and `systemextensionsctl uninstall` is not an\n" +
+			"alternative -- it refuses to run while System Integrity Protection is\n" +
+			"enabled, leaving System Settings as the only way out.\n\n" +
+			"The request must come from an app inside /Applications, so deactivate\n" +
+			"before deleting, not after. Removal completes at the next reboot; until\n" +
+			"then the extension shows as \"terminated waiting to uninstall on reboot\".",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			mgr := darwin.NewSysExtManager()
+
+			fmt.Println("Deactivating AgentMon system extension...")
+			result, err := mgr.Deactivate()
+
+			switch result {
+			case darwin.ActivateOK:
+				// Deliberately not "deactivated": the extension is terminated
+				// and deregisters at the next boot, and saying otherwise
+				// invites a bug report when systemextensionsctl still lists it.
+				fmt.Println("System extension terminated; it is removed at the next reboot.")
+				return nil
+			case darwin.ActivateNeedsApproval:
+				// Not a failure: macOS wants the user to confirm the removal.
+				// The extension stays registered until they do, so say so
+				// rather than reporting success and leaving them to discover
+				// the bundle is still locked.
+				fmt.Println("Removal requires approval in System Settings.")
+				fmt.Println("The extension stays active until you confirm it there.")
+				openEndpointSecuritySettings()
+				return nil
+			default:
+				if err != nil {
+					return fmt.Errorf("deactivation failed: %w", err)
+				}
+				return fmt.Errorf("deactivation failed")
+			}
+		},
+	}
+}
