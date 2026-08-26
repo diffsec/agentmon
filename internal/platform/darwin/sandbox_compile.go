@@ -28,9 +28,26 @@ var defaultExecBlocklist = []string{
 	"/usr/sbin/csrutil",
 }
 
+// defaultExecAllowPaths are the directories a sandboxed process may exec from.
+//
+// SBPL matches the resolved executable path, and /opt/homebrew/bin is a farm of
+// symlinks into ../Cellar/<pkg>/<version>/bin. Allowing exec of the symlink
+// directory alone therefore allowed nothing: every Homebrew tool -- git, node,
+// ripgrep -- failed with "Operation not permitted" at execvp. Cellar and opt
+// are listed for both the Apple-silicon (/opt/homebrew) and Intel
+// (/usr/local) prefixes.
+//
+// Known gap: the Xcode command-line shims in /usr/bin (git, python3, clang,
+// xcrun) still do not run. They resolve /var/select/developer_dir, then dlopen
+// libxcrun from inside Xcode.app and talk to system services; granting
+// file-read* and process-exec over the whole filesystem is not enough to make
+// them work. Anyone needing them should install the tool through Homebrew, or
+// add explicit rules. Deciding how much of Xcode.app the default profile
+// should expose is a policy question, not a packaging one.
 var defaultExecAllowPaths = []string{
 	"/usr/bin", "/bin", "/usr/sbin", "/sbin",
-	"/usr/local/bin", "/opt/homebrew/bin",
+	"/usr/local/bin", "/usr/local/Cellar", "/usr/local/opt",
+	"/opt/homebrew/bin", "/opt/homebrew/Cellar", "/opt/homebrew/opt",
 }
 
 var defaultMachAllow = []string{
