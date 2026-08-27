@@ -26,7 +26,7 @@ func newActivateExtensionCmd() *cobra.Command {
 			case darwin.ActivateOK:
 				fmt.Println("System extension activated successfully.")
 				openFullDiskAccessSettings()
-				return nil
+				return installFilterAfterActivation()
 			case darwin.ActivateNeedsApproval:
 				fmt.Println("System extension requires approval.")
 				fmt.Println("Opening System Settings — please allow the AgentMon extension.")
@@ -36,7 +36,7 @@ func newActivateExtensionCmd() *cobra.Command {
 				fmt.Println("Press Enter when you've approved the extension to open Full Disk Access settings...")
 				fmt.Scanln()
 				openFullDiskAccessSettings()
-				return nil
+				return installFilterAfterActivation()
 			default:
 				if err != nil {
 					return fmt.Errorf("activation failed: %w", err)
@@ -75,6 +75,20 @@ func newDeactivateExtensionCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			mgr := darwin.NewSysExtManager()
 
+			// Remove the filter configuration first, while the provider it
+			// points at still exists. A configuration that outlives its
+			// extension leaves a dead entry in System Settings > Network >
+			// Filters, and the next install inherits it. A failure here is
+			// reported but does not stop the deactivation -- leaving the
+			// extension registered is the worse outcome, because it is what
+			// locks the app bundle against replacement.
+			if fr, ferr := darwin.RemoveContentFilter(); ferr != nil {
+				fmt.Printf("Warning: could not remove the content filter configuration: %v\n", ferr)
+				fmt.Println("Remove it manually in System Settings > Network > Filters.")
+			} else if fr == darwin.ActivateOK {
+				fmt.Println("Content filter configuration removed.")
+			}
+
 			fmt.Println("Deactivating AgentMon system extension...")
 			result, err := mgr.Deactivate()
 
@@ -99,4 +113,28 @@ func newDeactivateExtensionCmd() *cobra.Command {
 			}
 		},
 	}
+}
+
+// installFilterAfterActivation installs the content filter once the extension
+// is activated.
+//
+// This runs as part of activation because the two are not independently useful:
+// an activated extension with no filter configuration enforces file and exec
+// rules but silently ignores every network rule, and that gap is invisible from
+// `systemextensionsctl list`. A filter failure does not fail the activation --
+// file and exec enforcement is real and worth keeping -- but it is printed, and
+// `agentmon network-filter status` reports the resulting state.
+func installFilterAfterActivation() error {
+	fmt.Println()
+	result, err := installContentFilterWithMessages()
+	if err != nil {
+		fmt.Printf("Warning: %v\n", err)
+		fmt.Println("File and exec enforcement are unaffected; network rules stay unenforced.")
+		fmt.Println("Retry with `agentmon network-filter enable`.")
+		return nil
+	}
+	if result != darwin.ActivateOK {
+		fmt.Println("Check `agentmon network-filter status` once you have approved it.")
+	}
+	return nil
 }

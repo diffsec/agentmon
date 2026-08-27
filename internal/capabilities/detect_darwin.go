@@ -9,7 +9,7 @@ import (
 	"github.com/diffsec/agentmon/internal/platform/helperbin"
 )
 
-func buildDarwinDomains(caps map[string]any, esfDetail string) []ProtectionDomain {
+func buildDarwinDomains(caps map[string]any, esfDetail, netExtDetail string) []ProtectionDomain {
 	esf, _ := caps["esf"].(bool)
 	networkExt, _ := caps["network_extension"].(bool)
 	hasMacwrap := checkMacwrap()
@@ -45,7 +45,7 @@ func buildDarwinDomains(caps map[string]any, esfDetail string) []ProtectionDomai
 		{
 			Name: "Network", Weight: WeightNetwork,
 			Backends: []DetectedBackend{
-				{Name: "network-extension", Available: networkExt, Detail: networkExtDetail, Description: "network filtering", CheckMethod: "entitlement"},
+				{Name: "network-extension", Available: networkExt, Detail: netExtDetail, Description: "network filtering", CheckMethod: "filter-config"},
 			},
 		},
 		// sandbox-exec is deliberately absent from Command Control and Isolation.
@@ -82,13 +82,14 @@ func buildDarwinDomains(caps map[string]any, esfDetail string) []ProtectionDomai
 // darwinCaps maps sysext liveness onto the capability map. Kept pure so the
 // esf/esf_activated mapping — the exact regression #441 fixed — is testable
 // without subprocesses.
-func darwinCaps(l darwin.SysExtLiveness) map[string]any {
+func darwinCaps(l darwin.SysExtLiveness, filter darwin.ContentFilterState) map[string]any {
+	networkExt, _ := networkExtensionState(l, filter)
 	return map[string]any{
 		"sandbox_exec":      true,
 		"esf":               l.Running,
 		"esf_activated":     l.Activated,
 		"esf_probe_failed":  l.ProbeFailed,
-		"network_extension": checkNetworkExtension(),
+		"network_extension": networkExt,
 		"lima_available":    checkLima(),
 	}
 }
@@ -96,10 +97,12 @@ func darwinCaps(l darwin.SysExtLiveness) map[string]any {
 // Detect runs platform-specific detection and returns unified result.
 func Detect() (*DetectResult, error) {
 	liveness := darwin.CheckSysExtLiveness()
-	caps := darwinCaps(liveness)
+	filter := darwin.CheckContentFilter()
+	caps := darwinCaps(liveness, filter)
+	_, netExtDetail := networkExtensionState(liveness, filter)
 
 	mode, _ := selectDarwinMode(caps)
-	domains := buildDarwinDomains(caps, liveness.Detail)
+	domains := buildDarwinDomains(caps, liveness.Detail, netExtDetail)
 	score := ComputeScore(domains)
 
 	var available, unavailable []string
@@ -126,21 +129,36 @@ func Detect() (*DetectResult, error) {
 	}, nil
 }
 
-// checkNetworkExtension reports whether NetworkExtension filtering is active.
+// networkExtensionState reports whether NetworkExtension filtering is actually
+// running, and why not when it is not.
 //
-// It is not, and this is not a detection limitation: the system extension never
-// enters NetworkExtension mode. main.swift ends at dispatchMain() without ever
-// calling NEProvider.startSystemExtensionMode(), so FilterDataProvider and
-// DNSProxyProvider are never instantiated and no NEFilterManager or
-// NEDNSProxyManager configuration is installed. Until that is wired up, all
-// network and DNS policy is unenforced on macOS.
-func checkNetworkExtension() bool {
-	return false
+// This used to be a hardcoded false with a comment explaining that nothing
+// started the Network Extension. That is no longer true -- main.swift enters
+// NetworkExtension mode and `activate-extension` installs an NEFilterManager
+// configuration -- so the honest answer now depends on machine state, and both
+// halves have to hold:
+//
+//   - the extension process must be running, or there is no provider to filter
+//     with; and
+//   - an NEFilterManager configuration must exist and be enabled, or macOS
+//     never calls FilterDataProvider.startFilter and every flow passes.
+//
+// Reporting either half alone would score network protection for a machine that
+// has none. DNS is deliberately excluded: no NEDNSProxyManager configuration is
+// installed, so DNS rules remain unenforced regardless of what this returns.
+func networkExtensionState(l darwin.SysExtLiveness, filter darwin.ContentFilterState) (bool, string) {
+	switch {
+	case filter.Error != "":
+		return false, "content filter state unknown: " + filter.Error
+	case !filter.Installed:
+		return false, "no content filter configuration: run `agentmon network-filter enable`"
+	case !filter.Enabled:
+		return false, "content filter configuration is disabled, so startFilter is never called"
+	case !l.Running:
+		return false, "content filter is configured but the system extension is not running"
+	}
+	return true, "content filter active (TCP/UDP flows; DNS rules remain unenforced)"
 }
-
-// networkExtDetail explains the unavailability above in `agentmon detect`
-// output, so the gap is visible rather than an empty cell.
-const networkExtDetail = "not started: the system extension never enters NetworkExtension mode, so network and DNS rules are unenforced"
 
 func checkLima() bool {
 	// Check if limactl is available

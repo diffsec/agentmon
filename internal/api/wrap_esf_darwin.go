@@ -56,6 +56,22 @@ func platformWrapInit(a *App, sessionID string, req types.WrapInitRequest) (type
 
 	// ppid 0 marks this as a session root rather than a tracked child.
 	a.sessionTracker.RegisterProcess(sessionID, int32(req.CallerPID), 0)
+
+	// Registering with the tracker only makes the session answerable; it does
+	// not tell the extension the session exists. The extension learns that from
+	// this Darwin notification, which makes it fetch a policy snapshot -- and
+	// until it holds one, SessionPolicyCache maps no PID to a session and
+	// ESFClient's AUTH handlers allow everything.
+	//
+	// This is a parity fix, not a measured one. exec.go and exec_stream.go have
+	// always posted it after RegisterProcess; wrap-init never did. It could not
+	// be demonstrated end to end on hardware, because the extension only
+	// receives these notifications while its connection to the daemon is fresh
+	// -- after a daemon restart it reconnects to nothing, and both wrap and
+	// exec sessions then enforce nothing at all. That is a separate, known
+	// defect; this line is what wrap needs once it is fixed.
+	notifySessionRegistered()
+
 	slog.Info("registered wrap session root with the system extension",
 		"session_id", sessionID,
 		"root_pid", req.CallerPID)

@@ -158,6 +158,7 @@ func (a *PolicyAdapter) CheckExec(executable string, args []string, pid int32, p
 // told about, so this denies the sandboxed agent rather than the machine.
 func denyAllSnapshot(sessionID string) PolicyResponse {
 	deny := string(types.DecisionDeny)
+	failClosed := false
 	return PolicyResponse{
 		Allow:     false,
 		Rule:      "no-policy-fail-closed",
@@ -168,7 +169,49 @@ func denyAllSnapshot(sessionID string) PolicyResponse {
 			DNS:     deny,
 			Exec:    deny,
 		},
+		// The deny defaults above already make the extension's cache drop every
+		// flow. These two carry the same intent into the paths the cache does
+		// not decide, so a snapshot that means "deny everything" cannot be
+		// undone by a policy-socket timeout.
+		NetworkEnforcement: NetworkEnforcementBlock,
+		NetworkFailOpen:    &failClosed,
 	}
+}
+
+// Network enforcement modes carried in a snapshot. They set
+// FilterDataProvider.blockingEnabled, which was hardcoded false and never
+// assigned by anything.
+const (
+	// NetworkEnforcementBlock makes the provider consult the daemon
+	// synchronously for flows its local cache cannot decide, and enforce proxy
+	// bypass, rather than allowing them and reporting after the fact.
+	NetworkEnforcementBlock = "block"
+	// NetworkEnforcementAudit reports undecided flows and allows them.
+	NetworkEnforcementAudit = "audit"
+)
+
+// networkEnforcement decides which mode a session's snapshot asks for.
+//
+// What this does and does not change is worth being precise about, because the
+// name oversells it. A plain deny rule is already enforced without block mode:
+// SessionPolicyCache.evaluateNetwork returns .deny and FilterDataProvider drops
+// the flow before it ever reaches the blockingEnabled branch. Block mode governs
+// the flows the cache hands back as undecided -- today, rules with decision
+// "approve" -- plus proxy-bypass enforcement. In audit mode those are allowed
+// and reported; in block mode the provider waits for the daemon's answer.
+//
+// So the rule is: if the policy expresses any intent about network access at
+// all, the undecided cases go to the daemon rather than through. A policy with
+// no network rules and an allow default has nothing to enforce, and paying a
+// synchronous round trip per flow to be told "allow" is waste.
+func networkEnforcement(p *policy.Policy) string {
+	if p == nil {
+		return NetworkEnforcementBlock
+	}
+	if len(p.NetworkRules) > 0 {
+		return NetworkEnforcementBlock
+	}
+	return NetworkEnforcementAudit
 }
 
 // BuildPolicySnapshot projects the policy engine's rules into a flat snapshot
@@ -236,15 +279,26 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 		DNS:     string(types.DecisionAllow),
 	}
 
+	enforcement := networkEnforcement(p)
+	// Fail closed whenever we are enforcing. The blocking path's fallback runs
+	// when the policy socket times out or answers with something unrecognised,
+	// and allowing there would mean a slow or dead daemon silently turns network
+	// policy off -- the failure class AUDIT H5 was raised for. In audit mode the
+	// flow is allowed regardless, so the flag is reported as fail-open to match
+	// what actually happens rather than implying an enforcement we do not do.
+	failOpen := enforcement != NetworkEnforcementBlock
+
 	return PolicyResponse{
-		Allow:           true,
-		SessionID:       sessionID,
-		RootPID:         rootPID,
-		SnapshotVersion: 1, // Will be replaced by SessionVersions counter in Task 4
-		FileRules:       fileRules,
-		NetworkRules:    networkRules,
-		DNSRules:        dnsRules,
-		Defaults:        &defaults,
+		Allow:              true,
+		SessionID:          sessionID,
+		RootPID:            rootPID,
+		SnapshotVersion:    1, // Will be replaced by SessionVersions counter in Task 4
+		FileRules:          fileRules,
+		NetworkRules:       networkRules,
+		DNSRules:           dnsRules,
+		Defaults:           &defaults,
+		NetworkEnforcement: enforcement,
+		NetworkFailOpen:    &failOpen,
 	}
 }
 

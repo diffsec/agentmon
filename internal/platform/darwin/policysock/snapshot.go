@@ -17,6 +17,12 @@ type PolicySnapshotResponse struct {
 	Defaults     *SnapshotDefaults     `json:"defaults"`
 	ProxyAddr    string                `json:"proxy_addr,omitempty"`
 	DirectAllow  []DirectAllow         `json:"direct_allow,omitempty"`
+
+	// NetworkEnforcement is "block" or "audit"; NetworkFailOpen says what a
+	// blocking-mode timeout or socket failure does. See networkEnforcement in
+	// handler.go for how they are derived and what each one changes.
+	NetworkEnforcement string `json:"network_enforcement,omitempty"`
+	NetworkFailOpen    *bool  `json:"network_fail_open,omitempty"`
 }
 
 // SnapshotFileRule represents a single file-access rule in the snapshot.
