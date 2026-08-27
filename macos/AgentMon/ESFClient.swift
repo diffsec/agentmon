@@ -110,17 +110,56 @@ class ESFClient {
     ///     muted events about someone opening the agentmon binary -- the
     ///     opposite of a recursion guard. ES_MUTE_PATH_TYPE_PREFIX is the
     ///     instigating-program form.
+    /// Canonical location of the daemon and helper binaries once installed.
+    ///
+    /// Hardcoding this is safe, and necessary. macOS refuses to activate a
+    /// system extension whose containing app is anywhere else --
+    /// OSSystemExtensionErrorUnsupportedParentBundleLocation, "App containing
+    /// System Extension to be activated must be in /Applications folder" -- so
+    /// if this extension is running at all, the app is here.
+    ///
+    /// It cannot be derived from Bundle.main. Once activated, the extension is
+    /// staged at /Library/SystemExtensions/<uuid>/….systemextension, and
+    /// walking that path upwards never reaches an .app. That is exactly what
+    /// went wrong: helperBinaryDirectory fell through to the extension's own
+    /// directory and muted only itself.
+    private static let installedHelperDirectory = "/Applications/AgentMon.app/Contents/MacOS"
+
+    /// Stop ESF reporting agentmon's own processes to agentmon.
+    ///
+    /// Not muting the daemon is not merely noisy, it is recursive. The daemon
+    /// spawns subprocesses -- `codesign`, for one, on every policy-socket
+    /// connection it validates -- and since exec decisions are now answered by
+    /// the daemon, an unmuted `codesign` exec asks the daemon, whose answer
+    /// requires validating the peer, which spawns `codesign`. Observed on a
+    /// live machine as a stream of
+    /// "code signing validation failed … codesign verification failed: signal:
+    /// killed", with every session left unenforced because the extension could
+    /// no longer be validated at all.
+    ///
+    /// Both paths are muted: the installed location, and whatever
+    /// helperBinaryDirectory derives, which is what covers a development build
+    /// running outside /Applications.
     private func muteOwnBinaries(client: OpaquePointer) {
-        guard let dir = Self.helperBinaryDirectory() else {
-            NSLog("ESFClient: could not locate the app bundle; agentmon's own binaries are NOT muted and will be policed by session policy")
+        var muted: [String] = []
+        var candidates = [Self.installedHelperDirectory]
+        if let derived = Self.helperBinaryDirectory(), derived != Self.installedHelperDirectory {
+            candidates.append(derived)
+        }
+
+        for dir in candidates {
+            if es_mute_path(client, dir, ES_MUTE_PATH_TYPE_PREFIX) == ES_RETURN_SUCCESS {
+                muted.append(dir)
+            } else {
+                NSLog("ESFClient: failed to mute \(dir)")
+            }
+        }
+
+        if muted.isEmpty {
+            NSLog("ESFClient: agentmon's own binaries are NOT muted; exec checks will recurse through the daemon")
             return
         }
-        let result = es_mute_path(client, dir, ES_MUTE_PATH_TYPE_PREFIX)
-        if result == ES_RETURN_SUCCESS {
-            NSLog("ESFClient: muted agentmon binaries under \(dir)")
-        } else {
-            NSLog("ESFClient: failed to mute \(dir): \(result.rawValue)")
-        }
+        NSLog("ESFClient: muted agentmon binaries under \(muted.joined(separator: ", "))")
     }
 
     /// The directory holding agentmon's executables, resolved from wherever
