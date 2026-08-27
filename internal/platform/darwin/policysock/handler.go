@@ -14,6 +14,7 @@ type SessionResolver interface {
 	SessionForPID(pid int32) string
 	LatestSession() (sessionID string, rootPID int32)
 	RootPIDForSession(sessionID string) int32
+	ActiveSessions() []string
 }
 
 // PolicyAdapter adapts the policy.Engine to the PolicyHandler interface.
@@ -279,6 +280,15 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 		DNS:     string(types.DecisionAllow),
 	}
 
+	// Every registered session, not just this one. Darwin notifications
+	// coalesce, so the extension can be told "a session registered" once for
+	// two registrations; it fetches the latest and would never learn about the
+	// other. Handing back the full list lets it fetch what it is missing.
+	var activeSessions []string
+	if a.sessions != nil {
+		activeSessions = a.sessions.ActiveSessions()
+	}
+
 	enforcement := networkEnforcement(p)
 	// Fail closed whenever we are enforcing. The blocking path's fallback runs
 	// when the policy socket times out or answers with something unrecognised,
@@ -299,6 +309,7 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 		Defaults:           &defaults,
 		NetworkEnforcement: enforcement,
 		NetworkFailOpen:    &failOpen,
+		ActiveSessions:     activeSessions,
 	}
 }
 

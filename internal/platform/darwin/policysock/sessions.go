@@ -178,6 +178,24 @@ func (t *SessionTracker) LatestSession() (sessionID string, rootPID int32) {
 	return sessionID, t.sessionRootPID[sessionID]
 }
 
+// ActiveSessions returns every registered session ID, oldest first.
+//
+// The extension needs this because Darwin notifications COALESCE: two sessions
+// registering in quick succession can produce a single delivery, and the
+// handler only ever fetches the latest session's snapshot. Without the full
+// list, the older session is never fetched, holds no policy, and therefore
+// enforces nothing -- silently, for its whole lifetime.
+func (t *SessionTracker) ActiveSessions() []string {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if len(t.sessionOrder) == 0 {
+		return nil
+	}
+	out := make([]string, len(t.sessionOrder))
+	copy(out, t.sessionOrder)
+	return out
+}
+
 // RootPIDForSession returns the root PID for a session ID.
 func (t *SessionTracker) RootPIDForSession(sessionID string) int32 {
 	t.mu.RLock()
