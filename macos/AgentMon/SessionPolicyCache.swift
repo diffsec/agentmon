@@ -278,23 +278,45 @@ class SessionPolicyCache {
 
     // MARK: - Network Policy Evaluation
 
-    func evaluateNetwork(host: String, port: Int, pid: pid_t) -> (CacheDecision, String?) {
+    /// Evaluate a connection against the session's network rules.
+    ///
+    /// `host` and `ip` are separate on purpose. BuildPolicySnapshot flattens
+    /// both `domains:` and `cidrs:` into the same pattern list, so a rule is
+    /// matched either as a glob against the hostname or as a prefix against the
+    /// address, and only one of those is meaningful for any given rule. The
+    /// caller used to collapse them to `hostname ?? ip` and glob-match the
+    /// result, which threw the address away whenever SNI was available and
+    /// could never match a CIDR in any case -- `globMatch("10.0.0.0/8", ...)`
+    /// is false for every input. A `cidrs:` deny was silently inert, and
+    /// silently is the operative word: evaluateNetwork returns .allow rather
+    /// than .fallthrough_ when nothing matches, so the daemon was never asked
+    /// for a second opinion.
+    func evaluateNetwork(host: String?, ip: String, port: Int, pid: pid_t) -> (CacheDecision, String?) {
         return queue.sync {
             guard let sid = pidToSession[pid],
                   let cache = sessions[sid] else {
                 return (.allow, nil)
             }
 
+            func matches(_ rule: NetworkRule) -> Bool {
+                guard rule.ports.isEmpty || rule.ports.contains(port) else { return false }
+                if rule.pattern.contains("/") {
+                    return cidrMatch(pattern: rule.pattern, ip: ip)
+                }
+                // A domain rule is tried against the hostname when there is
+                // one, and against the address otherwise, which is what
+                // patterns like "*" rely on.
+                return globMatch(pattern: rule.pattern, path: host ?? ip)
+            }
+
             for rule in cache.networkRules where rule.action == "deny" {
-                if globMatch(pattern: rule.pattern, path: host) &&
-                   (rule.ports.isEmpty || rule.ports.contains(port)) {
+                if matches(rule) {
                     return (.deny, sid)
                 }
             }
 
             for rule in cache.networkRules where rule.action != "deny" {
-                if globMatch(pattern: rule.pattern, path: host) &&
-                   (rule.ports.isEmpty || rule.ports.contains(port)) {
+                if matches(rule) {
                     if rule.action == "approve" {
                         return (.fallthrough_, sid)
                     }
@@ -308,6 +330,56 @@ class SessionPolicyCache {
                 return (.deny, sid)
             }
             return (.allow, sid)
+        }
+    }
+
+    /// Match an address against a CIDR block, for both IPv4 and IPv6.
+    ///
+    /// Parsing is delegated to inet_pton rather than done by hand: it settles
+    /// IPv4-in-IPv6, zero compression and shorthand forms that a string
+    /// comparison gets wrong. A pattern whose address or prefix length does not
+    /// parse matches NOTHING -- returning true on a malformed rule would turn a
+    /// typo into a machine-wide deny, and returning true on a malformed rule in
+    /// an allow list would turn one into a hole.
+    private func cidrMatch(pattern: String, ip: String) -> Bool {
+        let parts = pattern.split(separator: "/", maxSplits: 1)
+        guard parts.count == 2,
+              let prefixLen = Int(parts[1]), prefixLen >= 0 else { return false }
+        let network = String(parts[0])
+
+        // IPv4
+        var netV4 = in_addr()
+        var ipV4 = in_addr()
+        if inet_pton(AF_INET, network, &netV4) == 1 {
+            guard prefixLen <= 32, inet_pton(AF_INET, ip, &ipV4) == 1 else { return false }
+            if prefixLen == 0 { return true }
+            // s_addr is network byte order; shifting in host order would
+            // compare the wrong end of the address on a little-endian machine.
+            let mask = UInt32.max << (32 - UInt32(prefixLen))
+            return (UInt32(bigEndian: netV4.s_addr) & mask)
+                == (UInt32(bigEndian: ipV4.s_addr) & mask)
+        }
+
+        // IPv6
+        var netV6 = in6_addr()
+        var ipV6 = in6_addr()
+        guard inet_pton(AF_INET6, network, &netV6) == 1,
+              prefixLen <= 128,
+              inet_pton(AF_INET6, ip, &ipV6) == 1 else { return false }
+
+        return withUnsafeBytes(of: &netV6) { netBytes in
+            withUnsafeBytes(of: &ipV6) { ipBytes in
+                var remaining = prefixLen
+                var i = 0
+                while remaining >= 8 {
+                    if netBytes[i] != ipBytes[i] { return false }
+                    remaining -= 8
+                    i += 1
+                }
+                if remaining == 0 { return true }
+                let mask = UInt8(0xFF) << UInt8(8 - remaining)
+                return (netBytes[i] & mask) == (ipBytes[i] & mask)
+            }
         }
     }
 

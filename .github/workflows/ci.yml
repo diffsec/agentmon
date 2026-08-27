@@ -105,6 +105,12 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             -quiet
 
+      # The Swift side has no test target. This runs the one piece of it that
+      # is pure logic worth pinning -- CIDR matching, whose failure mode is a
+      # network rule that silently matches nothing.
+      - name: Swift CIDR matcher
+        run: scripts/test-swift-cidr.sh
+
   build-matrix:
     needs: [test-linux, test-macos]
     runs-on: ubuntu-latest

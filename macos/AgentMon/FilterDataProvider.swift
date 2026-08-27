@@ -140,9 +140,13 @@ class FilterDataProvider: NEFilterDataProvider {
         // Extract domain from flow if available (SNI/hostname)
         let hostname = socketFlow.remoteHostname
 
-        // Cache fast-path: check network rules
+        // Cache fast-path: check network rules.
+        //
+        // hostname and ip are passed separately: domain rules match the
+        // hostname, CIDR rules match the address, and collapsing them to
+        // `hostname ?? ip` discarded the address whenever SNI was available.
         let (cacheDecision, _) = SessionPolicyCache.shared.evaluateNetwork(
-            host: hostname ?? ip, port: port, pid: pid)
+            host: hostname, ip: ip, port: port, pid: pid)
 
         switch cacheDecision {
         case .allow:
