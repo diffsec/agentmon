@@ -41,10 +41,17 @@ func platformWrapInit(a *App, sessionID string, req types.WrapInitRequest) (type
 
 	// Same probe `agentmon detect` reports from, so the two cannot disagree
 	// about whether macOS is enforcing.
+	//
+	// Running is not merely "launchd says the process exists": see
+	// CheckSysExtLiveness, which rejects a process whose pid changes between
+	// samples. That is what a crash-looping extension looks like -- one denied
+	// Full Disk Access fails es_new_client, retries three times, exits 1, and
+	// is respawned -- and launchd reports it as "running" for part of every
+	// cycle.
 	live := darwin.CheckSysExtLiveness()
 	if !live.Running {
 		return types.WrapInitResponse{}, http.StatusServiceUnavailable,
-			fmt.Errorf("wrap: the agentmon system extension is not running, so nothing would enforce policy on this session (%s)", live.Detail)
+			fmt.Errorf("wrap: the agentmon system extension is not enforcing, so nothing would constrain this session (%s)", live.Detail)
 	}
 
 	// ppid 0 marks this as a session root rather than a tracked child.

@@ -357,11 +357,17 @@ jobs:
 
       - name: Build Swift targets (universal)
         run: |
+          # CURRENT_PROJECT_VERSION becomes the extension's CFBundleVersion, and
+          # macOS replaces an installed system extension only when the incoming
+          # one is higher. It was hardcoded to 1.0.0, so every release shipped
+          # the same version and an already-installed extension was never
+          # swapped in -- users would keep the first one they installed.
           xcodebuild \
             -project macos/AgentMon/agentmon.xcodeproj \
             -scheme agentmon \
             -configuration Release \
             -derivedDataPath build/DerivedData \
+            CURRENT_PROJECT_VERSION="$(git rev-list --count HEAD)" \
             ARCHS="arm64 x86_64" \
             ONLY_ACTIVE_ARCH=NO \
             CODE_SIGN_IDENTITY="" \

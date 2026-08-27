@@ -1159,3 +1159,45 @@ func TestServer_MutePath(t *testing.T) {
 		t.Errorf("muted path: got %q, want %q", registrar.mutedPaths[0], "/usr/local/bin/agentmon-stub")
 	}
 }
+
+// TestExtensionConnected_TracksConnections covers the signal that decides
+// whether macOS is reported as enforcing.
+//
+// The launchd service state cannot answer this: an extension denied Full Disk
+// Access fails es_new_client, retries, exits 1 and is respawned, so it reads
+// as "running" for part of every cycle. A connection to this socket is
+// stronger evidence, because main.swift connects only after ESFClient.create()
+// and subscribe() have both succeeded.
+func TestExtensionConnected_TracksConnections(t *testing.T) {
+	srv := NewServer(testSockPath(t), &mockPolicyEngine{})
+
+	if connected, _ := srv.ExtensionConnected(); connected {
+		t.Fatal("a server with no connections reported the extension as connected; wrap would proceed against an extension that is not there")
+	}
+
+	srv.connOpened()
+	connected, first := srv.ExtensionConnected()
+	if !connected {
+		t.Fatal("an open connection was not reported as connected")
+	}
+	if first.IsZero() {
+		t.Error("lastContact should be set when a connection opens")
+	}
+
+	srv.connClosed()
+	if connected, _ := srv.ExtensionConnected(); connected {
+		t.Fatal("connection closed but still reported as connected; a dead extension would read as healthy")
+	}
+}
+
+// TestConnClosed_DoesNotUnderflow guards the counter: a stray close must not
+// drive it negative, which would make a later real connection read as absent.
+func TestConnClosed_DoesNotUnderflow(t *testing.T) {
+	srv := NewServer(testSockPath(t), &mockPolicyEngine{})
+	srv.connClosed()
+	srv.connClosed()
+	srv.connOpened()
+	if connected, _ := srv.ExtensionConnected(); !connected {
+		t.Fatal("counter underflowed: an open connection reported as not connected")
+	}
+}

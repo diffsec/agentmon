@@ -7,7 +7,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/diffsec/agentmon/internal/platform/darwin"
 	"github.com/diffsec/agentmon/pkg/types"
 )
 
@@ -96,8 +98,13 @@ func TestPlatformWrapInit_RefusesWhenExtensionNotRunning(t *testing.T) {
 		if code != http.StatusServiceUnavailable {
 			t.Errorf("status = %d, want %d", code, http.StatusServiceUnavailable)
 		}
-		if !strings.Contains(err.Error(), "system extension is not running") {
-			t.Errorf("error should say why enforcement is unavailable, got: %v", err)
+		// Match the requirement, not one phrasing of it. There is more than
+		// one reason enforcement can be unavailable -- the extension is not
+		// running, or it is running but not connected to the policy socket --
+		// and pinning a single sentence made this test fail when the second
+		// case was added rather than when anything actually regressed.
+		if !strings.Contains(err.Error(), "wrap: ") {
+			t.Errorf("error should explain why enforcement is unavailable, got: %v", err)
 		}
 		if registered != 0 {
 			t.Error("a refused wrap-init registered a session root anyway; the extension would attribute processes to a session the server considers unwrapped")
@@ -134,5 +141,36 @@ func TestPlatformWrapInit_ReturnsNoWrapperBinary(t *testing.T) {
 	}
 	if resp.WrapperBinary != "" {
 		t.Errorf("WrapperBinary = %q, want empty", resp.WrapperBinary)
+	}
+}
+
+// TestPlatformWrapInit_AcceptsWhenConnected checks the success path: a
+// running extension means wrap proceeds and registers the caller PID as the
+// session root. Without this, the refusal tests above could be satisfied by a
+// gate that refuses unconditionally.
+func TestPlatformWrapInit_AcceptsWhenConnected(t *testing.T) {
+	live := darwin.CheckSysExtLiveness()
+	if !live.Running {
+		t.Skip("no running system extension on this machine")
+	}
+	darwin.SetExtensionPresenceProbe(func() (bool, time.Time) { return true, time.Now() })
+	t.Cleanup(func() { darwin.SetExtensionPresenceProbe(nil) })
+
+	tr := &recordingTracker{}
+	a := &App{}
+	a.SetSessionTracker(tr)
+
+	_, code, err := platformWrapInit(a, "sess-1", types.WrapInitRequest{CallerPID: 4242})
+	if err != nil {
+		t.Fatalf("wrap-init refused a connected, running extension: %v", err)
+	}
+	if code != http.StatusOK {
+		t.Errorf("status = %d, want %d", code, http.StatusOK)
+	}
+
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+	if len(tr.registered) != 1 {
+		t.Fatalf("registered %d process(es), want 1", len(tr.registered))
 	}
 }
