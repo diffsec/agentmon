@@ -165,8 +165,49 @@ class SessionPolicyCache {
     // MARK: - Session Membership
 
     /// Returns the sessionID for a PID, or nil if not in any session.
+    /// Resolve a PID to its session, walking up the process tree if it is not
+    /// mapped directly.
+    ///
+    /// The direct map is populated by addPID from ESF FORK events, which only
+    /// works if the parent was ALREADY in a session when the fork happened.
+    /// Under `agentmon wrap` it is not: the daemon registers the wrap caller as
+    /// the session root and posts the notification, but the agent has usually
+    /// been forked by the time the extension fetches the snapshot. That fork
+    /// event is dropped, the agent is never attributed, and every descendant of
+    /// it inherits the same blindness -- so a wrapped session enforced nothing
+    /// at all, which is the entire point of wrapping.
+    ///
+    /// `agentmon exec` did not show this because the daemon explicitly
+    /// registers both its own PID and the command's PID, so it never depends on
+    /// catching the fork.
+    ///
+    /// The walk uses ProcessHierarchy, which falls back to sysctl for processes
+    /// it never saw fork, so it works for PIDs that predate the snapshot. Only
+    /// positive results are cached: "not in a session" must stay re-checkable,
+    /// because a session can be registered after the first lookup.
     func sessionForPID(_ pid: pid_t) -> String? {
-        queue.sync { pidToSession[pid] }
+        if let sid = queue.sync(execute: { pidToSession[pid] }) {
+            return sid
+        }
+
+        // Nothing is tracked at all -- skip the sysctl walk entirely. This is
+        // the common case on an idle machine and it is on the ESF AUTH hot path.
+        guard _hasActiveSessions != 0 else { return nil }
+
+        for ancestor in ProcessHierarchy.shared.getAncestors(pid: pid) {
+            guard let sid = queue.sync(execute: { pidToSession[ancestor] }) else {
+                continue
+            }
+            queue.async(flags: .barrier) {
+                // Re-check under the barrier: another thread may have mapped it.
+                guard self.pidToSession[pid] == nil,
+                      let cache = self.sessions[sid] else { return }
+                cache.sessionPIDs.insert(pid)
+                self.pidToSession[pid] = sid
+            }
+            return sid
+        }
+        return nil
     }
 
     /// Returns the SessionCache for a PID, or nil if not in any session.
