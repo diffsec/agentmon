@@ -6,7 +6,7 @@ agentmon supports **Linux** and **macOS** natively. Linux provides the most comp
 
 **macOS ESF+NE entitlements:** agentmon ships with the required ESF and Network Extension entitlements. No separate Apple approval is needed to use the pre-built binary.
 
-If you're on Windows, the recommended approach is to run agentmon inside WSL2 or a Linux container. Unix socket enforcement (seccomp user-notify) is Linux-only.
+Windows is not supported; support was removed in full. Unix socket enforcement (seccomp user-notify) is Linux-only.
 
 ## Linux Security Levels
 
@@ -129,26 +129,24 @@ See [Security Modes](security-modes.md) for detailed mode configuration.
 ## What works today
 
 - **Linux (native):** primary supported platform with tiered security (full → landlock → landlock-only → minimal depending on environment). See [Linux Security Levels](#linux-security-levels) above.
-- **macOS ESF+NE (Alpha):** Endpoint Security Framework + Network Extension for near-Linux enforcement. Install via `brew tap canyonroad/tap && brew install --cask agentmon`.
-- **Windows:** run in **WSL2** (recommended) or a Linux container.
+- **macOS ESF+NE (Alpha):** Endpoint Security Framework + Network Extension. File, command and network policy enforce; DNS and resource limits do not. Apple Silicon only. Build and notarize from source -- there is no published release or Homebrew tap.
+- **Windows:** not supported. Support was removed in full.
 - **gRPC (optional):** if enabled, clients connect to `server.grpc.addr` (default `127.0.0.1:9090`). The CLI can prefer gRPC via `AGENTMON_TRANSPORT=grpc`.
 
 ## Feature availability (current implementation)
 
-- **FUSE workspace view:** Linux (FUSE3) and Windows (WinFsp). In containers requires `/dev/fuse` + `SYS_ADMIN`. macOS uses ESF for file monitoring.
+- **FUSE workspace view:** Linux (FUSE3). In containers requires `/dev/fuse` + `SYS_ADMIN`. macOS uses ESF for file monitoring; FUSE is hardcoded off there.
 - **FUSE event emission:** File operation events (open, read, write, create, delete, rename) are emitted to the configured EventChannel for audit logging and monitoring.
-- **Process sandboxing:** Linux (namespaces via unshare), macOS (sandbox-exec with SBPL profiles), Windows (AppContainer).
+- **Process sandboxing:** Linux (namespaces via unshare), macOS (seatbelt SBPL profiles compiled by `agentmon-macwrap`).
 - **Network visibility + policy enforcement:** works via the per-session proxy (DNS/connect/HTTP events).
 - **Transparent netns interception:** optional, Linux/root-only (requires privileges; proxy mode works without it).
 - **cgroups v2 limits:** optional, Linux-only; disabled by default (requires a writable cgroup base path).
 - **macOS resource monitoring:** native Mach API monitoring for memory, CPU, and thread count (monitoring only, no enforcement).
-- **Windows resource monitoring:** Job Objects for memory, CPU, disk I/O, process count; Toolhelp32 for thread count (both monitoring and enforcement via Job Objects).
-- **Process execution stats:** CPU user/system time returned in exec results on all platforms. Peak memory available on Unix (Linux/macOS) but not Windows.
-- **Registry monitoring + policy enforcement:** Windows-only, requires mini filter driver (see below).
+- **Process execution stats:** CPU user/system time and peak memory returned in exec results on Linux and macOS.
 - **seccomp syscall filtering:** Linux-only via seccomp user-notify for unix socket enforcement.
 - **ptrace execve interception:** Linux-only via PTRACE_SEIZE for execve/execveat enforcement in restricted containers (e.g. AWS Fargate with SYS_PTRACE).
 - **XPC/Mach IPC control:** macOS-only via sandbox profiles with mach-lookup restrictions. See [macOS XPC Sandbox](macos-xpc-sandbox.md).
-- **Full namespace isolation:** Linux, Lima VM, and WSL2 via `unshare` (user, mount, PID, network namespaces).
+- **Full namespace isolation:** Linux and Lima VM via `unshare` (user, mount, PID, network namespaces).
 - **eBPF network enforcement:** Linux-only, requires cgroups v2 and root/CAP_BPF.
 
 ## Quick start
@@ -329,161 +327,6 @@ sandbox:
 
 **Implementation:** See `internal/platform/darwin/sandbox.go` for the SBPL profile generation logic.
 
-### Windows (Native - Mini Filter Driver)
-
-For native Windows support with kernel-level enforcement:
-
-```bash
-# Install the driver (requires Administrator)
-# Driver must be test-signed for development or production-signed for release
-sc create agentmon type=filesys binPath="C:\path\to\agentmon.sys"
-sc start agentmon
-
-# Run the agentmon server
-agentmon server
-```
-
-**Requirements:**
-- Windows 10/11 (64-bit)
-- Administrator privileges for driver installation
-- Test signing enabled for development, or EV-signed driver for production
-
-**Network Interception:**
-- WinDivert for transparent TCP/DNS proxy (requires Administrator)
-- Falls back to WFP for block-only mode if WinDivert unavailable
-
-**Current Implementation Status (All 5 Phases Complete):**
-- ✅ Driver skeleton and filter port communication
-- ✅ Process tracking (session processes and child inheritance)
-- ✅ Filesystem interception (create, write, delete, rename)
-- ✅ Registry interception (create/set/delete keys, high-risk path detection)
-- ✅ Network interception (WinDivert TCP/DNS proxy with WFP fallback)
-- ✅ Production readiness (configurable fail modes, metrics, caching)
-- ✅ WinFsp filesystem mounting (FUSE-style with soft-delete support)
-
-**Registry Policy Configuration:**
-
-Registry rules in your policy file control Windows registry access:
-
-```yaml
-registry_rules:
-  - name: allow-app-settings
-    paths: ['HKCU\SOFTWARE\MyApp\*']
-    operations: ["*"]
-    decision: allow
-
-  - name: block-persistence-keys
-    paths:
-      - 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run*'
-      - 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run*'
-    operations: [write, create, delete]
-    decision: deny
-    priority: 100
-```
-
-Built-in high-risk path detection automatically blocks write operations to critical registry locations (Run keys, services, Windows Defender settings, LSA) with MITRE ATT&CK technique mappings for audit logging.
-
-**WinFsp Filesystem Mounting:**
-
-For FUSE-style filesystem mounting with soft-delete support:
-
-```bash
-# Install WinFsp (required for FUSE-style mounting)
-winget install WinFsp.WinFsp
-
-# Build with CGO enabled
-CGO_ENABLED=1 go build -o agentmon.exe ./cmd/agentmon
-
-# Run the server (WinFsp mount is automatic)
-agentmon server
-```
-
-WinFsp provides FUSE-style mounting on Windows, using a shared `internal/platform/fuse/` package. Features include:
-- Policy-enforced file operations (read, write, create, delete)
-- Soft-delete (files moved to trash instead of permanent deletion)
-- Automatic minifilter process exclusion to prevent double-interception
-
-**AppContainer Sandbox Isolation:**
-
-Windows 8+ supports AppContainer for kernel-enforced process isolation. agentmon uses a two-layer security model:
-
-| Layer | Technology | Purpose |
-|-------|------------|---------|
-| Primary | AppContainer | Kernel-enforced capability isolation |
-| Secondary | Minifilter driver | Policy-based file/registry rules |
-
-**AppContainer Features:**
-- Full process isolation with kernel-enforced capability restrictions
-- Stdout/stderr capture from sandboxed processes
-- Automatic ACL cleanup on sandbox close
-- Configurable network access levels (none, outbound, local, full)
-
-**Sandbox Configuration:**
-
-```yaml
-sandbox:
-  windows:
-    use_app_container: true    # Default: true (Windows 8+ required)
-    use_minifilter: true       # Default: true
-    network_access: none       # none, outbound, local, full
-    fail_on_error: true        # Default: true
-```
-
-**Network Access Levels:**
-
-| Level | Description |
-|-------|-------------|
-| `none` | No network access (default, maximum isolation) |
-| `outbound` | Internet client connections only |
-| `local` | Private network access only |
-| `full` | All network access |
-
-**Configuration Example (Go API):**
-
-```go
-config := platform.SandboxConfig{
-    Name: "my-sandbox",
-    WorkspacePath: "/path/to/workspace",
-    WindowsOptions: &platform.WindowsSandboxOptions{
-        UseAppContainer:         true,
-        UseMinifilter:           true,
-        NetworkAccess:           platform.NetworkNone,
-        FailOnAppContainerError: true,
-    },
-}
-```
-
-See [Windows Driver Deployment Guide](windows-driver-deployment.md) for installation and configuration.
-
-### Windows (WSL2)
-
-- Install WSL2 + a distro (e.g. Ubuntu).
-- Inside WSL, install `fuse3` and run `agentmon server`.
-- Keep workspaces on the Linux filesystem (e.g. `/home/...`), not `/mnt/c/...`, for performance.
-
-**Resource Limits (cgroups v2):** WSL2 uses cgroups v2 inside the Linux VM for resource enforcement:
-- Cgroup path: `/sys/fs/cgroup/agentmon/<session-name>`
-- Supported limits: CPU (quota/period), memory, process count, disk I/O (read/write bandwidth)
-- Stats available: memory usage, CPU time, process count, disk I/O bytes
-
-**Network Interception (iptables):** WSL2 uses iptables DNAT rules for traffic redirection:
-- Custom chain: `AGENTMON` in the nat table
-- TCP traffic redirected to proxy port (localhost excluded)
-- DNS (UDP port 53) redirected to DNS proxy port
-
-**Filesystem Mounting (bindfs):** WSL2 uses bindfs for FUSE-based filesystem mounting inside the VM:
-- Windows paths translated to WSL paths (e.g., `C:\Users\test` → `/mnt/c/Users/test`)
-- Source directory mounted to mount point using bindfs (passthrough mount)
-- Automatic bindfs installation if not present (`sudo apt install bindfs`)
-- Unmount via `fusermount -u` with `sudo umount` fallback
-- Mount tracking prevents duplicate mounts to same location
-
-**Process Isolation (namespaces):** WSL2 uses Linux namespaces via `unshare` for process isolation:
-- Full isolation: user, mount, UTS, IPC, network, and PID namespaces
-- Partial isolation: mount, UTS, IPC, PID namespaces (when user namespace unavailable)
-- Automatic detection of available isolation level
-- Working directory support for sandboxed commands
-
 ### Docker (any host)
 
 FUSE requires extra privileges inside containers:
@@ -534,7 +377,7 @@ The generated config includes only security-related sections (`security:`, `land
 
 - **FUSE mount fails (Linux):** ensure FUSE3 is installed (host/VM) and, in Docker, `/dev/fuse` is present and `SYS_ADMIN` is allowed.
 - **No file events on macOS:** ensure the system extension is approved in System Settings > General > Login Items & Extensions.
-- **bindfs mount fails (Lima/WSL2):** ensure bindfs is installed in the VM (`sudo apt install bindfs`) and `/dev/fuse` is available.
+- **bindfs mount fails (Lima):** ensure bindfs is installed in the VM (`sudo apt install bindfs`) and `/dev/fuse` is available.
 - **System Extension not loading (macOS ESF+NE):** check System Settings > General > Login Items & Extensions. User must approve the System Extension.
 - **XPC connection fails (macOS ESF+NE):** verify the System Extension is approved and running. Check Console.app for XPC errors.
 - **ESF client initialization fails:** ensure the app is signed with valid ESF entitlement from Apple (requires approval).

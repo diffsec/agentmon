@@ -1,537 +1,203 @@
-# Platform Comparison Matrix
+# Platform Comparison
 
-> **macOS ESF+NE is Alpha.** The feature matrix below reflects design-target capabilities. The ESF+NE column is functional end-to-end but not yet production-ready.
+agentmon supports **Linux** and **macOS**. Windows support was removed in full; if
+you are looking for it, it is gone rather than unfinished.
 
-This document provides a comprehensive comparison of agentmon capabilities across all supported platforms.
-
-## Feature Support Matrix
-
-> **Note on macOS Lima:** The "macOS Lima" column applies to both deployment modes. When running agentmon **inside** the Lima VM, you get 100% Linux-equivalent security. When running agentmon on macOS **orchestrating** the Lima VM, you get 85% due to VM boundary overhead. See [Lima Deployment Modes](#lima-deployment-modes) for details.
-
-> **Database access note:** Current database enforcement is Postgres-family only and the runtime DB proxy is Linux-only. Use native Linux, WSL2, or a Linux VM environment for `db_services` enforcement. Native macOS and native Windows builds compile the DB packages but the Postgres proxy runtime returns unsupported.
-
-| Feature | Linux | macOS ESF+NE | macOS Lima | Win Native | Win WSL2 |
-|---------|:-----:|:------------:|:----------:|:----------:|:--------:|
-| **Filesystem Interception** | | | | | |
-| Implementation | FUSE3 | Endpoint Security | FUSE3 | Mini Filter + WinFsp | FUSE3 |
-| File read monitoring | Block | Block | Block | Block | Block | Block |
-| File write monitoring | Block | Block | Block | Block | Block | Block |
-| File create/delete | Block | Block | Block | Block | Block | Block |
-| File policy enforcement | Yes | Yes | Yes | Yes | Yes | Yes |
-| File event emission | Yes | Yes | Yes | Yes | Yes | Yes |
-| **Network Interception** | | | | | | |
-| Implementation | iptables | Network Extension | pf | iptables | WinDivert | iptables |
-| TCP interception | Block | Block | Block | Block | Block | Block |
-| UDP interception | Block | Block | Block | Block | Block | Block |
-| DNS interception | Block | Block | Block | Block | Block | Block |
-| TLS inspection | Yes | Yes | Yes | Yes | Yes | Yes |
-| Per-app filtering | No | Yes | No | No | No | No |
-| **Synchronous Interception** | | | | | | |
-| File operations hold | Yes | Yes | Yes | Yes | Yes | Yes |
-| Network operations hold | Yes | Yes | Yes | Yes | Yes | Yes |
-| DNS hold | Yes | Yes | Yes | Yes | Yes | Yes |
-| Env var hold | Yes | Spawn | Partial | Yes | Partial | Yes |
-| Registry hold | N/A | N/A | N/A | N/A | Yes | N/A |
-| File redirect | Yes | Yes | Yes | Yes | Yes | Yes |
-| Network redirect | Yes | Yes | Yes | Yes | Yes | Yes |
-| DNS redirect | Yes | Yes | Yes | Yes | Yes | Yes |
-| Env var redirect | Yes | Spawn | Partial | Yes | Partial | Yes |
-| Registry redirect | N/A | N/A | N/A | N/A | Yes | N/A |
-| Manual approval | Yes | Yes | Yes | Yes | Yes | Yes |
-| **Environment Variable Protection** | | | | | | |
-| Spawn-time filtering | Yes | Yes | Yes | Yes | Yes | Yes |
-| Runtime interception | LD_PRELOAD | No | DYLD* | LD_PRELOAD | Detours | LD_PRELOAD |
-| env_read events | Yes | Spawn | Partial | Yes | Partial | Yes |
-| env_list events | Yes | Spawn | Partial | Yes | Partial | Yes |
-| env_write events | Yes | Spawn | Partial | Yes | Partial | Yes |
-| environ blocking | Yes | Yes | Non-SIP | Yes | Partial | Yes |
-| **Process Isolation** | | | | | | |
-| Mount namespace | Yes | No | No | Yes | No | Yes |
-| Network namespace | Yes | No | No | Yes | No | Yes |
-| PID namespace | Yes | No | No | Yes | No | Yes |
-| User namespace | Yes | No | No | Yes | No | Yes |
-| AppContainer | N/A | N/A | N/A | N/A | Partial | N/A |
-| sandbox-exec (SBPL) | N/A | Yes | Yes | N/A | N/A | N/A |
-| **Syscall Filtering** | | | | | | |
-| seccomp-bpf | Yes | No | No | Yes | No | Yes |
-| ptrace execve interception | Yes | No | No | Yes | No | Yes |
-| Process exec blocking | Yes | Yes | No | Yes | No | Yes |
-| Syscall allowlist | Yes | No | No | Yes | No | Yes |
-| **Signal Interception** | | | | | | |
-| Implementation | seccomp | ES audit | ES audit | seccomp | ETW audit | seccomp |
-| Signal blocking | Yes | Audit | Audit | Yes | Audit | Yes |
-| Signal redirect | Yes | No | No | Yes | No | Yes |
-| Signal audit | Yes | Yes | Yes | Yes | Yes | Yes |
-| **Resource Limits** | | | | | | |
-| CPU limit | Yes | No | No | Yes | Job | Yes |
-| Memory limit | Yes | No | No | Yes | Job | Yes |
-| Disk I/O limit | Yes | No | No | Yes | No | Yes |
-| Network BW limit | Yes | No | No | Yes | No | Yes |
-| Process count | Yes | No | No | Yes | Job | Yes |
-| **Process Execution Stats** | | | | | | |
-| CPU user time | Yes | Yes | Yes | Yes | Yes | Yes |
-| CPU system time | Yes | Yes | Yes | Yes | Yes | Yes |
-| Peak memory | Yes | Yes | Yes | Yes | No | Yes |
-| **Platform-Specific** | | | | | | |
-| XPC/Mach IPC control | N/A | Yes | Yes | N/A | N/A | N/A |
-| Registry monitoring | N/A | N/A | N/A | N/A | Yes | N/A |
-| Registry blocking | N/A | N/A | N/A | N/A | Yes | N/A |
-| Kernel events | eBPF | ESF | No | eBPF | No | eBPF |
-| **Requirements** | | | | | | |
-| Special permissions | root | ESF approval + NE entitlements | root + brew | Lima VM | Admin | WSL2 |
-| Installation complexity | Low | Medium (ESF needs Apple approval) | Low | Medium | Medium | Low |
-
-## Security Score Comparison
-
-| Platform | Score | File Block | Net Block | Signal | Isolation | Syscall Filter | Resources |
-|----------|:-----:|:----------:|:---------:|:------:|:---------:|:--------------:|:---------:|
-| **Linux Native** | 100% | Yes | Yes | Block | Full | Yes | Full |
-| **Linux (ptrace mode)** | 95% | Yes | Yes | Redirect | Partial | Full | Full |
-| **Windows WSL2** | 100% | Yes | Yes | Block | Full | Yes | Full |
-| **macOS ESF+NE** | 90% | Yes | Yes | Audit | Minimal | Exec only | None |
-| **macOS + Lima (inside VM)** | 100% | Yes | Yes | Block | Full | Yes | Full |
-| **macOS + Lima (orchestrated)** | 85% | Yes | Yes | Block | Full | Yes | Full |
-| **macOS (observation)** | 25% | Observation | No | No | None | No | None |
-| **Windows Native** | 85% | Yes | Yes | Audit | Partial | No | Partial |
-
-## Security Feature Coverage
+Every score in this document comes from `agentmon detect`, which probes the
+machine it runs on and scores five protection domains. It is the same code path
+the product uses at runtime, so a number here can be reproduced by running the
+command. Where a claim has not been measured, this document says so rather than
+filling the cell in.
 
 ```
-Platform               File    Network  Signal   Isolation  Syscall  Resources  Score
-──────────────────────────────────────────────────────────────────────────────────────
-
-Linux Native          ████████████████████████████████████████████████████████  100%
-                      File✓   Net✓    Sig✓    Iso✓      Sys✓     Res✓
-
-Linux (ptrace mode)   ██████████████████████████████████████████████████████░░░░   95%
-                      File✓   Net✓    Sig✓    Iso⚠      Sys✓     Res✓
-                      (Restricted containers: AWS Fargate, Docker with SYS_PTRACE)
-                      (Full file/net/signal enforcement via ptrace; no FUSE redirect)
-
-Windows WSL2          ████████████████████████████████████████████████████████  100%
-                      File✓   Net✓    Sig✓    Iso✓      Sys✓     Res✓
-
-macOS ESF+NE          ████████████████████████████████████████████░░░░░░░░░░░░   90%
-                      File✓   Net✓    Sig⚠    Iso⚠      Sys⚠     Res✗
-                      (Alpha — system extension required)
-
-macOS + Lima (in VM)  ████████████████████████████████████████████████████████  100%
-                      File✓   Net✓    Sig✓    Iso✓      Sys✓     Res✓
-                      (Run agentmon inside Lima VM = native Linux)
-
-macOS + Lima (orch)   ██████████████████████████████████████████░░░░░░░░░░░░░░   85%
-                      File✓   Net✓    Sig✓    Iso✓      Sys✓     Res✓
-                      (agentmon on macOS orchestrating Lima VM)
-
-macOS (observation)   ██████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   25%
-                      File⚠   Net✗    Sig✗    Iso✗      Sys✗     Res✗
-                      (FSEvents observation only, no enforcement)
-
-Windows Native        ██████████████████████████████████████████░░░░░░░░░░░░░░   85%
-                      File✓   Net✓    Sig⚠    Iso⚠      Sys✗     Res⚠
-                      (Mini Filter + WinDivert + Registry blocking + AppContainer sandbox)
-
-Legend: ✓ = Full support (Block+Audit)  ⚠ = Partial support (Audit only)  ✗ = Not supported
+25  File Protection
+25  Command Control
+20  Network
+15  Resource Limits
+15  Isolation
 ```
 
-## Performance Impact
+Weights live in `internal/capabilities/detect_result.go`. A domain scores its
+full weight if any backend in it is available, and zero otherwise — there is no
+partial credit, because a mechanism that runs half the time is not half a
+control.
 
-### File Operations
+## What actually enforces
 
-| Mechanism | Overhead | Latency Added | Throughput Impact | Notes |
-|-----------|:--------:|:-------------:|:-----------------:|-------|
-| FUSE3 (Linux) | Low | 5-20µs | 3-8% | Kernel-userspace context switch |
-| ESF (macOS) | Very Low | 1-5µs | <2% | In-kernel, no context switch for observe |
-| ESF (macOS) | Very Low | 1-5µs | <2% | In-kernel, no context switch for observe |
-| Mini Filter (Windows) | Very Low | 1-5µs | <3% | In-kernel, no userspace IPC for cached |
-| WinFsp (Windows) | Low | 10-50µs | 5-15% | Kernel-userspace via FUSE protocol |
-| Lima VM | Medium | 20-100µs | 15-30% | VM boundary + 9p/virtiofs |
+| Domain | Linux | macOS (ESF + Network Extension) |
+|---|---|---|
+| File read/write/create/delete | FUSE3, Landlock, seccomp-notify | **Block** — ESF `AUTH_OPEN` / `AUTH_CREATE` / `AUTH_UNLINK` / `AUTH_RENAME` |
+| Command execution | seccomp `execve`, ptrace | **Block** — ESF `AUTH_EXEC`, decided by the daemon |
+| Network TCP/UDP | eBPF, Landlock network | **Block** — `NEFilterDataProvider`, per-flow |
+| DNS | iptables redirect to the DNS proxy | **Not enforced** — see below |
+| Resource limits | cgroups v2 | **Not enforced** — no implementation exists |
+| Isolation | PID/mount/network namespaces, capability drop | Seatbelt (SBPL) via `agentmon-macwrap` |
 
-```
-File I/O Overhead Comparison (relative to native)
+macOS scores **85/100** with the system extension running and the content filter
+installed: 25 file + 25 command + 20 network + 15 isolation. Resource limits are
+0/15 and genuinely absent.
 
-Sequential Read (large files):
-Native          ████████████████████████████████████████  100% baseline
-FUSE3           ████████████████████████████████████░░░░   92%
-ESF             ████████████████████████████████████████   98%
-MiniFilter      ████████████████████████████████████████   98%
-WinFsp          ████████████████████████████████████░░░░   90%
-Lima/virtiofs   ████████████████████████████░░░░░░░░░░░░   70%
+Linux's score is runtime-dependent — it reflects which kernel features the host
+actually offers, and a restricted container scores lower than a root-privileged
+host. Run `agentmon detect` rather than assuming a number. The backends it
+probes are listed in `internal/capabilities/detect_linux.go`.
 
-Random I/O (many small files):
-Native          ████████████████████████████████████████  100% baseline
-FUSE3           ████████████████████████████████░░░░░░░░   85%
-ESF             ████████████████████████████████████████   99%
-MiniFilter      ████████████████████████████████████████   97%
-WinFsp          ████████████████████████████████░░░░░░░░   85%
-Lima/virtiofs   ██████████████████████████░░░░░░░░░░░░░░   65%
-```
+## macOS enforcement, measured
 
-### Network Operations
+Verified on Apple Silicon hardware on 2026-08-27 with the system extension
+activated, Full Disk Access granted, and the content filter enabled. Every line
+is an observed result, under `agentmon wrap` with a session-scoped policy.
 
-| Mechanism | Overhead | Latency Added | Connection Overhead | Notes |
-|-----------|:--------:|:-------------:|:-------------------:|-------|
-| iptables + proxy | Low | 0.1-1ms | Per-connection | Single hop through localhost |
-| Network Extension | Very Low | 0.05-0.2ms | Per-packet capable | In-kernel packet processing |
-| pf + proxy | Low | 0.1-1ms | Per-connection | Similar to iptables |
-| WinDivert | Low | 0.1-0.5ms | Per-packet | Kernel-mode redirection |
+| Case | Result |
+|---|---|
+| allowed command | ran normally |
+| denied command | `Killed: 9` — ESF `AUTH_EXEC` |
+| allowed file read | contents returned |
+| denied file read | `Operation not permitted` — ESF `AUTH_OPEN` |
+| **same file read outside the session** | **succeeds** |
+| allowed connection (`:443`) | `status=200` |
+| denied connection (`:80`) | `Recv failure: Socket is not connected` |
+| denied CIDR (`1.1.1.0/24`) | connection dropped |
+| address just outside that CIDR | allowed |
+| **same denied connection outside the session** | **succeeds** |
 
-### Environment Variable Operations
+The two bolded rows are the point: enforcement is scoped to processes inside a
+tracked agentmon session, not to the machine. That is also what makes the
+fail-closed behaviour safe — when the daemon cannot answer, the sandboxed agent
+is blocked, not the user's Mac.
 
-| Mechanism | Overhead | Latency Added | Notes |
-|-----------|:--------:|:-------------:|-------|
-| Spawn-time filtering | None at runtime | 1-5ms at spawn | One-time cost per process |
-| LD_PRELOAD sync | Medium | 50-500µs | IPC to daemon per getenv() |
-| LD_PRELOAD cached | Very Low | 1-5µs | Policy cached in shim |
-| Detours (Windows) | Low | 10-50µs | In-process hook |
+## macOS: how each domain is decided
 
-### Synchronous Hold Impact
+These differ, and the difference matters when debugging.
 
-| Hold Type | Typical Latency | Impact |
-|-----------|:---------------:|--------|
-| Policy lookup (cached) | 1-10µs | Negligible |
-| Policy lookup (IPC) | 50-200µs | Low, acceptable |
-| Redirect (file) | Same as normal I/O | None beyond redirect target |
-| Redirect (network) | +0.1-1ms | Connection setup to new target |
-| Manual approval | 1s - 5min | **Process blocked** - use timeouts |
+- **File** — ESF `AUTH_OPEN` → `SessionPolicyCache.evaluateFile`, decided
+  **locally** from a policy snapshot the extension holds.
+- **Network** — `NEFilterDataProvider.handleNewFlow` → `evaluateNetwork`, also
+  decided **locally** from the snapshot.
+- **Command** — ESF `AUTH_EXEC` → the extension asks the **daemon** over the
+  policy socket (`exec_check` → `PolicyAdapter.CheckExec`).
 
-### Performance Recommendations by Workload
+Exec is the odd one out deliberately. Projecting `command_rules` into the
+snapshot would mean re-implementing the policy engine in Swift, and it would be
+lossy — no argument filtering, no `command_overrides`, no process contexts, no
+ancestry, no `sh -c` collapsing. A local matcher that answers "allow" where the
+engine says "deny" is a silent fail-open.
 
-| Workload | Recommended Config | Expected Overhead |
-|----------|-------------------|:-----------------:|
-| CI/CD builds | FUSE3 + iptables, no TLS inspection | 5-10% |
-| Development | ESF+NE (macOS) or FUSE3 (Linux) | 2-10% |
-| AI agent tasks | Full interception, TLS inspection | 15-25% |
-| Data processing | Lima with virtiofs batch mode | 15-30% |
-| Security-critical | ESF + NE (macOS) or full Linux | 2-10% |
+The verdict is delivered out of order, so the ES handler never blocks. A
+synchronous wait would stall message delivery for the whole ES client, and one
+slow answer would cascade into deadline kills — losing all enforcement rather
+than one exec. A watchdog denies if no verdict arrives.
 
-## Platform Selection Guide
+## Writing a macOS command policy
 
-```
-                    ┌─────────────────────────────┐
-                    │  What's your primary OS?    │
-                    └──────────────┬──────────────┘
-                                   │
-         ┌─────────────────────────┼─────────────────────────┐
-         │                         │                         │
-         ▼                         ▼                         ▼
-   ┌───────────┐             ┌───────────┐             ┌───────────┐
-   │   Linux   │             │   macOS   │             │  Windows  │
-   └─────┬─────┘             └─────┬─────┘             └─────┬─────┘
-         │                         │                         │
-         ▼                         ▼                         ▼
-┌─────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
-│  Linux Native   │    │ Need full isolation │    │  Need registry      │
-│                 │    │ & resource limits?  │    │  monitoring?        │
-│  100% - Best    │    └──────────┬──────────┘    └──────────┬──────────┘
-└─────────────────┘          Yes  │  No                 Yes  │  No
-                                  │                          │
-                                  ▼                          ▼
-                    ┌─────────────────────┐    ┌─────────────────────┐
-                    │  Lima VM - choose:  │    │   Windows Native    │
-                    │                     │    │   75% + Registry    │
-                    │  Inside VM: 100%    │    │   + WinDivert       │
-                    │  (recommended)      │    └─────────────────────┘
-                    │                     │
-                    │  Orchestrated: 85%  │    ┌─────────────────────┐
-                    │  (macOS-native CLI) │    │   Windows WSL2      │
-                    └─────────────────────┘    │   100% - Full       │
-                                  │            │   Linux             │
-                                  │            └─────────────────────┘
-                                  │ If Lima not acceptable
-                                  ▼
-                    ┌─────────────────────┐
-                                  │ If Lima not acceptable
-                                  ▼
-                    ┌─────────────────────┐
-                    │   macOS ESF+NE      │
-                    │   90% - Alpha       │
-                    │   brew install      │
-                    │   --cask agentmon    │
-                    └─────────────────────┘
-```
+Two behaviours surprise people. Both are correct; neither is a bug.
 
-## Recommended Configuration by Use Case
+**`/bin/sh` re-execs `/bin/bash`.** ESF reports a second `AUTH_EXEC` with
+`path=/bin/bash` and the same argv. A policy that allows `sh` but not `bash`
+therefore kills the shell. Allow both.
 
-| Use Case | Recommended Platform | Security | Notes |
-|----------|---------------------|:--------:|-------|
-| Production - Maximum Security | Linux Native | 100% | Full isolation, all features |
-| Production - AWS Fargate | Linux (ptrace mode) | 95% | Full enforcement with steering via ptrace + E2E tested on Fargate |
-| Production - Windows Server | Windows WSL2 | 100% | Full Linux security in VM |
-| Production - macOS | macOS + Lima (inside VM) | 100% | Run agentmon inside Lima = native Linux |
-| Enterprise Security Product | macOS ESF+NE | 90% | Alpha — install via Homebrew cask |
-| Development - macOS | macOS ESF+NE | 90% | Alpha — `brew install --cask agentmon` |
-| Development - Windows | Windows Native | 75% | Registry monitoring + WinDivert network |
-| CI/CD Pipeline | Linux Native | 100% | Containers supported |
-| Air-gapped/Offline | Linux Native | 100% | No external dependencies |
+**`sh -c '<compound command>'` is denied** with rule `shellc-wrapper-bypass`.
+The engine fails closed when it cannot collapse a shell-c form to a single
+binary, because falling through to an allow-shell rule would leak the deny. This
+is shared with Linux; it was simply unreachable on macOS until command
+enforcement worked. Agents run `sh -c` constantly, so a policy for a wrapped
+agent has to account for it.
 
-## Windows-Specific Features
+## Known gaps
 
-| Feature | Native | WSL2 | Notes |
-|---------|:------:|:----:|-------|
-| **Registry Monitoring** |
-| Read monitoring | Yes | N/A | Via RegNotifyChangeKeyValue |
-| Write monitoring | Yes | N/A | Via RegNotifyChangeKeyValue |
-| Create key monitoring | Yes | N/A | Via RegNotifyChangeKeyValue |
-| Delete key monitoring | Yes | N/A | Via RegNotifyChangeKeyValue |
-| Registry blocking | Yes | N/A | Via CmRegisterCallbackEx in mini filter driver |
-| **High-Risk Path Alerts** |
-| Run keys (persistence) | Yes | N/A | HKLM/HKCU Run, RunOnce |
-| Services | Yes | N/A | HKLM\SYSTEM\Services |
-| Winlogon | Yes | N/A | Shell, Userinit hijacking |
-| Image File Exec Options | Yes | N/A | Debugger hijacking |
-| COM objects | Yes | N/A | CLSID hijacking |
-| Windows Defender | Yes | N/A | Policy modifications |
-| LSA settings | Yes | N/A | Credential access |
+**DNS is not enforced on macOS, and the DNS proxy provider refuses to start.**
+This is deliberate. Installing an `NEDNSProxyManager` configuration as the code
+stands would break name resolution for the entire machine: the provider has no
+upstream resolver, so an allowed query is answered with a copy of itself; the
+policy snapshot carries no DNS rules, so every query takes that path; and a DNS
+proxy is machine-wide, unlike the content filter, which is scoped to session
+PIDs. Closing the gap needs an upstream resolver, DNS rules in the snapshot, and
+PID scoping, in that order.
 
-## Windows Sandbox Configuration
+**No resource limits on macOS.** There is no cgroups equivalent and no launchd
+limits implementation in the tree. `agentmon detect` reports 0/15 for this
+domain rather than claiming Mach-based monitoring as enforcement — observing a
+process's memory is not capping it.
 
-| Configuration | Security | Performance | Use Case |
-|--------------|----------|-------------|----------|
-| AppContainer + Minifilter | Maximum | ~5-10ms startup | AI agent execution (full output capture) |
-| AppContainer only | High | ~3-5ms startup | Isolated dev environment |
-| Minifilter only | Medium | <1ms startup | Policy enforcement only |
-| Neither | None | Baseline | Legacy/unsandboxed |
+**No process isolation on macOS beyond seatbelt.** There is no namespace
+equivalent. The seatbelt profile compiled by `agentmon-macwrap` restricts
+filesystem and exec reach; it is not a namespace.
 
-**AppContainer Features:**
-- Process execution inside isolated container
-- Full stdout/stderr capture from sandboxed commands
-- Automatic ACL cleanup on sandbox termination
-- Configurable network access (none/outbound/local/full)
+**No signal blocking on macOS.** Endpoint Security can audit signals but not
+block or redirect them.
 
-### Configuration Example
+**No runtime environment-variable interception on macOS.** `shim/darwin/envshim.c`
+exists but is never built. Spawn-time filtering works.
 
-```yaml
-sandbox:
-  windows:
-    use_app_container: true   # Default: true
-    use_minifilter: true      # Default: true
-    network_access: none      # none, outbound, local, full
-    fail_on_error: true       # Default: true
+**Xcode's `/usr/bin` shims do not work under seatbelt.** `git`, `python3`,
+`clang` and `xcrun` resolve `/var/select/developer_dir`, then `dlopen` libraries
+from `Xcode.app` and talk to system services. No reasonable profile permits
+this. Homebrew equivalents work.
+
+## Requirements
+
+| | Linux | macOS |
+|---|---|---|
+| Privileges | root or `CAP_SYS_ADMIN` for namespaces | user approval of the system extension |
+| Kernel/OS | 5.x+ for full eBPF | macOS 14.0+ |
+| Extra | — | Full Disk Access for the extension; a content filter configuration |
+| Architecture | amd64, arm64 | **arm64 only** — Apple Silicon |
+
+Two macOS steps are easy to miss and both fail silently:
+
+- **Full Disk Access** must be granted to the system extension, or `es_new_client`
+  fails and the extension crash-loops. It is reset whenever the extension is
+  reinstalled.
+- **The content filter configuration** must exist and be enabled, or macOS never
+  calls `startFilter` and network rules are unenforced. `agentmon activate-extension`
+  installs it; `agentmon network-filter status` reports it.
+
+## Installation
+
+**There is no published release yet.** Build from source:
+
+```bash
+make build                       # Linux and macOS Go binaries
+make build-macos-enterprise      # macOS app bundle, signed (needs SIGNING_IDENTITY)
 ```
 
-## macOS Configuration Options
+macOS additionally requires notarization before the system extension will load,
+because System Integrity Protection blocks the developer-mode alternative. See
+the [macOS Build Guide](macos-build.md).
 
-| Configuration | File Interception | Network | Isolation | Ease of Setup | Security |
-|---------------|:-----------------:|:-------:|:---------:|:-------------:|:--------:|
-| ESF + NE | Endpoint Security | Network Extension | Minimal (sandbox-exec) | Easy (`brew install --cask`) | 90% |
-| Lima VM (inside) | FUSE3 in VM | iptables in VM | Full | Medium | 100% |
-| Lima VM (orchestrated) | FUSE3 in VM | iptables in VM | Full | Medium | 85% |
-| Observation | FSEvents (observe) | pcap (observe) | None | None required | 25% |
+## macOS + Lima
 
-**When to use each:**
-- **ESF + NE (Alpha)**: Development and production on macOS — install via `brew install --cask agentmon`
-- **Lima VM (inside)**: Production on macOS - run agentmon inside VM for full Linux security
-- **Lima VM (orchestrated)**: When you need macOS-native CLI experience with Lima backend
-- **Observation**: Quick testing, observation-only use cases
+Running agentmon inside a Lima VM gives Linux-native enforcement, because it *is*
+Linux — the macOS platform code is not involved at all. This is a deployment
+choice rather than a separate backend, and it costs VM overhead on file I/O
+through virtiofs plus a few hundred MB of RAM.
 
-## Lima Deployment Modes
+`internal/platform/lima/` also supports an orchestrated mode, where agentmon runs
+on macOS and uses Lima as an execution sandbox via `limactl shell`. It is **not**
+selected automatically: `detectPlatformMode()` used to return the Lima backend
+whenever any Lima VM was running, so a developer with Colima up for Docker
+silently got a different enforcement backend. It must now be requested
+explicitly in configuration.
 
-Lima provides two deployment modes for macOS users who need full Linux isolation:
+Neither Lima mode has been measured against the enforcement suite above. Treat
+the "identical to Linux" claim as a statement about architecture, not a test
+result.
 
-| Mode | Security | Description |
-|------|:--------:|-------------|
-| **Inside VM** | 100% | Run agentmon + AI agent inside Lima VM. Identical to native Linux. |
-| **Orchestrated** | 85% | Run agentmon on macOS, use Lima as execution sandbox via `limactl shell`. |
+## Performance
 
-**Recommendation:** Use Inside-VM mode for production. It's simpler (no special platform code needed) and provides full Linux-equivalent security.
+No benchmarks in this repository measure interception overhead, so this document
+no longer quotes any. Earlier revisions carried per-mechanism latency and
+throughput tables that no test produced.
 
-See [Known Limitations - macOS + Lima](#macos--lima) for detailed comparison.
+What can be said from the design: ESF and the Network Extension make their
+decisions in kernel-adjacent code with no FUSE-style userspace round trip for
+file reads, and the file and network paths on macOS answer from a cached policy
+snapshot rather than consulting the daemon. Command execution does consult the
+daemon, one unix-socket round trip per exec.
 
-## Known Limitations by Platform
+If overhead matters for your workload, measure it on your workload.
 
-### Linux Native
-- No significant limitations
-- Requires root or CAP_SYS_ADMIN for namespaces
-- eBPF requires kernel 5.x+ for full features
-- **Signal interception**: Full blocking and redirect via seccomp user-notify
-- **ptrace mode**: Available in restricted containers (e.g. AWS Fargate) with `SYS_PTRACE` capability; provides full syscall enforcement with steering (exec/file/network redirect, DNS redirect, SNI rewrite, TracerPid masking). E2E tested on Fargate with CI integration.
+## See also
 
-### macOS ESF+NE (Alpha)
-- **Alpha status** - functional end-to-end but expect rough edges and breaking changes
-- **No process isolation** - macOS has no namespace equivalent
-- **No resource limits** - no cgroups equivalent (cannot enforce limits)
-- **Resource monitoring available** - native Mach API monitoring for memory, CPU, and thread count
-- **No syscall filtering** - except exec blocking via ESF
-- **Signal interception**: Audit only via Endpoint Security; cannot block or redirect signals
-- Install via `brew tap canyonroad/tap && brew install --cask agentmon`
-
-### macOS + Lima
-
-Lima provides two deployment modes with different trade-offs:
-
-#### Inside-VM Mode (100% Security Score) - Recommended
-
-Run agentmon and the AI agent harness **entirely inside** the Lima VM:
-
-```
-┌─────────────────────────────────────┐
-│         macOS Host                  │
-│  ┌─────────────────────────────┐   │
-│  │      Lima VM (Linux)        │   │
-│  │  ┌───────────────────────┐  │   │
-│  │  │   agentmon (Linux)     │  │   │
-│  │  │   + AI Agent harness  │  │   │
-│  │  └───────────────────────┘  │   │
-│  └─────────────────────────────┘   │
-└─────────────────────────────────────┘
-```
-
-This is **identical to native Linux** - you get:
-- Full FUSE3 filesystem interception
-- Full iptables network interception
-- Full Linux namespace isolation
-- Full seccomp-bpf syscall filtering
-- Full cgroups v2 resource limits
-
-**Trade-offs:**
-- File I/O to macOS filesystem goes through virtiofs (15-30% overhead)
-- VM uses ~200-500MB RAM
-- Must SSH/shell into VM to interact
-
-**This is the simplest approach** - no special Lima platform code needed, just use the standard Linux platform implementation.
-
-#### Orchestrated Mode (85% Security Score)
-
-Run agentmon on macOS, using Lima as a remote execution sandbox:
-
-```
-┌─────────────────────────────────────┐
-│         macOS Host                  │
-│  ┌─────────────────────────────┐   │
-│  │   agentmon (macOS binary)   │   │
-│  └───────────┬─────────────────┘   │
-│              │ limactl shell       │
-│  ┌───────────▼─────────────────┐   │
-│  │      Lima VM (Linux)        │   │
-│  │   (execution sandbox)       │   │
-│  └─────────────────────────────┘   │
-└─────────────────────────────────────┘
-```
-
-This mode uses `internal/platform/lima/` to orchestrate commands inside the VM.
-
-**Trade-offs:**
-- Additional latency from `limactl shell` IPC
-- Path translation between macOS and Lima
-- More complex architecture
-- Useful when you need macOS-native agentmon CLI experience
-
-#### Lima Implementation Details (Both Modes)
-
-Inside the VM, both modes use standard Linux primitives:
-- **Resource limits**: cgroups v2 at `/sys/fs/cgroup/agentmon/<name>`
-  - CPU: `cpu.max` (quota/period in microseconds)
-  - Memory: `memory.max` (bytes)
-  - Processes: `pids.max`
-  - Disk I/O: `io.max` (rbps/wbps per device)
-- **Network interception**: iptables DNAT via `AGENTMON` chain
-  - TCP redirect to proxy (excludes localhost)
-  - UDP port 53 redirect to DNS proxy
-- **Filesystem mounting**: bindfs passthrough mount inside VM
-  - Source directory bound to mount point via bindfs
-  - Automatic bindfs installation if not present
-  - Unmount via fusermount -u with umount fallback
-- **Process isolation**: Linux namespaces via `unshare`
-  - Full: user, mount, UTS, IPC, network, PID namespaces
-  - Partial: mount, UTS, IPC, PID (when user namespace unavailable)
-  - Flags: `--fork`, `--mount-proc`, `--map-root-user`
-- **Syscall filtering**: seccomp-bpf available in VM
-- **Signal interception**: Full blocking and redirect via seccomp
-
-### Windows Native
-- **Partial isolation** - AppContainer provides file/registry isolation but not full namespace isolation
-- **No syscall filtering** - no seccomp equivalent
-- **No disk I/O limits** - Job Objects don't support this
-- **No network bandwidth limits** - Job Objects don't support this
-- **Resource monitoring available** - memory, CPU, disk I/O, process count, and thread count via Job Objects and Toolhelp32
-- **No peak memory in exec results** - Windows Rusage doesn't include Maxrss; would require GetProcessMemoryInfo before process exits
-- **WinDivert requires admin** - Administrator privileges needed for network interception
-- **Driver requires signing** - Mini filter driver requires test signing (dev) or EV signing (production)
-- **Signal interception**: Audit only via ETW; cannot block or redirect signals
-- Uses kernel-mode mini filter driver for filesystem and registry interception
-- Configurable fail modes (fail-open/fail-closed) for production reliability
-- See [Windows Driver Deployment Guide](windows-driver-deployment.md) for details
-
-### Windows WSL2
-- Slight overhead from VM layer
-- Network goes through Windows NAT
-- File I/O to Windows drives slower than native
-- Some Windows integration edge cases
-- **No registry monitoring** - WSL2 runs Linux, Windows registry not accessible
-- **Signal interception**: Full blocking and redirect via seccomp in Linux VM
-
-**WSL2 Implementation Details:**
-- **Resource limits**: cgroups v2 at `/sys/fs/cgroup/agentmon/<name>`
-  - CPU: `cpu.max` (quota/period in microseconds)
-  - Memory: `memory.max` (bytes)
-  - Processes: `pids.max`
-  - Disk I/O: `io.max` (rbps/wbps per device)
-- **Network interception**: iptables DNAT via `AGENTMON` chain
-  - TCP redirect to proxy (excludes localhost)
-  - UDP port 53 redirect to DNS proxy
-- **Filesystem mounting**: bindfs passthrough mount inside VM
-  - Windows paths translated to WSL paths (`C:\...` → `/mnt/c/...`)
-  - Source directory bound to mount point via bindfs
-  - Automatic bindfs installation if not present
-  - Unmount via fusermount -u with umount fallback
-- **Process isolation**: Linux namespaces via `unshare`
-  - Full: user, mount, UTS, IPC, network, PID namespaces
-  - Partial: mount, UTS, IPC, PID (when user namespace unavailable)
-  - Flags: `--fork`, `--mount-proc`, `--map-root-user`
-- **Syscall filtering**: seccomp-bpf available in VM
-
-## Installation Quick Reference
-
-| Platform | Command | Requirements |
-|----------|---------|--------------|
-| Linux | `curl -fsSL https://get.agentmon.dev \| bash` | root for full features |
-| macOS ESF+NE | `brew tap canyonroad/tap && brew install --cask agentmon` | Approve sysext in System Settings |
-| macOS Lima | `brew install lima && limactl start agentmon` | Lima VM |
-| Windows Native | `sc create agentmon type=filesys` | Admin, test signing (dev) or EV cert (prod) |
-| Windows WSL2 | `wsl --install -d Ubuntu && ...` | WSL2 enabled |
-
-See [macOS Build Guide](macos-build.md) for detailed macOS build instructions.
-
-## Optimization Configuration
-
-```yaml
-# agentmon.yaml - Performance-optimized configuration
-
-performance:
-  # Cache policy decisions
-  policy_cache:
-    enabled: true
-    ttl_seconds: 300
-    max_entries: 10000
-
-  # Batch event emission
-  event_batching:
-    enabled: true
-    batch_size: 100
-    flush_interval_ms: 100
-
-  # Async logging (don't block operations)
-  async_logging:
-    enabled: true
-    buffer_size: 10000
-
-  # Skip interception for known-safe paths
-  bypass_paths:
-    - "/usr/lib/*"
-    - "/lib/*"
-    - "*.so"
-    - "*.pyc"
-
-  # Skip interception for known-safe hosts
-  bypass_hosts:
-    - "127.0.0.1"
-    - "localhost"
-    - "*.internal.company.com"
-
-  # Reduce syscall overhead
-  fuse:
-    kernel_cache: true
-    batch_forget: true
-    max_readahead_kb: 1024
-```
+- [macOS Build Guide](macos-build.md)
+- [macOS ESF+NE Architecture](macos-esf-ne-architecture.md)
