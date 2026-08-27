@@ -311,49 +311,21 @@ class SessionPolicyCache {
         }
     }
 
-    // MARK: - Exec Policy Evaluation
-
-    enum ExecDecision {
-        case allow
-        case deny
-        case redirect  // deny the exec + async notify Go server to spawn stub
-    }
-
-    func evaluateExec(path: String, pid: pid_t) -> (ExecDecision, String?) {
-        return queue.sync {
-            guard let sid = pidToSession[pid],
-                  let cache = sessions[sid] else {
-                return (.allow, nil)
-            }
-
-            // Deny rules first (highest precedence)
-            for rule in cache.execRules where rule.action == "deny" {
-                if globMatch(pattern: rule.pattern, path: path) {
-                    return (.deny, sid)
-                }
-            }
-
-            // Redirect rules -- deny the exec locally; async notify triggers stub
-            for rule in cache.execRules where rule.action == "redirect" {
-                if globMatch(pattern: rule.pattern, path: path) {
-                    return (.redirect, sid)
-                }
-            }
-
-            // Explicit allow rules
-            for rule in cache.execRules where rule.action == "allow" {
-                if globMatch(pattern: rule.pattern, path: path) {
-                    return (.allow, sid)
-                }
-            }
-
-            // Default
-            if cache.defaults.exec == "deny" {
-                return (.deny, sid)
-            }
-            return (.allow, sid)
-        }
-    }
+    // Exec policy is NOT evaluated here.
+    //
+    // There used to be an evaluateExec that scanned execRules and, finding
+    // none, fell through to allow -- so every exec in every wrapped session was
+    // permitted. BuildPolicySnapshot emits no exec rules and never sets
+    // defaults.exec, so that could not have worked. ESFClient.handleAuthExec now
+    // asks the daemon (exec_check -> PolicyAdapter.CheckExec), which is
+    // authoritative and can do the things a local matcher cannot: argument
+    // filtering, command_overrides, process contexts, ancestry.
+    //
+    // execRules below is still parsed, because it is part of the snapshot
+    // schema and a daemon may populate it, but nothing consumes it. Do not
+    // reintroduce a local exec fast path without also making the snapshot carry
+    // rules faithful enough to decide on: a local matcher that answers "allow"
+    // where the engine would say "deny" is a silent fail-open.
 
     // MARK: - DNS Policy Evaluation (union of all sessions)
 

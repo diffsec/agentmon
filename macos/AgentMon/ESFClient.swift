@@ -558,6 +558,55 @@ private func handleAuthRename(client: OpaquePointer, event: UnsafePointer<es_mes
     }
 }
 
+/// How long to wait for the daemon's exec verdict before failing closed.
+///
+/// Comfortably inside the ES deadline for AUTH_EXEC, and enormous next to the
+/// observed round trip, which is a single unix-socket request on the same
+/// machine.
+private let execDecisionTimeout: TimeInterval = 2.0
+
+/// Queue for the fail-closed watchdog below. Concurrent: each exec's watchdog
+/// is independent and must not be delayed by another's.
+private let execWatchdogQueue = DispatchQueue(
+    label: "dev.diffsec.agentmon.execwatchdog", attributes: .concurrent)
+
+/// Answers one AUTH message exactly once, from whichever of several racing
+/// callers gets there first.
+///
+/// AUTH_EXEC is answered out of order: the ES handler returns immediately and
+/// the verdict is delivered later, from the socket completion or from the
+/// watchdog. That requires retaining the message, and it makes a double
+/// response possible, so the two are serialised here. Releasing exactly once,
+/// after responding, is the other half of the contract.
+private final class AuthResponder {
+    private let lock = NSLock()
+    private var answered = false
+    private let client: OpaquePointer
+    private let message: UnsafePointer<es_message_t>
+
+    init(client: OpaquePointer, message: UnsafePointer<es_message_t>) {
+        self.client = client
+        self.message = message
+        es_retain_message(message)
+    }
+
+    /// Returns true if this call was the one that answered.
+    @discardableResult
+    func respond(_ result: es_auth_result_t) -> Bool {
+        lock.lock()
+        if answered {
+            lock.unlock()
+            return false
+        }
+        answered = true
+        lock.unlock()
+
+        es_respond_auth_result(client, message, result, false)
+        es_release_message(message)
+        return true
+    }
+}
+
 private func handleAuthExec(client: OpaquePointer, event: UnsafePointer<es_message_t>, pid: pid_t) {
     if !SessionPolicyCache.shared.hasActiveSessions {
         es_respond_auth_result(client, event, ES_AUTH_RESULT_ALLOW, false)
@@ -574,43 +623,75 @@ private func handleAuthExec(client: OpaquePointer, event: UnsafePointer<es_messa
         .advanced(by: MemoryLayout.offset(of: \es_message_t.event)!)
         .assumingMemoryBound(to: es_event_exec_t.self)
     let execPath = String(cString: execPtr.pointee.target.pointee.executable.pointee.path.data)
+    let parentPID = event.pointee.process.pointee.ppid
 
-    // Evaluate locally -- single call returns allow/deny/redirect in one lock acquisition
-    let (decision, _) = SessionPolicyCache.shared.evaluateExec(path: execPath, pid: pid)
+    // Everything the daemon needs is extracted here, while the message is
+    // certainly valid, rather than inside the async completion.
+    let argc = es_exec_arg_count(execPtr)
+    var args: [String] = []
+    args.reserveCapacity(Int(argc))
+    for i in 0..<argc {
+        let arg = es_exec_arg(execPtr, i)
+        let len = Int(arg.length)
+        if len > 0, let data = arg.data {
+            args.append(String(bytes: UnsafeRawBufferPointer(start: data, count: len),
+                               encoding: .utf8) ?? String(cString: data))
+        } else {
+            args.append("")
+        }
+    }
+    var ttyPath: String? = nil
+    if let ttyFile = event.pointee.process.pointee.tty {
+        ttyPath = String(cString: ttyFile.pointee.path.data)
+    }
+    let cwdPath = String(cString: execPtr.pointee.cwd.pointee.path.data)
 
-    switch decision {
-    case .allow:
-        es_respond_auth_result(client, event, ES_AUTH_RESULT_ALLOW, false)
-        return
-    case .deny:
-        es_respond_auth_result(client, event, ES_AUTH_RESULT_DENY, false)
-        return
-    case .redirect:
-        // Deny the exec, then notify Go server to spawn stub
-        es_respond_auth_result(client, event, ES_AUTH_RESULT_DENY, false)
+    // Ask the daemon rather than deciding from the local cache.
+    //
+    // The cache cannot answer this. BuildPolicySnapshot emits no exec rules and
+    // never sets defaults.exec, so SessionPolicyCache.evaluateExec found nothing
+    // to match and fell through to "allow" -- every exec in every wrapped
+    // session was permitted, which is precisely what `agentmon wrap` exists to
+    // prevent. Projecting command_rules into the snapshot would mean
+    // re-implementing the policy engine here, and it would be lossy: no
+    // argument filtering, no command_overrides, no process contexts, no
+    // ancestry. A local matcher that answers "allow" where the engine says
+    // "deny" is a silent fail-open. The daemon is authoritative, the Go side of
+    // this check already exists (RequestTypeExecCheck -> PolicyAdapter.CheckExec)
+    // and had no caller, and exec is rare enough to afford a round trip.
+    //
+    // The response is delivered out of order so this handler returns at once. A
+    // synchronous wait here would block ES message delivery for the whole
+    // client, so one hung daemon would stall AUTH_OPEN too and cascade into
+    // deadline kills -- losing all enforcement rather than one exec.
+    let responder = AuthResponder(client: client, message: event)
 
-        // Extract args and context for the redirect notification
-        do {
-            let parentPID = event.pointee.process.pointee.ppid
-            // Extract args
-            let argc = es_exec_arg_count(execPtr)
-            var args: [String] = []
-            for i in 0..<argc {
-                let arg = es_exec_arg(execPtr, i)
-                let len = Int(arg.length)
-                if len > 0, let data = arg.data {
-                    args.append(String(bytes: UnsafeRawBufferPointer(start: data, count: len),
-                                       encoding: .utf8) ?? String(cString: data))
-                } else {
-                    args.append("")
-                }
-            }
-            var ttyPath: String? = nil
-            if let ttyFile = event.pointee.process.pointee.tty {
-                ttyPath = String(cString: ttyFile.pointee.path.data)
-            }
-            let cwdPath = String(cString: execPtr.pointee.cwd.pointee.path.data)
+    // Fail closed if no verdict arrives. Allowing on timeout would mean a slow
+    // or dead daemon silently turns command policy off.
+    execWatchdogQueue.asyncAfter(deadline: .now() + execDecisionTimeout) {
+        if responder.respond(ES_AUTH_RESULT_DENY) {
+            os_log(.error, log: esLog,
+                   "exec check timed out for pid %{public}d -- denied (fail closed)", pid)
+        }
+    }
 
+    PolicySocketClient.shared.request([
+        "type": "exec_check",
+        "path": execPath,
+        "args": args,
+        "pid": Int(pid),
+        "parent_pid": Int(parentPID),
+        "session_id": sessionID,
+        "tty_path": ttyPath ?? "",
+        "cwd_path": cwdPath
+    ]) { response in
+        switch response?["action"] as? String {
+        case "continue":
+            responder.respond(ES_AUTH_RESULT_ALLOW)
+
+        case "redirect":
+            // Deny the exec, then have the server spawn the stub in its place.
+            responder.respond(ES_AUTH_RESULT_DENY)
             PolicySocketClient.shared.send([
                 "type": "exec_redirect_notify",
                 "path": execPath,
@@ -621,10 +702,20 @@ private func handleAuthExec(client: OpaquePointer, event: UnsafePointer<es_messa
                 "tty_path": ttyPath ?? "",
                 "cwd_path": cwdPath
             ])
+
+        case "deny":
+            responder.respond(ES_AUTH_RESULT_DENY)
+
+        default:
+            // A nil response is a socket failure; an unrecognised action is
+            // protocol drift. Neither is evidence that the exec is permitted.
+            if responder.respond(ES_AUTH_RESULT_DENY) {
+                os_log(.error, log: esLog,
+                       "exec check for pid %{public}d got no usable verdict -- denied (fail closed)", pid)
+            }
         }
     }
 
     // Track exec depth for recursion monitoring (best-effort, after response)
-    let parentPID = event.pointee.process.pointee.ppid
     let _ = SessionPolicyCache.shared.recordExecDepth(pid: pid, parentPID: parentPID)
 }
