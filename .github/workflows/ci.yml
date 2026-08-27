@@ -111,8 +111,15 @@ jobs:
     timeout-minutes: 15
     strategy:
       matrix:
-        goos: [linux, darwin]
-        goarch: [amd64, arm64]
+        # darwin/amd64 is excluded: agentmon ships arm64-only macOS builds, and
+        # a build target nothing releases is a target nobody notices breaking.
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: arm64
     steps:
       - uses: actions/checkout@v4
 
