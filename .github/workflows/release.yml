@@ -270,15 +270,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ env.RELEASE_TAG }}
         run: |
-          for arch in amd64 arm64; do
-            ARCHIVE="agentmon_${VERSION#v}_darwin_${arch}.tar.gz"
-            gh release download "$VERSION" \
-              --pattern "$ARCHIVE" \
-              --repo "${{ github.repository }}" \
-              --dir .
-            mkdir -p "unsigned-${arch}"
-            tar -xzf "$ARCHIVE" -C "unsigned-${arch}"
-          done
+          # arm64 only. Apple Silicon is the only macOS target; darwin/amd64
+          # was dropped rather than shipped untested.
+          ARCHIVE="agentmon_${VERSION#v}_darwin_arm64.tar.gz"
+          gh release download "$VERSION" \
+            --pattern "$ARCHIVE" \
+            --repo "${{ github.repository }}" \
+            --dir .
+          mkdir -p unsigned-arm64
+          tar -xzf "$ARCHIVE" -C unsigned-arm64
 
       - name: Rebuild CGO binaries on macOS
         env:
@@ -293,16 +293,14 @@ jobs:
           #                       build selects main_nocgo.go, a stub that exits
           #                       non-zero, so seatbelt enforcement is dead.
           # nofuse: macFUSE headers are not available on CI.
-          for arch in arm64 amd64; do
-            CGO_ENABLED=1 GOARCH="$arch" go build -tags nofuse -ldflags "$LDFLAGS" \
-              -o "build/agentmon-$arch" ./cmd/agentmon
-            CGO_ENABLED=1 GOARCH="$arch" go build -ldflags "$LDFLAGS" \
-              -o "build/agentmon-macwrap-$arch" ./cmd/agentmon-macwrap
-            cp "build/agentmon-$arch" "unsigned-$arch/agentmon"
-            # macwrap is absent from the GoReleaser archive entirely (it cannot
-            # be cross-compiled with cgo), so this is a create, not a replace.
-            cp "build/agentmon-macwrap-$arch" "unsigned-$arch/agentmon-macwrap"
-          done
+          CGO_ENABLED=1 GOARCH=arm64 go build -tags nofuse -ldflags "$LDFLAGS" \
+            -o build/agentmon-arm64 ./cmd/agentmon
+          CGO_ENABLED=1 GOARCH=arm64 go build -ldflags "$LDFLAGS" \
+            -o build/agentmon-macwrap-arm64 ./cmd/agentmon-macwrap
+          cp build/agentmon-arm64 unsigned-arm64/agentmon
+          # macwrap is absent from the GoReleaser archive entirely (it cannot
+          # be cross-compiled with cgo), so this is a create, not a replace.
+          cp build/agentmon-macwrap-arm64 unsigned-arm64/agentmon-macwrap
 
       - name: Verify cgo binaries are real, not nocgo stubs
         run: |
@@ -310,52 +308,43 @@ jobs:
           # fails at every exec. Catch it here, not in a user's audit log.
           # Note otool -L is no use for this: the pure-Go darwin runtime links
           # libSystem either way. Check the recorded build setting instead.
-          for arch in arm64 amd64; do
-            for bin in "unsigned-$arch/agentmon" "unsigned-$arch/agentmon-macwrap"; do
-              if ! go version -m "$bin" | grep -q "^	build	CGO_ENABLED=1$"; then
-                echo "::error::$bin was built with CGO_ENABLED=0"
-                go version -m "$bin" | grep CGO_ENABLED || true
-                exit 1
-              fi
-            done
-            # Belt and braces for the one binary whose whole purpose is this
-            # private API: prove the symbol is actually linked.
-            if ! nm -u "unsigned-$arch/agentmon-macwrap" | grep -q "_sandbox_init_with_parameters"; then
-              echo "::error::unsigned-$arch/agentmon-macwrap does not reference sandbox_init_with_parameters"
+          for bin in unsigned-arm64/agentmon unsigned-arm64/agentmon-macwrap; do
+            if ! go version -m "$bin" | grep -q "^	build	CGO_ENABLED=1$"; then
+              echo "::error::$bin was built with CGO_ENABLED=0"
+              go version -m "$bin" | grep CGO_ENABLED || true
               exit 1
             fi
-            echo "unsigned-$arch: agentmon and agentmon-macwrap are cgo builds"
           done
+          # Belt and braces for the one binary whose whole purpose is this
+          # private API: prove the symbol is actually linked.
+          if ! nm -u unsigned-arm64/agentmon-macwrap | grep -q "_sandbox_init_with_parameters"; then
+            echo "::error::unsigned-arm64/agentmon-macwrap does not reference sandbox_init_with_parameters"
+            exit 1
+          fi
+          echo "unsigned-arm64: agentmon and agentmon-macwrap are cgo builds"
 
-      - name: Create universal Go binaries
+      - name: Collect Go binaries
         run: |
+          # arm64 only, so there is nothing to lipo. The directory name stays
+          # go-universal because assemble-macos-bundle.sh and the bundle layout
+          # refer to it; renaming it is a separate change.
           mkdir -p build/go-universal
-          # Lipo each Mach-O binary into a universal. Signing happens later,
-          # inside scripts/sign-macos-bundle.sh, after assembly.
-          created=0
+          collected=0
           for bin in unsigned-arm64/agentmon*; do
             name=$(basename "$bin")
             [ -f "$bin" ] || continue
             file "$bin" | grep -q "Mach-O" || continue
-            amd64_bin="unsigned-amd64/${name}"
-            if [ -f "$amd64_bin" ]; then
-              lipo -create -output "build/go-universal/${name}" \
-                "$bin" "$amd64_bin"
-              echo "Created universal binary: ${name}"
-            else
-              cp "$bin" "build/go-universal/${name}"
-              echo "Copied arm64-only binary: ${name}"
-            fi
+            cp "$bin" "build/go-universal/${name}"
             lipo -info "build/go-universal/${name}"
-            created=$((created + 1))
+            collected=$((collected + 1))
           done
-          if [ "$created" -eq 0 ]; then
-            echo "::error::No universal binaries were created"
+          if [ "$collected" -eq 0 ]; then
+            echo "::error::No macOS binaries were collected"
             exit 1
           fi
           echo "Created $created binaries"
 
-      - name: Build Swift targets (universal)
+      - name: Build Swift targets
         run: |
           # CURRENT_PROJECT_VERSION becomes the extension's CFBundleVersion, and
           # macOS replaces an installed system extension only when the incoming
@@ -368,7 +357,7 @@ jobs:
             -configuration Release \
             -derivedDataPath build/DerivedData \
             CURRENT_PROJECT_VERSION="$(git rev-list --count HEAD)" \
-            ARCHS="arm64 x86_64" \
+            ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
@@ -435,8 +424,11 @@ jobs:
             -ov -format UDZO \
             "build/AgentMon-${VERSION}.dmg"
 
-          # Delete old darwin tarballs from release
-          for arch in amd64 arm64; do
+          # Delete the darwin tarball from the release; the DMG supersedes it.
+          # amd64 is still swept here, deliberately: a release cut before
+          # darwin/amd64 was dropped can leave one behind, and `|| true` makes
+          # the removal a no-op when there is nothing to remove.
+          for arch in arm64 amd64; do
             ARCHIVE="agentmon_${VERSION#v}_darwin_${arch}.tar.gz"
             gh release delete-asset "$VERSION" "$ARCHIVE" \
               --repo "${{ github.repository }}" \

@@ -186,12 +186,10 @@ SIGNING_IDENTITY="Apple Development: you@email.com (TEAMID)" make sign-bundle
 Building macOS binaries from Linux (Go only, not Swift):
 
 ```bash
-# For Apple Silicon
 GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o agentmon-darwin-arm64 ./cmd/agentmon
-
-# For Intel Mac
-GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o agentmon-darwin-amd64 ./cmd/agentmon
 ```
+
+agentmon is Apple Silicon only. darwin/amd64 is not built, released, or tested.
 
 **Note:** CGO_ENABLED=0 means no ESF support. The binary will run in observation-only mode. Swift components (ESF+NE) must be built on macOS.
 

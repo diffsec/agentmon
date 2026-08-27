@@ -134,16 +134,22 @@ EOF
     echo -e "${GREEN}✅ pf configured for network interception${NC}"
 }
 
-# Detect system architecture
+# Detect system architecture.
+#
+# Apple Silicon only. darwin/amd64 is no longer built or released, so an Intel
+# Mac is refused here with a reason rather than being sent to fetch an asset
+# that does not exist. Rosetta does not help: agentmon loads a system extension
+# and needs a native build.
 detect_arch() {
     local arch=$(uname -m)
 
     case $arch in
-        x86_64)
-            echo "amd64"
-            ;;
         arm64)
             echo "arm64"
+            ;;
+        x86_64)
+            error "Intel Macs are not supported: agentmon ships arm64 (Apple Silicon) builds only"
+            exit 1
             ;;
         *)
             error "Unsupported architecture: $arch"
