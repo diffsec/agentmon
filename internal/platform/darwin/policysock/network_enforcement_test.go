@@ -153,3 +153,62 @@ func TestCheckResponsesOmitSnapshotFields(t *testing.T) {
 		}
 	}
 }
+
+// TestActiveSessionsInSnapshot covers the field that stops a session being lost
+// to notification coalescing. The extension is told "a session registered",
+// fetches the latest, and would never learn about a second one that registered
+// in the same window -- that session then holds no policy and enforces nothing,
+// silently, for its whole lifetime.
+func TestActiveSessionsInSnapshot(t *testing.T) {
+	tracker := NewSessionTracker()
+	tracker.RegisterProcess("session-a", 100, 0)
+	tracker.RegisterProcess("session-b", 200, 0)
+
+	engine, err := policy.NewEngine(&policy.Policy{Version: 1, Name: "t"}, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp := NewPolicyAdapter(engine, tracker).BuildPolicySnapshot("", 0)
+
+	// The fetch itself resolves to the most recent session...
+	if resp.SessionID != "session-b" {
+		t.Errorf("SessionID = %q, want session-b (most recently registered)", resp.SessionID)
+	}
+	// ...but both must be listed, or session-a is invisible to the extension.
+	want := []string{"session-a", "session-b"}
+	if len(resp.ActiveSessions) != len(want) {
+		t.Fatalf("ActiveSessions = %v, want %v", resp.ActiveSessions, want)
+	}
+	for i, id := range want {
+		if resp.ActiveSessions[i] != id {
+			t.Errorf("ActiveSessions[%d] = %q, want %q (oldest first)", i, resp.ActiveSessions[i], id)
+		}
+	}
+
+	// Pinned against the key SessionPolicyCache.swift reads by string.
+	raw, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := decoded["active_sessions"].([]any); !ok {
+		t.Errorf("active_sessions missing or not an array: %s", raw)
+	}
+}
+
+// TestActiveSessionsIsACopy guards against handing callers the tracker's own
+// slice, which a later RegisterProcess append could mutate under them.
+func TestActiveSessionsIsACopy(t *testing.T) {
+	tracker := NewSessionTracker()
+	tracker.RegisterProcess("session-a", 100, 0)
+
+	got := tracker.ActiveSessions()
+	got[0] = "mutated"
+
+	if again := tracker.ActiveSessions(); again[0] != "session-a" {
+		t.Errorf("caller mutation leaked into the tracker: got %q", again[0])
+	}
+}

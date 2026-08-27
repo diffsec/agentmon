@@ -133,6 +133,11 @@ type PolicyResponse struct {
 	// so they appear only on snapshot replies, not on every check response.
 	NetworkEnforcement string `json:"network_enforcement,omitempty"`
 	NetworkFailOpen    *bool  `json:"network_fail_open,omitempty"`
+
+	// ActiveSessions lists every registered session, oldest first, so the
+	// extension can notice one it never received a snapshot for. See
+	// SessionTracker.ActiveSessions for why that happens.
+	ActiveSessions []string `json:"active_sessions,omitempty"`
 }
 
 // ExecContext carries process context from the ESF event for exec redirect.

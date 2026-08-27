@@ -20,6 +20,11 @@ type recordingTracker struct {
 		pid, ppid int32
 	}
 	ended []string
+
+	// notDelivered makes SnapshotDelivered report false, i.e. the extension
+	// never picked up the policy. Zero value is "delivered", so tests about
+	// other things do not sit through the wait.
+	notDelivered bool
 }
 
 func (r *recordingTracker) RegisterProcess(sessionID string, pid, ppid int32) {
@@ -29,6 +34,12 @@ func (r *recordingTracker) RegisterProcess(sessionID string, pid, ppid int32) {
 		sessionID string
 		pid, ppid int32
 	}{sessionID, pid, ppid})
+}
+
+func (r *recordingTracker) SnapshotDelivered(string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return !r.notDelivered
 }
 
 func (r *recordingTracker) EndSession(sessionID string) {
@@ -172,5 +183,46 @@ func TestPlatformWrapInit_AcceptsWhenConnected(t *testing.T) {
 	defer tr.mu.Unlock()
 	if len(tr.registered) != 1 {
 		t.Fatalf("registered %d process(es), want 1", len(tr.registered))
+	}
+}
+
+// TestPlatformWrapInit_RefusesWhenSnapshotNeverArrives covers the gap between
+// registering a session and the extension being able to enforce it.
+//
+// Posting the session-registered notification is not enforcement: the extension
+// fetches the snapshot asynchronously, and until it lands SessionPolicyCache
+// maps none of the session's PIDs, so ESFClient's AUTH handlers allow
+// everything. Measured on hardware before this gate existed -- a wrapped
+// agent's first second ran completely unenforced, with a `whoami` the policy
+// denies succeeding and a denied file read succeeding, while a curl a few
+// hundred milliseconds later was blocked correctly. An agent's first actions
+// are exactly the ones worth policing, so wrap-init waits and fails closed.
+func TestPlatformWrapInit_RefusesWhenSnapshotNeverArrives(t *testing.T) {
+	live := darwin.CheckSysExtLiveness()
+	if !live.Running {
+		t.Skip("no running system extension on this machine")
+	}
+	darwin.SetExtensionPresenceProbe(func() (bool, time.Time) { return true, time.Now() })
+	t.Cleanup(func() { darwin.SetExtensionPresenceProbe(nil) })
+
+	tr := &recordingTracker{notDelivered: true}
+	a := &App{}
+	a.SetSessionTracker(tr)
+
+	_, code, err := platformWrapInit(a, "sess-1", types.WrapInitRequest{CallerPID: 4242})
+	if err == nil {
+		t.Fatal("wrap-init accepted a session the extension never picked up; the agent would start unconstrained")
+	}
+	if code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want %d", code, http.StatusServiceUnavailable)
+	}
+
+	// A refusal must leave nothing behind. A session root left registered would
+	// have the extension attributing processes to a session the server
+	// considers unwrapped.
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+	if len(tr.ended) != 1 || tr.ended[0] != "sess-1" {
+		t.Errorf("refused wrap-init did not unregister the session; ended = %v", tr.ended)
 	}
 }

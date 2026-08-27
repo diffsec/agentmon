@@ -386,6 +386,21 @@ func (m *mockSessionResolver) RootPIDForSession(sessionID string) int32 {
 	return 0
 }
 
+func (m *mockSessionResolver) NoteSnapshotDelivered(string) {}
+
+func (m *mockSessionResolver) ActiveSessions() []string {
+	seen := make(map[string]struct{}, len(m.sessions))
+	var out []string
+	for _, sid := range m.sessions {
+		if _, dup := seen[sid]; dup {
+			continue
+		}
+		seen[sid] = struct{}{}
+		out = append(out, sid)
+	}
+	return out
+}
+
 func TestPolicyAdapter_ResolveSession(t *testing.T) {
 	t.Run("nil resolver returns empty", func(t *testing.T) {
 		adapter := NewPolicyAdapter(nil, nil)

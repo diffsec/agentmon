@@ -1,4 +1,9 @@
 import Foundation
+// notify.h is its own top-level Clang module on macOS (see
+// $(xcrun --show-sdk-path)/usr/include/notify.modulemap), so it is NOT
+// re-exported by Foundation or Darwin and must be imported by name.
+// Without this, notify_register_dispatch is "cannot find in scope".
+import notify
 
 /// Darwin notification name posted by Go server when policy changes.
 private let policyUpdatedNotification = "dev.diffsec.agentmon.policy-updated"
@@ -160,8 +165,49 @@ class SessionPolicyCache {
     // MARK: - Session Membership
 
     /// Returns the sessionID for a PID, or nil if not in any session.
+    /// Resolve a PID to its session, walking up the process tree if it is not
+    /// mapped directly.
+    ///
+    /// The direct map is populated by addPID from ESF FORK events, which only
+    /// works if the parent was ALREADY in a session when the fork happened.
+    /// Under `agentmon wrap` it is not: the daemon registers the wrap caller as
+    /// the session root and posts the notification, but the agent has usually
+    /// been forked by the time the extension fetches the snapshot. That fork
+    /// event is dropped, the agent is never attributed, and every descendant of
+    /// it inherits the same blindness -- so a wrapped session enforced nothing
+    /// at all, which is the entire point of wrapping.
+    ///
+    /// `agentmon exec` did not show this because the daemon explicitly
+    /// registers both its own PID and the command's PID, so it never depends on
+    /// catching the fork.
+    ///
+    /// The walk uses ProcessHierarchy, which falls back to sysctl for processes
+    /// it never saw fork, so it works for PIDs that predate the snapshot. Only
+    /// positive results are cached: "not in a session" must stay re-checkable,
+    /// because a session can be registered after the first lookup.
     func sessionForPID(_ pid: pid_t) -> String? {
-        queue.sync { pidToSession[pid] }
+        if let sid = queue.sync(execute: { pidToSession[pid] }) {
+            return sid
+        }
+
+        // Nothing is tracked at all -- skip the sysctl walk entirely. This is
+        // the common case on an idle machine and it is on the ESF AUTH hot path.
+        guard _hasActiveSessions != 0 else { return nil }
+
+        for ancestor in ProcessHierarchy.shared.getAncestors(pid: pid) {
+            guard let sid = queue.sync(execute: { pidToSession[ancestor] }) else {
+                continue
+            }
+            queue.async(flags: .barrier) {
+                // Re-check under the barrier: another thread may have mapped it.
+                guard self.pidToSession[pid] == nil,
+                      let cache = self.sessions[sid] else { return }
+                cache.sessionPIDs.insert(pid)
+                self.pidToSession[pid] = sid
+            }
+            return sid
+        }
+        return nil
     }
 
     /// Returns the SessionCache for a PID, or nil if not in any session.
@@ -366,35 +412,60 @@ class SessionPolicyCache {
 
     // MARK: - Darwin Notification Listener
 
-    private func startListeningForNotifications() {
-        let center = CFNotificationCenterGetDarwinNotifyCenter()
-        let name = CFNotificationName(policyUpdatedNotification as CFString)
-        CFNotificationCenterAddObserver(
-            center,
-            Unmanaged.passUnretained(self).toOpaque(),
-            { _, observer, _, _, _ in
-                guard let observer = observer else { return }
-                let cache = Unmanaged<SessionPolicyCache>.fromOpaque(observer).takeUnretainedValue()
-                cache.handlePolicyUpdateNotification()
-            },
-            name.rawValue,
-            nil,
-            .deliverImmediately
-        )
+    /// Queue the notification handlers run on. Serial, so two notifications
+    /// arriving together cannot race each other into the cache.
+    private let notifyQueue = DispatchQueue(label: "dev.diffsec.agentmon.notify")
 
-        let sessionName = CFNotificationName(sessionRegisteredNotification as CFString)
-        CFNotificationCenterAddObserver(
-            center,
-            Unmanaged.passUnretained(self).toOpaque(),
-            { _, observer, _, _, _ in
-                guard let observer = observer else { return }
-                let cache = Unmanaged<SessionPolicyCache>.fromOpaque(observer).takeUnretainedValue()
-                cache.handleSessionRegisteredNotification()
-            },
-            sessionName.rawValue,
-            nil,
-            .deliverImmediately
-        )
+    /// Registration tokens, kept so the registrations are not cancelled. The
+    /// cache is a process-lifetime singleton, so these are never released.
+    private var notifyTokens: [Int32] = []
+
+    /// Subscribe to the Go daemon's Darwin notifications.
+    ///
+    /// This uses notify_register_dispatch, NOT CFNotificationCenterAddObserver.
+    /// The difference is the whole reason this code exists.
+    ///
+    /// CFNotificationCenterGetDarwinNotifyCenter delivers through a run-loop
+    /// source, and the extension's main thread ends in dispatchMain(), which
+    /// services the main *dispatch queue* and never runs a CFRunLoop. So the
+    /// observers registered here were never called, at all. Two visible
+    /// consequences, both measured on hardware on 2026-08-27:
+    ///
+    ///   - The extension never learned that a session had been registered, so
+    ///     SessionPolicyCache mapped no PID to a session, and ESFClient's AUTH
+    ///     handlers allowed everything. After a daemon restart, `agentmon wrap`
+    ///     and `agentmon exec` sessions alike enforced NOTHING -- no file, exec
+    ///     or network policy -- with nothing reporting it.
+    ///   - PolicySocketClient.onServerNotification, the only thing that
+    ///     re-establishes the event stream after the daemon restarts, was never
+    ///     reached. Three previous attempts to fix that reconnect failed
+    ///     because they addressed the socket rather than the delivery
+    ///     mechanism: the reconnect logic was correct and simply never ran.
+    ///
+    /// notify_register_dispatch delivers on a dispatch queue and needs no run
+    /// loop, so it works under dispatchMain().
+    private func startListeningForNotifications() {
+        register(policyUpdatedNotification) { [weak self] in
+            self?.handlePolicyUpdateNotification()
+        }
+        register(sessionRegisteredNotification) { [weak self] in
+            self?.handleSessionRegisteredNotification()
+        }
+    }
+
+    private func register(_ name: String, handler: @escaping () -> Void) {
+        var token: Int32 = 0
+        let status = notify_register_dispatch(name, &token, notifyQueue) { _ in
+            handler()
+        }
+        guard status == UInt32(NOTIFY_STATUS_OK) else {
+            // Loud, because a silent failure here is indistinguishable from a
+            // daemon that never posts: the extension simply enforces nothing.
+            NSLog("SessionPolicyCache: FAILED to subscribe to \(name) (notify status \(status)) -- sessions will not be seen and policy will not be enforced")
+            return
+        }
+        notifyTokens.append(token)
+        NSLog("SessionPolicyCache: subscribed to \(name)")
     }
 
     private func handlePolicyUpdateNotification() {
@@ -413,22 +484,45 @@ class SessionPolicyCache {
     private func handleSessionRegisteredNotification() {
         PolicySocketClient.shared.onServerNotification()
 
+        // session_id "" asks for the most recently registered session.
+        fetchSnapshot(sessionID: "") { [weak self] response in
+            guard let self = self, let response = response else { return }
+
+            // Darwin notifications coalesce. Two sessions registering close
+            // together can produce one delivery, and the fetch above only
+            // returns the latest -- so the other would never be fetched, would
+            // hold no policy, and would enforce nothing for its whole life. The
+            // daemon sends the full list precisely so that cannot happen.
+            guard let active = response["active_sessions"] as? [String] else { return }
+            let known = Set(self.allSessionIDs())
+            for sessionID in active where !known.contains(sessionID) {
+                self.fetchSnapshot(sessionID: sessionID, completion: nil)
+            }
+        }
+    }
+
+    /// Fetch one session's snapshot and install it. Passing "" asks the daemon
+    /// for the most recently registered session.
+    private func fetchSnapshot(sessionID: String,
+                               completion: (([String: Any]?) -> Void)?) {
         PolicySocketClient.shared.request([
             "type": "fetch_policy_snapshot",
-            "session_id": "",
+            "session_id": sessionID,
             "version": 0
         ]) { response in
+            defer { completion?(response) }
+
             guard let response = response,
-                  let sessionID = response["session_id"] as? String,
-                  !sessionID.isEmpty else { return }
+                  let resolvedID = response["session_id"] as? String,
+                  !resolvedID.isEmpty else { return }
             guard let rootPID = response["root_pid"] as? Int32 ?? (response["root_pid"] as? Int).map({ Int32($0) }) else { return }
-            guard let snapshot = SessionCache.from(json: response, sessionID: sessionID, rootPID: rootPID) else {
-                NSLog("SessionPolicyCache: failed to parse session snapshot")
+            guard let snapshot = SessionCache.from(json: response, sessionID: resolvedID, rootPID: rootPID) else {
+                NSLog("SessionPolicyCache: failed to parse snapshot for session \(resolvedID)")
                 return
             }
             SessionPolicyCache.shared.registerSession(
-                sessionID: sessionID, rootPID: rootPID, snapshot: snapshot)
-            NSLog("SessionPolicyCache: registered session \(sessionID) from notification")
+                sessionID: resolvedID, rootPID: rootPID, snapshot: snapshot)
+            NSLog("SessionPolicyCache: registered session \(resolvedID) from notification")
         }
     }
 

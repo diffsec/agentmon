@@ -29,6 +29,11 @@ type SessionTracker struct {
 	// randomised, so "latest" cannot be derived from sessionRootPID -- see
 	// LatestSession.
 	sessionOrder []string
+
+	// sessionIDs the extension has actually been handed a snapshot for.
+	// Registering a session and the extension holding its policy are different
+	// events, seconds apart -- see NoteSnapshotDelivered.
+	snapshotDelivered map[string]struct{}
 }
 
 // NewSessionTracker creates a new session tracker.
@@ -38,7 +43,38 @@ func NewSessionTracker() *SessionTracker {
 		pidToParent:    make(map[int32]int32),
 		sessionToPids:  make(map[string]map[int32]struct{}),
 		sessionRootPID: make(map[string]int32),
+
+		snapshotDelivered: make(map[string]struct{}),
 	}
+}
+
+// NoteSnapshotDelivered records that the extension has fetched this session's
+// policy snapshot.
+//
+// Registering a session is not the same event as the extension being able to
+// enforce it. Registration posts a Darwin notification; the extension then
+// fetches asynchronously, and until that lands SessionPolicyCache maps none of
+// the session's PIDs and ESFClient's AUTH handlers allow everything. Measured:
+// a wrapped agent's first second of commands ran completely unenforced -- a
+// `whoami` the policy denies succeeded, and so did a read of a denied file.
+// wrap-init waits on this rather than returning as soon as the notification is
+// posted.
+func (t *SessionTracker) NoteSnapshotDelivered(sessionID string) {
+	if sessionID == "" {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.snapshotDelivered[sessionID] = struct{}{}
+}
+
+// SnapshotDelivered reports whether the extension has fetched this session's
+// policy snapshot, and can therefore enforce it.
+func (t *SessionTracker) SnapshotDelivered(sessionID string) bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	_, ok := t.snapshotDelivered[sessionID]
+	return ok
 }
 
 // RegisterProcess adds a process to a session.
@@ -100,6 +136,9 @@ func (t *SessionTracker) EndSession(sessionID string) {
 	// accumulated forever and LatestSession could hand back a terminated
 	// session's root PID (AUDIT M30).
 	delete(t.sessionRootPID, sessionID)
+	// Same reason: an ended session's delivery flag must not outlive it, or a
+	// later session reusing the ID would be reported as already enforced.
+	delete(t.snapshotDelivered, sessionID)
 	for i, sid := range t.sessionOrder {
 		if sid == sessionID {
 			t.sessionOrder = append(t.sessionOrder[:i], t.sessionOrder[i+1:]...)
@@ -176,6 +215,24 @@ func (t *SessionTracker) LatestSession() (sessionID string, rootPID int32) {
 	}
 	sessionID = t.sessionOrder[len(t.sessionOrder)-1]
 	return sessionID, t.sessionRootPID[sessionID]
+}
+
+// ActiveSessions returns every registered session ID, oldest first.
+//
+// The extension needs this because Darwin notifications COALESCE: two sessions
+// registering in quick succession can produce a single delivery, and the
+// handler only ever fetches the latest session's snapshot. Without the full
+// list, the older session is never fetched, holds no policy, and therefore
+// enforces nothing -- silently, for its whole lifetime.
+func (t *SessionTracker) ActiveSessions() []string {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if len(t.sessionOrder) == 0 {
+		return nil
+	}
+	out := make([]string, len(t.sessionOrder))
+	copy(out, t.sessionOrder)
+	return out
 }
 
 // RootPIDForSession returns the root PID for a session ID.
