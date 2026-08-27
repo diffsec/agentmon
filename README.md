@@ -1,14 +1,14 @@
 # agentmon
 
-> **macOS note:** Native macOS enforcement via ESF (Endpoint Security Framework) + NE (Network Extension) is in **Alpha**. It works end-to-end — file, process, and network events flow through the system extension to the Go policy engine — but expect rough edges and breaking changes between releases. For production use today, we recommend Linux.
+> **macOS note:** Native macOS enforcement via ESF (Endpoint Security Framework) + NE (Network Extension) is in **Alpha**. File, command and network policy are enforced and verified on real hardware; DNS policy and resource limits are not enforced at all. Expect rough edges and breaking changes. Apple Silicon only.
 >
-> **Windows note:** We are working to get the minifilter drivers signed. Until then, only Windows WSL2 mode is fully supported for production use.
+> **Windows is not supported.** It was removed in full, rather than being unfinished.
 
 **Secure, policy-enforced execution gateway for AI agents.**
 
 agentmon sits *under* your agent/tooling—intercepting **file**, **network**, **process**, and **signal** activity (including subprocess trees), enforcing the policy you define, and emitting **structured audit events**.
 
-> **Platform note:** Linux provides full enforcement (100% security score). macOS **ESF+NE** (90% score) is in **Alpha** — functional but not production-ready. Windows **WSL2** provides full Linux-equivalent enforcement (100% score); native Windows via minifilter driver + **AppContainer** (85% score) is pending driver signing. See the [Platform Comparison Matrix](docs/platform-comparison.md) for details.
+> **Platform note:** Linux and macOS only. Scores come from `agentmon detect`, which probes the machine it runs on — macOS with the system extension and content filter active measures **85/100** (file, command, network and seatbelt isolation enforced; resource limits and DNS absent). Linux's score depends on which kernel features the host offers, so run the command rather than assuming one. See the [Platform Comparison](docs/platform-comparison.md) for what enforces and what does not.
 
 ---
 
@@ -23,7 +23,7 @@ agentmon sits *under* your agent/tooling—intercepting **file**, **network**, *
   - PTY activity
   - LLM API requests with DLP and usage tracking
   - Postgres-family database traffic through declared `db_services`
-  - signal send/block (Linux enforced, macOS/Windows audit)
+  - signal send/block (Linux enforced, macOS audit only)
   - database queries via the embedded **PostgreSQL proxy** — per-statement classification and policy
   - Route outbound HTTP API calls through declared services (**http_services**) with per-method, per-path rules, approval gating, and fail-closed host enforcement
 - **Two output modes**:
@@ -90,39 +90,34 @@ Containers isolate the host surface; agentmon adds **in-container runtime visibi
 
 ### Install
 
-**macOS (Homebrew)**
+**There is no published release yet**, and no Homebrew tap. Build from source.
 
-```bash
-brew tap canyonroad/tap
-brew install --cask agentmon
-```
-
-This installs the AgentMon app bundle with the ESF+NE system extension. After installation you'll be prompted to approve the system extension in **System Settings > General > Login Items & Extensions**.
-
-**Linux (from a GitHub Release)**
-
-Download the `.deb`, `.rpm`, or `.apk` for your platform from the [releases page](https://github.com/erans/agentmon/releases).
-
-```bash
-# Example for Debian/Ubuntu
-sudo dpkg -i agentmon_<VERSION>_linux_amd64.deb
-```
-
-**From source (Linux)**
+**Linux**
 
 ```bash
 make build
 sudo install -m 0755 bin/agentmon bin/agentmon-shell-shim /usr/local/bin
 ```
 
-**From source (macOS)**
+**macOS** (Apple Silicon only, Xcode 15+)
 
 ```bash
-# ESF+NE mode (full enforcement — Alpha, requires Xcode 15+)
-make build-macos-enterprise
+SIGNING_IDENTITY="Developer ID Application: ..." make build-macos-enterprise
 ```
 
-See [macOS Build Guide](docs/macos-build.md) for detailed macOS build instructions.
+The system extension will not load unless the bundle is signed **and notarized**:
+System Integrity Protection blocks `systemextensionsctl developer on`, so
+notarization is the only route. Then:
+
+```bash
+/Applications/AgentMon.app/Contents/MacOS/agentmon activate-extension
+```
+
+Approve the extension in **System Settings > General > Login Items & Extensions**,
+and grant it **Full Disk Access** — without that, Endpoint Security cannot start
+and the extension crash-loops. `agentmon detect` reports what is actually active.
+
+See [macOS Build Guide](docs/macos-build.md) for the full sequence.
 
 ---
 
@@ -623,11 +618,18 @@ connect_redirect:
 
 ### Platform Support
 
-| Feature | Linux | macOS | Windows |
-|---------|-------|-------|---------|
-| DNS Redirect | ✅ eBPF | ✅ pf/proxy | ✅ WinDivert |
-| Connect Redirect | ✅ eBPF | ✅ pf/proxy | ✅ WinDivert |
-| SNI Rewrite | ✅ | ✅ | ✅ |
+| Feature | Linux | macOS |
+|---------|-------|-------|
+| DNS Redirect | ✅ eBPF | ❌ no transparent redirect |
+| Connect Redirect | ✅ eBPF | ⚠️ proxy only |
+| SNI Rewrite | ✅ | ⚠️ proxy only |
+
+macOS has no transparent network redirect. `internal/platform/darwin/network.go`
+writes pf rules but has no callers — `platform.Platform.Network()` is never
+invoked on any platform — so nothing installs them. Redirects on macOS apply
+only to traffic that goes through agentmon's own proxy, which means the agent
+has to honour the proxy environment variables. Traffic that ignores them is not
+redirected.
 
 ### Use Cases
 
@@ -648,7 +650,6 @@ agentmon intercepts signals (`kill`, `SIGTERM`, etc.) sent between processes, pr
 |----------|----------|----------|-------|
 | Linux | Yes (seccomp user-notify) | Yes | Yes |
 | macOS | No | No | Yes (ES) |
-| Windows | Partial | No | Yes (ETW) |
 
 ### Example Signal Rules
 
