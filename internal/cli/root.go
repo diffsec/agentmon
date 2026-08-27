@@ -52,6 +52,7 @@ func NewRoot(version string) *cobra.Command {
 	cmd.AddCommand(newWrapCmd())
 	cmd.AddCommand(newActivateExtensionCmd())
 	cmd.AddCommand(newDeactivateExtensionCmd())
+	cmd.AddCommand(newNetworkFilterCmd())
 	cmd.AddCommand(newSkillcheckCmd())
 
 	return cmd

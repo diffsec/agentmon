@@ -75,7 +75,7 @@ func TestDetect_Darwin(t *testing.T) {
 func TestBuildDarwinDomains_ESFDetail(t *testing.T) {
 	caps := map[string]any{"esf": false, "network_extension": false}
 	detail := "activated but not running (state: spawn scheduled, last exit: exit code 1)"
-	domains := buildDarwinDomains(caps, detail)
+	domains := buildDarwinDomains(caps, detail, "unused")
 
 	found := 0
 	for _, d := range domains {
@@ -112,7 +112,7 @@ func TestDarwinCaps_LivenessMapping(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			caps := darwinCaps(tt.liveness)
+			caps := darwinCaps(tt.liveness, darwin.ContentFilterState{})
 			if got := caps["esf"].(bool); got != tt.wantESF {
 				t.Errorf("esf = %v, want %v", got, tt.wantESF)
 			}
@@ -121,6 +121,81 @@ func TestDarwinCaps_LivenessMapping(t *testing.T) {
 			}
 			if got := caps["esf_probe_failed"].(bool); got != tt.wantPF {
 				t.Errorf("esf_probe_failed = %v, want %v", got, tt.wantPF)
+			}
+		})
+	}
+}
+
+// TestNetworkExtensionState pins the two-condition check behind the Network
+// domain's score. Before the content filter was wired up this was a hardcoded
+// false; the risk now runs the other way, so each case that must NOT score is
+// listed explicitly.
+func TestNetworkExtensionState(t *testing.T) {
+	running := darwin.SysExtLiveness{Activated: true, Running: true}
+
+	tests := []struct {
+		name        string
+		liveness    darwin.SysExtLiveness
+		filter      darwin.ContentFilterState
+		wantActive  bool
+		detailMatch string
+	}{
+		{
+			name:        "configured, enabled and running",
+			liveness:    running,
+			filter:      darwin.ContentFilterState{Installed: true, Enabled: true},
+			wantActive:  true,
+			detailMatch: "active",
+		},
+		{
+			// The provider class is registered but macOS never instantiates it
+			// without a configuration, so nothing filters.
+			name:        "no filter configuration",
+			liveness:    running,
+			filter:      darwin.ContentFilterState{},
+			wantActive:  false,
+			detailMatch: "network-filter enable",
+		},
+		{
+			// Indistinguishable from "no configuration" at the provider:
+			// startFilter is not called either way.
+			name:        "configuration present but disabled",
+			liveness:    running,
+			filter:      darwin.ContentFilterState{Installed: true},
+			wantActive:  false,
+			detailMatch: "disabled",
+		},
+		{
+			// A configuration pointing at an extension that is not running
+			// filters nothing.
+			name:        "extension not running",
+			liveness:    darwin.SysExtLiveness{Activated: true},
+			filter:      darwin.ContentFilterState{Installed: true, Enabled: true},
+			wantActive:  false,
+			detailMatch: "not running",
+		},
+		{
+			// An unreadable configuration is not evidence of one.
+			name:        "probe error never scores",
+			liveness:    running,
+			filter:      darwin.ContentFilterState{Installed: true, Enabled: true, Error: "permission denied"},
+			wantActive:  false,
+			detailMatch: "unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			active, detail := networkExtensionState(tt.liveness, tt.filter)
+			if active != tt.wantActive {
+				t.Errorf("active = %v, want %v (detail: %s)", active, tt.wantActive, detail)
+			}
+			if !strings.Contains(detail, tt.detailMatch) {
+				t.Errorf("detail = %q, want it to contain %q", detail, tt.detailMatch)
+			}
+			caps := darwinCaps(tt.liveness, tt.filter)
+			if got := caps["network_extension"].(bool); got != tt.wantActive {
+				t.Errorf("caps[network_extension] = %v, want %v", got, tt.wantActive)
 			}
 		})
 	}

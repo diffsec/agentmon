@@ -2,9 +2,46 @@
 import NetworkExtension
 import Network
 
+/// DNS filtering provider.
+///
+/// **This provider is registered but deliberately not installed.** Nothing
+/// creates an NEDNSProxyManager configuration, so macOS never starts it, and
+/// DNS rules are unenforced on macOS. That is a known gap, not an oversight,
+/// and it is not safe to close by installing a configuration as-is:
+///
+///  1. There is no upstream resolver here. `shouldForward` reacts to a query
+///     that policy does not block by calling `flow.writeDatagrams` -- which
+///     writes *back to the querying app*, not out to a DNS server. So an
+///     allowed query would be answered with a copy of itself. No NWConnection
+///     or NWUDPSession exists anywhere in this file to send it upstream.
+///  2. `BuildPolicySnapshot` emits no DNS rules at all (see the "the current
+///     policy model does not have separate DNS rules" comment in
+///     policysock/handler.go), so `evaluateDNS` always returns nil and every
+///     query takes the broken path above.
+///  3. An NEDNSProxyManager configuration is machine-wide. Unlike the content
+///     filter, which the provider scopes to session PIDs, a DNS proxy sees
+///     every lookup on the Mac. `evaluateDNS` is itself unscoped -- it takes no
+///     PID and unions the rules of all sessions.
+///
+/// Together those mean installing this today would break name resolution for
+/// the entire machine, not just for a sandboxed session. Closing the gap needs
+/// an upstream resolver, DNS rules in the snapshot, and PID scoping -- in that
+/// order.
 class DNSProxyProvider: NEDNSProxyProvider {
     override func startProxy(options: [String: Any]? = nil, completionHandler: @escaping (Error?) -> Void) {
-        completionHandler(nil)
+        // Refuse to start rather than silently mangling the machine's DNS.
+        //
+        // This costs nothing today: no configuration exists, so this method is
+        // never called. It matters the moment someone installs one -- returning
+        // an error surfaces as a failed proxy, whereas succeeding would answer
+        // every DNS query on the Mac with a copy of the query. Delete this
+        // guard only together with the three fixes named above.
+        NSLog("DNSProxyProvider: refusing to start -- no upstream resolver and no DNS rules in the snapshot; DNS policy is unenforced on macOS")
+        completionHandler(NSError(
+            domain: "dev.diffsec.agentmon",
+            code: 1,
+            userInfo: [NSLocalizedDescriptionKey:
+                "AgentMon DNS proxy is not implemented: it has no upstream resolver, so starting it would break DNS resolution machine-wide."]))
     }
 
     override func stopProxy(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {

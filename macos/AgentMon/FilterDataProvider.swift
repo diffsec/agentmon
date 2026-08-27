@@ -6,20 +6,27 @@ class FilterDataProvider: NEFilterDataProvider {
 
     // MARK: - Blocking Configuration
 
-    /// When true, uses synchronous blocking mode that returns actual verdicts.
-    /// When false (default), uses async audit-only mode that always allows flows.
-    var blockingEnabled: Bool = false
+    // blockingEnabled and failOpen used to be stored properties here, hardcoded
+    // to false and true and never assigned by anything -- so the provider was
+    // permanently in audit mode with a fail-open fallback no matter what the
+    // policy said. They now come from the session's snapshot
+    // (network_enforcement / network_fail_open, derived in
+    // policysock/handler.go), which makes them per-session as well as
+    // policy-driven: two concurrent sessions can legitimately want different
+    // answers, and one instance-wide flag could never express that.
 
     /// Maximum time to wait for policy decision in blocking mode.
     /// Default is 100ms to minimize latency impact.
     var decisionTimeout: TimeInterval = 0.1
 
-    /// Behavior when timeout occurs or policy check fails.
-    /// true (default) = allow on timeout/error (fail-open)
-    /// false = deny on timeout/error (fail-closed)
-    var failOpen: Bool = true
-
     override func startFilter(completionHandler: @escaping (Error?) -> Void) {
+        // This line is the proof that the content filter is actually running.
+        // macOS calls startFilter only once an NEFilterManager configuration
+        // exists and is enabled; before that the provider is registered but
+        // never instantiated, and network rules are unenforced with nothing in
+        // any log to say so. `log show --predicate 'process == "..."'` finding
+        // this message is the check that distinguishes the two states.
+        NSLog("FilterDataProvider: startFilter -- content filter is now active")
         _ = ProcessHierarchy.shared
         completionHandler(nil)
     }
@@ -28,6 +35,7 @@ class FilterDataProvider: NEFilterDataProvider {
         with reason: NEProviderStopReason,
         completionHandler: @escaping () -> Void
     ) {
+        NSLog("FilterDataProvider: stopFilter (reason \(reason.rawValue)) -- network rules are no longer enforced")
         completionHandler()
     }
 
@@ -88,9 +96,17 @@ class FilterDataProvider: NEFilterDataProvider {
             return .allow()
         }
 
+        // Enforcement mode is a property of the session's policy, not of this
+        // provider. A missing cache means the snapshot has not arrived yet;
+        // audit + fail-open matches what a PID with no known policy already
+        // gets everywhere else in this file.
+        let sessionCache = SessionPolicyCache.shared.cacheForSession(sessionID)
+        let blockingEnabled = sessionCache?.networkBlocking ?? false
+        let failOpen = sessionCache?.networkFailOpen ?? true
+
         // Proxy enforcement: ensure session PIDs connect through the proxy
         if blockingEnabled,
-           let cache = SessionPolicyCache.shared.cacheForSession(sessionID),
+           let cache = sessionCache,
            cache.proxyAddr != nil {
 
             // Allow localhost connections (always pass through)
@@ -158,7 +174,8 @@ class FilterDataProvider: NEFilterDataProvider {
                 pid: pid,
                 parentPID: parentPID,
                 sessionID: sessionID,
-                processInfo: processInfo
+                processInfo: processInfo,
+                failOpen: failOpen
             )
         } else {
             return handleNewFlowAuditOnly(
@@ -222,7 +239,8 @@ class FilterDataProvider: NEFilterDataProvider {
 
     private func handleNewFlowBlocking(
         ip: String, port: Int, protocolType: String, domain: String?,
-        pid: pid_t, parentPID: pid_t, sessionID: String, processInfo: ProcessInfo
+        pid: pid_t, parentPID: pid_t, sessionID: String, processInfo: ProcessInfo,
+        failOpen: Bool
     ) -> NEFilterNewFlowVerdict {
         let semaphore = DispatchSemaphore(value: 0)
         var policyDecision: String?
@@ -283,7 +301,7 @@ class FilterDataProvider: NEFilterDataProvider {
         logPNACLDecision(
             decision: policyDecision ?? (failOpen ? "allow_fallback" : "deny_fallback"),
             ruleID: policyRuleID, ip: ip, port: port, pid: pid,
-            bundleID: processInfo.bundleID, blocked: wasBlocked)
+            bundleID: processInfo.bundleID, blocked: wasBlocked, blocking: true)
 
         // Report event to server asynchronously (fire-and-forget)
         PolicySocketClient.shared.send([
@@ -312,11 +330,12 @@ class FilterDataProvider: NEFilterDataProvider {
         port: Int,
         pid: pid_t,
         bundleID: String?,
-        blocked: Bool = false
+        blocked: Bool = false,
+        blocking: Bool = false
     ) {
         let bundleStr = bundleID ?? "unknown"
         let ruleStr = ruleID ?? "none"
-        let modeStr = blockingEnabled ? "BLOCKING" : "AUDIT"
+        let modeStr = blocking ? "BLOCKING" : "AUDIT"
         let actionStr = blocked ? "BLOCKED" : "ALLOWED"
 
         switch decision {

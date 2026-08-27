@@ -127,6 +127,12 @@ type PolicyResponse struct {
 	DNSRules        []SnapshotDNSRule     `json:"dns_rules,omitempty"`
 	ExecRules       []SnapshotExecRule    `json:"exec_rules,omitempty"`
 	Defaults        *SnapshotDefaults     `json:"defaults,omitempty"`
+
+	// NetworkEnforcement drives FilterDataProvider.blockingEnabled: "block" or
+	// "audit". NetworkFailOpen drives its failOpen. Both are pointers/omitempty
+	// so they appear only on snapshot replies, not on every check response.
+	NetworkEnforcement string `json:"network_enforcement,omitempty"`
+	NetworkFailOpen    *bool  `json:"network_fail_open,omitempty"`
 }
 
 // ExecContext carries process context from the ESF event for exec redirect.

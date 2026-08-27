@@ -56,11 +56,24 @@ class SessionCache {
     var proxyAddr: String?
     var directAllow: [DirectAllowEntry] = []
 
+    /// Whether the content filter should consult the daemon for flows this
+    /// cache cannot decide, instead of allowing and reporting them. Sent by the
+    /// daemon in the snapshot; see networkEnforcement in policysock/handler.go.
+    var networkEnforcement: String = "audit"
+
+    /// What a blocking-mode timeout or socket failure does. Only consulted when
+    /// networkEnforcement is "block".
+    var networkFailOpen: Bool = true
+
+    /// True when the daemon asked for enforcement rather than observation.
+    var networkBlocking: Bool { networkEnforcement == "block" }
+
     init(sessionID: String, rootPID: pid_t, version: UInt64,
          fileRules: [FileRule], networkRules: [NetworkRule],
          dnsRules: [DNSRule], execRules: [ExecRule],
          defaults: PolicyDefaults,
-         proxyAddr: String? = nil, directAllow: [DirectAllowEntry] = []) {
+         proxyAddr: String? = nil, directAllow: [DirectAllowEntry] = [],
+         networkEnforcement: String = "audit", networkFailOpen: Bool = true) {
         self.sessionID = sessionID
         self.rootPID = rootPID
         self.version = version
@@ -72,6 +85,8 @@ class SessionCache {
         self.defaults = defaults
         self.proxyAddr = proxyAddr
         self.directAllow = directAllow
+        self.networkEnforcement = networkEnforcement
+        self.networkFailOpen = networkFailOpen
     }
 }
 
@@ -507,11 +522,20 @@ extension SessionCache {
             }
         }
 
+        // A snapshot from a daemon that predates these fields carries neither.
+        // Defaulting to audit keeps that daemon's behaviour exactly as it was
+        // rather than silently switching it into a blocking mode it was never
+        // built to answer for; explicit deny rules still drop, because
+        // evaluateNetwork decides those without consulting either flag.
+        let enforcement = json["network_enforcement"] as? String ?? "audit"
+        let failOpen = json["network_fail_open"] as? Bool ?? true
+
         let cache = SessionCache(
             sessionID: sessionID, rootPID: rootPID, version: version,
             fileRules: fileRules, networkRules: networkRules,
             dnsRules: dnsRules, execRules: execRules, defaults: defaults,
-            proxyAddr: proxyAddr, directAllow: directAllow
+            proxyAddr: proxyAddr, directAllow: directAllow,
+            networkEnforcement: enforcement, networkFailOpen: failOpen
         )
         return cache
     }
