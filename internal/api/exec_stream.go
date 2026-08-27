@@ -391,6 +391,10 @@ func runCommandWithResourcesStreamingEmit(ctx context.Context, s *session.Sessio
 		return 127, nil, nil, 0, 0, false, false, types.ExecResources{}, ctx.Err()
 	}
 
+	// Register the session and wait for the extension to hold its policy BEFORE
+	// starting the process. See registerSessionRoot.
+	registerSessionRoot(extra, s.ID)
+
 	if err := cmd.Start(); err != nil {
 		extra.closeWrapperLogPipe()
 		if stdoutPipeR != nil {
@@ -440,9 +444,8 @@ func runCommandWithResourcesStreamingEmit(ctx context.Context, s *session.Sessio
 		// Register the server PID first so the sysext can track all children
 		// via FORK events (the server is the parent of all command processes).
 		if extra != nil && extra.sessionTracker != nil {
-			extra.sessionTracker.RegisterProcess(s.ID, int32(os.Getpid()), 0)
+			// The root was registered before Start; this attributes the child.
 			extra.sessionTracker.RegisterProcess(s.ID, int32(cmd.Process.Pid), int32(os.Getpid()))
-			notifySessionRegistered()
 		}
 		pgid = getProcessGroupID(cmd.Process.Pid)
 

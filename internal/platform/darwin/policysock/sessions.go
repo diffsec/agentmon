@@ -5,6 +5,7 @@ package policysock
 
 import (
 	"sync"
+	"time"
 )
 
 const maxParentWalkDepth = 10
@@ -34,6 +35,10 @@ type SessionTracker struct {
 	// Registering a session and the extension holding its policy are different
 	// events, seconds apart -- see NoteSnapshotDelivered.
 	snapshotDelivered map[string]struct{}
+
+	// sessionIDs AwaitSnapshot has already given up on, so a machine with no
+	// running extension pays the timeout once rather than once per command.
+	snapshotAbandoned map[string]struct{}
 }
 
 // NewSessionTracker creates a new session tracker.
@@ -45,6 +50,7 @@ func NewSessionTracker() *SessionTracker {
 		sessionRootPID: make(map[string]int32),
 
 		snapshotDelivered: make(map[string]struct{}),
+		snapshotAbandoned: make(map[string]struct{}),
 	}
 }
 
@@ -76,6 +82,64 @@ func (t *SessionTracker) SnapshotDelivered(sessionID string) bool {
 	_, ok := t.snapshotDelivered[sessionID]
 	return ok
 }
+
+// AwaitSnapshot blocks until the extension has fetched this session's policy,
+// or until timeout, and reports whether it is ready.
+//
+// Callers use this to avoid starting a process the extension cannot yet police.
+// The window is real: registration only posts a Darwin notification, the
+// extension fetches asynchronously, and until the snapshot lands
+// SessionPolicyCache maps none of the session's PIDs, so ESFClient's AUTH
+// handlers allow everything.
+//
+// After one timeout for a session this returns false immediately. On a machine
+// with no running extension the snapshot never arrives, and paying the full
+// timeout before every command would make the daemon unusable there -- the
+// gap is reported once, by the caller, rather than re-measured forever.
+func (t *SessionTracker) AwaitSnapshot(sessionID string, timeout time.Duration) bool {
+	if sessionID == "" {
+		return false
+	}
+
+	t.mu.RLock()
+	_, delivered := t.snapshotDelivered[sessionID]
+	_, abandoned := t.snapshotAbandoned[sessionID]
+	t.mu.RUnlock()
+	if delivered {
+		return true
+	}
+	if abandoned {
+		return false
+	}
+
+	deadline := time.Now().Add(timeout)
+	for {
+		if t.SnapshotDelivered(sessionID) {
+			return true
+		}
+		if !time.Now().Before(deadline) {
+			break
+		}
+		time.Sleep(snapshotPollInterval)
+	}
+
+	t.mu.Lock()
+	// Re-check under the write lock: the snapshot may have landed while we were
+	// acquiring it, and marking a live session abandoned would disable the wait
+	// for every later command in it.
+	if _, ok := t.snapshotDelivered[sessionID]; ok {
+		t.mu.Unlock()
+		return true
+	}
+	t.snapshotAbandoned[sessionID] = struct{}{}
+	t.mu.Unlock()
+	return false
+}
+
+// snapshotPollInterval is short because the whole point is to add no noticeable
+// latency to process startup in the normal case, where the snapshot arrives in
+// a single unix-socket round trip.
+const snapshotPollInterval = 10 * time.Millisecond
 
 // RegisterProcess adds a process to a session.
 func (t *SessionTracker) RegisterProcess(sessionID string, pid, ppid int32) {
@@ -139,6 +203,7 @@ func (t *SessionTracker) EndSession(sessionID string) {
 	// Same reason: an ended session's delivery flag must not outlive it, or a
 	// later session reusing the ID would be reported as already enforced.
 	delete(t.snapshotDelivered, sessionID)
+	delete(t.snapshotAbandoned, sessionID)
 	for i, sid := range t.sessionOrder {
 		if sid == sessionID {
 			t.sessionOrder = append(t.sessionOrder[:i], t.sessionOrder[i+1:]...)

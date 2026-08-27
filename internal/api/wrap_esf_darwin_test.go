@@ -21,9 +21,9 @@ type recordingTracker struct {
 	}
 	ended []string
 
-	// notDelivered makes SnapshotDelivered report false, i.e. the extension
-	// never picked up the policy. Zero value is "delivered", so tests about
-	// other things do not sit through the wait.
+	// notDelivered makes AwaitSnapshot report false, i.e. the extension never
+	// picked up the policy. Zero value is "delivered", so tests about other
+	// things do not sit through the wait.
 	notDelivered bool
 }
 
@@ -36,7 +36,7 @@ func (r *recordingTracker) RegisterProcess(sessionID string, pid, ppid int32) {
 	}{sessionID, pid, ppid})
 }
 
-func (r *recordingTracker) SnapshotDelivered(string) bool {
+func (r *recordingTracker) AwaitSnapshot(string, time.Duration) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return !r.notDelivered

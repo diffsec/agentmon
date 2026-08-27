@@ -55,9 +55,11 @@ type extraProcConfig struct {
 		RegisterCommand(pid int32, commandID string)
 	}
 
-	// sessionTracker registers PIDs with sessions for ESF event attribution (darwin).
+	// sessionTracker registers PIDs with sessions for ESF event attribution
+	// (darwin), and reports when the system extension can actually enforce.
 	sessionTracker interface {
 		RegisterProcess(sessionID string, pid, ppid int32)
+		AwaitSnapshot(sessionID string, timeout time.Duration) bool
 	}
 
 	// ptraceSync indicates the READY/GO handshake is enabled for hybrid mode.
@@ -312,6 +314,10 @@ func runCommandWithResources(ctx context.Context, s *session.Session, cmdID stri
 		return 127, nil, nil, 0, 0, false, false, types.ExecResources{}, ctx.Err()
 	}
 
+	// Register the session and wait for the extension to hold its policy BEFORE
+	// starting the process. See registerSessionRoot.
+	registerSessionRoot(extra, s.ID)
+
 	if err := cmd.Start(); err != nil {
 		slog.Debug("exec command start failed", "command", req.Command, "error", err)
 		extra.closeWrapperLogPipe()
@@ -363,9 +369,8 @@ func runCommandWithResources(ctx context.Context, s *session.Session, cmdID stri
 		// Register the server PID first so the sysext can track all children
 		// via FORK events (the server is the parent of all command processes).
 		if extra != nil && extra.sessionTracker != nil {
-			extra.sessionTracker.RegisterProcess(s.ID, int32(os.Getpid()), 0)
+			// The root was registered before Start; this attributes the child.
 			extra.sessionTracker.RegisterProcess(s.ID, int32(cmd.Process.Pid), int32(os.Getpid()))
-			notifySessionRegistered()
 		}
 		pgid = getProcessGroupID(cmd.Process.Pid)
 
