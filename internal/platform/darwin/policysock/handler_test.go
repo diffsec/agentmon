@@ -386,6 +386,8 @@ func (m *mockSessionResolver) RootPIDForSession(sessionID string) int32 {
 	return 0
 }
 
+func (m *mockSessionResolver) NoteSnapshotDelivered(string) {}
+
 func (m *mockSessionResolver) ActiveSessions() []string {
 	seen := make(map[string]struct{}, len(m.sessions))
 	var out []string

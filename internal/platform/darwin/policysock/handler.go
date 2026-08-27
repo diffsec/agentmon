@@ -15,6 +15,7 @@ type SessionResolver interface {
 	LatestSession() (sessionID string, rootPID int32)
 	RootPIDForSession(sessionID string) int32
 	ActiveSessions() []string
+	NoteSnapshotDelivered(sessionID string)
 }
 
 // PolicyAdapter adapts the policy.Engine to the PolicyHandler interface.
@@ -287,6 +288,14 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 	var activeSessions []string
 	if a.sessions != nil {
 		activeSessions = a.sessions.ActiveSessions()
+	}
+
+	// The extension asked for this session's policy and is about to receive it,
+	// so from here on it can enforce. wrap-init blocks on exactly this before
+	// letting the agent start; without it the agent's first commands run before
+	// the extension has any policy at all.
+	if a.sessions != nil {
+		a.sessions.NoteSnapshotDelivered(sessionID)
 	}
 
 	enforcement := networkEnforcement(p)

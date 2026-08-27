@@ -110,6 +110,11 @@ type App struct {
 	sessionTracker interface {
 		RegisterProcess(sessionID string, pid, ppid int32)
 		EndSession(sessionID string)
+		// SnapshotDelivered reports whether the system extension has fetched
+		// this session's policy and can therefore enforce it. Registration and
+		// enforcement are separate events, seconds apart; darwin wrap-init
+		// blocks on this one.
+		SnapshotDelivered(sessionID string) bool
 	}
 
 	// acceptNotifyFDForTest, if non-nil, wraps the goroutine launch for
@@ -247,6 +252,7 @@ func (a *App) SetCmdResolver(r interface {
 func (a *App) SetSessionTracker(t interface {
 	RegisterProcess(sessionID string, pid, ppid int32)
 	EndSession(sessionID string)
+	SnapshotDelivered(sessionID string) bool
 }) {
 	a.sessionTracker = t
 }

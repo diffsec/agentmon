@@ -103,6 +103,10 @@ type Server struct {
 	sessionTracker interface {
 		RegisterProcess(sessionID string, pid, ppid int32)
 		EndSession(sessionID string)
+		// SnapshotDelivered reports whether the system extension has fetched
+		// this session's policy. darwin wrap-init blocks on it so an agent
+		// cannot start before anything can enforce against it.
+		SnapshotDelivered(sessionID string) bool
 	}
 }
 

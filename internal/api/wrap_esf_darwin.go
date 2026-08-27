@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/diffsec/agentmon/internal/platform/darwin"
 	"github.com/diffsec/agentmon/pkg/types"
@@ -72,10 +73,52 @@ func platformWrapInit(a *App, sessionID string, req types.WrapInitRequest) (type
 	// defect; this line is what wrap needs once it is fixed.
 	notifySessionRegistered()
 
+	// Wait for the extension to actually hold the policy before letting the
+	// agent start.
+	//
+	// Posting the notification is not enforcement. The extension fetches the
+	// snapshot asynchronously, and until it lands SessionPolicyCache maps none
+	// of this session's PIDs, so ESFClient's AUTH handlers allow everything.
+	// Measured on hardware: a wrapped agent's first second ran completely
+	// unenforced -- a `whoami` the policy denies succeeded, and so did a read of
+	// a denied file, while a curl a few hundred milliseconds later was blocked
+	// correctly. An agent's first actions are exactly the ones worth policing.
+	if !waitForSnapshot(a, sessionID, snapshotWaitTimeout) {
+		// Undo the registration. A refused wrap-init must leave nothing behind:
+		// the server is telling the caller this session is not wrapped, and a
+		// session root left registered would have the extension attributing
+		// processes to a session the server considers unwrapped.
+		a.sessionTracker.EndSession(sessionID)
+		return types.WrapInitResponse{}, http.StatusServiceUnavailable,
+			fmt.Errorf("wrap: the system extension did not pick up this session's policy within %s, so the agent would start unconstrained", snapshotWaitTimeout)
+	}
+
 	slog.Info("registered wrap session root with the system extension",
 		"session_id", sessionID,
 		"root_pid", req.CallerPID)
 
 	// Empty WrapperBinary tells platformSetupWrap to exec the agent directly.
 	return types.WrapInitResponse{}, http.StatusOK, nil
+}
+
+// snapshotWaitTimeout bounds the wait above. Generous relative to the observed
+// round trip (a notify_post plus one unix-socket request, tens of milliseconds)
+// so that a loaded machine does not fail a session that was going to work.
+const snapshotWaitTimeout = 3 * time.Second
+
+// snapshotPollInterval is short because the whole point is to not add latency
+// to agent startup in the normal case.
+const snapshotPollInterval = 10 * time.Millisecond
+
+func waitForSnapshot(a *App, sessionID string, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		if a.sessionTracker.SnapshotDelivered(sessionID) {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(snapshotPollInterval)
+	}
 }
