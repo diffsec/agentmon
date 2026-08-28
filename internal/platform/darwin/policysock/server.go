@@ -205,8 +205,15 @@ func (s *Server) StartErr() error {
 
 // Run starts the server and blocks until context is cancelled.
 func (s *Server) Run(ctx context.Context) error {
-	// Remove existing socket
-	os.Remove(s.sockPath)
+	// Make the directory safe to bind in and clear only a stale socket we own.
+	// See prepareSocketPath for what this defends against and what it does not.
+	if err := prepareSocketPath(s.sockPath); err != nil {
+		s.mu.Lock()
+		s.startErr = err
+		s.mu.Unlock()
+		close(s.ready)
+		return err
+	}
 
 	ln, err := net.Listen("unix", s.sockPath)
 	if err != nil {
@@ -218,10 +225,9 @@ func (s *Server) Run(ctx context.Context) error {
 		return err
 	}
 
-	// Policy socket: allow root access (0666) so the system extension
-	// (running as root in a sandbox) can connect. Security is enforced
-	// by ValidatePeer which checks UID and code signing, not file perms.
-	if err := os.Chmod(s.sockPath, 0666); err != nil {
+	// 0600. The extension runs as root and root bypasses the permission check
+	// on connect(), so nothing wider is needed -- see socketFileMode.
+	if err := os.Chmod(s.sockPath, socketFileMode); err != nil {
 		ln.Close()
 		err = fmt.Errorf("chmod: %w", err)
 		s.mu.Lock()

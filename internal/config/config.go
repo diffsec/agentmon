@@ -2193,9 +2193,19 @@ func applyDefaultsWithSource(cfg *Config, source ConfigSource, configPath string
 		cfg.PackageChecks.BlockOn.Provenance = pkgDefaults.BlockOn.Provenance
 	}
 
-	// Policy socket defaults (macOS system extension IPC)
+	// Policy socket defaults (macOS system extension IPC).
+	//
+	// Not /tmp. That directory is world-writable, and this socket carries every
+	// policy decision the system extension makes, so any account on the machine
+	// could interfere with the rendezvous point. os.UserConfigDir gives
+	// $HOME/Library/Application Support on darwin, which the daemon owns.
+	//
+	// The system extension resolves the same path independently -- it runs as
+	// root and derives the console user's home -- so overriding this is not
+	// free: a custom path cannot be discovered by the extension, and macOS
+	// enforcement stops. policySocketPathIsDiscoverable reports that.
 	if cfg.PolicySocket.Path == "" {
-		cfg.PolicySocket.Path = "/tmp/agentmon-policy.sock"
+		cfg.PolicySocket.Path = defaultPolicySocketPath()
 	}
 	if cfg.PolicySocket.TeamID == "" {
 		cfg.PolicySocket.TeamID = "LWSYS6YTUZ"

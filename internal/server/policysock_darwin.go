@@ -5,8 +5,6 @@ package server
 import (
 	"context"
 	"log/slog"
-	"os"
-	"path/filepath"
 
 	"github.com/diffsec/agentmon/internal/config"
 	"github.com/diffsec/agentmon/internal/platform/darwin"
@@ -23,13 +21,18 @@ func (s *Server) startPolicySocket(cfg *config.Config, engine *policy.Engine) {
 		return
 	}
 
-	// Ensure the socket's parent directory exists.
-	if dir := filepath.Dir(sockPath); dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			slog.Warn("policy socket disabled: cannot create directory",
-				"dir", dir, "error", err)
-			return
-		}
+	// The directory is created by policysock.prepareSocketPath, which also
+	// checks its ownership and mode. Creating it here with 0755 first would
+	// have defeated that check on the very first run.
+	//
+	// A custom path cannot be discovered by the system extension: it runs as
+	// root, starts independently, and has no channel to the daemon that does
+	// not itself run over this socket. Silently accepting one would mean macOS
+	// enforcement quietly stops, which is exactly the class of failure this
+	// codebase keeps removing.
+	if !config.PolicySocketPathIsDefault(sockPath) {
+		slog.Warn("policy_socket.path is not the default; the system extension looks only at the default path, so macOS file, exec and network enforcement will not engage",
+			"configured", sockPath)
 	}
 
 	// Build the policy adapter that bridges policy.Engine to the policysock
