@@ -348,7 +348,7 @@ In addition to the request-response connection used for policy queries, the syst
 └───────────────┼────────────────────────────────┼─────────────────────┘
                 │                                │
     ────────────┼────────────────────────────────┼─── Unix Socket ───
-                │  /tmp/agentmon-policy.sock      │
+                │  policy.sock (see below)        │
                 ▼                                ▼
 ┌───────────────┼────────────────────────────────┼─────────────────────┐
 │               │                                │                     │
@@ -375,6 +375,34 @@ In addition to the request-response connection used for policy queries, the syst
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+### Socket location
+
+`$HOME/Library/Application Support/agentmon/policy.sock`, mode `0600`, in a
+directory the daemon owns at mode `0700`.
+
+Not `/tmp`. That directory is world-writable, and this socket carries every
+enforcement decision the extension makes. The daemon refuses a socket directory
+it does not own or that is a symlink, and clears only a stale socket of its own
+rather than removing whatever it finds.
+
+The two sides derive the path independently and must agree, because every
+channel between them runs over this socket. Go uses `os.UserConfigDir`. The
+extension runs as root, so its own `$HOME` is not the daemon's: it resolves the
+console user with `SCDynamicStoreCopyConsoleUser` and that user's home with
+`getpwnam`, and also tries `/var/root` for a daemon started as root. A
+`policy_socket.path` other than the default cannot be discovered by the
+extension, so the daemon warns that macOS enforcement will not engage.
+
+`0600` is sufficient despite the daemon and the extension running as different
+users: `connect()` needs write permission on the socket file, and the extension
+runs as root, which bypasses that check.
+
+The daemon is installed as a LaunchAgent and runs as the logged-in user, so the
+socket must be writable by that user. A process running as that same user can
+still bind the path while the daemon is not holding it. Both ends validate the
+other's code signature, which keeps the consequence to denial of enforcement
+rather than forged policy.
+
 ### Two Connection Types
 
 1. **Request-response** (existing): Short-lived connections for policy queries. The Swift client sends a JSON request (file, command, or network query), the Go server evaluates policy and responds with allow/deny. One connection per query.
@@ -383,7 +411,7 @@ In addition to the request-response connection used for policy queries, the syst
 
 ### Event Stream Lifecycle
 
-1. The Swift `PolicySocketClient` connects to `/tmp/agentmon-policy.sock`
+1. The Swift `PolicySocketClient` connects to the policy socket (see [Socket location](#socket-location))
 2. Client sends `{"type":"event_stream_init"}` to identify this as an event stream connection
 3. Server acknowledges with `{"status":"ok"}`
 4. Client writes events as newline-delimited JSON, one event per line:

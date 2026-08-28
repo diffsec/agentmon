@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import SystemConfiguration
 
 /// Async Unix socket client for communicating with the Go policy server.
 /// Replaces the dead XPC Service connection for the SysExt.
@@ -7,7 +8,12 @@ import Security
 class PolicySocketClient {
     static let shared = PolicySocketClient()
 
-    private let socketPath = "/tmp/agentmon-policy.sock"
+    /// Where the daemon's policy socket lives, resolved at each use.
+    ///
+    /// Resolved rather than fixed because the extension and the daemon do not
+    /// start together: the socket may not exist yet on the first attempt, and
+    /// the console user can change while the extension keeps running.
+    private var socketPath: String { Self.resolveSocketPath() }
     private let sendQueue = DispatchQueue(label: "dev.diffsec.agentmon.policysocket")
     private let timeout: TimeInterval = 5.0
 
@@ -25,6 +31,70 @@ class PolicySocketClient {
     private var streamConnected = false
 
     private init() {}
+
+    // MARK: - Socket Path Resolution
+
+    /// Find the daemon's policy socket.
+    ///
+    /// The socket used to be at a fixed /tmp/agentmon-policy.sock. /tmp is
+    /// world-writable, and this socket carries every policy decision the
+    /// extension makes, so it moved to a directory the daemon owns:
+    /// $HOME/Library/Application Support/agentmon/policy.sock, matching Go's
+    /// os.UserConfigDir. The two derivations must agree; there is no
+    /// negotiation, because every channel to the daemon runs over this socket.
+    ///
+    /// The extension runs as root, so its own $HOME is not the daemon's. The
+    /// daemon is installed as a LaunchAgent and runs as the logged-in user, so
+    /// the console user's home is the right place to look. A root-run daemon is
+    /// also covered, since /var/root is simply another entry in the list.
+    ///
+    /// The first candidate that exists wins. If none do, the console user's
+    /// path is returned so the connection attempt fails against the address it
+    /// should have been at, which is what the caller's error will name.
+    static func resolveSocketPath() -> String {
+        let candidates = socketCandidates()
+        for path in candidates where FileManager.default.fileExists(atPath: path) {
+            return path
+        }
+        return candidates.first ?? "/var/root/Library/Application Support/agentmon/policy.sock"
+    }
+
+    private static func socketCandidates() -> [String] {
+        var paths: [String] = []
+        if let home = consoleUserHome() {
+            paths.append(socketPath(inHome: home))
+        }
+        // A daemon started as root, e.g. from a LaunchDaemon or under sudo.
+        let rootHome = socketPath(inHome: "/var/root")
+        if !paths.contains(rootHome) {
+            paths.append(rootHome)
+        }
+        return paths
+    }
+
+    private static func socketPath(inHome home: String) -> String {
+        (home as NSString)
+            .appendingPathComponent("Library/Application Support/agentmon/policy.sock")
+    }
+
+    /// Home directory of the user at the console.
+    ///
+    /// SCDynamicStoreCopyConsoleUser is the supported way for a root daemon to
+    /// find who is logged in. The home directory comes from getpwnam rather
+    /// than being assembled as /Users/<name>, which is wrong for any account
+    /// whose home is elsewhere.
+    private static func consoleUserHome() -> String? {
+        var uid: uid_t = 0
+        var gid: gid_t = 0
+        guard let name = SCDynamicStoreCopyConsoleUser(nil, &uid, &gid) as String?,
+              !name.isEmpty, name != "loginwindow" else {
+            return nil
+        }
+        guard let pw = getpwnam(name), let dir = pw.pointee.pw_dir else {
+            return nil
+        }
+        return String(cString: dir)
+    }
 
     // MARK: - Connection Lifecycle
 
