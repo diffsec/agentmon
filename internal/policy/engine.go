@@ -90,6 +90,9 @@ type Engine struct {
 
 	// Optional Tor coordinator (deny-by-default Tor controls).
 	torChecker TorChecker
+
+	// Optional content inspector backing the `inspect` decision.
+	inspector InspectChecker
 }
 
 type Limits struct {
@@ -155,6 +158,11 @@ type Decision struct {
 	ThreatMatch       string
 	ThreatAction      string      // "deny" or "audit" — set when a threat feed matched
 	Tor               *TorVerdict // non-nil when a Tor vector matched (deny or audit)
+
+	// Inspect is set when the matched rule defers to content inspection,
+	// either as the decision itself or as a precondition. While it is set
+	// and unresolved, EffectiveDecision is deny.
+	Inspect *types.InspectInfo
 }
 
 func NewEngine(p *Policy, enforceApprovals bool, enforceRedirects bool) (*Engine, error) {
@@ -564,7 +572,7 @@ func (e *Engine) CheckNetworkIP(domain string, ip net.IP, port int) (dec Decisio
 			}
 		}
 
-		dec = e.wrapDecision(r.rule.Decision, r.rule.Name, r.rule.Message, nil)
+		dec = e.wrapRuleDecision(r.rule.Decision, r.rule.Name, r.rule.Message, nil, r.rule.Inspect)
 		if threatResult != nil {
 			dec.ThreatFeed = threatResult.FeedName
 			dec.ThreatMatch = threatResult.MatchedDomain
@@ -735,16 +743,19 @@ func (e *Engine) checkCommand(command string, args []string, execveEnforcementAc
 // instrument execution. Used by CheckCommand to decide whether an explicit
 // rule matched on a shell-c-derived inner command should override a more
 // permissive rule matched on the outer shell. Ordering is intentionally:
-// deny > redirect/soft_delete > approve > audit > allow — deny blocks
+// deny > redirect/soft_delete > approve/inspect > audit > allow — deny blocks
 // execution outright, redirect rewrites what runs, approve gates on a
-// human, audit only adds logging, and allow is the baseline.
+// human and inspect on a classifier, audit only adds logging, and allow is
+// the baseline.
 func decisionStrictness(d types.Decision) int {
 	switch d {
 	case types.DecisionDeny:
 		return 4
 	case types.DecisionRedirect, types.DecisionSoftDelete:
 		return 3
-	case types.DecisionApprove:
+	case types.DecisionApprove, types.DecisionInspect:
+		// inspect sits with approve: both gate execution on an answer from
+		// outside the engine rather than permitting or rewriting it.
 		return 2
 	case types.DecisionAudit:
 		return 1
@@ -846,7 +857,7 @@ func (e *Engine) matchCommandRules(command string, args []string) (Decision, boo
 			}
 		}
 
-		dec := e.wrapDecision(r.rule.Decision, r.rule.Name, r.rule.Message, r.rule.RedirectTo)
+		dec := e.wrapRuleDecision(r.rule.Decision, r.rule.Name, r.rule.Message, r.rule.RedirectTo, r.rule.Inspect)
 		dec.EnvPolicy = MergeEnvPolicy(e.policy.EnvPolicy, r.rule)
 		return dec, true
 	}
@@ -896,7 +907,7 @@ func (e *Engine) CheckFile(p string, operation string) Decision {
 		}
 		for _, g := range r.globs {
 			if g.Match(p) {
-				dec := e.wrapDecision(r.rule.Decision, r.rule.Name, r.rule.Message, nil)
+				dec := e.wrapRuleDecision(r.rule.Decision, r.rule.Name, r.rule.Message, nil, r.rule.Inspect)
 
 				// Handle file redirect if configured
 				if r.redirectTo != "" && dec.PolicyDecision == types.DecisionRedirect {
@@ -1146,7 +1157,7 @@ func (e *Engine) CheckNetworkCtx(ctx context.Context, domain string, port int) (
 		}
 
 		// If rule has no selectors, it matches (e.g., approve unknown https by port only).
-		dec = e.wrapDecision(r.rule.Decision, r.rule.Name, r.rule.Message, nil)
+		dec = e.wrapRuleDecision(r.rule.Decision, r.rule.Name, r.rule.Message, nil, r.rule.Inspect)
 		if threatResult != nil {
 			dec.ThreatFeed = threatResult.FeedName
 			dec.ThreatMatch = threatResult.MatchedDomain
@@ -1175,8 +1186,50 @@ func matchOp(ops map[string]struct{}, op string) bool {
 	return ok
 }
 
+// wrapDecision turns a decision string into a Decision. Use it for decisions
+// the engine itself originates (default-deny fall-throughs, threat-feed and
+// Tor denies), which never carry an inspection spec.
 func (e *Engine) wrapDecision(decision string, rule string, msg string, redirect *CommandRedirect) Decision {
+	return e.wrapRuleDecision(decision, rule, msg, redirect, nil)
+}
+
+// wrapRuleDecision is wrapDecision plus the matched rule's `inspect:` block.
+//
+// It runs at rule-match time, where the engine holds a path, an argv or a
+// destination -- never the content those refer to. An inspection verdict
+// therefore cannot be reached here. The Decision carries the spec so that a
+// caller which does hold the content (a proxy body hook, the DLP pass, an MCP
+// argument check) can run inspection and resolve it, and its
+// EffectiveDecision is deny until one does. Every enforcement backend that
+// predates inspection reads EffectiveDecision, so they all block rather than
+// silently pass content nobody inspected.
+func (e *Engine) wrapRuleDecision(decision string, rule string, msg string, redirect *CommandRedirect, spec *InspectSpec) Decision {
 	pd := types.Decision(strings.ToLower(decision))
+	if pd == types.DecisionInspect {
+		return Decision{
+			PolicyDecision:    pd,
+			EffectiveDecision: types.DecisionDeny,
+			Rule:              rule,
+			Message:           msg,
+			Inspect:           toInspectInfo(spec),
+		}
+	}
+
+	dec := e.wrapBaseDecision(pd, rule, msg, redirect)
+
+	// `inspect: {require: true}` on some other decision makes inspection a
+	// precondition on it. Until inspection runs the precondition is unmet,
+	// so the effective decision is deny -- an unmet precondition on
+	// `decision: allow` must not allow. Validate rejects an inspect block
+	// without require, so this is the only way one reaches here.
+	if spec != nil && spec.Require {
+		dec.Inspect = toInspectInfo(spec)
+		dec.EffectiveDecision = types.DecisionDeny
+	}
+	return dec
+}
+
+func (e *Engine) wrapBaseDecision(pd types.Decision, rule string, msg string, redirect *CommandRedirect) Decision {
 	switch pd {
 	case types.DecisionAllow:
 		return Decision{PolicyDecision: pd, EffectiveDecision: pd, Rule: rule, Message: msg}
@@ -1440,7 +1493,7 @@ func (e *Engine) CheckExecve(filename string, argv []string, depth int) (dec Dec
 			}
 		}
 
-		dec = e.wrapDecision(r.rule.Decision, r.rule.Name, r.rule.Message, r.rule.RedirectTo)
+		dec = e.wrapRuleDecision(r.rule.Decision, r.rule.Name, r.rule.Message, r.rule.RedirectTo, r.rule.Inspect)
 		dec.EnvPolicy = MergeEnvPolicy(e.policy.EnvPolicy, r.rule)
 		return dec
 	}

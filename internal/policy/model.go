@@ -39,6 +39,10 @@ type Policy struct {
 	// Package install check rules
 	PackageRules []PackageRule `yaml:"package_rules,omitempty"`
 
+	// Inspection defines reusable content-inspection profiles referenced by
+	// rules with `decision: inspect` or an `inspect:` precondition block.
+	Inspection *InspectionConfig `yaml:"inspection,omitempty"`
+
 	// Transparent command overrides (add/remove from built-in defaults)
 	TransparentCommands *TransparentCommandsConfig `yaml:"transparent_commands,omitempty"`
 
@@ -90,6 +94,8 @@ type FileRule struct {
 	// Redirect configuration for file operations
 	RedirectTo   string `yaml:"redirect_to,omitempty"`   // Target directory for redirected files
 	PreserveTree bool   `yaml:"preserve_tree,omitempty"` // Preserve directory structure under target
+
+	Inspect *InspectSpec `yaml:"inspect,omitempty"`
 }
 
 type NetworkRule struct {
@@ -101,6 +107,8 @@ type NetworkRule struct {
 	Decision    string   `yaml:"decision"`
 	Message     string   `yaml:"message"`
 	Timeout     duration `yaml:"timeout"`
+
+	Inspect *InspectSpec `yaml:"inspect,omitempty"`
 }
 
 type CommandRule struct {
@@ -118,6 +126,8 @@ type CommandRule struct {
 	EnvMaxBytes       int      `yaml:"env_max_bytes"`
 	EnvMaxKeys        int      `yaml:"env_max_keys"`
 	EnvBlockIteration *bool    `yaml:"env_block_iteration,omitempty"`
+
+	Inspect *InspectSpec `yaml:"inspect,omitempty"`
 }
 
 type CommandRedirect struct {
@@ -549,6 +559,10 @@ func (p Policy) Validate() error {
 	}
 
 	if err := ValidateHTTPServicesWithProviders(p.HTTPServices, p.Providers); err != nil {
+		return err
+	}
+
+	if err := p.validateInspection(); err != nil {
 		return err
 	}
 
