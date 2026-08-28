@@ -5,6 +5,7 @@ package policysock
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/diffsec/agentmon/internal/policy"
 )
@@ -211,4 +212,99 @@ func TestActiveSessionsIsACopy(t *testing.T) {
 	if again := tracker.ActiveSessions(); again[0] != "session-a" {
 		t.Errorf("caller mutation leaked into the tracker: got %q", again[0])
 	}
+}
+
+// TestAwaitSnapshot covers the gate that stops a process starting before the
+// extension can police it. Registering a session only posts a notification; the
+// extension fetches asynchronously, and until it lands SessionPolicyCache maps
+// none of the session's PIDs and ESFClient's AUTH handlers allow everything.
+func TestAwaitSnapshot(t *testing.T) {
+	t.Run("returns immediately once delivered", func(t *testing.T) {
+		tracker := NewSessionTracker()
+		tracker.RegisterProcess("session-a", 100, 0)
+		tracker.NoteSnapshotDelivered("session-a")
+
+		start := time.Now()
+		if !tracker.AwaitSnapshot("session-a", time.Minute) {
+			t.Fatal("AwaitSnapshot reported not ready for a delivered session")
+		}
+		// A minute-long timeout that returns instantly proves it is not polling.
+		if elapsed := time.Since(start); elapsed > time.Second {
+			t.Errorf("took %s for an already-delivered session", elapsed)
+		}
+	})
+
+	t.Run("waits for a snapshot that arrives late", func(t *testing.T) {
+		tracker := NewSessionTracker()
+		tracker.RegisterProcess("session-a", 100, 0)
+
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			tracker.NoteSnapshotDelivered("session-a")
+		}()
+
+		if !tracker.AwaitSnapshot("session-a", 5*time.Second) {
+			t.Fatal("AwaitSnapshot gave up on a snapshot that did arrive")
+		}
+	})
+
+	t.Run("gives up once, not once per command", func(t *testing.T) {
+		tracker := NewSessionTracker()
+		tracker.RegisterProcess("session-a", 100, 0)
+
+		start := time.Now()
+		if tracker.AwaitSnapshot("session-a", 100*time.Millisecond) {
+			t.Fatal("AwaitSnapshot reported ready with no snapshot delivered")
+		}
+		first := time.Since(start)
+
+		// On a machine with no running extension the snapshot never arrives.
+		// Paying the timeout before every command would make the daemon
+		// unusable there, so the second call must not wait at all.
+		start = time.Now()
+		if tracker.AwaitSnapshot("session-a", time.Minute) {
+			t.Fatal("second call reported ready")
+		}
+		if second := time.Since(start); second >= first {
+			t.Errorf("second call took %s, not meaningfully less than the first (%s)", second, first)
+		}
+	})
+
+	t.Run("a late snapshot still wins after a timeout", func(t *testing.T) {
+		tracker := NewSessionTracker()
+		tracker.RegisterProcess("session-a", 100, 0)
+
+		if tracker.AwaitSnapshot("session-a", 50*time.Millisecond) {
+			t.Fatal("reported ready with no snapshot")
+		}
+		// Giving up must not latch the session off: the extension may still
+		// arrive, and later commands should see it.
+		tracker.NoteSnapshotDelivered("session-a")
+		if !tracker.AwaitSnapshot("session-a", time.Second) {
+			t.Error("a snapshot delivered after a timeout was ignored")
+		}
+	})
+
+	t.Run("ending a session clears both flags", func(t *testing.T) {
+		tracker := NewSessionTracker()
+		tracker.RegisterProcess("session-a", 100, 0)
+		tracker.NoteSnapshotDelivered("session-a")
+		tracker.EndSession("session-a")
+
+		// A reused ID must not inherit the old session's readiness, or its
+		// first command would start unpoliced.
+		if tracker.SnapshotDelivered("session-a") {
+			t.Error("delivery flag outlived the session")
+		}
+		if tracker.AwaitSnapshot("session-a", 20*time.Millisecond) {
+			t.Error("AwaitSnapshot reported ready for an ended session")
+		}
+	})
+
+	t.Run("empty session id is never ready", func(t *testing.T) {
+		tracker := NewSessionTracker()
+		if tracker.AwaitSnapshot("", time.Second) {
+			t.Error("reported ready for an empty session id")
+		}
+	})
 }

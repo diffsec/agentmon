@@ -243,10 +243,24 @@ class SessionPolicyCache {
     }
 
     func evaluateFile(path: String, operation: String, pid: pid_t) -> (CacheDecision, String?) {
+        // Resolve through sessionForPID, NOT by reading pidToSession directly.
+        // Only sessionForPID walks the process tree, and a process the
+        // extension never saw fork is absent from that map -- which is every
+        // direct child of the daemon, because agentmon's own binaries are muted
+        // and their FORK events are therefore never delivered.
+        //
+        // Measured: `agentmon exec -- cat secret.txt` read a file its policy
+        // denied, while the same read one level deeper (a script run by sh) was
+        // refused, and a network deny on that same direct child WAS enforced --
+        // because FilterDataProvider happens to call sessionForPID first and
+        // this did not. Depending on the caller to have resolved is what left a
+        // whole class of process silently unpoliced for file access.
+        guard let sid = sessionForPID(pid) else {
+            return (.allow, nil)
+        }
         return queue.sync {
-            guard let sid = pidToSession[pid],
-                  let cache = sessions[sid] else {
-                return (.allow, nil)  // Not in session
+            guard let cache = sessions[sid] else {
+                return (.allow, nil)  // session ended between resolve and read
             }
 
             // Check deny rules first
@@ -292,9 +306,14 @@ class SessionPolicyCache {
     /// than .fallthrough_ when nothing matches, so the daemon was never asked
     /// for a second opinion.
     func evaluateNetwork(host: String?, ip: String, port: Int, pid: pid_t) -> (CacheDecision, String?) {
+        // Resolve through sessionForPID for the same reason as evaluateFile.
+        // This path happened to work because its caller resolves first, but
+        // relying on that is exactly how the file path came to be unenforced.
+        guard let sid = sessionForPID(pid) else {
+            return (.allow, nil)
+        }
         return queue.sync {
-            guard let sid = pidToSession[pid],
-                  let cache = sessions[sid] else {
+            guard let cache = sessions[sid] else {
                 return (.allow, nil)
             }
 

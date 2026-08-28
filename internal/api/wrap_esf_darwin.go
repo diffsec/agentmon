@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/diffsec/agentmon/internal/platform/darwin"
 	"github.com/diffsec/agentmon/pkg/types"
@@ -83,14 +82,14 @@ func platformWrapInit(a *App, sessionID string, req types.WrapInitRequest) (type
 	// unenforced -- a `whoami` the policy denies succeeded, and so did a read of
 	// a denied file, while a curl a few hundred milliseconds later was blocked
 	// correctly. An agent's first actions are exactly the ones worth policing.
-	if !waitForSnapshot(a, sessionID, snapshotWaitTimeout) {
+	if !a.sessionTracker.AwaitSnapshot(sessionID, interceptionReadyTimeout) {
 		// Undo the registration. A refused wrap-init must leave nothing behind:
 		// the server is telling the caller this session is not wrapped, and a
 		// session root left registered would have the extension attributing
 		// processes to a session the server considers unwrapped.
 		a.sessionTracker.EndSession(sessionID)
 		return types.WrapInitResponse{}, http.StatusServiceUnavailable,
-			fmt.Errorf("wrap: the system extension did not pick up this session's policy within %s, so the agent would start unconstrained", snapshotWaitTimeout)
+			fmt.Errorf("wrap: the system extension did not pick up this session's policy within %s, so the agent would start unconstrained", interceptionReadyTimeout)
 	}
 
 	slog.Info("registered wrap session root with the system extension",
@@ -99,26 +98,4 @@ func platformWrapInit(a *App, sessionID string, req types.WrapInitRequest) (type
 
 	// Empty WrapperBinary tells platformSetupWrap to exec the agent directly.
 	return types.WrapInitResponse{}, http.StatusOK, nil
-}
-
-// snapshotWaitTimeout bounds the wait above. Generous relative to the observed
-// round trip (a notify_post plus one unix-socket request, tens of milliseconds)
-// so that a loaded machine does not fail a session that was going to work.
-const snapshotWaitTimeout = 3 * time.Second
-
-// snapshotPollInterval is short because the whole point is to not add latency
-// to agent startup in the normal case.
-const snapshotPollInterval = 10 * time.Millisecond
-
-func waitForSnapshot(a *App, sessionID string, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for {
-		if a.sessionTracker.SnapshotDelivered(sessionID) {
-			return true
-		}
-		if time.Now().After(deadline) {
-			return false
-		}
-		time.Sleep(snapshotPollInterval)
-	}
 }

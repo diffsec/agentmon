@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -281,6 +282,11 @@ func CheckSysExtLiveness() SysExtLiveness {
 // miss the loop.
 var pidStabilityWindow = 3 * time.Second
 
+// settledUptime is how long a process must have been running for a crash loop
+// to be ruled out without sampling. A loop turns over in roughly seven seconds,
+// so anything alive for four times that is not in one.
+const settledUptime = 30 * time.Second
+
 // pidIsStable samples the launchd job's pid twice and reports whether it held.
 //
 // Returns a human-readable reason when it did not, for Detail.
@@ -291,6 +297,24 @@ func pidIsStable(label string) (bool, string) {
 		// callers already treat an unparseable probe as fail-closed elsewhere.
 		return true, ""
 	}
+
+	// Skip the sample entirely for a process that has been up long enough to
+	// rule out a crash loop.
+	//
+	// This is not an optimisation for its own sake. The sample used to be
+	// guarded on launchd reporting a non-empty last exit, on the theory that a
+	// healthy machine would have none -- but launchd remembers the last exit
+	// FOREVER, and replacing a system extension terminates the old one, so
+	// every machine that has ever upgraded has a last exit recorded. The guard
+	// therefore stopped guarding: measured on a developer machine reporting
+	// state=running with lastExit=OS_REASON_ENDPOINTSECURITY, every single
+	// CheckSysExtLiveness call took 3.05s. `agentmon detect` and `agentmon
+	// wrap` both call it, and the internal/api test suite went from ~12s to
+	// 312s.
+	if uptime, ok := processUptime(first); ok && uptime >= settledUptime {
+		return true, ""
+	}
+
 	time.Sleep(pidStabilityWindow)
 	second, ok := launchdPID(label)
 	if !ok {
@@ -300,6 +324,67 @@ func pidIsStable(label string) (bool, string) {
 		return false, fmt.Sprintf("process is restarting repeatedly (pid %s then %s within %s), so its Endpoint Security client never becomes active", first, second, pidStabilityWindow)
 	}
 	return true, ""
+}
+
+// processUptime reports how long a pid has been running.
+//
+// It uses `ps -o etime=`, NOT `-o etimes=`. etimes yields elapsed seconds as a
+// plain integer and would need no parsing, but it is a procps extension that
+// macOS does not have: `ps: etimes: keyword not found`, exit status 1. That
+// failure is silent here -- the caller just falls back to sampling -- so it
+// showed up only as the 3s wait this function exists to avoid.
+//
+// A failure is not an error. The caller falls back to sampling, which is
+// correct, only slow.
+func processUptime(pid string) (time.Duration, bool) {
+	out, err := runLivenessCommand("ps", "-o", "etime=", "-p", pid)
+	if err != nil {
+		return 0, false
+	}
+	return parseETime(out)
+}
+
+// parseETime parses ps's elapsed-time format, [[dd-]hh:]mm:ss.
+func parseETime(s string) (time.Duration, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, false
+	}
+
+	var days int
+	if i := strings.IndexByte(s, '-'); i >= 0 {
+		d, err := strconv.Atoi(s[:i])
+		if err != nil || d < 0 {
+			return 0, false
+		}
+		days = d
+		s = s[i+1:]
+	}
+
+	fields := strings.Split(s, ":")
+	if len(fields) < 2 || len(fields) > 3 {
+		return 0, false
+	}
+	nums := make([]int, 0, 3)
+	for _, f := range fields {
+		n, err := strconv.Atoi(strings.TrimSpace(f))
+		if err != nil || n < 0 {
+			return 0, false
+		}
+		nums = append(nums, n)
+	}
+
+	var hours, minutes, seconds int
+	if len(nums) == 3 {
+		hours, minutes, seconds = nums[0], nums[1], nums[2]
+	} else {
+		minutes, seconds = nums[0], nums[1]
+	}
+
+	return time.Duration(days)*24*time.Hour +
+		time.Duration(hours)*time.Hour +
+		time.Duration(minutes)*time.Minute +
+		time.Duration(seconds)*time.Second, true
 }
 
 func launchdPID(label string) (string, bool) {
