@@ -179,6 +179,14 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
+	// Content inspection (optional). Placed before the App is built so a
+	// policy the host cannot inspect for is refused at startup rather than
+	// booting into a state where every inspect rule denies.
+	inspectRegistry, err := wireInspection(cfg.Inspection, p, engine)
+	if err != nil {
+		return nil, err
+	}
+
 	// appHolder is captured by the WTP policy install hook so it can
 	// swap the App's policy engine atomically after a verified push.
 	// The App itself doesn't exist yet — it's stored further down once
@@ -564,6 +572,7 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 
 	app := api.NewApp(cfg, sessions, store, engine, broker, apiKeyAuth, oidcAuth, approvalsMgr, metricsCollector, policyLoader, cgroupMgr, torPol)
+	app.SetInspectRegistry(inspectRegistry)
 	// Publish to the WTP install hook so subsequent pushed-policy
 	// receipts can SwapPolicy in-process (next CheckCommand sees the
 	// new rules without an agentmon restart).

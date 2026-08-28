@@ -39,6 +39,7 @@ type Config struct {
 	PackageChecks     PackageChecksConfig     `yaml:"package_checks"`
 	Skillcheck        SkillcheckConfig        `yaml:"skillcheck"`
 	PolicySocket      PolicySocketConfig      `yaml:"policy_socket"`
+	Inspection        InspectionConfig        `yaml:"inspection"`
 }
 
 // PlatformConfig configures cross-platform selection and fallback behavior.

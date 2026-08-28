@@ -164,6 +164,52 @@ their summaries end up in audit events, error messages and decision messages —
 and the text they point at is exactly the material inspection exists to
 contain. Callers that need the content already have it.
 
+## Configuring the runtime
+
+Profiles are policy. Providers are deployment. The policy's `inspection.profiles`
+block says what to look for; `config.yml`'s `inspection:` block says which
+inspectors this host can reach. The same policy therefore runs on a laptop with
+the local regex provider and on a server with a model-backed one, unedited.
+
+```yaml
+inspection:
+  enabled: true
+  providers:
+    regex:                 # the key is the name a profile's `provider:` field uses
+      enabled: true
+      type: regex
+      patterns:
+        internal_ticket: "ACME-[0-9]{4,}"
+  privacy:
+    allow_remote: false
+    remote_kinds: []
+  provider_timeout: 10s
+```
+
+### The startup gate
+
+A policy containing inspect rules will not load when `enabled` is false, or
+when any profile it uses names a provider that is missing or disabled. The
+daemon refuses to start and names the profile and the provider.
+
+This is deliberate, and it is not a degraded mode. Every rule naming an
+unusable profile resolves to deny, so an `allow` rule with an inspection
+precondition becomes a block on the path it was written to permit — a policy
+nobody authored, failing quietly at match time instead of loudly at startup.
+
+### Per-policy checkers
+
+A `Checker` is built per policy, because the profiles come from the policy
+while the providers come from the host. `inspect.Registry` hands out the right
+one for a given `*policy.Policy`, which is what keeps a session running a named
+policy file, and an engine swapped in by a live policy push, from inheriting
+the previous policy's profiles.
+
+That shape was chosen over attaching a checker at engine construction because
+there are eight engine-construction sites outside the policy package, and the
+equivalent Tor wiring reaches three of them — `internal/api/session_policy.go:91`
+documents that gap in its own comment.
+
 ## Decision whitelist
 
 Adding `inspect` also closed a hole. `Policy.Validate()` did not check decision

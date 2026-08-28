@@ -20,6 +20,7 @@ import (
 	"github.com/diffsec/agentmon/internal/config"
 	dbevents "github.com/diffsec/agentmon/internal/db/events"
 	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/inspect"
 	"github.com/diffsec/agentmon/internal/limits"
 	"github.com/diffsec/agentmon/internal/mcpinspect"
 	"github.com/diffsec/agentmon/internal/mcpregistry"
@@ -81,6 +82,13 @@ type App struct {
 
 	// pkgChecker is the optional package install checker; nil when package_checks.enabled=false
 	pkgChecker *pkgcheck.Checker
+
+	// inspectRegistry hands out a content inspector for a given policy;
+	// nil when no policy rule uses inspection. It is a registry rather than
+	// a single checker because the profiles come from the policy, so a
+	// session running a named policy file needs a different one -- see
+	// inspect.Registry.
+	inspectRegistry *inspect.Registry
 
 	// ptraceTracer holds the ptrace.Tracer on Linux (nil on other platforms or when disabled).
 	// Type is any because ptrace package is Linux-only.
@@ -233,6 +241,35 @@ func (a *App) SetPlatformForTest(p platform.Platform) {
 // SetPackageChecker attaches a package install checker to the app.
 func (a *App) SetPackageChecker(c *pkgcheck.Checker) {
 	a.pkgChecker = c
+}
+
+// SetInspectRegistry attaches the content inspection registry. Nil disables
+// inspection, which is safe only because a policy that needs it is refused at
+// startup (server.wireInspection).
+func (a *App) SetInspectRegistry(r *inspect.Registry) {
+	a.inspectRegistry = r
+}
+
+// Inspector returns the content inspector for the engine's policy, or nil
+// when inspection is not configured. Callers that hold content resolve an
+// inspect decision through inspect.Resolve with this.
+//
+// An error building the checker returns nil, which inspect.Resolve treats as
+// a failure and routes to the rule's on_failure -- fail_closed by default.
+// The configuration that could produce one here was already validated at
+// startup, so this path means the policy changed underneath us.
+func (a *App) Inspector(eng *policy.Engine) policy.InspectChecker {
+	if a == nil || a.inspectRegistry == nil || eng == nil {
+		return nil
+	}
+	c, err := a.inspectRegistry.For(eng.Policy())
+	if err != nil || c == nil {
+		if err != nil {
+			slog.Warn("content inspector unavailable for the current policy; inspect rules will apply their on_failure", "error", err)
+		}
+		return nil
+	}
+	return c
 }
 
 // SetCmdResolver attaches a PID→command_id resolver for ESF file event attribution.
