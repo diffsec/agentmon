@@ -4,8 +4,10 @@
 than deciding from a path, an argv or a destination. It is the policy grammar
 for "allow this write, but not if it carries a credential".
 
-**Status: the grammar is live; no inspection providers exist yet.** Every
-inspect-bearing rule therefore resolves to an effective deny. See
+**Status: the grammar and the resolution path are live.** One provider ships —
+a local regex matcher (`provider: regex`), which needs no model, no sidecar
+and no network. Model-backed providers are not written yet. A rule whose
+profiles cannot run resolves to an effective deny; see
 [Fail-closed semantics](#fail-closed-semantics).
 
 ## Defining profiles
@@ -87,10 +89,80 @@ There is no `redact` decision. Redaction is an allow whose content was
 rewritten, applied by the content-holding caller; a terminal `redact` state
 would hand every enforcement backend a decision it has no way to act on.
 
-`Policy.RequiresInspection()` reports whether any rule needs an inspector. A
-server that cannot provide one should refuse to install such a policy rather
-than run it, because every inspect-bearing rule would otherwise deny in a way
-the operator did not write.
+`Policy.RequiresInspection()` reports whether any rule needs an inspector, and
+`inspect.Checker.Missing()` reports which profiles a given inspector cannot
+run and why. A server that cannot provide one should refuse to install the
+policy rather than run it, because every inspect-bearing rule would otherwise
+deny in a way the operator did not write.
+
+## Resolving a decision
+
+`internal/inspect` is what a content-holding caller uses. One function does
+the work:
+
+```go
+res := inspect.Resolve(ctx, checker, dec, inspect.KindProxyBody, body)
+// res.Decision.EffectiveDecision is now terminal: allow, deny or approve.
+// res.Content is the redacted body when res.Rewritten is true.
+// res.Err is non-nil when the content was NOT successfully inspected.
+```
+
+A decision with no inspection spec comes back untouched, so a caller can send
+every decision through `Resolve` without testing for one first.
+
+`res.Err` is the field to watch. It is nil on a clean result and on a
+violation — both are successful inspections. A non-nil `Err` means the content
+was *not* inspected and `on_failure` decided the outcome, which is what lets a
+caller tell an uninspected allow from an inspected one.
+
+### What counts as a failure
+
+Every one of these routes to `on_failure`, never to a clean result: no
+inspector configured, a profile the policy does not define, a profile naming
+an unconfigured provider, a privacy refusal, a provider error, a provider
+returning no response and no error, and a timeout. One provider failing fails
+the whole inspection — reporting the others' clean results would mean the
+content was checked for some things and not others, with no way for the caller
+to tell which.
+
+`on_violation: redact` has one more failure of its own. Redaction needs byte
+spans, and a query-based profile ("does this exfiltrate credentials?") answers
+yes with no offsets. There is nothing to rewrite, so the decision denies
+rather than passing through the content the rule just flagged.
+
+### Redaction happens once, centrally
+
+Providers report spans; the checker rewrites. Two providers reporting
+overlapping spans would otherwise have their rewrites applied in sequence, and
+the first rewrite invalidates every offset the second was measured against.
+Merging first makes the result independent of provider order and of how many
+providers ran.
+
+The replacement is a non-reversible `[REDACTED:<category>]` placeholder.
+Reversible pseudonymisation belongs to the DLP wire point, which already has a
+token store that can detokenise a response (`internal/proxy/dlp.go`).
+
+## The privacy gate
+
+This is the load-bearing difference between inspection and every other check
+in the codebase. `internal/pkgcheck` sends package *names* to third parties.
+Inspection sends the content itself — the request body, the file, the argv.
+Sending PII to a remote service to ask whether it contains PII is the failure
+that makes the feature worse than not having it.
+
+So remote egress is opt-in. The zero-valued `PrivacyConfig` permits nothing
+remote; a provider implementing `LocalProvider` runs unconditionally because
+it makes no network calls. `RemoteKinds` narrows further by content kind,
+which matters because the kinds differ enormously in sensitivity: a command
+argv is usually a path and a flag, while a proxy body is whatever the agent
+was about to send anywhere.
+
+## Findings never carry content
+
+A `Finding` has a category and byte offsets, and no matched text. Findings and
+their summaries end up in audit events, error messages and decision messages —
+and the text they point at is exactly the material inspection exists to
+contain. Callers that need the content already have it.
 
 ## Decision whitelist
 
