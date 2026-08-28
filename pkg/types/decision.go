@@ -42,6 +42,15 @@ type InspectInfo struct {
 	// Require marks inspection as a precondition on a non-inspect decision
 	// rather than the decision itself.
 	Require bool `json:"require,omitempty"`
+	// CleanDecision is the effective decision to restore when inspection
+	// finds nothing, captured before the fail-closed deny was applied.
+	//
+	// It is carried rather than re-derived because deriving it needs engine
+	// state the resolver has no access to: an approve is effective-approve
+	// under enforceApprovals and effective-allow in shadow mode, and audit
+	// is effective-allow. A resolver guessing from PolicyDecision alone
+	// would turn a shadow-mode approve into a hard gate.
+	CleanDecision Decision `json:"clean_decision,omitempty"`
 }
 
 type ApprovalMode string

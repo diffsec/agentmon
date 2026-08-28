@@ -1206,12 +1206,18 @@ func (e *Engine) wrapDecision(decision string, rule string, msg string, redirect
 func (e *Engine) wrapRuleDecision(decision string, rule string, msg string, redirect *CommandRedirect, spec *InspectSpec) Decision {
 	pd := types.Decision(strings.ToLower(decision))
 	if pd == types.DecisionInspect {
+		info := toInspectInfo(spec)
+		if info != nil {
+			// A clean inspection on a rule whose decision IS inspect means
+			// the content passed, so the operation proceeds.
+			info.CleanDecision = types.DecisionAllow
+		}
 		return Decision{
 			PolicyDecision:    pd,
 			EffectiveDecision: types.DecisionDeny,
 			Rule:              rule,
 			Message:           msg,
-			Inspect:           toInspectInfo(spec),
+			Inspect:           info,
 		}
 	}
 
@@ -1224,6 +1230,10 @@ func (e *Engine) wrapRuleDecision(decision string, rule string, msg string, redi
 	// without require, so this is the only way one reaches here.
 	if spec != nil && spec.Require {
 		dec.Inspect = toInspectInfo(spec)
+		// Capture what the rule resolves to on a clean inspection BEFORE
+		// forcing the deny. This is the enforce/shadow-aware value; nothing
+		// downstream can reconstruct it.
+		dec.Inspect.CleanDecision = dec.EffectiveDecision
 		dec.EffectiveDecision = types.DecisionDeny
 	}
 	return dec
