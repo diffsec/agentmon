@@ -489,3 +489,50 @@ development:
   pprof:
     enabled: false
     addr: "localhost:6060"
+
+# Content inspection runtime.
+#
+# This block is deployment, not policy: it says which inspectors THIS host can
+# reach. The profiles themselves -- which categories to look for, which
+# questions to ask, what to do about a finding -- live in the policy's own
+# `inspection.profiles` block, so the same policy runs on a host with a local
+# regex provider and on one with a model-backed provider without editing.
+#
+# A policy containing inspect rules will NOT load while enabled is false, or
+# while any profile it uses names a provider that is missing or disabled.
+# Booting anyway would make every one of those rules deny, which inverts what
+# the operator wrote.
+inspection:
+  enabled: false
+
+  providers:
+    # The regex provider runs in-process, needs no credentials and makes no
+    # network calls. It is the cheap pre-pass in front of an expensive model,
+    # and it is not a PII detector: it has no notion of context, so it cannot
+    # tell a customer's phone number from a support line in a comment.
+    #
+    # The key is the name a policy profile refers to in its `provider:` field.
+    regex:
+      enabled: true
+      type: regex
+      # Add or override categories. The key is the category name a profile
+      # lists under `categories:`. Built-ins: private_email, private_phone,
+      # private_url, account_number, secret.
+      patterns: {}
+        # internal_ticket: "ACME-[0-9]{4,}"
+
+  privacy:
+    # Whether content may reach a provider that does NOT run in-process.
+    # Inspection sends the content itself, not a name or a hash, so this is
+    # off by default: an unconfigured remote provider silently receiving
+    # request bodies is the worst available failure.
+    allow_remote: false
+    # Narrow remote egress by content kind. Empty means every kind, once
+    # allow_remote is true. Kinds: file, command, network, proxy_body,
+    # mcp_args.
+    remote_kinds: []
+
+  # Bounds a single provider call. A rule's own `inspect.timeout` bounds the
+  # whole inspection across every profile, and is usually the tighter of the
+  # two.
+  provider_timeout: 10s

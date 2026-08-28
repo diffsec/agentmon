@@ -181,6 +181,40 @@ func (p Policy) RequiresInspection() bool {
 	return false
 }
 
+// InspectionProfilesUsed returns every profile name any rule refers to, sorted
+// and deduplicated. A caller uses it to check up front that each one can
+// actually run, rather than discovering at the first request that the rule
+// fails closed.
+func (p Policy) InspectionProfilesUsed() []string {
+	seen := map[string]struct{}{}
+	add := func(spec *InspectSpec) {
+		if spec == nil {
+			return
+		}
+		for _, name := range spec.Profiles {
+			seen[name] = struct{}{}
+		}
+	}
+	for _, r := range p.FileRules {
+		add(r.Inspect)
+	}
+	for _, r := range p.NetworkRules {
+		add(r.Inspect)
+	}
+	for _, r := range p.CommandRules {
+		add(r.Inspect)
+	}
+	if len(seen) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(seen))
+	for name := range seen {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // RequiresInspection reports whether the engine's policy needs an inspector.
 func (e *Engine) RequiresInspection() bool {
 	if e.policy == nil {
