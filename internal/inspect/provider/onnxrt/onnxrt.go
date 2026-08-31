@@ -183,32 +183,21 @@ type Session struct {
 
 // NewSession loads a model from memory.
 //
-// From memory rather than from a path because the caller has already read and
-// checked the file: handing ONNX Runtime a path would mean it re-reads
-// something that could have changed in between.
+// Use it only for a self-contained model. A graph whose weights live in
+// separate .onnx_data files cannot be loaded this way: ONNX Runtime resolves
+// those paths relative to the model's directory, which it does not know when
+// handed bytes. Privacy Filter is such a model -- its graph is 160KB and its
+// weights are 917MB alongside -- so that path uses NewSessionFromPath.
 func (l *Library) NewSession(model []byte, opts SessionOptions) (*Session, error) {
 	if len(model) == 0 {
 		return nil, errors.New("onnxrt: empty model")
 	}
 
-	var so uintptr
-	st, _, _ := purego.SyscallN(l.fn(idxCreateSessionOptions), uintptr(unsafe.Pointer(&so)))
-	if err := l.status(st, "CreateSessionOptions"); err != nil {
+	so, err := l.newSessionOptions(opts)
+	if err != nil {
 		return nil, err
 	}
-
-	st, _, _ = purego.SyscallN(l.fn(idxSetSessionGraphOptimizationLevel), so, graphOptAll)
-	if err := l.status(st, "SetSessionGraphOptimizationLevel"); err != nil {
-		purego.SyscallN(l.fn(idxReleaseSessionOptions), so)
-		return nil, err
-	}
-	if opts.IntraOpThreads > 0 {
-		st, _, _ = purego.SyscallN(l.fn(idxSetIntraOpNumThreads), so, uintptr(opts.IntraOpThreads))
-		if err := l.status(st, "SetIntraOpNumThreads"); err != nil {
-			purego.SyscallN(l.fn(idxReleaseSessionOptions), so)
-			return nil, err
-		}
-	}
+	var st uintptr
 
 	var sess uintptr
 	st, _, _ = purego.SyscallN(l.fn(idxCreateSessionFromArray), toC(l.env),
@@ -220,6 +209,70 @@ func (l *Library) NewSession(model []byte, opts SessionOptions) (*Session, error
 	}
 
 	return &Session{lib: l, sess: sess, opts: so}, nil
+}
+
+// NewSessionFromPath loads a model by path.
+//
+// This is the only way to load a model whose weights are in external
+// .onnx_data files, because ONNX Runtime resolves those relative to the
+// model's own directory and only learns that directory from the path. It also
+// avoids reading a gigabyte of weights into Go's heap just to hand them
+// straight back.
+//
+// The trade is that the file is read by ONNX Runtime, not by the caller, so a
+// caller that verified a digest is trusting the file not to change in
+// between. The model cache writes atomically and treats its directory as
+// immutable once populated, which is what makes that safe.
+func (l *Library) NewSessionFromPath(path string, opts SessionOptions) (*Session, error) {
+	if path == "" {
+		return nil, errors.New("onnxrt: empty model path")
+	}
+	if _, err := os.Stat(path); err != nil {
+		return nil, fmt.Errorf("onnxrt: model %q: %w", path, err)
+	}
+
+	so, err := l.newSessionOptions(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// ORTCHAR_T is char on unix, so a plain NUL-terminated string is right.
+	// It is wchar_t on Windows, which this project does not support.
+	cpath := cstring(path)
+	var sess uintptr
+	st, _, _ := purego.SyscallN(l.fn(idxCreateSession), toC(l.env),
+		uintptr(unsafe.Pointer(&cpath[0])), so, uintptr(unsafe.Pointer(&sess)))
+	runtime.KeepAlive(cpath)
+	if err := l.status(st, "CreateSession"); err != nil {
+		purego.SyscallN(l.fn(idxReleaseSessionOptions), so)
+		return nil, err
+	}
+
+	return &Session{lib: l, sess: sess, opts: so}, nil
+}
+
+// newSessionOptions builds and configures an OrtSessionOptions. The caller
+// owns it and must release it, which Session.Close does.
+func (l *Library) newSessionOptions(opts SessionOptions) (uintptr, error) {
+	var so uintptr
+	st, _, _ := purego.SyscallN(l.fn(idxCreateSessionOptions), uintptr(unsafe.Pointer(&so)))
+	if err := l.status(st, "CreateSessionOptions"); err != nil {
+		return 0, err
+	}
+
+	st, _, _ = purego.SyscallN(l.fn(idxSetSessionGraphOptimizationLevel), so, graphOptAll)
+	if err := l.status(st, "SetSessionGraphOptimizationLevel"); err != nil {
+		purego.SyscallN(l.fn(idxReleaseSessionOptions), so)
+		return 0, err
+	}
+	if opts.IntraOpThreads > 0 {
+		st, _, _ = purego.SyscallN(l.fn(idxSetIntraOpNumThreads), so, uintptr(opts.IntraOpThreads))
+		if err := l.status(st, "SetIntraOpNumThreads"); err != nil {
+			purego.SyscallN(l.fn(idxReleaseSessionOptions), so)
+			return 0, err
+		}
+	}
+	return so, nil
 }
 
 // Close releases the session.

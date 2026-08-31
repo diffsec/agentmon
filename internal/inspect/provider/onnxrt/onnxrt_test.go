@@ -214,3 +214,47 @@ func TestFindLibrary_NotFoundIsSentinel(t *testing.T) {
 		t.Errorf("err = %v, want it to wrap ErrLibraryNotFound", err)
 	}
 }
+
+// TestNewSessionFromPath_Inference covers the loader Privacy Filter needs.
+//
+// NewSession cannot load that model at all: its graph is 160KB and its weights
+// are a separate 917MB .onnx_data file, which ONNX Runtime resolves relative
+// to the model's directory and therefore only finds when given a path. The
+// arithmetic is asserted for the same reason as in TestRun_Inference -- a
+// wrong OrtApi index still returns successfully.
+func TestNewSessionFromPath_Inference(t *testing.T) {
+	lib := openLibrary(t)
+	sess, err := lib.NewSessionFromPath(filepath.Join("testdata", "mul_1.onnx"), onnxrt.SessionOptions{IntraOpThreads: 1})
+	if err != nil {
+		t.Fatalf("NewSessionFromPath: %v", err)
+	}
+	defer sess.Close()
+
+	in := onnxrt.NewFloatTensor([]int64{3, 2}, []float32{1, 2, 3, 4, 5, 6})
+	out, err := sess.Run(map[string]*onnxrt.Tensor{"X": in}, []string{"Y"})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	want := []float32{1, 4, 9, 16, 25, 36}
+	for i := range want {
+		if out[0].Floats[i] != want[i] {
+			t.Errorf("output[%d] = %v, want %v", i, out[0].Floats[i], want[i])
+		}
+	}
+}
+
+// TestNewSessionFromPath_MissingFile must fail before reaching ONNX Runtime,
+// so the error names the path rather than surfacing a C-level message.
+func TestNewSessionFromPath_MissingFile(t *testing.T) {
+	lib := openLibrary(t)
+	_, err := lib.NewSessionFromPath(filepath.Join(t.TempDir(), "absent.onnx"), onnxrt.SessionOptions{})
+	if err == nil {
+		t.Fatal("a nonexistent model path was accepted")
+	}
+	if !strings.Contains(err.Error(), "absent.onnx") {
+		t.Errorf("err should name the path, got %v", err)
+	}
+	if _, err := lib.NewSessionFromPath("", onnxrt.SessionOptions{}); err == nil {
+		t.Fatal("an empty model path was accepted")
+	}
+}
