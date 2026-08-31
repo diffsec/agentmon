@@ -59,6 +59,10 @@ var ErrLibraryNotFound = errors.New("onnxrt: no ONNX Runtime library found")
 
 // Library is a loaded ONNX Runtime.
 type Library struct {
+	// handle is kept so an execution provider's factory symbol can be
+	// resolved lazily; those live outside the OrtApi table.
+	handle uintptr
+
 	// api and env are C pointers held as unsafe.Pointer rather than
 	// uintptr. A uintptr is just a number to the compiler and to go vet:
 	// keeping the real pointer type means the table is indexed with
@@ -121,7 +125,7 @@ func Open(path string) (*Library, error) {
 		return nil, fmt.Errorf("onnxrt: %q does not implement ORT_API_VERSION %d; it is too old", path, apiVersion)
 	}
 
-	lib := &Library{api: fromC(apiPtr)}
+	lib := &Library{api: fromC(apiPtr), handle: handle}
 	logID := cstring("agentmon")
 	var env uintptr
 	st, _, _ := purego.SyscallN(lib.fn(idxCreateEnv), loggingLevelWarning,
@@ -169,6 +173,12 @@ type SessionOptions struct {
 	// ONNX Runtime's default, which is one thread per core -- too many for a
 	// daemon that must stay responsive while inspecting one request.
 	IntraOpThreads int
+
+	// CoreML asks for Apple's CoreML execution provider on macOS. It is a
+	// request, not a guarantee: ONNX Runtime partitions the graph and runs
+	// on CPU whatever CoreML cannot take, so an unsupported model simply
+	// runs as before.
+	CoreML bool
 }
 
 // Session is a loaded model.
@@ -272,7 +282,30 @@ func (l *Library) newSessionOptions(opts SessionOptions) (uintptr, error) {
 			return 0, err
 		}
 	}
+	if opts.CoreML {
+		if err := l.appendCoreML(so); err != nil {
+			purego.SyscallN(l.fn(idxReleaseSessionOptions), so)
+			return 0, err
+		}
+	}
 	return so, nil
+}
+
+// appendCoreML registers Apple's CoreML execution provider.
+//
+// Its factory is a plain exported function rather than an OrtApi member, so
+// it is resolved by name. A build without CoreML simply does not export it,
+// which is why a missing symbol is reported as "not available in this build"
+// rather than treated as a failure to configure.
+func (l *Library) appendCoreML(so uintptr) error {
+	sym, err := purego.Dlsym(l.handle, "OrtSessionOptionsAppendExecutionProvider_CoreML")
+	if err != nil || sym == 0 {
+		return fmt.Errorf("onnxrt: CoreML is not available in this ONNX Runtime build")
+	}
+	// coreml_flags 0 asks for the default policy: use the Neural Engine and
+	// GPU where the graph allows, CPU elsewhere.
+	st, _, _ := purego.SyscallN(sym, so, 0)
+	return l.status(st, "AppendExecutionProvider_CoreML")
 }
 
 // Close releases the session.

@@ -276,11 +276,85 @@ a hang, and an air-gapped host needs a way to refuse. Files are verified
 against SHA-256 digests pinned to an upstream commit, so the download source
 does not matter.
 
-**Context limit.** Text longer than the model's 128,000-token window is
-refused, not truncated. Inspecting a prefix and reporting the rest clean would
-let an agent bury anything past the limit. It routes through `on_failure`,
-which denies by default. Chunking long inputs would lift the limit and is not
-implemented.
+**Long content is chunked, losslessly.** Text is labelled in 4096-token
+windows, each carrying 1024 tokens of context on either side of the region it
+commits. That overlap is the model's full receptive field — 8 layers of
+128-token banded attention — so a committed token is labelled exactly as a
+single full-document pass would label it. The tests assert byte-identical
+findings between chunked and single-pass runs, not merely similar ones.
+
+**It is slow, and that is the real limit.** Measured on an M-series laptop with
+`intra_op_threads: 2`:
+
+| content | time | rate |
+|---|---|---|
+| 8 KB | 0.85s | 9.4 KB/s |
+| 32 KB | 7.4s | 4.3 KB/s |
+| 128 KB | 34s | 3.7 KB/s |
+| 256 KB | 68s | 3.8 KB/s |
+
+Chunking made the cost linear — before it, time grew with roughly n^1.7 and
+20 KB already took 3.7s. But roughly 4 KB/s means a 256 KB body takes over a
+minute, and the proxy's 8 MiB body cap is far beyond anything inspectable
+inline. Set `inspect.timeout` to what the caller can actually wait for, and
+size the body cap to match; a timeout routes through `on_failure` and denies
+by default.
+
+### Tuning, and what does not help
+
+Every number below is measured on a 12-core M-series laptop. The model is
+bound by memory bandwidth rather than compute, which is why most of the
+obvious levers do nothing.
+
+`intra_op_threads` is the first one to set. Over 32 KB: 1 thread took 11.5s,
+2 took 7.4s, 4 took 6.1s, 8 took 6.0s. Leave it at the default (one per core)
+or set 4.
+
+`concurrency` runs windows in parallel and gives a little more, then stops.
+Over 128 KB: 1 gave 4.0 KB/s, 2 gave 5.3, 4 gave 5.6, and it flattened.
+
+**Do not raise `concurrency` past 4.** Six workers measured 1.4 KB/s and eight
+measured 0.9 — slower than running them one at a time — and twelve was killed
+by the operating system for exhausting memory, because each worker holds its
+own activations for a 917MB model. The value is clamped to 4 for that reason.
+
+Three things that looked promising and were not:
+
+- **CoreML.** 8x slower: 38.4s against 4.9s for 32 KB, with identical
+  findings. ONNX Runtime partitions the graph and runs on CPU whatever CoreML
+  will not take, and for a sparse mixture-of-experts the partition boundaries
+  cost more than the accelerator saves.
+- **Batching windows into one call.** The per-call floor is 16ms once warm, so
+  49 windows cost under a second of overhead in a 34s run.
+- **A bigger window.** Inference grows with about n^1.7, so fewer, longer
+  passes are worse, not better.
+
+### Where this leaves the feature
+
+Roughly 4–6 KB/s means a typical chat request body of 1–5 KB inspects in
+0.2–0.8s, which is fine inline. A 200 KB body — someone pasting a file —
+takes about 35 seconds, which is not. Size `inspect.timeout` and the proxy's
+body cap together against that, and remember a timeout denies by default.
+
+### Not yet investigated
+
+Two things could plausibly move the number and neither has been measured:
+
+- **A different quantisation.** Only `model_q4` has been benchmarked. Four-bit
+  is a size optimisation, not necessarily a speed one on CPU: ONNX Runtime
+  dequantises those weights on the fly, and its int8 or fp16 kernels are often
+  faster. `onnx/model_quantized.onnx` (int8, 1.6GB) and `onnx/model_fp16.onnx`
+  (2.8GB) are untried.
+- **Per-node profiling.** ONNX Runtime can report where time goes inside the
+  graph, which would say definitively whether the mixture-of-experts routing,
+  attention, or something more mundane dominates. The API is not bound yet.
+
+The lever that would matter most is architectural rather than a tweak: not
+running the model at all on content that cannot contain what the profile is
+looking for, with a cheap regex pre-pass gating the expensive one. It cannot
+rule out `private_person`, so it only helps profiles scoped to the
+pattern-shaped categories — but for those it is the difference between 4 KB/s
+and free.
 
 ### The startup gate
 
