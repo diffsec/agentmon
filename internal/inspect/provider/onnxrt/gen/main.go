@@ -28,6 +28,7 @@ import (
 var wanted = []string{
 	"GetErrorMessage",
 	"CreateEnv",
+	"CreateSession",
 	"CreateSessionFromArray",
 	"Run",
 	"CreateSessionOptions",

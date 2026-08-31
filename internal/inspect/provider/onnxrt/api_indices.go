@@ -16,6 +16,7 @@ const apiVersion = 29
 const (
 	idxGetErrorMessage                  = 2
 	idxCreateEnv                        = 3
+	idxCreateSession                    = 7
 	idxCreateSessionFromArray           = 8
 	idxRun                              = 9
 	idxCreateSessionOptions             = 10
