@@ -329,9 +329,32 @@ Three things that looked promising and were not:
 - **A bigger window.** Inference grows with about n^1.7, so fewer, longer
   passes are worse, not better.
 
-The lever that would actually matter is not running the model at all on
-content that cannot contain what the profile is looking for — a cheap
-regex pre-pass gating an expensive one. That is not implemented.
+### Where this leaves the feature
+
+Roughly 4–6 KB/s means a typical chat request body of 1–5 KB inspects in
+0.2–0.8s, which is fine inline. A 200 KB body — someone pasting a file —
+takes about 35 seconds, which is not. Size `inspect.timeout` and the proxy's
+body cap together against that, and remember a timeout denies by default.
+
+### Not yet investigated
+
+Two things could plausibly move the number and neither has been measured:
+
+- **A different quantisation.** Only `model_q4` has been benchmarked. Four-bit
+  is a size optimisation, not necessarily a speed one on CPU: ONNX Runtime
+  dequantises those weights on the fly, and its int8 or fp16 kernels are often
+  faster. `onnx/model_quantized.onnx` (int8, 1.6GB) and `onnx/model_fp16.onnx`
+  (2.8GB) are untried.
+- **Per-node profiling.** ONNX Runtime can report where time goes inside the
+  graph, which would say definitively whether the mixture-of-experts routing,
+  attention, or something more mundane dominates. The API is not bound yet.
+
+The lever that would matter most is architectural rather than a tweak: not
+running the model at all on content that cannot contain what the profile is
+looking for, with a cheap regex pre-pass gating the expensive one. It cannot
+rule out `private_person`, so it only helps profiles scoped to the
+pattern-shaped categories — but for those it is the difference between 4 KB/s
+and free.
 
 ### The startup gate
 
