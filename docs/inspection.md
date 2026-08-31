@@ -210,6 +210,71 @@ there are eight engine-construction sites outside the policy package, and the
 equivalent Tor wiring reaches three of them — `internal/api/session_policy.go:91`
 documents that gap in its own comment.
 
+## Wire point: the LLM proxy
+
+The first place inspection sees content is the proxy request body.
+`InspectHook` (`internal/proxy/inspecthook.go`) is registered per session and
+runs before the credential hooks — a body the policy refuses must never be the
+thing that gets a live key substituted into it.
+
+The rule kind is `network_rules`, matched on the destination host and port:
+
+```yaml
+network_rules:
+  - name: no-secrets-outbound
+    domains: ["api.anthropic.com"]
+    ports: [443]
+    decision: allow
+    inspect:
+      require: true
+      profiles: [pii]
+      on_violation: redact
+```
+
+A violation with `redact` rewrites the body in place and forwards it, with
+`Content-Length` corrected and any `Digest` / `Content-Digest` header dropped,
+since both were computed over the original bytes. A `deny` returns 403 with a
+message naming the rule and the categories found — never the matched text,
+because that message lands in the agent's own transcript.
+
+### What the hook does not do
+
+It resolves inspect specs and nothing else. A plain `decision: deny` network
+rule is left alone: the proxy, the macOS network filter and the Linux
+netmonitor each enforce network policy on their own path, and adding a second
+enforcement point here would change behaviour for every deployment that uses
+no inspection at all.
+
+### The body cap
+
+`inspection.max_body_bytes` (default 8 MiB) caps how much is buffered. The
+agent controls the body, so an unbounded read is a denial-of-service surface
+against the daemon.
+
+Exceeding the cap is a **failed inspection, not a skip** — otherwise padding a
+payload past the limit would bypass every inspect rule. It routes through
+`on_failure` like a provider timeout does, so it denies by default. The
+buffered prefix is spliced back in front of the unread remainder, so an
+`on_failure: fail_open` rule forwards the whole request rather than a
+truncated one.
+
+Set the cap above the largest payload the agent legitimately sends. LLM
+requests with long context run to several megabytes, and a cap below real
+traffic turns `fail_closed` into a blanket block that looks exactly like a
+policy that is working.
+
+### `approve` on the proxy path
+
+A `PreHook` can abort a request or let it through; it has no way to gate on a
+human. `on_violation: approve` and `on_failure: approve` therefore **deny**
+here, with a message saying approval is not available on this path, and a
+warning in the log naming the rule.
+
+That is a limitation, not the intended end state. The blocking shape already
+exists in `internal/db/proxy/postgres/approvalwait.go`, which runs the
+approver in a goroutine with its own timeout and maps outcomes to
+`approval_denied` / `approval_timeout` / `cancelled_during_approval`.
+
 ## Decision whitelist
 
 Adding `inspect` also closed a hole. `Policy.Validate()` did not check decision

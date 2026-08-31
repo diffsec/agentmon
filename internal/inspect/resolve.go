@@ -107,6 +107,21 @@ func Resolve(ctx context.Context, checker policy.InspectChecker, dec policy.Deci
 	return res
 }
 
+// Fail routes a caller-side failure through the rule's on_failure, without
+// calling an inspector.
+//
+// It exists because some reasons the content cannot be inspected are known
+// before an inspector would be reached -- a body over the caller's size cap,
+// a stream that could not be buffered. Those must reach the same on_failure
+// the rule declares, not a bare deny and not a skip: a request body too large
+// to inspect is uninspected content, exactly like a provider timeout.
+func Fail(dec policy.Decision, content string, err error) Result {
+	if dec.Inspect == nil {
+		return Result{Decision: dec, Content: content, Err: err}
+	}
+	return failure(dec, content, dec.Inspect, err)
+}
+
 // failure applies on_failure. It is reached whenever the content was not
 // successfully inspected -- no inspector, an unknown profile, a privacy
 // refusal, a provider error, a timeout.

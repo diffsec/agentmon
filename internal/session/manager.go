@@ -14,6 +14,7 @@ import (
 
 	"github.com/diffsec/agentmon/internal/pathutil"
 	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/proxy"
 	"github.com/diffsec/agentmon/internal/proxy/credsub"
 	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/google/uuid"
@@ -87,6 +88,10 @@ type Session struct {
 	// Falls back to the global policy if nil.
 	policyEngine *policy.Engine
 
+	// inspectConfig carries the content-inspection settings for this
+	// session's LLM proxy. Zero value means inspection is not configured.
+	inspectConfig proxy.InspectConfig
+
 	// credsTable is the per-session credential substitution table.
 	// Nil if no secrets are configured.
 	credsTable *credsub.Table
@@ -124,6 +129,24 @@ func (s *Session) CredsTable() *credsub.Table {
 
 // SetCredsTable stores the credential table and cleanup function on
 // the session. Called by StartLLMProxy after BootstrapCredentials.
+// InspectConfig returns the per-session content-inspection settings. The
+// zero value means inspection is not configured for this session.
+func (s *Session) InspectConfig() proxy.InspectConfig {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.inspectConfig
+}
+
+// SetInspectConfig installs the content-inspection settings used by the LLM
+// proxy's inspect hook. Resolve is a function so the policy engine is looked
+// up per request rather than captured, which is what lets a live policy
+// update reach the proxy path.
+func (s *Session) SetInspectConfig(c proxy.InspectConfig) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.inspectConfig = c
+}
+
 func (s *Session) SetCredsTable(t *credsub.Table, closeFn func()) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
