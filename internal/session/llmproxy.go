@@ -109,7 +109,12 @@ func StartLLMProxy(
 	// driven by network_rules and applies whether or not the session declares
 	// any http_services.
 	if ic := sess.InspectConfig(); ic.Enabled() {
-		p.HookRegistry().Register("", proxy.NewInspectHook(ic.Resolve, ic.MaxBodyBytes, logger))
+		hook := proxy.NewInspectHook(ic.Resolve, ic.MaxBodyBytes, logger)
+		// Share the proxy's DLP token store so on_violation: redact mints a
+		// reversible pseudonym that Detokenize reverses on the response,
+		// rather than a placeholder that destroys the value downstream.
+		hook.SetDLP(p.DLP())
+		p.HookRegistry().Register("", hook)
 	}
 
 	// Bootstrap credentials and register hooks if services are configured.
