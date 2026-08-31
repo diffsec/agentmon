@@ -19,14 +19,12 @@ import (
 const Name = "privacy_filter"
 
 // modelContextTokens is the model's own context window, from its config.json
-// (default_n_ctx). Text that tokenizes longer than this cannot be inspected in
-// one pass.
+// (default_n_ctx).
 //
-// Exceeding it is an error, not a truncation. Inspecting the first 128k tokens
-// and reporting the rest clean would let an agent bury anything past the limit,
-// which is the same bypass a truncated body would be -- so it routes through
-// the rule's on_failure and denies by default. Chunking long inputs is the fix
-// and is not implemented here; see the note on Inspect.
+// Nothing here approaches it: windows are DefaultWindow tokens, and content
+// longer than one window is split rather than refused. It is kept as an
+// assertion -- a window configured larger than the model can accept would
+// fail inside ONNX Runtime with a shape error rather than here.
 const modelContextTokens = 128000
 
 // Provider runs OpenAI Privacy Filter locally.
@@ -41,6 +39,9 @@ type Provider struct {
 	sess *onnxrt.Session
 	tok  *tokenizer.Tokenizer
 	cal  Calibration
+
+	// window and overlap size the inference windows. See chunk.go.
+	window, overlap int
 
 	// needsMask records whether the loaded graph takes attention_mask.
 	// Feeding an input the model does not declare is an error from ONNX
@@ -65,6 +66,12 @@ type Config struct {
 	// ONNX Runtime's default of one per core, which is too many for a
 	// daemon that must stay responsive while inspecting one request.
 	IntraOpThreads int
+	// Window and Overlap size the inference windows. Zero uses
+	// DefaultWindow and DefaultOverlap. Lowering Overlap below the model's
+	// receptive field makes chunking lossy, so it is exposed for
+	// measurement rather than tuning.
+	Window, Overlap int
+
 	// HTTPClient fetches model files. Nil uses a default.
 	HTTPClient *http.Client
 	// AllowDownload permits fetching the model when the cache is empty.
@@ -154,7 +161,15 @@ func Open(ctx context.Context, cfg Config) (*Provider, error) {
 		return nil, err
 	}
 
-	p := &Provider{lib: lib, sess: sess, tok: tok, cal: cal}
+	win, over := cfg.Window, cfg.Overlap
+	if win <= 0 {
+		win = DefaultWindow
+	}
+	if over <= 0 {
+		over = DefaultOverlap
+	}
+
+	p := &Provider{lib: lib, sess: sess, tok: tok, cal: cal, window: win, overlap: over}
 	if err := p.checkGraph(); err != nil {
 		p.Close()
 		return nil, err
@@ -230,18 +245,11 @@ func (p *Provider) Categories() []string {
 
 // Inspect implements inspect.Provider.
 //
-// One forward pass labels every token, and the constrained decoder turns those
-// labels into spans. Token spans are then mapped to byte offsets through the
-// tokenizer's own offsets -- never computed here -- because only the tokenizer
-// knows where a token sits in the text, and a provider inventing byte offsets
-// is how a redactor cuts the wrong bytes.
-//
-// Text longer than the model's context window is refused rather than
-// truncated. Inspecting a prefix and reporting the rest clean would let an
-// agent bury anything past the limit. Chunking with overlap would lift the
-// limit and is not implemented: a span crossing a chunk boundary needs care,
-// and getting it wrong produces spans with the wrong ends rather than an
-// error.
+// Content is labelled a window at a time and the constrained decoder turns
+// those labels into spans. Token spans are then mapped to byte offsets through
+// the tokenizer's own offsets -- never computed here -- because only the
+// tokenizer knows where a token sits in the text, and a provider inventing
+// byte offsets is how a redactor cuts the wrong bytes.
 func (p *Provider) Inspect(ctx context.Context, req inspect.Request) (*inspect.Response, error) {
 	start := time.Now()
 
@@ -260,20 +268,8 @@ func (p *Provider) Inspect(ctx context.Context, req inspect.Request) (*inspect.R
 	if len(toks) == 0 {
 		return &inspect.Response{Provider: Name, Metadata: inspect.ResponseMetadata{Duration: time.Since(start)}}, nil
 	}
-	if len(toks) > modelContextTokens {
-		return nil, fmt.Errorf("content is %d tokens, past the model's %d-token context; it cannot be inspected in one pass",
-			len(toks), modelContextTokens)
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
 
-	logits, err := p.run(toks)
-	if err != nil {
-		return nil, err
-	}
-
-	spans, err := Decode(logits, len(toks), p.cal)
+	spans, err := p.decodeAll(ctx, toks)
 	if err != nil {
 		return nil, err
 	}
@@ -303,6 +299,62 @@ func (p *Provider) Inspect(ctx context.Context, req inspect.Request) (*inspect.R
 		Findings: findings,
 		Metadata: inspect.ResponseMetadata{Duration: time.Since(start)},
 	}, nil
+}
+
+// decodeAll labels the whole token sequence, a window at a time, and returns
+// the spans in document order.
+//
+// Windowing is lossless rather than approximate: each window carries
+// DefaultOverlap tokens of real context on either side of the region it
+// commits, and that overlap is the model's full receptive field, so a
+// committed token is labelled exactly as it would be in a single pass. See
+// chunk.go for the derivation.
+//
+// Windows run in sequence. Concurrency would help on a multicore host, but it
+// multiplies peak memory by the worker count and competes with whatever else
+// the daemon is doing while one request waits -- and inspection already sits
+// on the request path.
+func (p *Provider) decodeAll(ctx context.Context, toks []tokenizer.Token) ([]Span, error) {
+	if p.window > modelContextTokens {
+		return nil, fmt.Errorf("privacyfilter: window %d exceeds the model's %d-token context", p.window, modelContextTokens)
+	}
+	wins, err := windowsFor(len(toks), p.window, p.overlap)
+	if err != nil {
+		return nil, err
+	}
+
+	var all []Span
+	for _, w := range wins {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		logits, err := p.run(toks[w.start:w.end])
+		if err != nil {
+			return nil, err
+		}
+		spans, err := Decode(logits, w.end-w.start, p.cal)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, s := range spans {
+			// Window-relative to document-relative.
+			s.Start += w.start
+			s.End += w.start
+
+			// Exactly one window commits each token, so a span belongs to
+			// the window whose committed region holds its START. Filtering
+			// on the whole span instead would drop one that begins inside
+			// the region and runs past it, and filtering on overlap would
+			// report it twice.
+			if s.Start < w.commitStart || s.Start >= w.commitEnd {
+				continue
+			}
+			all = append(all, s)
+		}
+	}
+	return all, nil
 }
 
 // wantedCategories resolves the profile's category list.

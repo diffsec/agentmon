@@ -276,11 +276,29 @@ a hang, and an air-gapped host needs a way to refuse. Files are verified
 against SHA-256 digests pinned to an upstream commit, so the download source
 does not matter.
 
-**Context limit.** Text longer than the model's 128,000-token window is
-refused, not truncated. Inspecting a prefix and reporting the rest clean would
-let an agent bury anything past the limit. It routes through `on_failure`,
-which denies by default. Chunking long inputs would lift the limit and is not
-implemented.
+**Long content is chunked, losslessly.** Text is labelled in 4096-token
+windows, each carrying 1024 tokens of context on either side of the region it
+commits. That overlap is the model's full receptive field — 8 layers of
+128-token banded attention — so a committed token is labelled exactly as a
+single full-document pass would label it. The tests assert byte-identical
+findings between chunked and single-pass runs, not merely similar ones.
+
+**It is slow, and that is the real limit.** Measured on an M-series laptop with
+`intra_op_threads: 2`:
+
+| content | time | rate |
+|---|---|---|
+| 8 KB | 0.85s | 9.4 KB/s |
+| 32 KB | 7.4s | 4.3 KB/s |
+| 128 KB | 34s | 3.7 KB/s |
+| 256 KB | 68s | 3.8 KB/s |
+
+Chunking made the cost linear — before it, time grew with roughly n^1.7 and
+20 KB already took 3.7s. But roughly 4 KB/s means a 256 KB body takes over a
+minute, and the proxy's 8 MiB body cap is far beyond anything inspectable
+inline. Set `inspect.timeout` to what the caller can actually wait for, and
+size the body cap to match; a timeout routes through `on_failure` and denies
+by default.
 
 ### The startup gate
 

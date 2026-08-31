@@ -2,6 +2,7 @@ package privacyfilter_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -238,5 +239,131 @@ func TestOpen_RefusesToDownloadWhenNotAllowed(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "not cached") {
 		t.Errorf("err = %v, want it to say the model is not cached", err)
+	}
+}
+
+// openWith opens the provider with explicit window settings, for the
+// equivalence tests below.
+func openWith(t *testing.T, window, overlap int) *privacyfilter.Provider {
+	t.Helper()
+	cache := os.Getenv(CacheEnv)
+	if cache == "" {
+		t.Skipf("set %s to a directory holding the model to run this", CacheEnv)
+	}
+	if _, err := onnxrt.FindLibrary(); err != nil {
+		t.Skipf("no ONNX Runtime: %v", err)
+	}
+	p, err := privacyfilter.Open(context.Background(), privacyfilter.Config{
+		CacheDir: cache, IntraOpThreads: 2, Window: window, Overlap: overlap,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(p.Close)
+	return p
+}
+
+// piiCorpus builds text long enough to need several windows, with PII spread
+// through it so spans land at many offsets — including, across the sweep of
+// window sizes below, on and near commit boundaries.
+func piiCorpus(reps int) string {
+	var b strings.Builder
+	for i := 0; i < reps; i++ {
+		fmt.Fprintf(&b, "Record %d: Alice Smith, alice%d@example.com, 555-123-45%02d. ", i, i, i%100)
+		b.WriteString("Filler text that carries no personal information whatsoever, repeated to add length. ")
+	}
+	return b.String()
+}
+
+// TestInspect_ChunkedMatchesSinglePass is the losslessness claim.
+//
+// Windowing is only worth having if a chunked run returns exactly what one
+// long pass returns. The overlap is the model's full receptive field -- 8
+// layers of 128-token banded attention -- so a committed token sees the same
+// context either way, and the findings must be identical: same categories,
+// same byte offsets, same order.
+//
+// A weaker assertion ("finds roughly the same things") would pass a window
+// that clips spans at its edges, which is the exact failure chunking risks.
+func TestInspect_ChunkedMatchesSinglePass(t *testing.T) {
+	text := piiCorpus(40)
+
+	whole := openWith(t, 0, 0) // defaults: one window for text this size
+	single, err := whole.Inspect(context.Background(), request(text))
+	if err != nil {
+		t.Fatalf("single-pass Inspect: %v", err)
+	}
+	if len(single.Findings) == 0 {
+		t.Fatal("the corpus produced no findings; the comparison would be vacuous")
+	}
+
+	// Several window sizes, each forcing a different number of windows and
+	// therefore putting commit boundaries at different offsets.
+	for _, size := range []int{512, 768, 1024} {
+		t.Run(fmt.Sprintf("window=%d", size), func(t *testing.T) {
+			chunked := openWith(t, size, 128)
+			got, err := chunked.Inspect(context.Background(), request(text))
+			if err != nil {
+				t.Fatalf("chunked Inspect: %v", err)
+			}
+			assertSameFindings(t, got.Findings, single.Findings, text)
+		})
+	}
+}
+
+func assertSameFindings(t *testing.T, got, want []inspect.Finding, text string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Errorf("got %d findings, single pass found %d", len(got), len(want))
+	}
+	n := len(got)
+	if len(want) < n {
+		n = len(want)
+	}
+	for i := 0; i < n; i++ {
+		g, w := got[i], want[i]
+		if g.Category != w.Category || g.Start != w.Start || g.End != w.End {
+			t.Errorf("finding %d differs:\n chunked [%d,%d) %s = %q\n single  [%d,%d) %s = %q",
+				i, g.Start, g.End, g.Category, safeSlice(text, g.Start, g.End),
+				w.Start, w.End, w.Category, safeSlice(text, w.Start, w.End))
+			if i > 3 {
+				t.Fatal("too many differences; stopping")
+			}
+		}
+	}
+}
+
+func safeSlice(s string, a, b int) string {
+	if a < 0 || b > len(s) || b <= a {
+		return "<out of range>"
+	}
+	return s[a:b]
+}
+
+// TestInspect_ChunkedSpansAreStillWellFormed. Whatever the window layout, the
+// byte offsets must stay ordered, non-overlapping and inside the input --
+// everything downstream slices by them.
+func TestInspect_ChunkedSpansAreStillWellFormed(t *testing.T) {
+	text := piiCorpus(60)
+	p := openWith(t, 512, 128)
+
+	resp, err := p.Inspect(context.Background(), request(text))
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if len(resp.Findings) == 0 {
+		t.Fatal("no findings")
+	}
+
+	prevEnd := 0
+	for i, f := range resp.Findings {
+		if f.Start < prevEnd {
+			t.Errorf("finding %d starts at %d, before the previous one ended at %d; a span was reported by two windows",
+				i, f.Start, prevEnd)
+		}
+		if f.End > len(text) || f.End <= f.Start {
+			t.Errorf("finding %d is [%d,%d) for a %d-byte input", i, f.Start, f.End, len(text))
+		}
+		prevEnd = f.End
 	}
 }
