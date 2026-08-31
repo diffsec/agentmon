@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"github.com/diffsec/agentmon/internal/config"
 	"github.com/diffsec/agentmon/internal/inspect"
 	"github.com/diffsec/agentmon/internal/inspect/provider"
+	"github.com/diffsec/agentmon/internal/inspect/provider/privacyfilter"
 	"github.com/diffsec/agentmon/internal/policy"
 )
 
@@ -26,7 +28,7 @@ import (
 // `allow` rule with an inspection precondition becomes a block on the path it
 // was written to permit. That is not a reduced-capability mode worth booting
 // into; it is a policy nobody authored.
-func wireInspection(cfg config.InspectionConfig, p *policy.Policy, engine *policy.Engine) (*inspect.Registry, error) {
+func wireInspection(ctx context.Context, cfg config.InspectionConfig, p *policy.Policy, engine *policy.Engine) (*inspect.Registry, error) {
 	needed := p.InspectionProfilesUsed()
 
 	if !cfg.Enabled {
@@ -38,7 +40,7 @@ func wireInspection(cfg config.InspectionConfig, p *policy.Policy, engine *polic
 		return nil, nil
 	}
 
-	providers, err := buildInspectProviders(cfg.Providers)
+	providers, err := buildInspectProviders(ctx, cfg.Providers)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +94,7 @@ func remoteKindsLabel(kinds []string) string {
 // disabled provider is skipped here and reported by Checker.Missing if a
 // profile names it, so the operator gets "provider X is not configured"
 // rather than a rule that quietly denies.
-func buildInspectProviders(cfgs map[string]config.InspectProviderConfig) ([]inspect.Provider, error) {
+func buildInspectProviders(ctx context.Context, cfgs map[string]config.InspectProviderConfig) ([]inspect.Provider, error) {
 	names := make([]string, 0, len(cfgs))
 	for name := range cfgs {
 		names = append(names, name)
@@ -105,7 +107,7 @@ func buildInspectProviders(cfgs map[string]config.InspectProviderConfig) ([]insp
 		if !pc.Enabled {
 			continue
 		}
-		p, err := buildInspectProvider(name, pc)
+		p, err := buildInspectProvider(ctx, name, pc)
 		if err != nil {
 			return nil, err
 		}
@@ -120,7 +122,7 @@ func buildInspectProviders(cfgs map[string]config.InspectProviderConfig) ([]insp
 // naming that provider to fail at match time, long after the typo that caused
 // it, and the reported reason would be "provider not configured" rather than
 // "no such provider type".
-func buildInspectProvider(name string, pc config.InspectProviderConfig) (inspect.Provider, error) {
+func buildInspectProvider(ctx context.Context, name string, pc config.InspectProviderConfig) (inspect.Provider, error) {
 	switch pc.Type {
 	case "regex":
 		p, err := provider.NewRegex(pc.Patterns)
@@ -150,10 +152,29 @@ func buildInspectProvider(name string, pc config.InspectProviderConfig) (inspect
 			return nil, fmt.Errorf("inspection provider %q: %w", name, err)
 		}
 		return p, nil
+	case "privacy_filter":
+		if name != privacyfilter.Name {
+			return nil, fmt.Errorf("inspection provider %q: a type: privacy_filter provider must be named %q, because that is the name a policy profile refers to",
+				name, privacyfilter.Name)
+		}
+		p, err := privacyfilter.Open(ctx, privacyfilter.Config{
+			Variant:        privacyfilter.Variant(optString(pc.Options, "variant")),
+			CacheDir:       optString(pc.Options, "cache_dir"),
+			LibraryPath:    optString(pc.Options, "library_path"),
+			IntraOpThreads: optInt(pc.Options, "intra_op_threads", 0),
+			// Downloading 917MB is opt-in. A daemon that fetched it
+			// silently on first start would look like a hang, and an
+			// air-gapped host needs a way to say no.
+			AllowDownload: optBool(pc.Options, "allow_download", false),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("inspection provider %q: %w", name, err)
+		}
+		return p, nil
 	case "":
 		return nil, fmt.Errorf("inspection provider %q: type is required", name)
 	default:
-		return nil, fmt.Errorf("inspection provider %q: unknown type %q (known types: regex, sidecar)", name, pc.Type)
+		return nil, fmt.Errorf("inspection provider %q: unknown type %q (known types: regex, sidecar, privacy_filter)", name, pc.Type)
 	}
 }
 
@@ -173,4 +194,15 @@ func inspectAPIKey(name, apiKeyEnv string) (string, error) {
 		return "", fmt.Errorf("inspection provider %q: api_key_env names %s, which is unset or empty", name, apiKeyEnv)
 	}
 	return val, nil
+}
+
+// optBool reads a bool from a provider's options map.
+func optBool(opts map[string]any, key string, defaultVal bool) bool {
+	if opts == nil {
+		return defaultVal
+	}
+	if v, ok := opts[key].(bool); ok {
+		return v
+	}
+	return defaultVal
 }

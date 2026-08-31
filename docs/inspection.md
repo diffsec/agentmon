@@ -245,6 +245,43 @@ A sidecar is **not** a `LocalProvider`, even bound to `127.0.0.1`. Content
 sent to it leaves the process, and nothing in an HTTP URL proves where it
 resolves to, so `privacy.allow_remote` must be on for it to run at all.
 
+### The Privacy Filter provider
+
+`type: privacy_filter` runs OpenAI Privacy Filter in-process through ONNX
+Runtime. It is a `LocalProvider`, so the privacy gate lets it see content
+without `allow_remote` — which is the whole point: inspecting text for PII by
+shipping it to a remote service is the failure this design exists to avoid.
+
+```yaml
+inspection:
+  enabled: true
+  providers:
+    privacy_filter:
+      enabled: true
+      type: privacy_filter
+      options:
+        allow_download: true
+        intra_op_threads: 2
+```
+
+It detects eight categories: `account_number`, `private_address`,
+`private_date`, `private_email`, `private_person`, `private_phone`,
+`private_url`, `secret`. A profile naming anything else is an error rather
+than a clean result.
+
+**Two host requirements.** `libonnxruntime` must be installed (or
+`options.library_path` set), and the model — 917MB — must be cached.
+`allow_download` is false by default: fetching that on first start looks like
+a hang, and an air-gapped host needs a way to refuse. Files are verified
+against SHA-256 digests pinned to an upstream commit, so the download source
+does not matter.
+
+**Context limit.** Text longer than the model's 128,000-token window is
+refused, not truncated. Inspecting a prefix and reporting the rest clean would
+let an agent bury anything past the limit. It routes through `on_failure`,
+which denies by default. Chunking long inputs would lift the limit and is not
+implemented.
+
 ### The startup gate
 
 A policy containing inspect rules will not load when `enabled` is false, or

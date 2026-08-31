@@ -182,7 +182,7 @@ func New(cfg *config.Config) (*Server, error) {
 	// Content inspection (optional). Placed before the App is built so a
 	// policy the host cannot inspect for is refused at startup rather than
 	// booting into a state where every inspect rule denies.
-	inspectRegistry, err := wireInspection(cfg.Inspection, p, engine)
+	inspectRegistry, err := wireInspection(context.Background(), cfg.Inspection, p, engine)
 	if err != nil {
 		return nil, err
 	}

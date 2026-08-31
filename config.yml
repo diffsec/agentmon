@@ -535,6 +535,35 @@ inspection:
     #   options:
     #     base_url: http://127.0.0.1:8731
 
+    # OpenAI Privacy Filter, running in this process via ONNX Runtime.
+    #
+    # It is a LOCAL provider: content never leaves the machine, which is the
+    # point -- inspecting for PII by sending the text to a remote service is
+    # the failure this whole design exists to avoid. It needs two things the
+    # host must have:
+    #
+    #   1. libonnxruntime. Set options.library_path, or install it where the
+    #      loader finds it (/usr/local/lib, /opt/homebrew/lib).
+    #   2. The model, 917MB. Cached under options.cache_dir, or the user cache
+    #      directory by default.
+    #
+    # allow_download is false by default on purpose: fetching 917MB on first
+    # start looks like a hang, and an air-gapped host needs a way to say no.
+    # Populate the cache out of band, or set it to true.
+    #
+    # Files are verified against SHA-256 digests pinned to an upstream commit,
+    # so where they came from does not matter -- Hugging Face, a mirror, or a
+    # directory an operator copied in.
+    # privacy_filter:
+    #   enabled: true
+    #   type: privacy_filter
+    #   options:
+    #     allow_download: false
+    #     variant: q4            # 917MB
+    #     cache_dir: ""          # default: <user cache>/agentmon/models
+    #     library_path: ""       # default: search standard locations
+    #     intra_op_threads: 2    # 0 leaves ONNX Runtime's one-per-core default
+
   privacy:
     # Whether content may reach a provider that does NOT run in-process.
     # Inspection sends the content itself, not a name or a hash, so this is

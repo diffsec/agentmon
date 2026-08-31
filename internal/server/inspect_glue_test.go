@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -77,7 +78,7 @@ func regexEnabled() config.InspectionConfig {
 // startup.
 func TestWireInspection_RefusesPolicyThatNeedsAnInspectorWhenDisabled(t *testing.T) {
 	p := loadPolicy(t, inspectPolicyYAML)
-	_, err := wireInspection(config.InspectionConfig{Enabled: false}, p, newEngine(t, p))
+	_, err := wireInspection(context.Background(), config.InspectionConfig{Enabled: false}, p, newEngine(t, p))
 	if err == nil {
 		t.Fatal("a policy using inspection started with inspection disabled; every one of its inspect rules would deny")
 	}
@@ -112,7 +113,7 @@ command_rules:
       profiles: [exfil]
 `
 	p := loadPolicy(t, yaml)
-	_, err := wireInspection(regexEnabled(), p, newEngine(t, p))
+	_, err := wireInspection(context.Background(), regexEnabled(), p, newEngine(t, p))
 	if err == nil {
 		t.Fatal("a policy naming an unconfigured provider started successfully")
 	}
@@ -135,7 +136,7 @@ func TestWireInspection_DisabledProviderIsReportedAsMissing(t *testing.T) {
 			"regex": {Enabled: false, Type: "regex"},
 		},
 	}
-	_, err := wireInspection(cfg, p, newEngine(t, p))
+	_, err := wireInspection(context.Background(), cfg, p, newEngine(t, p))
 	if err == nil {
 		t.Fatal("a disabled provider satisfied a policy that needs it")
 	}
@@ -151,7 +152,7 @@ func TestWireInspection_SucceedsWithAWorkingProvider(t *testing.T) {
 	p := loadPolicy(t, inspectPolicyYAML)
 	eng := newEngine(t, p)
 
-	reg, err := wireInspection(regexEnabled(), p, eng)
+	reg, err := wireInspection(context.Background(), regexEnabled(), p, eng)
 	if err != nil {
 		t.Fatalf("a policy with a working provider was refused: %v", err)
 	}
@@ -175,7 +176,7 @@ func TestWireInspection_SucceedsWithAWorkingProvider(t *testing.T) {
 // not use inspection configures nothing and pays nothing.
 func TestWireInspection_NoRegistryWhenPolicyDoesNotUseIt(t *testing.T) {
 	p := loadPolicy(t, plainPolicyYAML)
-	reg, err := wireInspection(config.InspectionConfig{Enabled: false}, p, newEngine(t, p))
+	reg, err := wireInspection(context.Background(), config.InspectionConfig{Enabled: false}, p, newEngine(t, p))
 	if err != nil {
 		t.Fatalf("a policy with no inspect rules was refused: %v", err)
 	}
@@ -188,7 +189,7 @@ func TestWireInspection_NoRegistryWhenPolicyDoesNotUseIt(t *testing.T) {
 // stage the runtime before the policy uses it.
 func TestWireInspection_EnabledWithNoInspectRulesStillBuilds(t *testing.T) {
 	p := loadPolicy(t, plainPolicyYAML)
-	reg, err := wireInspection(regexEnabled(), p, newEngine(t, p))
+	reg, err := wireInspection(context.Background(), regexEnabled(), p, newEngine(t, p))
 	if err != nil {
 		t.Fatalf("enabling inspection ahead of the policy was refused: %v", err)
 	}
@@ -240,7 +241,7 @@ func TestBuildInspectProvider(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, err := buildInspectProvider(c.cfgName, c.cfg)
+			_, err := buildInspectProvider(context.Background(), c.cfgName, c.cfg)
 			if err == nil {
 				t.Fatalf("expected an error containing %q", c.wantErr)
 			}
@@ -254,7 +255,7 @@ func TestBuildInspectProvider(t *testing.T) {
 // TestBuildInspectProviders_SkipsDisabled: a disabled provider is not built,
 // and building the rest still succeeds.
 func TestBuildInspectProviders_SkipsDisabled(t *testing.T) {
-	got, err := buildInspectProviders(map[string]config.InspectProviderConfig{
+	got, err := buildInspectProviders(context.Background(), map[string]config.InspectProviderConfig{
 		"regex": {Enabled: true, Type: "regex"},
 		"off":   {Enabled: false, Type: "nonsense"},
 	})
@@ -263,5 +264,40 @@ func TestBuildInspectProviders_SkipsDisabled(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Name() != "regex" {
 		t.Fatalf("built %d providers, want just regex", len(got))
+	}
+}
+
+// TestBuildInspectProvider_PrivacyFilterRequiresItsName. The config key IS the
+// name a policy profile refers to, so a mismatch would have the profile
+// reported as naming an unconfigured provider — sending the operator looking
+// in the wrong place.
+func TestBuildInspectProvider_PrivacyFilterRequiresItsName(t *testing.T) {
+	_, err := buildInspectProvider(context.Background(), "pf", config.InspectProviderConfig{
+		Enabled: true, Type: "privacy_filter",
+	})
+	if err == nil {
+		t.Fatal("a misnamed privacy_filter provider was accepted")
+	}
+	if !strings.Contains(err.Error(), "must be named") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+// TestBuildInspectProvider_PrivacyFilterDoesNotDownloadByDefault.
+//
+// Fetching 917MB on first start would look like a hang, and an air-gapped host
+// needs a way to refuse. allow_download defaults to false, so a host with no
+// cached model fails with a message naming the directory rather than quietly
+// saturating its link.
+func TestBuildInspectProvider_PrivacyFilterDoesNotDownloadByDefault(t *testing.T) {
+	_, err := buildInspectProvider(context.Background(), "privacy_filter", config.InspectProviderConfig{
+		Enabled: true, Type: "privacy_filter",
+		Options: map[string]any{"cache_dir": t.TempDir()},
+	})
+	if err == nil {
+		t.Fatal("the provider downloaded the model with allow_download unset")
+	}
+	if !strings.Contains(err.Error(), "not cached") {
+		t.Errorf("err = %v, want it to say the model is not cached", err)
 	}
 }
