@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"log/slog"
+	"os"
 	"sort"
 	"strings"
 
@@ -131,9 +132,45 @@ func buildInspectProvider(name string, pc config.InspectProviderConfig) (inspect
 				name, provider.RegexName)
 		}
 		return p, nil
+	case "sidecar":
+		if name != provider.SidecarName {
+			return nil, fmt.Errorf("inspection provider %q: a type: sidecar provider must be named %q, because that is the name a policy profile refers to",
+				name, provider.SidecarName)
+		}
+		baseURL := optString(pc.Options, "base_url")
+		if baseURL == "" {
+			return nil, fmt.Errorf("inspection provider %q: options.base_url is required for type: sidecar", name)
+		}
+		apiKey, err := inspectAPIKey(name, pc.APIKeyEnv)
+		if err != nil {
+			return nil, err
+		}
+		p, err := provider.NewSidecar(provider.SidecarConfig{BaseURL: baseURL, APIKey: apiKey})
+		if err != nil {
+			return nil, fmt.Errorf("inspection provider %q: %w", name, err)
+		}
+		return p, nil
 	case "":
 		return nil, fmt.Errorf("inspection provider %q: type is required", name)
 	default:
-		return nil, fmt.Errorf("inspection provider %q: unknown type %q (known types: regex)", name, pc.Type)
+		return nil, fmt.Errorf("inspection provider %q: unknown type %q (known types: regex, sidecar)", name, pc.Type)
 	}
+}
+
+// inspectAPIKey reads the provider's credential from the environment.
+//
+// Unlike pkgcheck's requireAPIKey, an api_key_env that is set but empty is a
+// hard error here rather than a skip-with-warning. pkgcheck skipping a
+// provider costs a vulnerability lookup; skipping an inspection provider
+// means every rule naming it fails closed, and the operator would be looking
+// at blocked requests with nothing in the startup log to explain them.
+func inspectAPIKey(name, apiKeyEnv string) (string, error) {
+	if apiKeyEnv == "" {
+		return "", nil
+	}
+	val := os.Getenv(apiKeyEnv)
+	if val == "" {
+		return "", fmt.Errorf("inspection provider %q: api_key_env names %s, which is unset or empty", name, apiKeyEnv)
+	}
+	return val, nil
 }
