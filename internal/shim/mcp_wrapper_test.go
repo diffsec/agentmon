@@ -15,9 +15,9 @@ func TestMCPWrapper_ForwardData(t *testing.T) {
 	output := &bytes.Buffer{}
 
 	var capturedMessages [][]byte
-	inspector := func(data []byte, dir MCPDirection) bool {
+	inspector := func(data []byte, dir MCPDirection) ([]byte, bool) {
 		capturedMessages = append(capturedMessages, append([]byte{}, data...))
-		return false // don't block
+		return nil, false // don't block
 	}
 
 	// Run wrapper (forwards input to output)
@@ -55,8 +55,8 @@ func TestMCPWrapper_BlockedMessageNotForwarded(t *testing.T) {
 	output := &bytes.Buffer{}
 
 	// Block the sampling request (id:2), allow everything else.
-	inspector := func(data []byte, dir MCPDirection) bool {
-		return bytes.Contains(data, []byte("sampling/createMessage"))
+	inspector := func(data []byte, dir MCPDirection) ([]byte, bool) {
+		return nil, bytes.Contains(data, []byte("sampling/createMessage"))
 	}
 
 	err := ForwardWithInspection(input, output, MCPDirectionRequest, inspector, nil)
@@ -83,8 +83,8 @@ func TestMCPWrapper_BlockedRequest_WritesErrorToReplyWriter(t *testing.T) {
 	dst := &bytes.Buffer{}
 	replyWriter := &bytes.Buffer{}
 
-	inspector := func(data []byte, dir MCPDirection) bool {
-		return true // block everything
+	inspector := func(data []byte, dir MCPDirection) ([]byte, bool) {
+		return nil, true // block everything
 	}
 
 	err := ForwardWithInspection(input, dst, MCPDirectionRequest, inspector, replyWriter)
@@ -131,8 +131,8 @@ func TestMCPWrapper_BlockedResponse_WritesErrorToDst(t *testing.T) {
 	)
 	dst := &bytes.Buffer{}
 
-	inspector := func(data []byte, dir MCPDirection) bool {
-		return true // block everything
+	inspector := func(data []byte, dir MCPDirection) ([]byte, bool) {
+		return nil, true // block everything
 	}
 
 	err := ForwardWithInspection(input, dst, MCPDirectionResponse, inspector, nil)
@@ -158,8 +158,8 @@ func TestMCPWrapper_BlockedNotification_NoError(t *testing.T) {
 	dst := &bytes.Buffer{}
 	replyWriter := &bytes.Buffer{}
 
-	inspector := func(data []byte, dir MCPDirection) bool {
-		return true // block
+	inspector := func(data []byte, dir MCPDirection) ([]byte, bool) {
+		return nil, true // block
 	}
 
 	err := ForwardWithInspection(input, dst, MCPDirectionRequest, inspector, replyWriter)
@@ -204,5 +204,88 @@ func TestExtractJSONRPCID(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestMCPWrapper_RewrittenMessageIsForwarded. Content inspection redacts a
+// tool argument by handing back a replacement message. If the wrapper
+// forwarded the original anyway, on_violation: redact would report a
+// redaction that never reached the server.
+func TestMCPWrapper_RewrittenMessageIsForwarded(t *testing.T) {
+	input := bytes.NewBufferString(
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"web_fetch","arguments":{"to":"alice@example.com"}}}` + "\n",
+	)
+	dst := &bytes.Buffer{}
+
+	replacement := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"web_fetch","arguments":{"to":"[REDACTED]"}}}`)
+	inspector := func(data []byte, dir MCPDirection) ([]byte, bool) {
+		return replacement, false
+	}
+
+	if err := ForwardWithInspection(input, dst, MCPDirectionRequest, inspector, nil); err != nil {
+		t.Fatalf("ForwardWithInspection failed: %v", err)
+	}
+
+	out := dst.String()
+	if strings.Contains(out, "alice@example.com") {
+		t.Fatalf("the original message was forwarded, not the rewrite: %s", out)
+	}
+	if !strings.Contains(out, "[REDACTED]") {
+		t.Fatalf("the rewrite was not forwarded: %s", out)
+	}
+	if !strings.HasSuffix(out, "\n") || strings.Count(out, "\n") != 1 {
+		t.Errorf("framing broken: %q", out)
+	}
+}
+
+// TestMCPWrapper_BlockBeatsRewrite. An inspector that both rewrites and
+// blocks must block: forwarding the rewrite would let a denied call through
+// in redacted form.
+func TestMCPWrapper_BlockBeatsRewrite(t *testing.T) {
+	input := bytes.NewBufferString(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{}}` + "\n")
+	dst := &bytes.Buffer{}
+	replyWriter := &bytes.Buffer{}
+
+	inspector := func(data []byte, dir MCPDirection) ([]byte, bool) {
+		return []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"x":1}}`), true
+	}
+
+	if err := ForwardWithInspection(input, dst, MCPDirectionRequest, inspector, replyWriter); err != nil {
+		t.Fatalf("ForwardWithInspection failed: %v", err)
+	}
+	if dst.Len() > 0 {
+		t.Errorf("a blocked message was forwarded: %s", dst.String())
+	}
+	if !strings.Contains(replyWriter.String(), `"error"`) {
+		t.Errorf("no JSON-RPC error was sent to the client: %s", replyWriter.String())
+	}
+}
+
+// TestMCPWrapper_RewriteWithNewlineBlocks. Framing here is one JSON-RPC
+// message per line, so a rewrite carrying a newline would split one message
+// into two. Falling back to the original instead would forward exactly the
+// content a rule asked to have redacted.
+func TestMCPWrapper_RewriteWithNewlineBlocks(t *testing.T) {
+	input := bytes.NewBufferString(
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"arguments":{"to":"alice@example.com"}}}` + "\n",
+	)
+	dst := &bytes.Buffer{}
+	replyWriter := &bytes.Buffer{}
+
+	inspector := func(data []byte, dir MCPDirection) ([]byte, bool) {
+		return []byte("{\"jsonrpc\":\"2.0\",\n\"id\":1}"), false
+	}
+
+	if err := ForwardWithInspection(input, dst, MCPDirectionRequest, inspector, replyWriter); err != nil {
+		t.Fatalf("ForwardWithInspection failed: %v", err)
+	}
+	if dst.Len() > 0 {
+		t.Errorf("a newline-bearing rewrite was forwarded: %q", dst.String())
+	}
+	if strings.Contains(replyWriter.String(), "alice@example.com") {
+		t.Error("the original content leaked into the reply")
+	}
+	if !strings.Contains(replyWriter.String(), `"error"`) {
+		t.Errorf("no JSON-RPC error was sent: %s", replyWriter.String())
 	}
 }

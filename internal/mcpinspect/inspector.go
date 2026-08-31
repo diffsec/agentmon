@@ -2,6 +2,7 @@
 package mcpinspect
 
 import (
+	"context"
 	"encoding/json"
 	"sync"
 	"time"
@@ -33,6 +34,7 @@ type Inspector struct {
 	pendingCalls map[string]string // JSON-RPC ID string → tool name
 	cfg          config.SandboxMCPConfig
 	samplingCfg  config.SamplingConfig
+	argInspect   *ArgInspection
 }
 
 // maxPendingCalls is the cap on the pending call correlation map.
@@ -82,11 +84,20 @@ func NewInspectorWithPolicy(sessionID, serverID string, emitter EventEmitter, cf
 type InspectResult struct {
 	Action string // "allow" | "block" | "" (empty = allow)
 	Reason string // Human-readable explanation when blocked
+
+	// Rewritten is the message to forward in place of the original, set
+	// only when content inspection redacted a tools/call argument. Nil
+	// means forward the message unchanged.
+	Rewritten []byte
 }
 
 // Inspect processes an MCP message and emits relevant events.
 // Returns an InspectResult indicating whether the message should be forwarded.
-func (i *Inspector) Inspect(data []byte, dir Direction) (*InspectResult, error) {
+//
+// ctx bounds content inspection of tools/call arguments, which is the only
+// thing on this path that does I/O. Callers with no deadline of their own
+// pass context.Background(); the rule's own inspect.timeout still applies.
+func (i *Inspector) Inspect(ctx context.Context, data []byte, dir Direction) (*InspectResult, error) {
 	msgType, err := DetectMessageType(data)
 	if err != nil {
 		return nil, err
@@ -96,7 +107,7 @@ func (i *Inspector) Inspect(data []byte, dir Direction) (*InspectResult, error) 
 	case MessageToolsListResponse:
 		return nil, i.handleToolsListResponse(data)
 	case MessageToolsCall:
-		return nil, i.handleToolsCall(data)
+		return i.handleToolsCall(ctx, data)
 	case MessageToolsCallResponse:
 		return i.handleToolsCallResponse(data)
 	case MessageToolsListChanged:
@@ -175,10 +186,10 @@ func (i *Inspector) handleToolsListResponse(data []byte) error {
 	return nil
 }
 
-func (i *Inspector) handleToolsCall(data []byte) error {
+func (i *Inspector) handleToolsCall(ctx context.Context, data []byte) (*InspectResult, error) {
 	req, err := ParseToolsCallRequest(data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Record the pending call for correlation with the response.
@@ -209,8 +220,38 @@ func (i *Inspector) handleToolsCall(data []byte) error {
 		}
 	}
 
+	// Content inspection, which unlike the detector above can block or
+	// redact. It runs before the event is emitted so the event records what
+	// actually happened to the call rather than what was asked for.
+	result, res := i.inspectToolArgs(ctx, data, req)
+	if res != nil {
+		event.Action = "allow"
+		switch {
+		case result != nil && result.Action == "block":
+			event.Action = "block"
+			event.Reason = result.Reason
+			// The event is persisted and streamed to clients. A call
+			// blocked on a violation carries exactly the content the rule
+			// flagged, and one blocked on a failure was never classified at
+			// all, so neither belongs in the audit trail. Detections and
+			// InspectDetail still say what was found.
+			event.Input = nil
+		case result != nil && result.Rewritten != nil:
+			event.Action = "redact"
+			// Record the redacted arguments, not the originals. Storing the
+			// originals would put the value in an event stream at the exact
+			// moment a rule asked for it to be taken out of the request.
+			event.Input = json.RawMessage(res.Content)
+		}
+		event.InspectRule = res.Decision.Rule
+		event.InspectDetail = res.Verdict.Detail
+		if res.Err != nil {
+			event.InspectError = res.Err.Error()
+		}
+	}
+
 	i.emitEvent(event)
-	return nil
+	return result, nil
 }
 
 func (i *Inspector) handleToolsListChanged() error {

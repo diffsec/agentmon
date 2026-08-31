@@ -61,6 +61,7 @@ type Engine struct {
 	compiledNetworkRules []compiledNetworkRule
 	compiledCommandRules []compiledCommandRule
 	compiledUnixRules    []compiledUnixRule
+	compiledMCPRules     []compiledMCPInspectRule
 
 	// hasRestrictiveCommandRule is true iff any compiled command rule has
 	// a decision that restricts or instruments execution (deny, redirect,
@@ -133,6 +134,12 @@ type compiledUnixRule struct {
 	rule  UnixSocketRule
 	paths []glob.Glob
 	ops   map[string]struct{}
+}
+
+type compiledMCPInspectRule struct {
+	rule    MCPInspectRule
+	servers []glob.Glob
+	tools   []glob.Glob
 }
 
 type compiledDnsRedirectRule struct {
@@ -314,6 +321,31 @@ func NewEngine(p *Policy, enforceApprovals bool, enforceRedirects bool) (*Engine
 			cr.paths = append(cr.paths, g)
 		}
 		e.compiledUnixRules = append(e.compiledUnixRules, cr)
+	}
+
+	// MCP inspection rules. Patterns are lowercased on both sides: server
+	// IDs and tool names arrive from whichever MCP server is configured, and
+	// mcpinspect's own rule matching (internal/mcpinspect/policy.go,
+	// matchesPattern) is already case-insensitive. Two matchers over the
+	// same names disagreeing on case would be a quiet way for one to fire
+	// and the other not.
+	for _, r := range p.MCPInspectRules {
+		cr := compiledMCPInspectRule{rule: r}
+		for _, pat := range r.Servers {
+			g, err := glob.Compile(strings.ToLower(pat))
+			if err != nil {
+				return nil, fmt.Errorf("compile mcp inspect rule %q server glob %q: %w", r.Name, pat, err)
+			}
+			cr.servers = append(cr.servers, g)
+		}
+		for _, pat := range r.Tools {
+			g, err := glob.Compile(strings.ToLower(pat))
+			if err != nil {
+				return nil, fmt.Errorf("compile mcp inspect rule %q tool glob %q: %w", r.Name, pat, err)
+			}
+			cr.tools = append(cr.tools, g)
+		}
+		e.compiledMCPRules = append(e.compiledMCPRules, cr)
 	}
 
 	// Compile DNS redirect rules
@@ -1512,4 +1544,57 @@ func (e *Engine) CheckExecve(filename string, argv []string, depth int) (dec Dec
 	dec = e.wrapDecision(string(types.DecisionDeny), "default-deny-execve", "", nil)
 	dec.EnvPolicy = MergeEnvPolicy(e.policy.EnvPolicy, CommandRule{})
 	return dec
+}
+
+// CheckMCPTool evaluates mcp_inspect_rules against one MCP tool call and
+// returns the decision its arguments must satisfy.
+//
+// A match yields an inspect-bearing Decision whose EffectiveDecision is deny
+// until a caller that holds the arguments runs inspection and resolves it --
+// the same contract every other rule kind's inspect decision has. See
+// internal/inspect.Resolve.
+//
+// No match yields allow, not the default deny every other Check* returns.
+// This rule kind selects what is inspected; it does not decide whether a tool
+// may be called. That decision belongs to mcp_rules / sandbox.mcp and is made
+// by mcpinspect.PolicyEvaluator, which fails closed on its own under
+// `tool_policy: allowlist`. Returning deny here would mean an operator who
+// adds a single inspection rule silently blocks every tool call the rule does
+// not name. Validate refuses `decision: deny` on this rule kind so the
+// fall-through cannot be mistaken for an allowlist.
+func (e *Engine) CheckMCPTool(server, tool string) Decision {
+	if e == nil {
+		return Decision{PolicyDecision: types.DecisionAllow, EffectiveDecision: types.DecisionAllow, Rule: "no-mcp-inspect-rule"}
+	}
+	server = strings.ToLower(server)
+	tool = strings.ToLower(tool)
+	for _, cr := range e.compiledMCPRules {
+		if !matchAnyGlobOrEmpty(cr.servers, server) {
+			continue
+		}
+		if !matchAnyGlobOrEmpty(cr.tools, tool) {
+			continue
+		}
+		return e.wrapRuleDecision(cr.rule.Decision, cr.rule.Name, cr.rule.Message, nil, cr.rule.Inspect)
+	}
+	return Decision{
+		PolicyDecision:    types.DecisionAllow,
+		EffectiveDecision: types.DecisionAllow,
+		Rule:              "no-mcp-inspect-rule",
+	}
+}
+
+// matchAnyGlobOrEmpty reports whether value matches any pattern, treating an
+// empty pattern list as "matches everything". A rule listing only tools must
+// apply to every server, and vice versa.
+func matchAnyGlobOrEmpty(globs []glob.Glob, value string) bool {
+	if len(globs) == 0 {
+		return true
+	}
+	for _, g := range globs {
+		if g.Match(value) {
+			return true
+		}
+	}
+	return false
 }

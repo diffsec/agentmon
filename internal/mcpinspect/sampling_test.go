@@ -1,6 +1,7 @@
 package mcpinspect
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -45,7 +46,7 @@ func TestSamplingRequest_BlockedByDefault(t *testing.T) {
 	}
 	data := makeSamplingRequest(msgs, "", 100)
 
-	result, err := inspector.Inspect(data, DirectionRequest)
+	result, err := inspector.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("Inspect returned error: %v", err)
 	}
@@ -95,7 +96,7 @@ func TestSamplingRequest_AllowedByPolicy(t *testing.T) {
 	}
 	data := makeSamplingRequest(msgs, "claude-3-opus", 200)
 
-	result, err := inspector.Inspect(data, DirectionRequest)
+	result, err := inspector.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("Inspect returned error: %v", err)
 	}
@@ -147,7 +148,7 @@ func TestSamplingRequest_PerServerOverride(t *testing.T) {
 
 	// trusted-server should be allowed
 	inspector1 := NewInspectorWithPolicy("sess-1", "trusted-server", emitter, cfg)
-	result1, err := inspector1.Inspect(data, DirectionRequest)
+	result1, err := inspector1.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("Inspect returned error: %v", err)
 	}
@@ -159,7 +160,7 @@ func TestSamplingRequest_PerServerOverride(t *testing.T) {
 
 	// untrusted-server should be blocked (falls through to default)
 	inspector2 := NewInspectorWithPolicy("sess-1", "untrusted-server", emitter, cfg)
-	result2, err := inspector2.Inspect(data, DirectionRequest)
+	result2, err := inspector2.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("Inspect returned error: %v", err)
 	}
@@ -202,7 +203,7 @@ func TestSamplingRequest_HiddenInstructionDetection(t *testing.T) {
 	}
 	data := makeSamplingRequest(msgs, "", 500)
 
-	_, err := inspector.Inspect(data, DirectionRequest)
+	_, err := inspector.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("Inspect returned error: %v", err)
 	}
@@ -251,7 +252,7 @@ func TestSamplingRequest_EventFields(t *testing.T) {
 	}
 	data := makeSamplingRequest(msgs, "gpt-4", 1024)
 
-	result, err := inspector.Inspect(data, DirectionRequest)
+	result, err := inspector.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("Inspect returned error: %v", err)
 	}
@@ -319,7 +320,7 @@ func TestSamplingRequest_RateLimitEnforced(t *testing.T) {
 	// First 2 calls should be allowed (burst = 2)
 	for i := 0; i < 2; i++ {
 		events = nil
-		result, err := inspector.Inspect(data, DirectionRequest)
+		result, err := inspector.Inspect(context.Background(), data, DirectionRequest)
 		if err != nil {
 			t.Fatalf("call %d: Inspect returned error: %v", i+1, err)
 		}
@@ -337,7 +338,7 @@ func TestSamplingRequest_RateLimitEnforced(t *testing.T) {
 
 	// 3rd call should be blocked due to rate limit
 	events = nil
-	result, err := inspector.Inspect(data, DirectionRequest)
+	result, err := inspector.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("call 3: Inspect returned error: %v", err)
 	}
