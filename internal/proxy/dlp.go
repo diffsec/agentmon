@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"regexp"
 	"strconv"
 	"sync"
@@ -19,8 +20,8 @@ type DLPProcessor struct {
 }
 
 type compiledPattern struct {
-	name    string         // Internal name for logs/tracking
-	display string         // Display name for LLM (shown in [REDACTED:display])
+	name    string // Internal name for logs/tracking
+	display string // Display name for LLM (shown in [REDACTED:display])
 	regex   *regexp.Regexp
 }
 
@@ -346,4 +347,114 @@ func (dp *DLPProcessor) PatternNames() []string {
 		names[i] = p.name
 	}
 	return names
+}
+
+// tokenLen is the exact length of a token minted by getOrCreateToken:
+// "TOK_" plus 16 hex characters.
+const tokenLen = 4 + 16
+
+// DetokenizeReader wraps r so tokens are replaced with their originals as the
+// stream is read.
+//
+// Streaming needs its own path because a token can straddle a chunk boundary.
+// A per-chunk ReplaceAllString would leave "TOK_abcd" at the end of one read
+// and "ef0123456789" at the start of the next, and neither half matches, so
+// the token would reach the client intact and unresolvable. This holds back a
+// short tail until either enough bytes arrive to decide or the stream ends.
+//
+// When tokenization is not the active mode there is nothing to reverse, so r
+// is returned unwrapped and the stream keeps its original read boundaries.
+func (dp *DLPProcessor) DetokenizeReader(r io.Reader) io.Reader {
+	if dp == nil || dp.cfg.Mode != "tokenize" {
+		return r
+	}
+	return &detokenizeReader{src: r, dp: dp}
+}
+
+type detokenizeReader struct {
+	src io.Reader
+	dp  *DLPProcessor
+
+	// pending holds decoded bytes not yet handed to the caller.
+	pending []byte
+	// tail holds bytes that could still turn out to be the start of a token.
+	tail []byte
+	// err is the source's terminal error, returned only once pending drains.
+	err error
+}
+
+func (d *detokenizeReader) Read(p []byte) (int, error) {
+	for len(d.pending) == 0 {
+		if d.err != nil {
+			return 0, d.err
+		}
+
+		buf := make([]byte, 32*1024)
+		n, readErr := d.src.Read(buf)
+		if n > 0 {
+			d.tail = append(d.tail, buf[:n]...)
+			decoded := d.dp.Detokenize(string(d.tail))
+			// Every complete token in decoded has already been replaced, so
+			// only a trailing PARTIAL token still needs to wait for more
+			// bytes. Holding a fixed-width suffix instead would cut a
+			// complete token in half whenever one straddled the boundary --
+			// which is the whole failure this reader exists to prevent.
+			keep := partialTokenSuffix(decoded)
+			d.pending = append(d.pending, decoded[:len(decoded)-keep]...)
+			d.tail = []byte(decoded[len(decoded)-keep:])
+		}
+		if readErr != nil {
+			// The stream is over, so the tail can no longer grow into
+			// anything. Emit it as it stands.
+			if len(d.tail) > 0 {
+				d.pending = append(d.pending, []byte(d.dp.Detokenize(string(d.tail)))...)
+				d.tail = nil
+			}
+			// Held until pending drains, so a truncated upstream surfaces as
+			// an error rather than as a clean end of stream with the last
+			// bytes quietly missing.
+			d.err = readErr
+		}
+	}
+
+	n := copy(p, d.pending)
+	d.pending = d.pending[n:]
+	return n, nil
+}
+
+// partialTokenSuffix returns the length of the longest suffix of s that could
+// still grow into a token: some prefix of "TOK_" followed by fewer than 16 hex
+// digits. Complete tokens are not partial, so they are never held back.
+func partialTokenSuffix(s string) int {
+	max := tokenLen - 1
+	if len(s) < max {
+		max = len(s)
+	}
+	for keep := max; keep > 0; keep-- {
+		if isPartialToken(s[len(s)-keep:]) {
+			return keep
+		}
+	}
+	return 0
+}
+
+const tokenPrefix = "TOK_"
+
+func isPartialToken(s string) bool {
+	if len(s) >= tokenLen {
+		return false
+	}
+	if len(s) < len(tokenPrefix) {
+		return s == tokenPrefix[:len(s)]
+	}
+	if s[:len(tokenPrefix)] != tokenPrefix {
+		return false
+	}
+	for i := len(tokenPrefix); i < len(s); i++ {
+		c := s[i]
+		if !(c >= '0' && c <= '9') && !(c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
 }
