@@ -38,6 +38,9 @@ type InspectConfig struct {
 	Resolve InspectContextFunc
 	// MaxBodyBytes overrides DefaultInspectMaxBodyBytes. Zero uses it.
 	MaxBodyBytes int64
+	// MCPArgMaxBytes overrides DefaultMCPArgMaxBytes, the cap on a single
+	// MCP tool call's accumulated arguments. Zero uses it.
+	MCPArgMaxBytes int
 }
 
 // Enabled reports whether inspection should be wired for this session.

@@ -158,8 +158,15 @@ type MCPToolCallInterceptedEvent struct {
 	ToolHash   string `json:"tool_hash"`
 
 	// Policy decision
-	Action string `json:"action"`           // "allow" | "block"
+	Action string `json:"action"`           // "allow" | "redact" | "block"
 	Reason string `json:"reason,omitempty"`
+
+	// Content inspection of the arguments, when an mcp_inspect_rules rule
+	// matched the call. InspectDetail names the categories found and never
+	// the matched text: this event is persisted and streamed to clients.
+	InspectRule   string `json:"inspect_rule,omitempty"`
+	InspectDetail string `json:"inspect_detail,omitempty"`
+	InspectError  string `json:"inspect_error,omitempty"`
 
 	// Cross-server detection metadata (populated when blocked by a cross-server rule).
 	CrossServerRule     string           `json:"cross_server_rule,omitempty"`

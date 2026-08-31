@@ -638,7 +638,7 @@ func TestInterceptMCPToolCalls_NilRegistryReturnsEmpty(t *testing.T) {
 		]
 	}`)
 
-	result := interceptMCPToolCalls(body, DialectAnthropic, nil, newAllowingPolicy(), "req_1", "sess_1", nil, nil, nil)
+	result := interceptMCPToolCalls(context.Background(), body, DialectAnthropic, nil, newAllowingPolicy(), "req_1", "sess_1", nil, nil, nil, nil)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -666,7 +666,7 @@ func TestInterceptMCPToolCalls_NilPolicyAllowsAll(t *testing.T) {
 	}`)
 
 	// Nil policy + nil rate limiter + nil version pin = allow all.
-	result := interceptMCPToolCalls(body, DialectAnthropic, reg, nil, "req_1", "sess_1", nil, nil, nil)
+	result := interceptMCPToolCalls(context.Background(), body, DialectAnthropic, reg, nil, "req_1", "sess_1", nil, nil, nil, nil)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -697,7 +697,7 @@ func TestInterceptMCPToolCalls_UnknownToolSkipped(t *testing.T) {
 		]
 	}`)
 
-	result := interceptMCPToolCalls(body, DialectAnthropic, reg, policy, "req_1", "sess_1", nil, nil, nil)
+	result := interceptMCPToolCalls(context.Background(), body, DialectAnthropic, reg, policy, "req_1", "sess_1", nil, nil, nil, nil)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -727,7 +727,7 @@ func TestInterceptMCPToolCalls_AllowedToolPassesThrough(t *testing.T) {
 		]
 	}`)
 
-	result := interceptMCPToolCalls(body, DialectAnthropic, reg, policy, "req_1", "sess_1", nil, nil, nil)
+	result := interceptMCPToolCalls(context.Background(), body, DialectAnthropic, reg, policy, "req_1", "sess_1", nil, nil, nil, nil)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -786,7 +786,7 @@ func TestInterceptMCPToolCalls_BlockedToolRewritten(t *testing.T) {
 		]
 	}`)
 
-	result := interceptMCPToolCalls(body, DialectAnthropic, reg, policy, "req_1", "sess_1", nil, nil, nil)
+	result := interceptMCPToolCalls(context.Background(), body, DialectAnthropic, reg, policy, "req_1", "sess_1", nil, nil, nil, nil)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -886,7 +886,7 @@ func TestInterceptMCPToolCalls_FailClosedBlocksViaAllowlist(t *testing.T) {
 		]
 	}`)
 
-	result := interceptMCPToolCalls(body, DialectAnthropic, reg, policy, "req_1", "sess_1", nil, nil, nil)
+	result := interceptMCPToolCalls(context.Background(), body, DialectAnthropic, reg, policy, "req_1", "sess_1", nil, nil, nil, nil)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -934,7 +934,7 @@ func TestInterceptMCPToolCalls_PartialBlockAnthropic(t *testing.T) {
 		]
 	}`)
 
-	result := interceptMCPToolCalls(body, DialectAnthropic, reg, policy, "req_1", "sess_1", nil, nil, nil)
+	result := interceptMCPToolCalls(context.Background(), body, DialectAnthropic, reg, policy, "req_1", "sess_1", nil, nil, nil, nil)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -1036,7 +1036,7 @@ func TestInterceptMCPToolCalls_OpenAIBlockedToolRewritten(t *testing.T) {
 		}]
 	}`)
 
-	result := interceptMCPToolCalls(body, DialectOpenAI, reg, policy, "req_1", "sess_1", nil, nil, nil)
+	result := interceptMCPToolCalls(context.Background(), body, DialectOpenAI, reg, policy, "req_1", "sess_1", nil, nil, nil, nil)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -1135,7 +1135,7 @@ func TestInterceptMCPToolCalls_OpenAIPartialBlock(t *testing.T) {
 		}]
 	}`)
 
-	result := interceptMCPToolCalls(body, DialectOpenAI, reg, policy, "req_1", "sess_1", nil, nil, nil)
+	result := interceptMCPToolCalls(context.Background(), body, DialectOpenAI, reg, policy, "req_1", "sess_1", nil, nil, nil, nil)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -1211,7 +1211,7 @@ func TestInterceptMCPToolCalls_MixedMCPAndNonMCP(t *testing.T) {
 		]
 	}`)
 
-	result := interceptMCPToolCalls(body, DialectAnthropic, reg, policy, "req_1", "sess_1", nil, nil, nil)
+	result := interceptMCPToolCalls(context.Background(), body, DialectAnthropic, reg, policy, "req_1", "sess_1", nil, nil, nil, nil)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
@@ -1738,8 +1738,8 @@ func TestInterceptRateLimitBlocks(t *testing.T) {
 		"stop_reason": "tool_use"
 	}`)
 
-	result := interceptMCPToolCalls(body, DialectAnthropic, registry, policy,
-		"req-1", "sess-1", nil, rateLimiter, nil)
+	result := interceptMCPToolCalls(context.Background(), body, DialectAnthropic, registry, policy,
+		"req-1", "sess-1", nil, rateLimiter, nil, nil)
 
 	if !result.HasBlocked {
 		t.Fatal("expected rate limit to block the tool call")
@@ -1784,8 +1784,8 @@ func TestInterceptVersionPinBlock(t *testing.T) {
 		"stop_reason": "tool_use"
 	}`)
 
-	result := interceptMCPToolCalls(body, DialectAnthropic, registry, policy,
-		"req-1", "sess-1", nil, nil, vpCfg)
+	result := interceptMCPToolCalls(context.Background(), body, DialectAnthropic, registry, policy,
+		"req-1", "sess-1", nil, nil, vpCfg, nil)
 
 	if !result.HasBlocked {
 		t.Fatal("expected version pin to block the tool call")
@@ -1827,8 +1827,8 @@ func TestInterceptVersionPinAlert(t *testing.T) {
 		"stop_reason": "tool_use"
 	}`)
 
-	result := interceptMCPToolCalls(body, DialectAnthropic, registry, policy,
-		"req-1", "sess-1", nil, nil, vpCfg)
+	result := interceptMCPToolCalls(context.Background(), body, DialectAnthropic, registry, policy,
+		"req-1", "sess-1", nil, nil, vpCfg, nil)
 
 	// Alert mode should NOT block.
 	if result.HasBlocked {
@@ -1870,8 +1870,8 @@ func TestInterceptVersionPinDisabled(t *testing.T) {
 	}`)
 
 	// nil versionPinCfg (production path when Enabled=false).
-	result := interceptMCPToolCalls(body, DialectAnthropic, registry, policy,
-		"req-1", "sess-1", nil, nil, nil)
+	result := interceptMCPToolCalls(context.Background(), body, DialectAnthropic, registry, policy,
+		"req-1", "sess-1", nil, nil, nil, nil)
 
 	if result.HasBlocked {
 		t.Fatal("expected nil versionPinCfg to allow the tool call")
@@ -1882,8 +1882,8 @@ func TestInterceptVersionPinDisabled(t *testing.T) {
 		Enabled:  false,
 		OnChange: "block",
 	}
-	result = interceptMCPToolCalls(body, DialectAnthropic, registry, policy,
-		"req-1", "sess-1", nil, nil, vpCfg)
+	result = interceptMCPToolCalls(context.Background(), body, DialectAnthropic, registry, policy,
+		"req-1", "sess-1", nil, nil, vpCfg, nil)
 
 	if result.HasBlocked {
 		t.Fatal("expected Enabled=false versionPinCfg to allow the tool call")
@@ -1915,8 +1915,8 @@ func TestInterceptRateLimitBlocks_NilPolicy(t *testing.T) {
 	}`)
 
 	// policy is nil — simulating EnforcePolicy=false with rate limiting enabled.
-	result := interceptMCPToolCalls(body, DialectAnthropic, registry, nil,
-		"req-1", "sess-1", nil, rateLimiter, nil)
+	result := interceptMCPToolCalls(context.Background(), body, DialectAnthropic, registry, nil,
+		"req-1", "sess-1", nil, rateLimiter, nil, nil)
 
 	if !result.HasBlocked {
 		t.Fatal("expected rate limiter to block even with nil policy")
@@ -1955,8 +1955,8 @@ func TestInterceptVersionPinBlock_NilPolicy(t *testing.T) {
 	}`)
 
 	// policy is nil — simulating EnforcePolicy=false with version pinning enabled.
-	result := interceptMCPToolCalls(body, DialectAnthropic, registry, nil,
-		"req-1", "sess-1", nil, nil, vpCfg)
+	result := interceptMCPToolCalls(context.Background(), body, DialectAnthropic, registry, nil,
+		"req-1", "sess-1", nil, nil, vpCfg, nil)
 
 	if !result.HasBlocked {
 		t.Fatal("expected version pin to block even with nil policy")

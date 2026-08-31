@@ -18,9 +18,14 @@ func mcpInterceptedToEvent(ev mcpinspect.MCPToolCallInterceptedEvent) types.Even
 
 	// Derive a rule identifier from the action. The proxy-level event doesn't
 	// carry the matched config.MCPToolRule, so we synthesise a short label.
-	rule := "mcp-" + ev.Action // "mcp-allow" or "mcp-block"
+	rule := "mcp-" + ev.Action // "mcp-allow", "mcp-redact" or "mcp-block"
+	// An mcp_inspect_rules match names a real rule, and that name is what an
+	// operator reading the audit log needs to find the line they wrote.
+	if ev.InspectRule != "" {
+		rule = ev.InspectRule
+	}
 
-	return types.Event{
+	e := types.Event{
 		ID:        uuid.NewString(),
 		Timestamp: ev.Timestamp,
 		Type:      "mcp_tool_call_intercepted",
@@ -48,6 +53,20 @@ func mcpInterceptedToEvent(ev mcpinspect.MCPToolCallInterceptedEvent) types.Even
 			"reason":      ev.Reason,
 		},
 	}
+
+	// Content inspection details, when a rule matched. Absent otherwise, so
+	// an event from a session with no inspect rules is byte-identical to
+	// what it was before.
+	if ev.InspectRule != "" {
+		e.Fields["inspect_rule"] = ev.InspectRule
+	}
+	if ev.InspectDetail != "" {
+		e.Fields["inspect_detail"] = ev.InspectDetail
+	}
+	if ev.InspectError != "" {
+		e.Fields["inspect_error"] = ev.InspectError
+	}
+	return e
 }
 
 // mcpCrossServerToEvent converts an MCPCrossServerEvent into a types.Event

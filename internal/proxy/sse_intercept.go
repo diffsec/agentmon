@@ -3,11 +3,13 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -31,9 +33,19 @@ type SSEInterceptor struct {
 	logger    *slog.Logger
 	rateLimiter   *mcpinspect.RateLimiterRegistry
 	versionPinCfg *config.MCPVersionPinningConfig
+	// mcpArgs inspects tool-call arguments. A tool call it selects is held
+	// back until its arguments are complete, because the arguments arrive
+	// as fragments after the decision point every other control uses.
+	mcpArgs *mcpArgInspector
+	// ctx bounds inspection. It is the request context, so a client that
+	// gives up stops the inference behind it.
+	ctx context.Context
 
 	// Anthropic state
 	blockedIndices map[int]bool
+	// heldBlocks are tool_use blocks whose arguments are being accumulated,
+	// keyed on content block index.
+	heldBlocks     map[int]*heldToolUse
 	totalToolUse   int
 	blockedToolUse int
 
@@ -53,6 +65,22 @@ type openAIChoiceTracking struct {
 	blocked  map[int]bool // tool_calls[].index → blocked
 	total    int          // all tool calls seen (MCP + non-MCP)
 	nblocked int          // how many were blocked
+	// held are tool calls whose emission is deferred until their arguments
+	// are complete, keyed on tool_calls[].index. See heldOpenAICall.
+	held map[int]*heldOpenAICall
+	// heldOrder keeps release deterministic; ranging the map would emit the
+	// tool calls of a multi-call response in a different order each run.
+	heldOrder []int
+}
+
+// heldOpenAICall is an OpenAI tool call whose emission is deferred until its
+// arguments are complete, for the same reason as heldToolUse: the decision
+// point every other control uses is the first chunk, where the name is known
+// and the arguments are not.
+type heldOpenAICall struct {
+	call  openAIChunkToolCall
+	args  *accumulator
+	entry *mcpregistry.ToolEntry
 }
 
 // NewSSEInterceptor creates a new SSE stream interceptor. The analyzer
@@ -67,6 +95,7 @@ func NewSSEInterceptor(
 	analyzer *mcpinspect.SessionAnalyzer,
 	rateLimiter *mcpinspect.RateLimiterRegistry,
 	versionPinCfg *config.MCPVersionPinningConfig,
+	mcpArgs *mcpArgInspector,
 ) *SSEInterceptor {
 	return &SSEInterceptor{
 		registry:       registry,
@@ -79,9 +108,35 @@ func NewSSEInterceptor(
 		logger:         logger,
 		rateLimiter:    rateLimiter,
 		versionPinCfg:  versionPinCfg,
+		mcpArgs:        mcpArgs,
+		ctx:            context.Background(),
 		blockedIndices: make(map[int]bool),
+		heldBlocks:     make(map[int]*heldToolUse),
 		openAIChoices:  make(map[int]*openAIChoiceTracking),
 	}
+}
+
+// heldToolUse is an Anthropic tool_use content block whose emission is
+// deferred until its arguments are complete.
+//
+// Every other MCP control decides at content_block_start, where the tool name
+// is known and the arguments are not. Argument inspection cannot: it needs
+// the arguments, and those arrive as input_json_delta fragments afterwards.
+// So the block's events are buffered and replayed at content_block_stop,
+// once there is something to inspect.
+type heldToolUse struct {
+	// eventLine and startLine are the buffered content_block_start pair.
+	eventLine string
+	startLine string
+	// deltaLines are the buffered content_block_delta lines, each with its
+	// own event: line, replayed verbatim when the arguments come back clean.
+	deltaLines []string
+	// args accumulates the input_json_delta fragments.
+	args *accumulator
+
+	toolName   string
+	toolCallID string
+	entry      *mcpregistry.ToolEntry
 }
 
 // getChoiceTracking returns the per-choice state for the given choice index,
@@ -89,7 +144,7 @@ func NewSSEInterceptor(
 func (s *SSEInterceptor) getChoiceTracking(choiceIdx int) *openAIChoiceTracking {
 	st := s.openAIChoices[choiceIdx]
 	if st == nil {
-		st = &openAIChoiceTracking{blocked: make(map[int]bool)}
+		st = &openAIChoiceTracking{blocked: make(map[int]bool), held: make(map[int]*heldOpenAICall)}
 		s.openAIChoices[choiceIdx] = st
 	}
 	return st
@@ -98,7 +153,10 @@ func (s *SSEInterceptor) getChoiceTracking(choiceIdx int) *openAIChoiceTracking 
 // Stream reads SSE lines from upstream, evaluates tool calls against policy,
 // and writes (possibly modified) output to client. Returns the buffered output
 // for logging/auditing.
-func (s *SSEInterceptor) Stream(upstream io.Reader, client io.Writer) []byte {
+func (s *SSEInterceptor) Stream(ctx context.Context, upstream io.Reader, client io.Writer) []byte {
+	if ctx != nil {
+		s.ctx = ctx
+	}
 	scanner := bufio.NewScanner(upstream)
 	scanner.Buffer(make([]byte, 0, sseMaxLineSize), sseMaxLineSize)
 
@@ -131,7 +189,7 @@ func (s *SSEInterceptor) Stream(upstream io.Reader, client io.Writer) []byte {
 
 			data, ok := extractSSEData(line)
 			if ok {
-				outputLines = s.processAnthropicEvent(line, data)
+				outputLines = s.processAnthropicEvent(line, data, pendingEvent)
 				if outputLines == nil {
 					// Suppressed — also drop the buffered event: line
 					// and the following blank separator.
@@ -184,6 +242,8 @@ func (s *SSEInterceptor) Stream(upstream io.Reader, client io.Writer) []byte {
 	if hasPending && s.clientErr == nil {
 		s.writeLine(client, pendingEvent)
 	}
+	s.flushHeldBlocks(client)
+	s.flushHeldOpenAICalls(client)
 
 	if err := scanner.Err(); err != nil {
 		s.logger.Warn("sse interceptor scanner error",
@@ -198,7 +258,7 @@ func (s *SSEInterceptor) Stream(upstream io.Reader, client io.Writer) []byte {
 
 // processAnthropicEvent implements the Anthropic SSE state machine.
 // It returns zero or more lines to write to the client.
-func (s *SSEInterceptor) processAnthropicEvent(originalLine, data string) []string {
+func (s *SSEInterceptor) processAnthropicEvent(originalLine, data, pendingEvent string) []string {
 	// Parse the event type.
 	var evt struct {
 		Type  string `json:"type"`
@@ -211,17 +271,26 @@ func (s *SSEInterceptor) processAnthropicEvent(originalLine, data string) []stri
 
 	switch evt.Type {
 	case "content_block_start":
-		return s.handleContentBlockStart(originalLine, data, evt.Index)
+		return s.handleContentBlockStart(originalLine, data, pendingEvent, evt.Index)
 
 	case "content_block_delta":
 		if s.blockedIndices[evt.Index] {
 			return nil // suppress
+		}
+		if held := s.heldBlocks[evt.Index]; held != nil {
+			held.args.add(extractInputJSONDelta(data))
+			held.deltaLines = append(held.deltaLines, pendingEvent, originalLine, "")
+			return nil // hold until the arguments are complete
 		}
 		return []string{originalLine}
 
 	case "content_block_stop":
 		if s.blockedIndices[evt.Index] {
 			return nil // suppress (we emitted our own stop in the replacement)
+		}
+		if held := s.heldBlocks[evt.Index]; held != nil {
+			delete(s.heldBlocks, evt.Index)
+			return s.releaseHeldBlock(held, evt.Index, pendingEvent, originalLine)
 		}
 		return []string{originalLine}
 
@@ -236,7 +305,7 @@ func (s *SSEInterceptor) processAnthropicEvent(originalLine, data string) []stri
 
 // handleContentBlockStart handles a content_block_start event. If the block
 // is a tool_use, it looks up the tool in the registry and evaluates policy.
-func (s *SSEInterceptor) handleContentBlockStart(originalLine, data string, index int) []string {
+func (s *SSEInterceptor) handleContentBlockStart(originalLine, data, pendingEvent string, index int) []string {
 	var block struct {
 		Type         string `json:"type"`
 		Index        int    `json:"index"`
@@ -267,6 +336,21 @@ func (s *SSEInterceptor) handleContentBlockStart(originalLine, data string, inde
 	}
 
 	if decision.Allowed {
+		// A rule selects this call for argument inspection, so its events
+		// are held until the arguments are complete. Everything else passes
+		// through immediately: holding every tool call back would add the
+		// model's own streaming latency to calls no rule names.
+		if s.mcpArgs.matches(entry.ServerID, toolName) {
+			s.heldBlocks[index] = &heldToolUse{
+				eventLine:  pendingEvent,
+				startLine:  originalLine,
+				args:       newAccumulator(s.mcpArgs.limit()),
+				toolName:   toolName,
+				toolCallID: toolCallID,
+				entry:      entry,
+			}
+			return nil
+		}
 		// Allowed — pass through, fire event.
 		s.fireEvent(toolName, toolCallID, "allow", decision.Reason, entry)
 		return []string{originalLine}
@@ -518,11 +602,17 @@ func (s *SSEInterceptor) processOpenAIEvent(originalLine string) []string {
 
 	// Process ALL choices (supports n>1).
 	modified := false
+	// releaseLines are the synthetic chunks carrying held tool calls. They
+	// must reach the client BEFORE the finish chunk that closes the
+	// response, or the agent sees finish_reason: tool_calls with no tool
+	// call to act on.
+	var releaseLines []string
 	for i := range chunk.Choices {
 		choice := &chunk.Choices[i]
 
 		// Check for finish_reason.
 		if choice.FinishReason != nil {
+			releaseLines = append(releaseLines, s.releaseHeldOpenAICalls(&chunk, choice)...)
 			if s.rewriteOpenAIFinish(choice) {
 				modified = true
 			}
@@ -555,7 +645,7 @@ func (s *SSEInterceptor) processOpenAIEvent(originalLine string) []string {
 	}
 
 	if !modified {
-		return []string{originalLine}
+		return append(releaseLines, originalLine)
 	}
 
 	// Check if all choices ended up with empty deltas (all tool_calls suppressed).
@@ -568,10 +658,130 @@ func (s *SSEInterceptor) processOpenAIEvent(originalLine string) []string {
 		}
 	}
 	if allEmpty {
-		return nil // suppress entire line
+		return releaseLines // suppress the chunk itself, keep any release
 	}
 
-	return []string{s.safeDataJSON(&chunk, originalLine)}
+	return append(releaseLines, s.safeDataJSON(&chunk, originalLine))
+}
+
+// releaseHeldOpenAICalls inspects every tool call held for one choice and
+// returns the synthetic SSE lines that carry the survivors.
+//
+// A blocked call produces no tool_calls entry at all, and is counted so
+// rewriteOpenAIFinish turns finish_reason into "stop" when nothing survived.
+// The synthetic chunk copies the finish chunk's id and object, which is the
+// same set of fields any rewritten chunk already carries.
+func (s *SSEInterceptor) releaseHeldOpenAICalls(chunk *openAIChunk, choice *openAIChunkChoice) []string {
+	st := s.openAIChoices[choice.Index]
+	if st == nil || len(st.held) == 0 {
+		return nil
+	}
+
+	var out []openAIChunkToolCall
+	var blockedMessages []string
+	for _, idx := range st.heldOrder {
+		h := st.held[idx]
+		if h == nil {
+			continue
+		}
+		delete(st.held, idx)
+
+		v := s.mcpArgs.decide(s.ctx, h.entry.ServerID, h.call.Function.Name, h.args.bytes(), h.args.overflow)
+		switch {
+		case v.Block:
+			st.nblocked++
+			st.blocked[idx] = true
+			s.fireOpenAIInspectEvent(h, "block", v)
+			blockedMessages = append(blockedMessages, fmt.Sprintf("[agentmon] Tool '%s' blocked by content inspection", h.call.Function.Name))
+		case v.Redacted != nil:
+			s.fireOpenAIInspectEvent(h, "redact", v)
+			call := h.call
+			call.Function.Arguments = string(v.Redacted)
+			out = append(out, call)
+		default:
+			s.fireOpenAIInspectEvent(h, "allow", v)
+			call := h.call
+			call.Function.Arguments = string(h.args.bytes())
+			out = append(out, call)
+		}
+	}
+	st.heldOrder = nil
+
+	var lines []string
+	if len(out) > 0 {
+		release := openAIChunk{
+			ID:     chunk.ID,
+			Object: chunk.Object,
+			Choices: []openAIChunkChoice{{
+				Index: choice.Index,
+				Delta: openAIChunkDelta{ToolCalls: out},
+			}},
+		}
+		b, err := json.Marshal(&release)
+		if err != nil {
+			// Unreachable for these field types, but dropping the chunk
+			// would lose the tool calls silently. Turn them into a notice
+			// the agent can see instead.
+			s.logger.Warn("sse interceptor could not encode released tool calls",
+				"error", err, "request_id", s.requestID)
+			for _, c := range out {
+				st.nblocked++
+				st.blocked[c.Index] = true
+				blockedMessages = append(blockedMessages, fmt.Sprintf("[agentmon] Tool '%s' blocked: its inspected arguments could not be re-encoded", c.Function.Name))
+			}
+		} else {
+			lines = append(lines, "data: "+string(b), "")
+		}
+	}
+	if len(blockedMessages) > 0 {
+		notice := openAIChunk{
+			ID:     chunk.ID,
+			Object: chunk.Object,
+			Choices: []openAIChunkChoice{{
+				Index: choice.Index,
+				Delta: openAIChunkDelta{Content: json.RawMessage(mustMarshalString(strings.Join(blockedMessages, "\n")))},
+			}},
+		}
+		lines = append(lines, s.safeDataJSON(&notice, ""), "")
+	}
+	return lines
+}
+
+// fireOpenAIInspectEvent records what argument inspection decided about a
+// held OpenAI tool call. It follows the same rule as the Anthropic path: a
+// blocked call's arguments never reach the event, and a redacted one's event
+// carries the redacted form.
+func (s *SSEInterceptor) fireOpenAIInspectEvent(h *heldOpenAICall, action string, v argVerdict) {
+	if s.onEvent == nil {
+		return
+	}
+	ev := mcpinspect.MCPToolCallInterceptedEvent{
+		Type:          "mcp_tool_call_intercepted",
+		Timestamp:     time.Now(),
+		SessionID:     s.sessionID,
+		RequestID:     s.requestID,
+		Dialect:       string(s.dialect),
+		ToolName:      h.call.Function.Name,
+		ToolCallID:    h.call.ID,
+		ServerID:      h.entry.ServerID,
+		ServerType:    h.entry.ServerType,
+		ServerAddr:    h.entry.ServerAddr,
+		ToolHash:      h.entry.ToolHash,
+		Action:        action,
+		Reason:        v.Reason,
+		InspectRule:   v.Rule,
+		InspectDetail: v.Detail,
+	}
+	if v.Err != nil {
+		ev.InspectError = v.Err.Error()
+	}
+	switch action {
+	case "redact":
+		ev.Input = v.Redacted
+	case "allow":
+		ev.Input = h.args.bytes()
+	}
+	s.onEvent(ev)
 }
 
 // openAIChunk is the minimal structure we need to parse and rewrite OpenAI SSE chunks.
@@ -615,6 +825,7 @@ func (s *SSEInterceptor) handleOpenAIFirstToolChunk(choice *openAIChunkChoice) b
 
 	var allowed []openAIChunkToolCall
 	var blockedMessages []string
+	held := false
 
 	for _, tc := range toolCalls {
 		toolName := tc.Function.Name
@@ -632,6 +843,21 @@ func (s *SSEInterceptor) handleOpenAIFirstToolChunk(choice *openAIChunkChoice) b
 		}
 
 		if decision.Allowed {
+			// A rule selects this call for argument inspection, so hold it
+			// back until the arguments are complete. Holding every call
+			// would add latency to calls no rule names.
+			if s.mcpArgs.matches(entry.ServerID, toolName) {
+				st.held[tc.Index] = &heldOpenAICall{
+					call:  tc,
+					args:  newAccumulator(s.mcpArgs.limit()),
+					entry: entry,
+				}
+				st.heldOrder = append(st.heldOrder, tc.Index)
+				// The first chunk can carry an opening argument fragment.
+				st.held[tc.Index].args.add(tc.Function.Arguments)
+				held = true
+				continue
+			}
 			s.fireEvent(toolName, toolCallID, "allow", decision.Reason, entry)
 			allowed = append(allowed, tc)
 		} else {
@@ -642,20 +868,22 @@ func (s *SSEInterceptor) handleOpenAIFirstToolChunk(choice *openAIChunkChoice) b
 		}
 	}
 
-	if len(blockedMessages) == 0 {
-		// Nothing blocked — no modification.
+	if len(blockedMessages) == 0 && !held {
+		// Nothing blocked or held — no modification.
 		return false
 	}
 
 	// ALL blocked: remove tool_calls, set content to combined blocked message.
-	if len(allowed) == 0 {
+	// A held call is not blocked, so this only fires when nothing survived
+	// and nothing is waiting to be released.
+	if len(allowed) == 0 && !held && len(blockedMessages) > 0 {
 		choice.Delta.ToolCalls = nil
 		msg := strings.Join(blockedMessages, "\n")
 		choice.Delta.Content = json.RawMessage(mustMarshalString(msg))
 		return true
 	}
 
-	// Partial block: filter tool_calls to keep only allowed entries.
+	// Partial block, or some calls held back: keep only what goes out now.
 	choice.Delta.ToolCalls = allowed
 	return true
 }
@@ -665,16 +893,21 @@ func (s *SSEInterceptor) handleOpenAIFirstToolChunk(choice *openAIChunkChoice) b
 // Returns true if the chunk was modified.
 func (s *SSEInterceptor) handleOpenAIArgChunk(choice *openAIChunkChoice) bool {
 	st := s.openAIChoices[choice.Index]
-	if st == nil || len(st.blocked) == 0 {
-		// No tools blocked for this choice — pass through.
+	if st == nil || (len(st.blocked) == 0 && len(st.held) == 0) {
+		// Nothing blocked or held for this choice — pass through.
 		return false
 	}
 
 	var kept []openAIChunkToolCall
 	for _, tc := range choice.Delta.ToolCalls {
-		if !st.blocked[tc.Index] {
-			kept = append(kept, tc)
+		if st.blocked[tc.Index] {
+			continue
 		}
+		if h := st.held[tc.Index]; h != nil {
+			h.args.add(tc.Function.Arguments)
+			continue
+		}
+		kept = append(kept, tc)
 	}
 
 	if len(kept) == len(choice.Delta.ToolCalls) {
@@ -723,4 +956,201 @@ func (s *SSEInterceptor) safeDataJSON(v interface{}, fallbackLine string) string
 func mustMarshalString(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b)
+}
+
+// extractInputJSONDelta pulls the partial_json fragment out of an Anthropic
+// content_block_delta. It returns "" for any other delta type.
+//
+// The type check is belt and braces today: a text_delta carries no
+// partial_json field, so dropping the check would change nothing and a
+// mutation of it survives the tests. It is kept for the delta type that does
+// not exist yet -- one carrying partial_json under a different name would
+// otherwise be spliced into the arguments, and the call would fail inspection
+// or fail to parse for a reason the agent never caused.
+func extractInputJSONDelta(data string) string {
+	var evt struct {
+		Delta struct {
+			Type        string `json:"type"`
+			PartialJSON string `json:"partial_json"`
+		} `json:"delta"`
+	}
+	if err := json.Unmarshal([]byte(data), &evt); err != nil {
+		return ""
+	}
+	if evt.Delta.Type != "input_json_delta" {
+		return ""
+	}
+	return evt.Delta.PartialJSON
+}
+
+// releaseHeldBlock inspects a held tool_use block's accumulated arguments and
+// emits the result: the buffered events replayed verbatim when clean, a
+// single rewritten delta when redacted, or a blocked-tool text block.
+//
+// It returns lines carrying their own event: prefixes, which is how the Stream
+// loop knows not to prepend the buffered one — the same contract
+// emitAnthropicTextBlock uses.
+func (s *SSEInterceptor) releaseHeldBlock(held *heldToolUse, index int, stopEventLine, stopLine string) []string {
+	if stopEventLine == "" {
+		stopEventLine = "event: content_block_stop"
+	}
+
+	v := s.mcpArgs.decide(s.ctx, held.entry.ServerID, held.toolName, held.args.bytes(), held.args.overflow)
+
+	switch {
+	case v.Block:
+		s.blockedToolUse++
+		s.blockedIndices[index] = true
+		s.fireInspectEvent(held, "block", v)
+		return s.emitAnthropicTextBlock(index, held.toolName)
+
+	case v.Redacted != nil:
+		s.fireInspectEvent(held, "redact", v)
+		// One delta carrying the whole redacted argument object replaces
+		// however many fragments arrived. A client assembling partial_json
+		// by concatenation gets the same result either way, and splitting
+		// the redacted JSON back into the original fragment boundaries
+		// would only risk cutting a replacement in half.
+		deltaData := fmt.Sprintf(`{"type":"content_block_delta","index":%d,"delta":{"type":"input_json_delta","partial_json":%s}}`,
+			index, mustMarshalString(string(v.Redacted)))
+		out := []string{held.eventLine, held.startLine, ""}
+		out = append(out,
+			"event: content_block_delta",
+			"data: "+deltaData,
+			"",
+			stopEventLine, stopLine, "")
+		return out
+
+	default:
+		s.fireInspectEvent(held, "allow", v)
+		out := []string{held.eventLine, held.startLine, ""}
+		out = append(out, held.deltaLines...)
+		out = append(out, stopEventLine, stopLine, "")
+		return out
+	}
+}
+
+// flushHeldOpenAICalls handles tool calls whose finish_reason chunk never
+// arrived — a truncated or aborted stream.
+//
+// Their arguments were never complete, so they were never inspected. Emitting
+// them would forward exactly the content a rule asked to have checked.
+func (s *SSEInterceptor) flushHeldOpenAICalls(client io.Writer) {
+	choices := make([]int, 0, len(s.openAIChoices))
+	for idx := range s.openAIChoices {
+		choices = append(choices, idx)
+	}
+	sort.Ints(choices)
+
+	for _, ci := range choices {
+		st := s.openAIChoices[ci]
+		if st == nil || len(st.held) == 0 {
+			continue
+		}
+		var names []string
+		for _, idx := range st.heldOrder {
+			h := st.held[idx]
+			if h == nil {
+				continue
+			}
+			delete(st.held, idx)
+			st.nblocked++
+			st.blocked[idx] = true
+			names = append(names, h.call.Function.Name)
+			s.fireOpenAIInspectEvent(h, "block", argVerdict{
+				Inspected: true,
+				Block:     true,
+				Reason:    fmt.Sprintf("tool %q blocked: the stream ended before its arguments were complete, so they were never inspected", h.call.Function.Name),
+			})
+		}
+		st.heldOrder = nil
+		if len(names) == 0 {
+			continue
+		}
+		var msgs []string
+		for _, n := range names {
+			msgs = append(msgs, fmt.Sprintf("[agentmon] Tool '%s' blocked: the response ended before its arguments were complete", n))
+		}
+		notice := openAIChunk{
+			Choices: []openAIChunkChoice{{
+				Index: ci,
+				Delta: openAIChunkDelta{Content: json.RawMessage(mustMarshalString(strings.Join(msgs, "\n")))},
+			}},
+		}
+		s.writeLine(client, s.safeDataJSON(&notice, ""))
+		s.writeLine(client, "")
+	}
+}
+
+// flushHeldBlocks handles tool_use blocks whose content_block_stop never
+// arrived — a truncated or aborted stream.
+//
+// Their arguments were never complete, so they were never inspected, and
+// emitting them would forward exactly the content a rule asked to have
+// checked. They are replaced with the blocked-tool text block. An incomplete
+// tool call is not actionable by the agent either way.
+func (s *SSEInterceptor) flushHeldBlocks(client io.Writer) {
+	if len(s.heldBlocks) == 0 {
+		return
+	}
+	indices := make([]int, 0, len(s.heldBlocks))
+	for idx := range s.heldBlocks {
+		indices = append(indices, idx)
+	}
+	sort.Ints(indices)
+
+	for _, idx := range indices {
+		held := s.heldBlocks[idx]
+		delete(s.heldBlocks, idx)
+		s.blockedToolUse++
+		s.blockedIndices[idx] = true
+		s.fireInspectEvent(held, "block", argVerdict{
+			Inspected: true,
+			Block:     true,
+			Reason:    fmt.Sprintf("tool %q blocked: the stream ended before its arguments were complete, so they were never inspected", held.toolName),
+		})
+		for _, line := range s.emitAnthropicTextBlock(idx, held.toolName) {
+			s.writeLine(client, line)
+		}
+	}
+}
+
+// fireInspectEvent records what argument inspection decided about a held tool
+// call.
+//
+// The event is persisted and streamed to clients. A blocked call's arguments
+// are exactly what the rule flagged and a redacted call's originals are what
+// it asked to have removed, so neither reaches the event; the redacted form
+// does, and a clean call keeps what it sent.
+func (s *SSEInterceptor) fireInspectEvent(held *heldToolUse, action string, v argVerdict) {
+	if s.onEvent == nil {
+		return
+	}
+	ev := mcpinspect.MCPToolCallInterceptedEvent{
+		Type:          "mcp_tool_call_intercepted",
+		Timestamp:     time.Now(),
+		SessionID:     s.sessionID,
+		RequestID:     s.requestID,
+		Dialect:       string(s.dialect),
+		ToolName:      held.toolName,
+		ToolCallID:    held.toolCallID,
+		ServerID:      held.entry.ServerID,
+		ServerType:    held.entry.ServerType,
+		ServerAddr:    held.entry.ServerAddr,
+		ToolHash:      held.entry.ToolHash,
+		Action:        action,
+		Reason:        v.Reason,
+		InspectRule:   v.Rule,
+		InspectDetail: v.Detail,
+	}
+	if v.Err != nil {
+		ev.InspectError = v.Err.Error()
+	}
+	switch action {
+	case "redact":
+		ev.Input = v.Redacted
+	case "allow":
+		ev.Input = held.args.bytes()
+	}
+	s.onEvent(ev)
 }

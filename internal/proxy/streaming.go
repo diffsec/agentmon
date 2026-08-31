@@ -97,6 +97,8 @@ type sseProxyTransport struct {
 	logger        *slog.Logger
 	rateLimiter   *mcpinspect.RateLimiterRegistry
 	versionPinCfg *config.MCPVersionPinningConfig
+	// mcpArgs inspects MCP tool-call arguments mid-stream. Nil disables it.
+	mcpArgs *mcpArgInspector
 	// dlp reverses tokenization on the way to the client. Nil is safe:
 	// DetokenizeReader returns the reader unwrapped.
 	dlp *DLPProcessor
@@ -130,6 +132,7 @@ func (t *sseProxyTransport) SetInterceptor(
 	analyzer *mcpinspect.SessionAnalyzer,
 	rateLimiter *mcpinspect.RateLimiterRegistry,
 	versionPinCfg *config.MCPVersionPinningConfig,
+	mcpArgs *mcpArgInspector,
 ) {
 	t.registry = registry
 	t.policy = policy
@@ -141,6 +144,16 @@ func (t *sseProxyTransport) SetInterceptor(
 	t.logger = logger
 	t.rateLimiter = rateLimiter
 	t.versionPinCfg = versionPinCfg
+	t.mcpArgs = mcpArgs
+}
+
+// hasInterception reports whether any MCP control needs the SSE stream fed
+// through the interceptor rather than copied straight through. Argument
+// inspection counts: a session whose policy uses mcp_inspect_rules and sets
+// no MCP tool policy would otherwise take the io.Copy fast path and never
+// inspect anything.
+func (t *sseProxyTransport) hasInterception() bool {
+	return t.registry != nil && (t.policy != nil || t.rateLimiter != nil || t.versionPinCfg != nil || t.mcpArgs != nil)
 }
 
 func (t *sseProxyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -162,7 +175,7 @@ func (t *sseProxyTransport) RoundTrip(req *http.Request) (*http.Response, error)
 		}
 		// When MCP interception is active, the body may be rewritten to a
 		// different size, so remove Content-Length to force chunked transfer.
-		if t.registry != nil && (t.policy != nil || t.rateLimiter != nil || t.versionPinCfg != nil) {
+		if t.hasInterception() {
 			sw.Header().Del("Content-Length")
 		}
 		sw.WriteHeader(resp.StatusCode)
@@ -182,13 +195,13 @@ func (t *sseProxyTransport) RoundTrip(req *http.Request) (*http.Response, error)
 
 		// Stream body to client — with MCP interception if configured
 		var bufferedBody []byte
-		if t.registry != nil && (t.policy != nil || t.rateLimiter != nil || t.versionPinCfg != nil) {
+		if t.hasInterception() {
 			interceptor := NewSSEInterceptor(
 				t.registry, t.policy, t.dialect,
 				t.sessionID, t.requestID, t.onEvent, t.logger,
-				t.analyzer, t.rateLimiter, t.versionPinCfg,
+				t.analyzer, t.rateLimiter, t.versionPinCfg, t.mcpArgs,
 			)
-			bufferedBody = interceptor.Stream(body, sw)
+			bufferedBody = interceptor.Stream(req.Context(), body, sw)
 		} else {
 			// Fast path: no MCP policy — direct io.Copy
 			_, copyErr := io.Copy(sw, body)
