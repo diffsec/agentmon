@@ -556,16 +556,66 @@ storing the originals would put the value in an event stream at the moment a
 rule asked for it to be taken out of the request. A clean or unmatched call is
 unchanged.
 
-### What is not wired yet
+### Where it runs
 
-`ArgInspection` has to be installed on the `Inspector` by whatever builds it.
-`shim.BuildMCPExecWrapper` builds one, and **has no production caller** — the
-stdio MCP interception path is reachable only from its own tests today. The
-live MCP path is the LLM proxy's tool-call interception
-(`internal/proxy/mcp_intercept.go`, wired at `internal/api/app.go:733`), which
-extracts `tool_use` blocks from model responses and already blocks and rewrites
-them. Putting argument inspection on that path is the next piece of work; the
-grammar and `CheckMCPTool` above are shared by both.
+Two paths share the grammar and `CheckMCPTool`.
+
+The **LLM proxy** is the live one. A tool call is emitted in the model's
+response, and the agent then sends it to an MCP server this daemon does not
+proxy, so that response is the last point at which a credential in a tool
+argument can be caught. `Proxy.SetMCPArgInspection` turns it on, wired from
+`internal/session/llmproxy.go` alongside the request-body hook. It covers the
+non-streaming path (`interceptMCPToolCalls`) and both streaming dialects.
+
+The **stdio MCP wrapper** (`internal/mcpinspect`, via
+`ArgInspection`) covers `tools/call` messages directly. It has no production
+caller: `shim.BuildMCPExecWrapper` builds the wrapper and nothing outside its
+own tests calls it.
+
+### Streaming: hold-back
+
+Every other MCP control decides at the first event of a tool call, where the
+name is known and the arguments are not. Argument inspection needs the
+arguments, and those arrive afterwards as fragments — `input_json_delta` for
+Anthropic, `function.arguments` deltas for OpenAI. So a tool call a rule
+selects is **held**: its events are buffered, the fragments accumulated, and
+the call released once complete.
+
+Only calls a rule names are held. `matches()` is a glob check over the
+compiled rules and touches no provider, because holding every tool call would
+add the model's own latency to calls nothing inspects.
+
+Release has three outcomes. Clean replays the buffered events verbatim, down
+to the original fragment boundaries. Redact emits one delta carrying the whole
+redacted argument object. Block emits a replacement text block (Anthropic) or
+a content notice (OpenAI), and rewrites the terminal `stop_reason` /
+`finish_reason` when nothing survived, so the agent stops waiting for a tool
+result that will never come. On OpenAI the release is emitted **before** the
+finish chunk, or the agent has already ended the turn.
+
+Accumulation is capped at `DefaultMCPArgMaxBytes` (1 MiB). A tool argument is
+a function call's parameters, not a payload; real ones run to kilobytes.
+Exceeding the cap routes through `on_failure`, because a prefix that inspects
+clean says nothing about the rest.
+
+A stream that ends before the tool call completes leaves arguments that were
+never inspected. Those calls are blocked, not released.
+
+### Redaction here is not reversible
+
+The request-body hook mints a reversible token when `dlp.mode: tokenize` is
+set, and `DetokenizeReader` restores the value on the way back. A redacted
+tool argument never comes back: the agent sends it to an MCP server the daemon
+does not sit in front of, so a token would arrive there as a `TOK_<hex>`
+string nothing can resolve. Both MCP wire points therefore use
+`PlaceholderRedactor`. The value has to actually be gone.
+
+### The audit event
+
+`mcp_tool_call_intercepted` gains `inspect_rule`, `inspect_detail` and
+`inspect_error`, and its `action` gains `redact`. `input` follows the same
+rule as the stdio path: dropped on a block, replaced with the redacted form on
+a redact, unchanged otherwise.
 
 ## Decision whitelist
 

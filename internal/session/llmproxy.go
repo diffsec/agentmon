@@ -115,6 +115,13 @@ func StartLLMProxy(
 		// rather than a placeholder that destroys the value downstream.
 		hook.SetDLP(p.DLP())
 		p.HookRegistry().Register("", hook)
+
+		// MCP tool-call arguments, which the request-body hook never sees:
+		// the tool call is emitted in the model's RESPONSE, and the agent
+		// then sends it to an MCP server this daemon does not proxy. That
+		// response is the last point at which a credential or a customer
+		// record in a tool argument can be caught.
+		p.SetMCPArgInspection(ic.Resolve, ic.MCPArgMaxBytes)
 	}
 
 	// Bootstrap credentials and register hooks if services are configured.

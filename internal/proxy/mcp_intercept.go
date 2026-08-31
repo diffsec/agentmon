@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -134,7 +135,7 @@ func extractOpenAIToolCalls(body []byte) []ToolCall {
 type InterceptResult struct {
 	Events        []mcpinspect.MCPToolCallInterceptedEvent
 	HasBlocked    bool
-	RewrittenBody []byte // Non-nil only if tool calls were blocked
+	RewrittenBody []byte // Non-nil if tool calls were blocked or arguments redacted
 }
 
 // interceptMCPToolCalls extracts tool calls from an LLM response body,
@@ -143,6 +144,7 @@ type InterceptResult struct {
 // and non-nil, cross-server rules are checked before regular policy evaluation,
 // and tool calls are recorded in the analyzer after each decision.
 func interceptMCPToolCalls(
+	ctx context.Context,
 	body []byte,
 	dialect Dialect,
 	registry *mcpregistry.Registry,
@@ -151,6 +153,7 @@ func interceptMCPToolCalls(
 	analyzer *mcpinspect.SessionAnalyzer,
 	rateLimiter *mcpinspect.RateLimiterRegistry,
 	versionPinCfg *config.MCPVersionPinningConfig,
+	argInsp *mcpArgInspector,
 ) *InterceptResult {
 
 	result := &InterceptResult{}
@@ -166,6 +169,11 @@ func interceptMCPToolCalls(
 
 	now := time.Now()
 	blockedNames := make(map[string]bool) // tool names that were blocked
+	// Redacted arguments, keyed on the tool call id. Blocking is keyed on
+	// the tool NAME because that is all the rewriters could match on before;
+	// redaction has to be per call, since two calls to the same tool can
+	// carry different arguments and only one of them may need rewriting.
+	redacted := make(map[string]json.RawMessage)
 
 	for _, call := range calls {
 		entry := registry.Lookup(call.Name)
@@ -229,6 +237,38 @@ func interceptMCPToolCalls(
 			blockedNames[call.Name] = true
 		}
 
+		// Content inspection of the arguments, only for a call the tool
+		// policy already permits. Inspecting one that is about to be blocked
+		// would put a model in front of content that is not going anywhere.
+		eventInput := call.Input
+		var inspectRule, inspectDetail, inspectError string
+		if action == "allow" && argInsp != nil {
+			v := argInsp.decide(ctx, entry.ServerID, call.Name, call.Input, false)
+			if v.Inspected {
+				inspectRule, inspectDetail = v.Rule, v.Detail
+				if v.Err != nil {
+					inspectError = v.Err.Error()
+				}
+				switch {
+				case v.Block:
+					action = "block"
+					reason = v.Reason
+					result.HasBlocked = true
+					blockedNames[call.Name] = true
+					// The event is persisted and streamed to clients. A
+					// blocked call's arguments are exactly what the rule
+					// flagged, and one blocked on a failure was never
+					// classified at all.
+					eventInput = nil
+				case v.Redacted != nil:
+					action = "redact"
+					redacted[call.ID] = v.Redacted
+					// Record the redacted arguments, not the originals.
+					eventInput = v.Redacted
+				}
+			}
+		}
+
 		// If policy blocked a call that cross-server allowed, update
 		// the window record so it doesn't cause false positives.
 		if !decision.Allowed && crossServerDec == nil && analyzer != nil {
@@ -236,32 +276,35 @@ func interceptMCPToolCalls(
 		}
 
 		result.Events = append(result.Events, mcpinspect.MCPToolCallInterceptedEvent{
-			Type:       "mcp_tool_call_intercepted",
-			Timestamp:  now,
-			SessionID:  sessionID,
-			RequestID:  requestID,
-			Dialect:    string(dialect),
-			ToolName:   call.Name,
-			ToolCallID: call.ID,
-			Input:      call.Input,
-			ServerID:   entry.ServerID,
-			ServerType: entry.ServerType,
-			ServerAddr: entry.ServerAddr,
-			ToolHash:   entry.ToolHash,
-			Action: action,
-			Reason: reason,
+			Type:                "mcp_tool_call_intercepted",
+			Timestamp:           now,
+			SessionID:           sessionID,
+			RequestID:           requestID,
+			Dialect:             string(dialect),
+			ToolName:            call.Name,
+			ToolCallID:          call.ID,
+			Input:               eventInput,
+			ServerID:            entry.ServerID,
+			ServerType:          entry.ServerType,
+			ServerAddr:          entry.ServerAddr,
+			ToolHash:            entry.ToolHash,
+			Action:              action,
+			Reason:              reason,
+			InspectRule:         inspectRule,
+			InspectDetail:       inspectDetail,
+			InspectError:        inspectError,
 			CrossServerRule:     crossServerRule(crossServerDec),
 			CrossServerSeverity: crossServerSeverity(crossServerDec),
 			CrossServerRelated:  crossServerRelated(crossServerDec),
 		})
 	}
 
-	if result.HasBlocked {
+	if result.HasBlocked || len(redacted) > 0 {
 		switch dialect {
 		case DialectAnthropic:
-			result.RewrittenBody = rewriteAnthropicResponse(body, blockedNames)
+			result.RewrittenBody = rewriteAnthropicResponse(body, blockedNames, redacted)
 		case DialectOpenAI:
-			result.RewrittenBody = rewriteOpenAIResponse(body, blockedNames)
+			result.RewrittenBody = rewriteOpenAIResponse(body, blockedNames, redacted)
 		}
 	}
 
@@ -269,10 +312,15 @@ func interceptMCPToolCalls(
 }
 
 // rewriteAnthropicResponse replaces blocked tool_use content blocks with text
-// blocks saying the tool was blocked. If ALL tool_use blocks are blocked, the
-// stop_reason is changed to "end_turn". If only some are blocked, stop_reason
-// remains "tool_use".
-func rewriteAnthropicResponse(body []byte, blockedNames map[string]bool) []byte {
+// blocks saying the tool was blocked, and substitutes redacted arguments into
+// the ones that survived. If ALL tool_use blocks are blocked, the stop_reason
+// is changed to "end_turn". If only some are blocked, stop_reason remains
+// "tool_use".
+//
+// redacted is keyed on the tool call id rather than the tool name, because two
+// calls to the same tool can carry different arguments and only one of them
+// may need rewriting.
+func rewriteAnthropicResponse(body []byte, blockedNames map[string]bool, redacted map[string]json.RawMessage) []byte {
 	// Parse preserving unknown fields.
 	var resp map[string]json.RawMessage
 	if err := json.Unmarshal(body, &resp); err != nil {
@@ -291,12 +339,39 @@ func rewriteAnthropicResponse(body []byte, blockedNames map[string]bool) []byte 
 	for _, block := range content {
 		var info struct {
 			Type string `json:"type"`
+			ID   string `json:"id"`
 			Name string `json:"name"`
 		}
 		if err := json.Unmarshal(block, &info); err != nil {
 			// Keep blocks we can't parse.
 			newContent = append(newContent, block)
 			continue
+		}
+
+		if info.Type == "tool_use" && !blockedNames[info.Name] {
+			if args, ok := redacted[info.ID]; ok {
+				if rewritten, err := replaceBlockInput(block, args); err == nil {
+					remainingToolUse++
+					newContent = append(newContent, rewritten)
+					continue
+				}
+				// Defence in depth. decide() already refuses a redaction
+				// that is not valid JSON, so nothing reaching here today
+				// can fail; a caller that skipped that check would
+				// otherwise send the block with its original arguments in
+				// it. Replace it with the blocked-tool text instead: a call
+				// the operator asked to have redacted must not arrive
+				// intact. replaceBlockInput's own contract is covered by
+				// TestReplaceBlockInput_RejectsWhatItCannotRewrite.
+				replacement, mErr := json.Marshal(map[string]string{
+					"type": "text",
+					"text": fmt.Sprintf("[agentmon] Tool '%s' blocked by content inspection", info.Name),
+				})
+				if mErr == nil {
+					newContent = append(newContent, json.RawMessage(replacement))
+					continue
+				}
+			}
 		}
 
 		if info.Type == "tool_use" && blockedNames[info.Name] {
@@ -338,11 +413,31 @@ func rewriteAnthropicResponse(body []byte, blockedNames map[string]bool) []byte 
 	return out
 }
 
+// replaceBlockInput substitutes the `input` of one Anthropic tool_use block,
+// leaving every other field byte-identical. Parsing the result back is the
+// check that the block is still well formed; the caller replaces it with a
+// blocked-tool notice when it is not.
+func replaceBlockInput(block json.RawMessage, input json.RawMessage) (json.RawMessage, error) {
+	if !json.Valid(input) {
+		return nil, fmt.Errorf("redacted input is not valid JSON")
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(block, &obj); err != nil {
+		return nil, err
+	}
+	obj["input"] = input
+	out, err := json.Marshal(obj)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(out), nil
+}
+
 // rewriteOpenAIResponse removes blocked tool calls from
-// choices[].message.tool_calls[]. If all tool calls are removed, sets
-// message.content to a blocked message string and changes finish_reason
-// to "stop".
-func rewriteOpenAIResponse(body []byte, blockedNames map[string]bool) []byte {
+// choices[].message.tool_calls[] and substitutes redacted arguments into the
+// ones that survived. If all tool calls are removed, sets message.content to a
+// blocked message string and changes finish_reason to "stop".
+func rewriteOpenAIResponse(body []byte, blockedNames map[string]bool, redacted map[string]json.RawMessage) []byte {
 	// Parse top-level preserving unknown fields.
 	var resp map[string]json.RawMessage
 	if err := json.Unmarshal(body, &resp); err != nil {
@@ -382,8 +477,10 @@ func rewriteOpenAIResponse(body []byte, blockedNames map[string]bool) []byte {
 		// Filter out blocked tool calls.
 		var kept []json.RawMessage
 		var blockedMessages []string
+		rewroteArgs := false
 		for _, tcRaw := range toolCalls {
 			var tc struct {
+				ID       string `json:"id"`
 				Function struct {
 					Name string `json:"name"`
 				} `json:"function"`
@@ -394,9 +491,23 @@ func rewriteOpenAIResponse(body []byte, blockedNames map[string]bool) []byte {
 			}
 			if blockedNames[tc.Function.Name] {
 				blockedMessages = append(blockedMessages, fmt.Sprintf("[agentmon] Tool '%s' blocked by policy", tc.Function.Name))
-			} else {
-				kept = append(kept, tcRaw)
+				continue
 			}
+			if args, ok := redacted[tc.ID]; ok {
+				rewroteArgs = true
+				rewritten, err := replaceToolCallArguments(tcRaw, args)
+				if err != nil {
+					// Same defence in depth as the Anthropic rewriter, and
+					// unreachable for the same reason. Dropping the call is
+					// the only safe answer: keeping it would send the agent
+					// the arguments the rule asked to have redacted.
+					blockedMessages = append(blockedMessages, fmt.Sprintf("[agentmon] Tool '%s' blocked by content inspection", tc.Function.Name))
+					continue
+				}
+				kept = append(kept, rewritten)
+				continue
+			}
+			kept = append(kept, tcRaw)
 		}
 
 		if len(kept) == 0 && len(blockedMessages) > 0 {
@@ -417,12 +528,15 @@ func rewriteOpenAIResponse(body []byte, blockedNames map[string]bool) []byte {
 			// Remove tool_calls.
 			delete(msg, "tool_calls")
 			choice["finish_reason"] = json.RawMessage(`"stop"`)
-		} else if len(kept) < len(toolCalls) {
-			// Partial block: keep remaining tool calls.
+		} else if len(kept) < len(toolCalls) || rewroteArgs {
+			// Some calls were removed, or a surviving call's arguments were
+			// redacted. The rewritten entries only reach the agent if kept
+			// is written back: comparing lengths alone misses the case where
+			// nothing was blocked and one call was redacted in place.
 			keptRaw, _ := json.Marshal(kept)
 			msg["tool_calls"] = json.RawMessage(keptRaw)
 		}
-		// else: no blocking needed, keep as is.
+		// else: nothing changed, keep as is.
 
 		msgRaw, _ := json.Marshal(msg)
 		choice["message"] = json.RawMessage(msgRaw)
@@ -542,4 +656,43 @@ func crossServerRelated(dec *mcpinspect.CrossServerDecision) []mcpinspect.ToolCa
 		return nil
 	}
 	return dec.Related
+}
+
+// replaceToolCallArguments substitutes function.arguments in one OpenAI tool
+// call, leaving every other field byte-identical.
+//
+// OpenAI carries the arguments as a JSON *string*, not as an object, so the
+// redacted JSON is re-encoded as a string rather than spliced in raw.
+// Splicing it raw would produce a tool call whose arguments are an object
+// where the API contract says a string, which every client parses
+// differently.
+func replaceToolCallArguments(tc json.RawMessage, args json.RawMessage) (json.RawMessage, error) {
+	if !json.Valid(args) {
+		return nil, fmt.Errorf("redacted arguments are not valid JSON")
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(tc, &obj); err != nil {
+		return nil, err
+	}
+	var fn map[string]json.RawMessage
+	if err := json.Unmarshal(obj["function"], &fn); err != nil {
+		return nil, err
+	}
+	encoded, err := json.Marshal(string(args))
+	if err != nil {
+		return nil, err
+	}
+	fn["arguments"] = json.RawMessage(encoded)
+
+	fnRaw, err := json.Marshal(fn)
+	if err != nil {
+		return nil, err
+	}
+	obj["function"] = json.RawMessage(fnRaw)
+
+	out, err := json.Marshal(obj)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(out), nil
 }

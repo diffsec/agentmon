@@ -67,6 +67,9 @@ type Proxy struct {
 	sessionAnalyzer *mcpinspect.SessionAnalyzer
 	// rateLimiter applies per-server rate limits to MCP tool calls.
 	rateLimiter *mcpinspect.RateLimiterRegistry
+	// mcpArgs inspects MCP tool-call arguments against the policy's
+	// mcp_inspect_rules. Nil disables it.
+	mcpArgs *mcpArgInspector
 	// llmRateLimiter enforces RPM and TPM limits on LLM API calls.
 	llmRateLimiter *LLMRateLimiter
 	// hookRegistry dispatches pre/post hooks for credential
@@ -181,10 +184,32 @@ func (p *Proxy) versionPinCfg() *config.MCPVersionPinningConfig {
 }
 
 // hasInterception returns true if any MCP interception control is active
-// (policy, rate limiter, or version pinning). Used to determine whether to
-// run the interception pipeline, even when EnforcePolicy is false.
+// (policy, rate limiter, version pinning, or argument inspection). Used to
+// determine whether to run the interception pipeline, even when
+// EnforcePolicy is false.
+//
+// Argument inspection has to be in this gate. Without it a session whose
+// policy uses mcp_inspect_rules but sets no MCP tool policy would skip
+// interception entirely, and every inspect rule would be a no-op with
+// nothing in the log to say so.
 func (p *Proxy) hasInterception() bool {
-	return p.policy != nil || p.rateLimiter != nil || p.versionPinCfg() != nil
+	return p.policy != nil || p.rateLimiter != nil || p.versionPinCfg() != nil || p.getMCPArgInspector() != nil
+}
+
+// SetMCPArgInspection installs argument inspection for MCP tool calls. A nil
+// resolve disables it.
+func (p *Proxy) SetMCPArgInspection(resolve InspectContextFunc, maxArgs int) {
+	insp := newMCPArgInspector(resolve, maxArgs, p.logger)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.mcpArgs = insp
+}
+
+// getMCPArgInspector returns the argument inspector in a thread-safe manner.
+func (p *Proxy) getMCPArgInspector() *mcpArgInspector {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.mcpArgs
 }
 
 // SetRegistry sets the MCP tool registry on the proxy. It is safe for
@@ -474,6 +499,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			p.getSessionAnalyzer(),
 			p.rateLimiter,
 			p.versionPinCfg(),
+			p.getMCPArgInspector(),
 		)
 	}
 
@@ -518,7 +544,15 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			// MCP tool call interception (non-SSE only; SSE handled by SSEInterceptor).
 			if reg := p.getRegistry(); reg != nil && p.hasInterception() && resp.StatusCode == http.StatusOK {
-				result := interceptMCPToolCalls(respBody, dialect, reg, p.policy, requestID, sessionID, p.getSessionAnalyzer(), p.rateLimiter, p.versionPinCfg())
+				// resp.Request is the outbound request, so its context is
+				// cancelled when the agent gives up. Inspection is the only
+				// thing here that can block for a measurable time, and it
+				// should stop when nobody is waiting for the answer.
+				interceptCtx := context.Background()
+				if resp.Request != nil {
+					interceptCtx = resp.Request.Context()
+				}
+				result := interceptMCPToolCalls(interceptCtx, respBody, dialect, reg, p.policy, requestID, sessionID, p.getSessionAnalyzer(), p.rateLimiter, p.versionPinCfg(), p.getMCPArgInspector())
 				for _, ev := range result.Events {
 					p.logger.Info("mcp tool call intercepted",
 						"tool", ev.ToolName, "action", ev.Action,
@@ -529,7 +563,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						cb(ev)
 					}
 				}
-				if result.HasBlocked && result.RewrittenBody != nil {
+				if result.RewrittenBody != nil {
 					respBody = result.RewrittenBody
 				}
 			}
