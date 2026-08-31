@@ -532,6 +532,15 @@ inspection:
     # mcp_args.
     remote_kinds: []
 
+  # Caps how much of a request body is buffered for inspection. Exceeding it
+  # is a FAILED inspection, not a skip -- otherwise padding a payload past the
+  # limit would bypass every inspect rule -- so it routes through the rule's
+  # on_failure and denies by default. Set it above the largest payload the
+  # agent legitimately sends: LLM requests with long context run to several
+  # megabytes, and a cap below real traffic turns fail_closed into a blanket
+  # block that looks exactly like a policy that is working.
+  max_body_bytes: 8388608  # 8 MiB
+
   # Bounds a single provider call. A rule's own `inspect.timeout` bounds the
   # whole inspection across every profile, and is usually the tighter of the
   # two.

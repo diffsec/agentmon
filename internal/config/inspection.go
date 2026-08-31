@@ -24,6 +24,15 @@ type InspectionConfig struct {
 	// Privacy gates what content may reach a provider that is not local.
 	Privacy InspectPrivacyConfig `yaml:"privacy"`
 
+	// MaxBodyBytes caps how much of a request body is buffered for
+	// inspection. Zero uses the proxy package default (8 MiB).
+	//
+	// Exceeding it is a failed inspection, not a skip, so the rule's
+	// on_failure decides -- a deny by default. Set it above the largest
+	// payload the agent legitimately sends, or the block will look like a
+	// policy that is working rather than a limit that was too low.
+	MaxBodyBytes int64 `yaml:"max_body_bytes,omitempty"`
+
 	// ProviderTimeout bounds a single provider call. Zero uses the
 	// package default. A rule's own `inspect.timeout` bounds the whole
 	// inspection across every profile, and is the tighter of the two in

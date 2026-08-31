@@ -243,6 +243,23 @@ func (a *App) SetPackageChecker(c *pkgcheck.Checker) {
 	a.pkgChecker = c
 }
 
+// attachInspectConfig gives a session's LLM proxy what it needs to run
+// content inspection. No-op when no registry is configured, which is the case
+// whenever the policy uses no inspect rules (server.wireInspection refuses to
+// start otherwise).
+func (a *App) attachInspectConfig(s *session.Session) {
+	if a == nil || s == nil || a.inspectRegistry == nil {
+		return
+	}
+	s.SetInspectConfig(proxy.InspectConfig{
+		Resolve: func() (*policy.Engine, policy.InspectChecker) {
+			eng := a.policyEngineFor(s)
+			return eng, a.Inspector(eng)
+		},
+		MaxBodyBytes: a.cfg.Inspection.MaxBodyBytes,
+	})
+}
+
 // SetInspectRegistry attaches the content inspection registry. Nil disables
 // inspection, which is safe only because a policy that needs it is refused at
 // startup (server.wireInspection).
@@ -641,6 +658,14 @@ func (a *App) startLLMProxy(ctx context.Context, s *session.Session) {
 			httpServices = p.HTTPServices
 		}
 		envInject = mergeEnvInject(a.cfg, pol)
+	}
+
+	// Content inspection for the proxy path. The closure resolves the engine
+	// per request rather than capturing it, so a live policy update is
+	// observed here -- unlike the network, transparent-TCP and DNS paths,
+	// which captured an engine at construction (see SwapPolicy's note).
+	if a.inspectRegistry != nil {
+		a.attachInspectConfig(s)
 	}
 
 	proxyURL, closeFn, err := session.StartLLMProxy(

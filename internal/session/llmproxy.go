@@ -100,6 +100,18 @@ func StartLLMProxy(
 		return p.Stop(ctx)
 	}
 
+	// Content inspection. Registered before the credential hooks so a body
+	// the policy refuses is rejected before real credentials are substituted
+	// into it -- a redacted body must never be the thing that gets a live key
+	// written in, and a denied request must not have one either.
+	//
+	// Registered outside the httpServices branch below, because inspection is
+	// driven by network_rules and applies whether or not the session declares
+	// any http_services.
+	if ic := sess.InspectConfig(); ic.Enabled() {
+		p.HookRegistry().Register("", proxy.NewInspectHook(ic.Resolve, ic.MaxBodyBytes, logger))
+	}
+
 	// Bootstrap credentials and register hooks if services are configured.
 	// Done BEFORE storing on session so a failure leaves no stale state.
 	if len(httpServices) > 0 {
@@ -198,8 +210,8 @@ func (s *Session) LLMProxyEnvVars() map[string]string {
 
 	// Fallback for sessions with a URL but no attached proxy instance.
 	return map[string]string{
-		"ANTHROPIC_BASE_URL": proxyURL,
-		"OPENAI_BASE_URL":    proxyURL,
+		"ANTHROPIC_BASE_URL":  proxyURL,
+		"OPENAI_BASE_URL":     proxyURL,
 		"AGENTMON_SESSION_ID": sessID,
 	}
 }
