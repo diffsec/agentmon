@@ -186,6 +186,65 @@ inspection:
   provider_timeout: 10s
 ```
 
+### The sidecar provider
+
+`type: sidecar` calls an HTTP service over the agentmon inspection contract.
+The contract is the boundary, not the model: anything serving these two
+endpoints works, which is what keeps the choice of inference runtime out of
+this codebase.
+
+```yaml
+inspection:
+  enabled: true
+  providers:
+    sidecar:
+      enabled: true
+      type: sidecar
+      api_key_env: AGENTMON_INSPECT_TOKEN   # optional; sent as a bearer token
+      options:
+        base_url: http://127.0.0.1:8731
+  privacy:
+    allow_remote: true      # required: a sidecar is not a local provider
+```
+
+```
+POST {base}/v1/inspect/pii
+  -> {"text": "...", "categories": ["private_email", ...]}
+  <- {"spans": [{"start": 0, "end": 17, "category": "private_email", "score": 0.99}],
+      "redacted_text": "..."}
+
+POST {base}/v1/inspect/safety
+  -> {"document": "...", "instruct": "...", "queries": [{"id": "exfil", "text": "..."}]}
+  <- {"results": [{"id": "exfil", "score": 0.61, "verdict": true}]}
+```
+
+A profile with `categories` calls the PII endpoint, one with `queries` calls
+safety, one with both calls both and merges.
+
+**Span offsets are bytes into the UTF-8 encoding of the text that was sent**,
+half-open `[start, end)`. This is the part of the contract that fails
+silently when it is wrong: Privacy Filter's own decoder works in *token*
+offsets, so a sidecar forwarding those unconverted returns spans that look
+entirely plausible and cut the wrong bytes out of a request body. A span that
+is out of range, inverted, empty or landing inside a UTF-8 sequence is an
+**error**, not a dropped finding — the provider and the daemon disagreeing
+about offsets makes every other span in that response suspect too.
+
+Three more things the provider refuses rather than works around: a category
+outside its taxonomy (rejected before any content is sent), a safety result
+for a query nobody asked (dropped, so a sidecar cannot inject findings the
+policy did not author), and a query left unanswered (an error, because
+reporting the rest as clean means the profile checked less than it said).
+
+The profile's `threshold` decides a safety verdict whenever the sidecar
+returns a score. The sidecar's own `verdict` field is its default operating
+point and only applies when no score is present; an operator who wrote `0.9`
+must not be overridden by a service defaulting to `0.5`.
+
+A sidecar is **not** a `LocalProvider`, even bound to `127.0.0.1`. Content
+sent to it leaves the process, and nothing in an HTTP URL proves where it
+resolves to, so `privacy.allow_remote` must be on for it to run at all.
+
 ### The startup gate
 
 A policy containing inspect rules will not load when `enabled` is false, or

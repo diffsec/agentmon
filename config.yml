@@ -521,6 +521,20 @@ inspection:
       patterns: {}
         # internal_ticket: "ACME-[0-9]{4,}"
 
+    # An HTTP inspection service speaking the agentmon inspection contract
+    # (see docs/inspection.md). The contract is the boundary, not the model:
+    # anything serving /v1/inspect/pii and /v1/inspect/safety works, so the
+    # choice of inference runtime stays out of this daemon.
+    #
+    # A sidecar is NOT a local provider even on 127.0.0.1 -- content sent to
+    # it leaves the process -- so privacy.allow_remote must be true below.
+    # sidecar:
+    #   enabled: true
+    #   type: sidecar
+    #   api_key_env: AGENTMON_INSPECT_TOKEN
+    #   options:
+    #     base_url: http://127.0.0.1:8731
+
   privacy:
     # Whether content may reach a provider that does NOT run in-process.
     # Inspection sends the content itself, not a name or a hash, so this is
