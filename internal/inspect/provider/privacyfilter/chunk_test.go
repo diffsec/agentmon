@@ -211,3 +211,15 @@ func TestWindowsFor_Examples(t *testing.T) {
 		t.Fatalf("covered %d of 30", at)
 	}
 }
+
+// TestMaxConcurrencyIsBounded. Each worker holds its own activations for a
+// 917MB model, so the failure mode of an over-large value is not a slow
+// request but the daemon being killed — measured: twelve workers were.
+func TestMaxConcurrencyIsBounded(t *testing.T) {
+	if MaxConcurrency < 1 {
+		t.Fatalf("MaxConcurrency = %d, must allow at least one window", MaxConcurrency)
+	}
+	if MaxConcurrency > 8 {
+		t.Errorf("MaxConcurrency = %d; measurement showed throughput collapsing past 4 and the process killed at 12", MaxConcurrency)
+	}
+}

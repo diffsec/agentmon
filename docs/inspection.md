@@ -300,6 +300,39 @@ inline. Set `inspect.timeout` to what the caller can actually wait for, and
 size the body cap to match; a timeout routes through `on_failure` and denies
 by default.
 
+### Tuning, and what does not help
+
+Every number below is measured on a 12-core M-series laptop. The model is
+bound by memory bandwidth rather than compute, which is why most of the
+obvious levers do nothing.
+
+`intra_op_threads` is the first one to set. Over 32 KB: 1 thread took 11.5s,
+2 took 7.4s, 4 took 6.1s, 8 took 6.0s. Leave it at the default (one per core)
+or set 4.
+
+`concurrency` runs windows in parallel and gives a little more, then stops.
+Over 128 KB: 1 gave 4.0 KB/s, 2 gave 5.3, 4 gave 5.6, and it flattened.
+
+**Do not raise `concurrency` past 4.** Six workers measured 1.4 KB/s and eight
+measured 0.9 — slower than running them one at a time — and twelve was killed
+by the operating system for exhausting memory, because each worker holds its
+own activations for a 917MB model. The value is clamped to 4 for that reason.
+
+Three things that looked promising and were not:
+
+- **CoreML.** 8x slower: 38.4s against 4.9s for 32 KB, with identical
+  findings. ONNX Runtime partitions the graph and runs on CPU whatever CoreML
+  will not take, and for a sparse mixture-of-experts the partition boundaries
+  cost more than the accelerator saves.
+- **Batching windows into one call.** The per-call floor is 16ms once warm, so
+  49 windows cost under a second of overhead in a 34s run.
+- **A bigger window.** Inference grows with about n^1.7, so fewer, longer
+  passes are worse, not better.
+
+The lever that would actually matter is not running the model at all on
+content that cannot contain what the profile is looking for — a cheap
+regex pre-pass gating an expensive one. That is not implemented.
+
 ### The startup gate
 
 A policy containing inspect rules will not load when `enabled` is false, or

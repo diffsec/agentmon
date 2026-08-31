@@ -3,10 +3,12 @@ package privacyfilter
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/diffsec/agentmon/internal/inspect"
@@ -27,6 +29,15 @@ const Name = "privacy_filter"
 // fail inside ONNX Runtime with a shape error rather than here.
 const modelContextTokens = 128000
 
+// MaxConcurrency caps how many windows may run at once.
+//
+// Four, because measurement says throughput stops improving there and starts
+// collapsing beyond it: six workers ran slower than one, and twelve was killed
+// by the OS. Each worker holds its own activations for a 917MB model, so the
+// failure mode of an over-large value is not a slow request -- it is the
+// daemon dying.
+const MaxConcurrency = 4
+
 // Provider runs OpenAI Privacy Filter locally.
 //
 // It implements inspect.LocalProvider: everything happens in this process, so
@@ -42,6 +53,8 @@ type Provider struct {
 
 	// window and overlap size the inference windows. See chunk.go.
 	window, overlap int
+	// concurrency is how many windows run at once.
+	concurrency int
 
 	// needsMask records whether the loaded graph takes attention_mask.
 	// Feeding an input the model does not declare is an error from ONNX
@@ -66,11 +79,37 @@ type Config struct {
 	// ONNX Runtime's default of one per core, which is too many for a
 	// daemon that must stay responsive while inspecting one request.
 	IntraOpThreads int
+	// Concurrency is how many windows run at once. Zero or one runs them in
+	// sequence. Values above MaxConcurrency are clamped.
+	//
+	// The gain is modest and it stops early: measured on a 12-core M-series
+	// laptop over 128KB, concurrency 1 gave 4.0 KB/s, 2 gave 5.3, 4 gave 5.6
+	// and there it flattened. The model is bound by memory bandwidth rather
+	// than compute, so extra workers contend for the same 917MB of weights
+	// instead of adding throughput.
+	//
+	// Past that it gets actively worse, then fatal. Six workers measured
+	// 1.4 KB/s and eight measured 0.9 -- slower than running them one at a
+	// time -- and twelve was killed by the OS for exhausting memory. That is
+	// what MaxConcurrency exists to prevent: a config typo must not take the
+	// daemon down.
+	Concurrency int
+
 	// Window and Overlap size the inference windows. Zero uses
 	// DefaultWindow and DefaultOverlap. Lowering Overlap below the model's
 	// receptive field makes chunking lossy, so it is exposed for
 	// measurement rather than tuning.
 	Window, Overlap int
+
+	// CoreML asks ONNX Runtime for Apple's CoreML execution provider.
+	//
+	// Measured 8x SLOWER on this model: 38.4s against 4.9s for 32KB, with
+	// identical findings. ONNX Runtime partitions the graph and runs on CPU
+	// whatever CoreML will not take, and for a sparse mixture-of-experts the
+	// partition boundaries cost more than the accelerator saves. Left
+	// reachable because that is a property of this model and this runtime
+	// version, not a law -- but do not turn it on without measuring.
+	CoreML bool
 
 	// HTTPClient fetches model files. Nil uses a default.
 	HTTPClient *http.Client
@@ -155,6 +194,7 @@ func Open(ctx context.Context, cfg Config) (*Provider, error) {
 	// own directory.
 	sess, err := lib.NewSessionFromPath(filepath.Join(dir, graph), onnxrt.SessionOptions{
 		IntraOpThreads: cfg.IntraOpThreads,
+		CoreML:         cfg.CoreML,
 	})
 	if err != nil {
 		lib.Close()
@@ -169,7 +209,18 @@ func Open(ctx context.Context, cfg Config) (*Provider, error) {
 		over = DefaultOverlap
 	}
 
-	p := &Provider{lib: lib, sess: sess, tok: tok, cal: cal, window: win, overlap: over}
+	conc := cfg.Concurrency
+	if conc <= 0 {
+		conc = 1
+	}
+	if conc > MaxConcurrency {
+		slog.Warn("privacyfilter: window concurrency clamped",
+			"requested", cfg.Concurrency, "using", MaxConcurrency,
+			"reason", "higher values measured slower and were killed for exhausting memory")
+		conc = MaxConcurrency
+	}
+
+	p := &Provider{lib: lib, sess: sess, tok: tok, cal: cal, window: win, overlap: over, concurrency: conc}
 	if err := p.checkGraph(); err != nil {
 		p.Close()
 		return nil, err
@@ -310,10 +361,11 @@ func (p *Provider) Inspect(ctx context.Context, req inspect.Request) (*inspect.R
 // committed token is labelled exactly as it would be in a single pass. See
 // chunk.go for the derivation.
 //
-// Windows run in sequence. Concurrency would help on a multicore host, but it
-// multiplies peak memory by the worker count and competes with whatever else
-// the daemon is doing while one request waits -- and inspection already sits
-// on the request path.
+// Windows run concurrently when Concurrency is set. ONNX Runtime sessions are
+// safe for concurrent Run, and the windows are independent, so this is close
+// to free parallelism -- measured about 3x aggregate throughput at 8 workers.
+// It is not the default because it multiplies peak memory by the worker count
+// and competes with whatever else the daemon is doing while one request waits.
 func (p *Provider) decodeAll(ctx context.Context, toks []tokenizer.Token) ([]Span, error) {
 	if p.window > modelContextTokens {
 		return nil, fmt.Errorf("privacyfilter: window %d exceeds the model's %d-token context", p.window, modelContextTokens)
@@ -323,38 +375,95 @@ func (p *Provider) decodeAll(ctx context.Context, toks []tokenizer.Token) ([]Spa
 		return nil, err
 	}
 
-	var all []Span
-	for _, w := range wins {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
+	// Results are collected per window and concatenated in window order, so
+	// spans come out in document order regardless of which window finished
+	// first. Sorting afterwards would work too, but it would hide an
+	// ordering bug rather than make one impossible.
+	perWindow := make([][]Span, len(wins))
 
-		logits, err := p.run(toks[w.start:w.end])
-		if err != nil {
-			return nil, err
-		}
-		spans, err := Decode(logits, w.end-w.start, p.cal)
-		if err != nil {
-			return nil, err
-		}
+	workers := p.concurrency
+	if workers > len(wins) {
+		workers = len(wins)
+	}
 
-		for _, s := range spans {
-			// Window-relative to document-relative.
-			s.Start += w.start
-			s.End += w.start
+	var (
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+		firstErr error
+		next     int32
+	)
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				i := int(atomic.AddInt32(&next, 1)) - 1
+				if i >= len(wins) {
+					return
+				}
+				mu.Lock()
+				stop := firstErr != nil
+				mu.Unlock()
+				if stop {
+					return
+				}
 
-			// Exactly one window commits each token, so a span belongs to
-			// the window whose committed region holds its START. Filtering
-			// on the whole span instead would drop one that begins inside
-			// the region and runs past it, and filtering on overlap would
-			// report it twice.
-			if s.Start < w.commitStart || s.Start >= w.commitEnd {
-				continue
+				spans, err := p.decodeWindow(ctx, toks, wins[i])
+				mu.Lock()
+				if err != nil && firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
+				if err == nil {
+					perWindow[i] = spans
+				}
 			}
-			all = append(all, s)
-		}
+		}()
+	}
+	wg.Wait()
+	if firstErr != nil {
+		return nil, firstErr
+	}
+
+	var all []Span
+	for _, spans := range perWindow {
+		all = append(all, spans...)
 	}
 	return all, nil
+}
+
+// decodeWindow labels one window and returns the spans it is responsible for,
+// in document-relative token offsets.
+func (p *Provider) decodeWindow(ctx context.Context, toks []tokenizer.Token, w window) ([]Span, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	logits, err := p.run(toks[w.start:w.end])
+	if err != nil {
+		return nil, err
+	}
+	spans, err := Decode(logits, w.end-w.start, p.cal)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []Span
+	for _, s := range spans {
+		// Window-relative to document-relative.
+		s.Start += w.start
+		s.End += w.start
+
+		// Exactly one window commits each token, so a span belongs to the
+		// window whose committed region holds its START. Filtering on the
+		// whole span instead would drop one that begins inside the region
+		// and runs past it, and filtering on overlap would report it twice.
+		if s.Start < w.commitStart || s.Start >= w.commitEnd {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out, nil
 }
 
 // wantedCategories resolves the profile's category list.

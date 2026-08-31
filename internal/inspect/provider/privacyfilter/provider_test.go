@@ -367,3 +367,71 @@ func TestInspect_ChunkedSpansAreStillWellFormed(t *testing.T) {
 		prevEnd = f.End
 	}
 }
+
+// TestConcurrency_SameResults is the correctness gate on the parallel window
+// path.
+//
+// Windows finish in whatever order the scheduler picks, so the risk is
+// findings that come back reordered, duplicated or dropped depending on
+// timing — a bug that passes most runs. Results are collected per window and
+// concatenated in window order rather than sorted afterwards, which is what
+// makes ordering deterministic; this asserts it against the sequential run
+// across three worker counts.
+func TestConcurrency_SameResults(t *testing.T) {
+	text := piiCorpus(60)
+
+	seq := openConcurrent(t, 1)
+	want, err := seq.Inspect(context.Background(), request(text))
+	if err != nil {
+		t.Fatalf("sequential Inspect: %v", err)
+	}
+	if len(want.Findings) == 0 {
+		t.Fatal("the corpus produced no findings; the comparison would be vacuous")
+	}
+
+	for _, conc := range []int{2, 3, 4} {
+		t.Run(fmt.Sprintf("concurrency=%d", conc), func(t *testing.T) {
+			p := openConcurrent(t, conc)
+			got, err := p.Inspect(context.Background(), request(text))
+			if err != nil {
+				t.Fatalf("Inspect: %v", err)
+			}
+			assertSameFindings(t, got.Findings, want.Findings, text)
+		})
+	}
+}
+
+// TestConcurrency_IsClamped. Each worker holds its own activations for a
+// 917MB model, and twelve workers were killed by the OS during measurement.
+// An over-large config value must be clamped, not honoured.
+func TestConcurrency_IsClamped(t *testing.T) {
+	p := openConcurrent(t, 512)
+	// The clamp is internal, so this asserts the observable consequence:
+	// the provider still works rather than exhausting memory.
+	resp, err := p.Inspect(context.Background(), request(piiCorpus(20)))
+	if err != nil {
+		t.Fatalf("a huge concurrency value was not clamped: %v", err)
+	}
+	if len(resp.Findings) == 0 {
+		t.Error("no findings after clamping")
+	}
+}
+
+func openConcurrent(t *testing.T, conc int) *privacyfilter.Provider {
+	t.Helper()
+	cache := os.Getenv(CacheEnv)
+	if cache == "" {
+		t.Skipf("set %s to a directory holding the model to run this", CacheEnv)
+	}
+	if _, err := onnxrt.FindLibrary(); err != nil {
+		t.Skipf("no ONNX Runtime: %v", err)
+	}
+	p, err := privacyfilter.Open(context.Background(), privacyfilter.Config{
+		CacheDir: cache, IntraOpThreads: 4, Window: 1024, Overlap: 128, Concurrency: conc,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(p.Close)
+	return p
+}
