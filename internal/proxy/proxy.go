@@ -390,6 +390,15 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.ContentLength = int64(len(reqBody))
 	}
 
+	// Resolve the upstream BEFORE running hooks.
+	//
+	// A hook deciding policy on a destination has to see the destination the
+	// request is actually bound for. The agent talks to this proxy on
+	// 127.0.0.1, so r.Host is the proxy's own listen address -- a network
+	// rule naming api.anthropic.com would never match, and the rule would
+	// look like it was working while enforcing nothing.
+	upstream := p.getUpstreamForRequest(r, dialect)
+
 	// reqCtx is declared here so the ModifyResponse closure captures it.
 	var reqCtx *RequestContext
 
@@ -401,6 +410,9 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ServiceName: "",
 			StartTime:   startTime,
 			Attrs:       make(map[string]any),
+		}
+		if upstream != nil {
+			reqCtx.Attrs[AttrUpstreamURL] = upstream
 		}
 		if err := p.hookRegistry.ApplyPreHooks("", r, reqCtx); err != nil {
 			var abortErr *HookAbortError
@@ -426,9 +438,6 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-
-	// Get upstream URL (may route to ChatGPT for OAuth tokens)
-	upstream := p.getUpstreamForRequest(r, dialect)
 
 	// Rewrite request for upstream
 	outReq, err := p.rewriter.Rewrite(r, dialect, upstream)

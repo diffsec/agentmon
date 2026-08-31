@@ -10,6 +10,12 @@ import (
 	"github.com/diffsec/agentmon/pkg/types"
 )
 
+// RedactingChecker is optionally implemented by inspectors that accept a
+// caller-supplied redaction strategy. *Checker implements it.
+type RedactingChecker interface {
+	InspectWith(ctx context.Context, req policy.InspectRequest, r Redactor) (policy.InspectVerdict, error)
+}
+
 // Result is the outcome of resolving an inspect-bearing decision.
 type Result struct {
 	// Decision is the resolved decision. Its EffectiveDecision is now
@@ -40,7 +46,12 @@ type Result struct {
 //
 // A decision with no inspection spec is returned untouched, so callers can
 // funnel every decision through Resolve without first testing for one.
-func Resolve(ctx context.Context, checker policy.InspectChecker, dec policy.Decision, kind, content string) Result {
+func Resolve(ctx context.Context, checker policy.InspectChecker, dec policy.Decision, kind, content string, opts ...Option) Result {
+	var o options
+	for _, fn := range opts {
+		fn(&o)
+	}
+
 	info := dec.Inspect
 	if info == nil {
 		return Result{Decision: dec, Content: content}
@@ -60,11 +71,22 @@ func Resolve(ctx context.Context, checker policy.InspectChecker, dec policy.Deci
 		defer cancel()
 	}
 
-	verdict, err := checker.Inspect(ctx, policy.InspectRequest{
+	req := policy.InspectRequest{
 		Profiles: info.Profiles,
 		Kind:     kind,
 		Content:  content,
-	})
+	}
+
+	var verdict policy.InspectVerdict
+	var err error
+	// A caller that supplied a redactor gets it used only if the checker can
+	// take one. Falling back silently is right: the placeholder still
+	// redacts, so the rule is still enforced -- it just loses reversibility.
+	if rc, ok := checker.(RedactingChecker); ok && o.redactor != nil {
+		verdict, err = rc.InspectWith(ctx, req, o.redactor)
+	} else {
+		verdict, err = checker.Inspect(ctx, req)
+	}
 	if err != nil {
 		return failure(dec, content, info, err)
 	}

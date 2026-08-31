@@ -296,6 +296,36 @@ since both were computed over the original bytes. A `deny` returns 403 with a
 message naming the rule and the categories found — never the matched text,
 because that message lands in the agent's own transcript.
 
+**Rules match the resolved upstream, not the proxy.** The agent is configured
+to talk to this proxy on `127.0.0.1`, so the request's `Host` is the proxy's
+own listen address. A rule naming `api.anthropic.com` matches because the
+proxy records the destination it resolved from the dialect before hooks run
+(`AttrUpstreamURL`).
+
+### Reversible redaction
+
+What `redact` writes depends on `dlp.mode`, reusing that knob rather than
+adding another, because the semantics already match.
+
+With `dlp.mode: tokenize`, a finding is replaced by a reversible `TOK_<hex>`
+pseudonym from the proxy's DLP token store, and the response detokenizer puts
+the real value back before the agent sees it. The model never sees the value;
+everything downstream still works.
+
+In any other mode the replacement is `[REDACTED:<category>]`. That is safe —
+it retains nothing — but it destroys the value for everything downstream, not
+just for the model: the reply comes back about an address that no longer
+exists anywhere.
+
+Both paths mint from the **same** token store the regex DLP patterns use. One
+value gets one token whether a pattern or an inspection profile found it, and
+one `Detokenize` pass reverses both. Two stores would mean a value found by
+both got two tokens and the response detokenizer would only know one.
+
+The store holds originals in memory for the life of the session. That is the
+exposure `dlp.mode: tokenize` already accepts, which is why tokenization is
+opt-in and the placeholder is the default.
+
 ### What the hook does not do
 
 It resolves inspect specs and nothing else. A plain `decision: deny` network

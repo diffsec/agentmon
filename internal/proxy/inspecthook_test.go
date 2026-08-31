@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -392,6 +393,40 @@ func TestInspectHook_UnmatchedHostFallsThrough(t *testing.T) {
 	}
 }
 
+// TestRequestDestination_PrefersTheResolvedUpstream is the regression test
+// for a real defect: the hook was deciding policy on r.Host, which for this
+// proxy is its own 127.0.0.1 listen address, not where the request is bound.
+//
+// A rule naming api.anthropic.com therefore never matched in production. It
+// looked like it was working — no error, no warning, requests flowing — while
+// enforcing nothing. Caught by an end-to-end test, not by the unit tests that
+// built the request by hand with the destination already in the URL.
+func TestRequestDestination_PrefersTheResolvedUpstream(t *testing.T) {
+	r := httptest.NewRequest("POST", "/v1/messages", nil)
+	r.Host = "127.0.0.1:53211" // the proxy's own listen address
+	r.URL.Scheme = ""
+	r.URL.Host = ""
+
+	upstream, err := url.Parse("https://api.anthropic.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &RequestContext{Attrs: map[string]any{AttrUpstreamURL: upstream}}
+
+	host, port := requestDestination(r, ctx)
+	if host != "api.anthropic.com" {
+		t.Errorf("host = %q, want the upstream; policy would be decided against the proxy itself", host)
+	}
+	if port != 443 {
+		t.Errorf("port = %d, want 443", port)
+	}
+
+	// With no upstream recorded, the Host header is the only thing left.
+	if host, _ := requestDestination(r, &RequestContext{Attrs: map[string]any{}}); host != "127.0.0.1" {
+		t.Errorf("fallback host = %q, want 127.0.0.1", host)
+	}
+}
+
 func TestRequestDestination(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -440,7 +475,7 @@ func TestRequestDestination(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			host, port := requestDestination(c.build())
+			host, port := requestDestination(c.build(), nil)
 			if host != c.wantHost || port != c.wantPort {
 				t.Errorf("got (%q, %d), want (%q, %d)", host, port, c.wantHost, c.wantPort)
 			}

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -64,7 +65,15 @@ type InspectHook struct {
 	resolve InspectContextFunc
 	maxBody int64
 	logger  *slog.Logger
+
+	// dlp supplies the redaction strategy. Nil falls back to the
+	// placeholder, which is safe but destroys the value downstream.
+	dlp *DLPProcessor
 }
+
+// SetDLP installs the DLP processor whose token store backs reversible
+// redaction. Without it, on_violation: redact writes a placeholder.
+func (h *InspectHook) SetDLP(dp *DLPProcessor) { h.dlp = dp }
 
 // NewInspectHook returns a hook that inspects request bodies. A zero or
 // negative maxBody uses DefaultInspectMaxBodyBytes.
@@ -96,7 +105,7 @@ func (h *InspectHook) PreHook(r *http.Request, ctx *RequestContext) error {
 		return nil
 	}
 
-	host, port := requestDestination(r)
+	host, port := requestDestination(r, ctx)
 	dec := eng.CheckNetwork(host, port)
 	if dec.Inspect == nil {
 		return nil
@@ -107,7 +116,8 @@ func (h *InspectHook) PreHook(r *http.Request, ctx *RequestContext) error {
 		return h.act(inspect.Fail(dec, "", err), r, ctx, host)
 	}
 
-	res := inspect.Resolve(r.Context(), checker, dec, inspect.KindProxyBody, string(body))
+	res := inspect.Resolve(r.Context(), checker, dec, inspect.KindProxyBody, string(body),
+		inspect.WithRedactor(redactorFor(h.dlp)))
 	return h.act(res, r, ctx, host)
 }
 
@@ -237,10 +247,20 @@ func (h *InspectHook) replaceBody(r *http.Request, body []byte) {
 
 // requestDestination extracts the host and port a request is bound for.
 //
-// A forward-proxy request carries an absolute URL; a direct one carries only
-// the Host header. Port falls back to the scheme default, because a network
-// rule listing `ports: [443]` must still match a URL written without one.
-func requestDestination(r *http.Request) (string, int) {
+// The resolved upstream comes first, because that is the destination a
+// network rule is written about. The agent talks to this proxy on 127.0.0.1,
+// so r.Host is the proxy's own listen address -- matching on it would mean a
+// rule naming api.anthropic.com never fires while looking like it works.
+//
+// Port falls back to the scheme default, because a network rule listing
+// `ports: [443]` must still match a URL written without one.
+func requestDestination(r *http.Request, ctx *RequestContext) (string, int) {
+	if ctx != nil {
+		if u, ok := ctx.Attrs[AttrUpstreamURL].(*url.URL); ok && u != nil && u.Host != "" {
+			return splitHostPort(u.Host, u.Scheme)
+		}
+	}
+
 	host := r.Host
 	if r.URL != nil && r.URL.Host != "" {
 		host = r.URL.Host
@@ -254,6 +274,10 @@ func requestDestination(r *http.Request) (string, int) {
 		scheme = r.URL.Scheme
 	}
 
+	return splitHostPort(host, scheme)
+}
+
+func splitHostPort(host, scheme string) (string, int) {
 	if h, p, err := net.SplitHostPort(host); err == nil {
 		if port, convErr := strconv.Atoi(p); convErr == nil {
 			return strings.ToLower(h), port

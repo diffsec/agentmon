@@ -40,6 +40,15 @@ type RequestContext struct {
 	Attrs map[string]any
 }
 
+// AttrUpstreamURL is the Attrs key under which the proxy stores the resolved
+// upstream *url.URL for the request.
+//
+// It exists because r.Host is the proxy's own listen address: the agent is
+// configured to talk to 127.0.0.1, and the real destination is resolved from
+// the dialect. A hook making a policy decision about where a request is going
+// must use this, not the request's Host.
+const AttrUpstreamURL = "proxy.upstream_url"
+
 // Hook is an extension point registered with the proxy. Hooks are keyed
 // by service name and invoked for every request routed to that service.
 // A hook registered under the empty service name runs for every request

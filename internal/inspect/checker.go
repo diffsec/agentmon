@@ -107,6 +107,15 @@ func (c *Checker) Missing(profiles []string) []string {
 // content that was inspected and found clean; Resolve routes the error to the
 // rule's on_failure, which defaults to fail_closed.
 func (c *Checker) Inspect(ctx context.Context, req policy.InspectRequest) (policy.InspectVerdict, error) {
+	return c.InspectWith(ctx, req, nil)
+}
+
+// InspectWith is Inspect with a caller-supplied redaction strategy. A nil
+// redactor uses PlaceholderRedactor. It satisfies RedactingChecker, which is
+// how Resolve passes a caller's redactor down without widening
+// policy.InspectChecker -- that interface stays narrow so the policy package
+// keeps no dependency on this one.
+func (c *Checker) InspectWith(ctx context.Context, req policy.InspectRequest, redactor Redactor) (policy.InspectVerdict, error) {
 	if len(req.Profiles) == 0 {
 		return policy.InspectVerdict{}, errors.New("inspect: no profiles named")
 	}
@@ -201,7 +210,7 @@ func (c *Checker) Inspect(ctx context.Context, req policy.InspectRequest) (polic
 		Violation: true,
 		Profile:   findings[0].Profile,
 		Detail:    summarise(findings),
-		Redacted:  redact(req.Content, findings),
+		Redacted:  redact(req.Content, findings, redactor),
 	}, nil
 }
 
@@ -245,7 +254,10 @@ func summarise(findings []Finding) string {
 // belongs to the DLP wire point, which already has a token store that can
 // detokenise a response (internal/proxy/dlp.go); doing it here would create a
 // second, unrelated token space.
-func redact(content string, findings []Finding) string {
+func redact(content string, findings []Finding, redactor Redactor) string {
+	if redactor == nil {
+		redactor = PlaceholderRedactor{}
+	}
 	type span struct {
 		start, end int
 		category   string
@@ -282,9 +294,7 @@ func redact(content string, findings []Finding) string {
 			s.start = last
 		}
 		b.WriteString(content[last:s.start])
-		b.WriteString("[REDACTED:")
-		b.WriteString(s.category)
-		b.WriteString("]")
+		b.WriteString(redactor.Replace(s.category, content[s.start:s.end]))
 		last = s.end
 	}
 	b.WriteString(content[last:])
