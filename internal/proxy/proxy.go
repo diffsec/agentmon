@@ -453,6 +453,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			p.logResponseDirect(requestID, sessionID, dialect, resp, body, startTime)
 		},
 	)
+	sseTransport.SetDLP(p.dlp)
 
 	// Configure real-time MCP interception if any control is active.
 	if reg := p.getRegistry(); reg != nil && p.hasInterception() {
@@ -521,6 +522,22 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 				if result.HasBlocked && result.RewrittenBody != nil {
 					respBody = result.RewrittenBody
+				}
+			}
+
+			// Reverse DLP tokenization before the body reaches the agent.
+			//
+			// Without this, dlp.mode: tokenize is a one-way door: the request
+			// goes upstream with TOK_<hex> in place of each value, and the
+			// response comes back referring to tokens the agent has no way to
+			// resolve. Detokenize existed for this and had no callers
+			// anywhere in the tree.
+			//
+			// It runs last, after post-hooks and MCP interception, so those
+			// see the same tokenized text the model did.
+			if p.dlp != nil {
+				if detok := p.dlp.Detokenize(string(respBody)); detok != string(respBody) {
+					respBody = []byte(detok)
 				}
 			}
 

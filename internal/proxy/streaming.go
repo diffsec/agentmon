@@ -87,16 +87,19 @@ type sseProxyTransport struct {
 	// Optional MCP interception fields. When registry and policy are both
 	// non-nil, SSE streams are processed through an SSEInterceptor instead
 	// of io.Copy, enabling real-time tool call blocking.
-	registry  *mcpregistry.Registry
-	policy    *mcpinspect.PolicyEvaluator
-	analyzer  *mcpinspect.SessionAnalyzer
-	dialect   Dialect
-	sessionID string
-	requestID string
+	registry      *mcpregistry.Registry
+	policy        *mcpinspect.PolicyEvaluator
+	analyzer      *mcpinspect.SessionAnalyzer
+	dialect       Dialect
+	sessionID     string
+	requestID     string
 	onEvent       func(mcpinspect.MCPToolCallInterceptedEvent)
 	logger        *slog.Logger
 	rateLimiter   *mcpinspect.RateLimiterRegistry
 	versionPinCfg *config.MCPVersionPinningConfig
+	// dlp reverses tokenization on the way to the client. Nil is safe:
+	// DetokenizeReader returns the reader unwrapped.
+	dlp *DLPProcessor
 }
 
 func newSSEProxyTransport(base http.RoundTripper, w http.ResponseWriter, onComplete func(resp *http.Response, body []byte)) *sseProxyTransport {
@@ -109,6 +112,10 @@ func newSSEProxyTransport(base http.RoundTripper, w http.ResponseWriter, onCompl
 		onComplete: onComplete,
 	}
 }
+
+// SetDLP installs the DLP processor used to reverse tokenization on the
+// streamed response.
+func (t *sseProxyTransport) SetDLP(dp *DLPProcessor) { t.dlp = dp }
 
 // SetInterceptor configures the transport for real-time MCP tool call
 // interception. When both registry and policy are non-nil, SSE streams
@@ -160,6 +167,19 @@ func (t *sseProxyTransport) RoundTrip(req *http.Request) (*http.Response, error)
 		}
 		sw.WriteHeader(resp.StatusCode)
 
+		// Reverse DLP tokenization on the way to the client.
+		//
+		// SSE never reaches ModifyResponse -- RoundTrip streams here and
+		// returns errSSEHandled -- so the non-streaming detokenize in
+		// proxy.go does not cover it. Since LLM responses are usually
+		// streamed, fixing only that path would leave tokenize mode broken
+		// for the common case.
+		//
+		// Wrapping the source rather than the writer means the MCP
+		// interceptor below evaluates the real values too, not TOK_<hex>
+		// strings it cannot match a rule against.
+		body := t.dlp.DetokenizeReader(resp.Body)
+
 		// Stream body to client — with MCP interception if configured
 		var bufferedBody []byte
 		if t.registry != nil && (t.policy != nil || t.rateLimiter != nil || t.versionPinCfg != nil) {
@@ -168,10 +188,10 @@ func (t *sseProxyTransport) RoundTrip(req *http.Request) (*http.Response, error)
 				t.sessionID, t.requestID, t.onEvent, t.logger,
 				t.analyzer, t.rateLimiter, t.versionPinCfg,
 			)
-			bufferedBody = interceptor.Stream(resp.Body, sw)
+			bufferedBody = interceptor.Stream(body, sw)
 		} else {
 			// Fast path: no MCP policy — direct io.Copy
-			_, copyErr := io.Copy(sw, resp.Body)
+			_, copyErr := io.Copy(sw, body)
 			if copyErr != nil {
 				resp.Body.Close()
 				return nil, copyErr
