@@ -1,6 +1,7 @@
 package mcpinspect
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 )
@@ -180,7 +181,7 @@ func TestInspector_HandleToolsCall_EmitsEvent(t *testing.T) {
 		}
 	}`)
 
-	_, err := inspector.Inspect(data, DirectionRequest)
+	_, err := inspector.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("Inspect returned error: %v", err)
 	}
@@ -247,7 +248,7 @@ func TestInspector_HandleToolsCall_NoArgsEmitsEvent(t *testing.T) {
 		}
 	}`)
 
-	_, err := inspector.Inspect(data, DirectionRequest)
+	_, err := inspector.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("Inspect returned error: %v", err)
 	}
@@ -289,7 +290,7 @@ func TestInspector_HandleToolsCall_StringID(t *testing.T) {
 		}
 	}`)
 
-	_, err := inspector.Inspect(data, DirectionRequest)
+	_, err := inspector.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("Inspect returned error: %v", err)
 	}
@@ -361,7 +362,7 @@ func TestToolsCall_CleanArgs_NoDetections(t *testing.T) {
 		}
 	}`)
 
-	_, err := inspector.Inspect(data, DirectionRequest)
+	_, err := inspector.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("Inspect returned error: %v", err)
 	}
@@ -397,7 +398,7 @@ func TestToolsCall_PathTraversal_Detected(t *testing.T) {
 		}
 	}`)
 
-	_, err := inspector.Inspect(data, DirectionRequest)
+	_, err := inspector.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("Inspect returned error: %v", err)
 	}
@@ -443,7 +444,7 @@ func TestToolsCall_CommandInjection_Detected(t *testing.T) {
 		}
 	}`)
 
-	_, err := inspector.Inspect(data, DirectionRequest)
+	_, err := inspector.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("Inspect returned error: %v", err)
 	}
@@ -484,7 +485,7 @@ func TestToolsCall_CredentialTheft_CriticalSeverity(t *testing.T) {
 		}
 	}`)
 
-	_, err := inspector.Inspect(data, DirectionRequest)
+	_, err := inspector.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("Inspect returned error: %v", err)
 	}
@@ -530,7 +531,7 @@ func TestToolsCall_NoDetector_NoDetections(t *testing.T) {
 		}
 	}`)
 
-	_, err := inspector.Inspect(data, DirectionRequest)
+	_, err := inspector.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("Inspect returned error: %v", err)
 	}
@@ -562,7 +563,7 @@ func TestToolsCall_DetectionField_IsArguments(t *testing.T) {
 		}
 	}`)
 
-	_, err := inspector.Inspect(data, DirectionRequest)
+	_, err := inspector.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("Inspect returned error: %v", err)
 	}
@@ -596,7 +597,7 @@ func TestToolsCall_NoArgs_NoDetections_WithDetector(t *testing.T) {
 		}
 	}`)
 
-	_, err := inspector.Inspect(data, DirectionRequest)
+	_, err := inspector.Inspect(context.Background(), data, DirectionRequest)
 	if err != nil {
 		t.Fatalf("Inspect returned error: %v", err)
 	}

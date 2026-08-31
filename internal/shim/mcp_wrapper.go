@@ -3,6 +3,7 @@ package shim
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,16 +30,20 @@ func (d MCPDirection) String() string {
 }
 
 // MCPInspector is called for each message passing through the wrapper.
-// Returns true if the message should be blocked (not forwarded).
-type MCPInspector func(data []byte, dir MCPDirection) bool
+//
+// It returns the message to forward and whether to block. A nil rewrite
+// forwards the original bytes; a non-nil one replaces them, which is how
+// content inspection redacts a tool argument in flight. block takes
+// precedence: a blocked message is never forwarded, rewritten or not.
+type MCPInspector func(data []byte, dir MCPDirection) (rewritten []byte, block bool)
 
 // ForwardWithInspection copies data from src to dst while calling inspector
-// for each line (JSON-RPC message). If the inspector returns true (blocked),
-// a JSON-RPC error response is written so the caller does not hang waiting
-// for a reply that never arrives. For blocked requests, the error is sent to
-// replyWriter (the client); for blocked responses, it replaces the original
-// in dst. If replyWriter is nil, blocked requests are dropped silently
-// (backward compatible). Returns when src is exhausted.
+// for each line (JSON-RPC message). If the inspector blocks, a JSON-RPC error
+// response is written so the caller does not hang waiting for a reply that
+// never arrives. For blocked requests, the error is sent to replyWriter (the
+// client); for blocked responses, it replaces the original in dst. If
+// replyWriter is nil, blocked requests are dropped silently. Returns when src
+// is exhausted.
 func ForwardWithInspection(src io.Reader, dst io.Writer, dir MCPDirection, inspector MCPInspector, replyWriter io.Writer) error {
 	scanner := bufio.NewScanner(src)
 	// Increase buffer size for large messages
@@ -50,9 +55,25 @@ func ForwardWithInspection(src io.Reader, dst io.Writer, dir MCPDirection, inspe
 
 		// Inspect and check if blocked
 		if inspector != nil && len(line) > 0 {
-			if inspector(line, dir) {
+			rewritten, block := inspector(line, dir)
+			if block {
 				writeBlockError(line, dir, dst, replyWriter)
 				continue
+			}
+			if rewritten != nil {
+				// The framing here is one JSON-RPC message per line, so a
+				// rewrite carrying a newline would split one message into
+				// two. json.Marshal escapes newlines inside strings and
+				// emits none between tokens, so this is unreachable through
+				// the redaction path -- and if some other rewrite ever
+				// reaches it, blocking is the only safe answer. Falling back
+				// to the original would forward exactly the content a rule
+				// asked to have redacted.
+				if bytes.ContainsAny(rewritten, "\n\r") {
+					writeBlockError(line, dir, dst, replyWriter)
+					continue
+				}
+				line = rewritten
 			}
 		}
 

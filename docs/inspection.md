@@ -475,6 +475,98 @@ exists in `internal/db/proxy/postgres/approvalwait.go`, which runs the
 approver in a goroutine with its own timeout and maps outcomes to
 `approval_denied` / `approval_timeout` / `cancelled_during_approval`.
 
+## Wire point: MCP tool arguments
+
+An agent putting a credential or a customer record into a tool argument is one
+of the few places sensitive content leaves the box under the agent's own
+control. `internal/mcpinspect` has scanned those arguments since before
+inspection existed, but only to annotate the event — `handleToolsCall`
+deliberately never blocked. It can now.
+
+Which calls are inspected is a new rule kind:
+
+```yaml
+mcp_inspect_rules:
+  - name: inspect-fetch-args
+    servers: ["web*"]        # glob; omit to match every server
+    tools: ["web_fetch"]     # glob; omit to match every tool
+    decision: inspect
+    inspect:
+      profiles: [pii]
+      on_violation: redact
+      on_failure: fail_closed
+      timeout: 3s
+```
+
+`Engine.CheckMCPTool(server, tool)` matches these and returns the usual
+inspect-bearing decision: `EffectiveDecision` is deny until a caller holding
+the arguments resolves it through `inspect.Resolve` with
+`inspect.KindMCPArgs`. The first matching rule wins, and both selectors are
+matched case-insensitively, which is what `mcpinspect`'s own rule matcher
+already does (`internal/mcpinspect/policy.go`, `matchesPattern`).
+
+### Why this rule kind falls through to allow
+
+Every other `Check*` in the engine ends in a default deny. `CheckMCPTool` ends
+in allow, and that is deliberate.
+
+`mcp_inspect_rules` select what is inspected. They do not decide whether a
+tool may be called at all — that is `mcp_rules` / `sandbox.mcp`, evaluated by
+`mcpinspect.PolicyEvaluator`, which already fails closed on its own under
+`tool_policy: allowlist`. A default deny here would mean an operator who adds
+a single inspection rule silently blocks every tool call the rule does not
+name, in a deployment where MCP was working a moment earlier.
+
+The obvious way to misread that fall-through is as an allowlist that leaks, so
+`Validate()` rejects every decision but `inspect` on this rule kind. You cannot
+write `decision: allow` there, which means you cannot write the block as an
+allowlist in the first place.
+
+### Redaction rewrites the call in flight
+
+`on_violation: redact` replaces `params.arguments` and forwards the call, so
+the tool still runs without the value. The rewrite goes through
+`map[string]json.RawMessage`, so any field this package does not model — an
+MCP extension, a `_meta` block — survives byte-identical.
+
+Redaction operates on the arguments as raw JSON text, so the result can stop
+being JSON: a span labelled across a `","` boundary, or a replacement carrying
+a quote. `replaceToolArguments` parses the result back and the call is
+**blocked** when it does not survive. Forwarding it would corrupt the request
+in a way the server reports as the agent's fault; forwarding the original
+would send exactly the content the rule flagged.
+
+A `tools/call` with no arguments resolves clean rather than through
+`on_failure`. There is no content, so the rule was satisfied vacuously —
+routing it to `on_failure` would deny every zero-argument call under a
+`fail_closed` rule, which is most of them.
+
+`approve` blocks here for the same reason it blocks on the proxy path: the
+stdio wrapper forwards or refuses one JSON-RPC line and has nobody to ask.
+
+### The audit event
+
+`mcp_tool_called` is persisted and streamed to clients
+(`internal/api/mcp_event.go`), and it has always carried the tool's arguments.
+Inspection changes what belongs there. A blocked call's arguments are exactly
+what the rule flagged, and a call blocked on a *failure* was never classified
+at all, so both drop `input` and keep only `detections`, `inspect_detail` and
+`reason`. A redacted call records the redacted arguments, not the originals —
+storing the originals would put the value in an event stream at the moment a
+rule asked for it to be taken out of the request. A clean or unmatched call is
+unchanged.
+
+### What is not wired yet
+
+`ArgInspection` has to be installed on the `Inspector` by whatever builds it.
+`shim.BuildMCPExecWrapper` builds one, and **has no production caller** — the
+stdio MCP interception path is reachable only from its own tests today. The
+live MCP path is the LLM proxy's tool-call interception
+(`internal/proxy/mcp_intercept.go`, wired at `internal/api/app.go:733`), which
+extracts `tool_use` blocks from model responses and already blocks and rewrites
+them. Putting argument inspection on that path is the next piece of work; the
+grammar and `CheckMCPTool` above are shared by both.
+
 ## Decision whitelist
 
 Adding `inspect` also closed a hole. `Policy.Validate()` did not check decision
@@ -490,3 +582,5 @@ programmatically with the field unset.
 
 `signal_rules` are deliberately excluded: they have their own vocabulary,
 including `absorb`, and their own engine under `internal/signal`.
+
+`mcp_inspect_rules` accept `inspect` and nothing else, for the reason above.

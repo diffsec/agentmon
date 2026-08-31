@@ -79,6 +79,17 @@ type MCPToolCalledEvent struct {
 	// Detection results from argument scanning
 	Detections  []DetectionResult `json:"detections,omitempty"`
 	MaxSeverity string            `json:"max_severity,omitempty"`
+
+	// Content inspection of the arguments, when an mcp_inspect_rules rule
+	// matched the call. Action is allow, redact or block. InspectDetail
+	// names the categories found and never the matched text: this event is
+	// persisted and streamed to clients, and the matched text is what
+	// inspection exists to contain.
+	Action        string `json:"action,omitempty"`
+	Reason        string `json:"reason,omitempty"`
+	InspectRule   string `json:"inspect_rule,omitempty"`
+	InspectDetail string `json:"inspect_detail,omitempty"`
+	InspectError  string `json:"inspect_error,omitempty"`
 }
 
 // MCPToolResultInspectedEvent is logged when a tools/call response is inspected.

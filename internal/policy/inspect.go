@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gobwas/glob"
+
 	"github.com/diffsec/agentmon/pkg/types"
 )
 
@@ -178,7 +180,7 @@ func (p Policy) RequiresInspection() bool {
 			return true
 		}
 	}
-	return false
+	return len(p.MCPInspectRules) > 0
 }
 
 // InspectionProfilesUsed returns every profile name any rule refers to, sorted
@@ -202,6 +204,9 @@ func (p Policy) InspectionProfilesUsed() []string {
 		add(r.Inspect)
 	}
 	for _, r := range p.CommandRules {
+		add(r.Inspect)
+	}
+	for _, r := range p.MCPInspectRules {
 		add(r.Inspect)
 	}
 	if len(seen) == 0 {
@@ -288,6 +293,26 @@ func (p Policy) validateInspection() error {
 	for i, r := range p.UnixRules {
 		if err := validateRuleDecision(fmt.Sprintf("unix_socket_rules[%d] (%s)", i, r.Name), r.Decision, nil, profiles, false); err != nil {
 			return err
+		}
+	}
+	for i, r := range p.MCPInspectRules {
+		where := fmt.Sprintf("mcp_inspect_rules[%d] (%s)", i, r.Name)
+		// Only `inspect` is accepted here. Engine.CheckMCPTool falls
+		// through to allow rather than to the default deny every other rule
+		// kind uses, so an operator who could write `decision: allow` would
+		// reasonably read the block as an allowlist -- and every tool the
+		// list did not name would still be allowed. Rejecting the word is
+		// cheaper than documenting the trap.
+		if !strings.EqualFold(strings.TrimSpace(r.Decision), string(types.DecisionInspect)) {
+			return fmt.Errorf("%s: decision must be inspect; mcp_inspect_rules select what is inspected and do not authorise a tool call, which mcp_rules / sandbox.mcp decides", where)
+		}
+		if err := validateRuleDecision(where, r.Decision, r.Inspect, profiles, true); err != nil {
+			return err
+		}
+		for _, pat := range append(append([]string{}, r.Servers...), r.Tools...) {
+			if _, err := glob.Compile(strings.ToLower(pat)); err != nil {
+				return fmt.Errorf("%s: invalid glob %q: %w", where, pat, err)
+			}
 		}
 	}
 	return nil
