@@ -28,7 +28,7 @@ func TestDNSInterceptorPolicyAdjustments(t *testing.T) {
 	approvalsMgr := approvals.New("remote", 1*time.Millisecond, emit)
 	d := &DNSInterceptor{
 		sessionID: "s1",
-		policy:    engine,
+		policy:    staticEngine(engine),
 		approvals: approvalsMgr,
 		emit:      emit,
 		dnsCache:  NewDNSCache(5 * time.Minute),

@@ -23,7 +23,7 @@ type DNSInterceptor struct {
 	sessionID      string
 	sess           *session.Session
 	dnsCache       *DNSCache
-	policy         *policy.Engine
+	policy         EngineFunc
 	approvals      *approvals.Manager
 	emit           Emitter
 	correlationMap *redirect.CorrelationMap
@@ -35,7 +35,7 @@ type DNSInterceptor struct {
 	upstream string
 }
 
-func StartDNS(listenAddr string, upstream string, sessionID string, sess *session.Session, dnsCache *DNSCache, engine *policy.Engine, approvalsMgr *approvals.Manager, emit Emitter, correlationMap *redirect.CorrelationMap) (*DNSInterceptor, int, error) {
+func StartDNS(listenAddr string, upstream string, sessionID string, sess *session.Session, dnsCache *DNSCache, engine EngineFunc, approvalsMgr *approvals.Manager, emit Emitter, correlationMap *redirect.CorrelationMap) (*DNSInterceptor, int, error) {
 	if upstream == "" {
 		upstream = "8.8.8.8:53"
 	}
@@ -103,8 +103,8 @@ func (d *DNSInterceptor) handle(clientAddr net.Addr, query []byte) error {
 	defer cancel()
 
 	// Check for DNS redirect rules first
-	if domain != "" && d.policy != nil {
-		redirectResult := d.policy.EvaluateDnsRedirect(domain)
+	if engine := d.policyEngine(); domain != "" && engine != nil {
+		redirectResult := engine.EvaluateDnsRedirect(domain)
 		if redirectResult.Matched {
 			return d.handleDNSRedirect(ctx, clientAddr, query, domain, commandID, redirectResult)
 		}
@@ -235,11 +235,34 @@ func (d *DNSInterceptor) handleDNSRedirect(ctx context.Context, clientAddr net.A
 	return nil
 }
 
-func (d *DNSInterceptor) policyDecision(ctx context.Context, domain string, port int) policy.Decision {
+// policyEngine resolves the engine for this decision.
+//
+// It prefers the session's own engine, which is what Proxy and TransparentTCP
+// have always done and what DNS did not: a session created through
+// api.createSession gets an engine compiled with its own PROJECT_ROOT and
+// GIT_ROOT, and DNS was reading the process-global one instead. Falling back
+// to the getter is what makes a live App.SwapPolicy visible here.
+func (d *DNSInterceptor) policyEngine() *policy.Engine {
+	if d == nil {
+		return nil
+	}
+	if d.sess != nil {
+		if engine := d.sess.PolicyEngine(); engine != nil {
+			return engine
+		}
+	}
 	if d.policy == nil {
+		return nil
+	}
+	return d.policy()
+}
+
+func (d *DNSInterceptor) policyDecision(ctx context.Context, domain string, port int) policy.Decision {
+	engine := d.policyEngine()
+	if engine == nil {
 		return policy.Decision{PolicyDecision: types.DecisionAllow, EffectiveDecision: types.DecisionAllow}
 	}
-	return d.policy.CheckNetworkCtx(ctx, domain, port)
+	return engine.CheckNetworkCtx(ctx, domain, port)
 }
 
 func (d *DNSInterceptor) maybeApprove(ctx context.Context, commandID string, dec policy.Decision, kind string, target string) policy.Decision {

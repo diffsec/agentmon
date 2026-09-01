@@ -47,12 +47,21 @@ func (a *App) Policy() *policy.Engine {
 // engine-bound resources (none today, but kept for symmetry with the
 // signal-handler integration roadmap).
 //
-// Note: long-lived components that captured the prior engine pointer
-// at construction time (today: the network proxy, transparent TCP
-// interceptor, DNS interceptor) will NOT observe this swap. The
-// command-time CheckCommand / CheckExecve / CheckFile paths that run
-// through a.policyEngineFor DO observe it on the next decision, which
-// is what the demo (curl allowed → curl blocked at exec) depends on.
+// The network proxy, transparent TCP interceptor and DNS interceptor now
+// observe this swap: they take an EngineFunc rather than capturing
+// *policy.Engine at construction, and resolve it per decision. So do the
+// command-time CheckCommand / CheckExecve / CheckFile paths, through
+// a.policyEngineFor.
+//
+// What this does NOT reach is a session holding its own engine. Every
+// session created through createSession gets one, compiled from the policy
+// document with that session's own PROJECT_ROOT and GIT_ROOT (see
+// compileDBPolicyForSession), and both policyEngineFor and the interceptors'
+// policyEngine() prefer it. Replacing the process-global pointer therefore
+// leaves a running session enforcing the policy it started with, on every
+// path. Closing that means recompiling each session's engine from the new
+// document with that session's variables, preserving its Tor coordinator and
+// DB rule set -- separate work, not a wider getter.
 func (a *App) SwapPolicy(eng *policy.Engine) *policy.Engine {
 	a.policyMu.Lock()
 	defer a.policyMu.Unlock()

@@ -103,7 +103,7 @@ func TestProxyEmitDBBypassAttempt(t *testing.T) {
 	capture := &captureDBBypassEmitter{}
 	p := &Proxy{
 		sessionID: "session-db",
-		policy:    newNetmonitorDBUnavoidabilityEngine(t),
+		policy:    staticEngine(newNetmonitorDBUnavoidabilityEngine(t)),
 	}
 	p.SetDBBypassEmitter(dbevents.NewBypassEmitter(capture))
 
@@ -135,7 +135,7 @@ func TestProxyEmitDBBypassAttempt(t *testing.T) {
 
 func TestStartProxyInstallsInitialDBBypassEmitter(t *testing.T) {
 	capture := &captureDBBypassEmitter{}
-	p, _, err := StartProxy("127.0.0.1:0", "session-db", nil, newNetmonitorDBUnavoidabilityEngine(t), nil, &stubEmitter{}, dbevents.NewBypassEmitter(capture))
+	p, _, err := StartProxy("127.0.0.1:0", "session-db", nil, staticEngine(newNetmonitorDBUnavoidabilityEngine(t)), nil, &stubEmitter{}, dbevents.NewBypassEmitter(capture))
 	if err != nil {
 		t.Fatalf("StartProxy: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestProxyUsesSessionPolicyEngineForNetworkChecks(t *testing.T) {
 	}
 	sess.SetPolicyEngine(newNetmonitorDBUnavoidabilityEngine(t))
 
-	p := &Proxy{sessionID: sess.ID, sess: sess, policy: baseEngine}
+	p := &Proxy{sessionID: sess.ID, sess: sess, policy: staticEngine(baseEngine)}
 	got := p.checkNetwork(context.Background(), "db.internal", 5432)
 	if got.EffectiveDecision != types.DecisionDeny || got.Rule != "db-appdb-deny-direct" {
 		t.Fatalf("checkNetwork = %+v, want session-local DB deny", got)
@@ -369,7 +369,7 @@ func TestHandleConnect_UnixRedirectNetConnectFields(t *testing.T) {
 		t.Fatalf("NewEngine: %v", err)
 	}
 	em := &stubEmitter{}
-	p := &Proxy{sessionID: "s", policy: engine, emit: em}
+	p := &Proxy{sessionID: "s", policy: staticEngine(engine), emit: em}
 
 	client, server := net.Pipe()
 	defer client.Close()
@@ -438,7 +438,7 @@ func TestHandleConnect_UnixRedirectBypassesOriginalNetworkDeny(t *testing.T) {
 		t.Fatalf("NewEngine: %v", err)
 	}
 	em := &stubEmitter{}
-	p := &Proxy{sessionID: "s", policy: engine, emit: em}
+	p := &Proxy{sessionID: "s", policy: staticEngine(engine), emit: em}
 
 	client, server := net.Pipe()
 	defer client.Close()
@@ -488,7 +488,7 @@ func TestHandleConnect_UnixRedirectDoesNotBypassDBDenyWithoutRedirectMetadata(t 
 		t.Fatalf("NewEngine: %v", err)
 	}
 	em := &stubEmitter{}
-	p := &Proxy{sessionID: "s", policy: engine, emit: em}
+	p := &Proxy{sessionID: "s", policy: staticEngine(engine), emit: em}
 
 	client, server := net.Pipe()
 	defer client.Close()
@@ -531,7 +531,7 @@ func TestHandleConnect_UnixRedirectDoesNotBypassNonDBNetworkDeny(t *testing.T) {
 		t.Fatalf("NewEngine: %v", err)
 	}
 	em := &stubEmitter{}
-	p := &Proxy{sessionID: "s", policy: engine, emit: em}
+	p := &Proxy{sessionID: "s", policy: staticEngine(engine), emit: em}
 
 	client, server := net.Pipe()
 	defer client.Close()
@@ -565,7 +565,7 @@ func TestHandleConnect_NonRedirectedNetworkDenyReturnsForbidden(t *testing.T) {
 		t.Fatalf("NewEngine: %v", err)
 	}
 	em := &stubEmitter{}
-	p := &Proxy{sessionID: "s", policy: engine, emit: em}
+	p := &Proxy{sessionID: "s", policy: staticEngine(engine), emit: em}
 
 	client, server := net.Pipe()
 	defer client.Close()
@@ -601,7 +601,7 @@ func TestCheckConnectNetwork_DeniedApprovalWithUnixRedirectStaysDenied(t *testin
 	em := &stubEmitter{}
 	p := &Proxy{
 		sessionID: "s",
-		policy:    engine,
+		policy:    staticEngine(engine),
 		approvals: approvals.New("remote", 1*time.Millisecond, em),
 		emit:      em,
 	}
@@ -846,7 +846,7 @@ func TestProxyHandleHTTPOnionRemapsVectorToOnionHTTP(t *testing.T) {
 	sess.SetCurrentProcessPID(4242)
 
 	em := &stubEmitter{}
-	p := &Proxy{sessionID: "tor-session", sess: sess, policy: engine, emit: em}
+	p := &Proxy{sessionID: "tor-session", sess: sess, policy: staticEngine(engine), emit: em}
 
 	// EvalOnionName matches any .onion suffix; use a syntactically valid
 	// v3-style onion host.
@@ -938,7 +938,7 @@ func TestProxyHandleConnect_DBBypassCarriesCommandPID(t *testing.T) {
 	sess.SetCurrentProcessPID(4242)
 
 	capture := &captureDBBypassEmitter{}
-	p := &Proxy{sessionID: "sess-bypass", sess: sess, policy: engine, emit: &stubEmitter{}}
+	p := &Proxy{sessionID: "sess-bypass", sess: sess, policy: staticEngine(engine), emit: &stubEmitter{}}
 	p.SetDBBypassEmitter(dbevents.NewBypassEmitter(capture))
 
 	req := httptest.NewRequest("CONNECT", "127.0.0.1:5432", nil) // authority-form: httptest.NewRequest mangles req.Host for CONNECT if given an http:// URL
@@ -982,7 +982,7 @@ func TestProxyHandleHTTP_DBBypassCarriesCommandPID(t *testing.T) {
 	sess.SetCurrentProcessPID(4242)
 
 	capture := &captureDBBypassEmitter{}
-	p := &Proxy{sessionID: "sess-bypass", sess: sess, policy: engine, emit: &stubEmitter{}}
+	p := &Proxy{sessionID: "sess-bypass", sess: sess, policy: staticEngine(engine), emit: &stubEmitter{}}
 	p.SetDBBypassEmitter(dbevents.NewBypassEmitter(capture))
 
 	req := httptest.NewRequest("GET", "http://127.0.0.1/", nil)
@@ -1015,3 +1015,7 @@ func TestProxyHandleHTTP_DBBypassCarriesCommandPID(t *testing.T) {
 		t.Fatalf("rule_name = %v, want db-appdb-deny-http", ev.Fields["rule_name"])
 	}
 }
+
+// staticEngine adapts a fixed engine to EngineFunc, for tests that are not
+// exercising a live policy swap.
+func staticEngine(e *policy.Engine) EngineFunc { return func() *policy.Engine { return e } }

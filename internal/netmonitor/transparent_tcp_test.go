@@ -41,7 +41,7 @@ func TestTransparentTCPCheckConnectNetwork_DBUnixRedirectBypassesGeneratedDeny(t
 		t.Fatalf("EvaluateConnectRedirect = %+v", redirect)
 	}
 
-	tcp := &TransparentTCP{policy: engine}
+	tcp := &TransparentTCP{policy: staticEngine(engine)}
 	dec := tcp.checkConnectNetwork(context.Background(), "", "db.internal", "db.internal:5432", net.ParseIP("10.0.0.15"), 5432, redirect)
 	if dec.EffectiveDecision != types.DecisionAllow {
 		t.Fatalf("EffectiveDecision = %v, want allow", dec.EffectiveDecision)
@@ -58,7 +58,7 @@ func TestTransparentTCPCheckConnectNetwork_RequiresDBRedirectMetadata(t *testing
 		t.Fatalf("EvaluateConnectRedirect = %+v", redirect)
 	}
 
-	tcp := &TransparentTCP{policy: engine}
+	tcp := &TransparentTCP{policy: staticEngine(engine)}
 	dec := tcp.checkConnectNetwork(context.Background(), "", "db.internal", "db.internal:5432", net.ParseIP("10.0.0.15"), 5432, redirect)
 	if dec.EffectiveDecision != types.DecisionDeny {
 		t.Fatalf("EffectiveDecision = %v, want deny", dec.EffectiveDecision)
@@ -116,7 +116,7 @@ func TestTransparentTCPEmitDBBypassAttempt(t *testing.T) {
 	capture := &captureDBBypassEmitter{}
 	tcp := &TransparentTCP{
 		sessionID: "session-db",
-		policy:    newNetmonitorDBUnavoidabilityEngine(t),
+		policy:    staticEngine(newNetmonitorDBUnavoidabilityEngine(t)),
 	}
 	tcp.SetDBBypassEmitter(dbevents.NewBypassEmitter(capture))
 
@@ -142,7 +142,7 @@ func TestTransparentTCPEmitDBBypassAttempt(t *testing.T) {
 
 func TestStartTransparentTCPInstallsInitialDBBypassEmitter(t *testing.T) {
 	capture := &captureDBBypassEmitter{}
-	tcp, _, err := StartTransparentTCP("127.0.0.1:0", "session-db", nil, nil, newNetmonitorDBUnavoidabilityEngine(t), nil, &stubEmitter{}, dbevents.NewBypassEmitter(capture))
+	tcp, _, err := StartTransparentTCP("127.0.0.1:0", "session-db", nil, nil, staticEngine(newNetmonitorDBUnavoidabilityEngine(t)), nil, &stubEmitter{}, dbevents.NewBypassEmitter(capture))
 	if err != nil {
 		t.Fatalf("StartTransparentTCP: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestTransparentTCPUsesSessionPolicyEngineForNetworkChecks(t *testing.T) {
 	}
 	sess.SetPolicyEngine(newNetmonitorDBUnavoidabilityEngine(t))
 
-	tcp := &TransparentTCP{sessionID: sess.ID, sess: sess, policy: baseEngine}
+	tcp := &TransparentTCP{sessionID: sess.ID, sess: sess, policy: staticEngine(baseEngine)}
 	got := tcp.policyDecision("db.internal", nil, 5432)
 	if got.EffectiveDecision != types.DecisionDeny || got.Rule != "db-appdb-deny-direct" {
 		t.Fatalf("policyDecision = %+v, want session-local DB deny", got)

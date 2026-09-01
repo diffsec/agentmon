@@ -614,7 +614,7 @@ func (a *App) createSession(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) startExplicitProxy(ctx context.Context, s *session.Session) {
 	em := storeEmitter{store: a.store, broker: a.broker}
-	pr, proxyURL, err := netmonitor.StartProxy(a.cfg.Sandbox.Network.ProxyListenAddr, s.ID, s, a.policy, a.approvals, em, a.dbBypass)
+	pr, proxyURL, err := netmonitor.StartProxy(a.cfg.Sandbox.Network.ProxyListenAddr, s.ID, s, a.Policy, a.approvals, em, a.dbBypass)
 	if err != nil {
 		fail := types.Event{
 			ID:        uuid.NewString(),
@@ -792,7 +792,7 @@ func (a *App) tryStartTransparentNetwork(ctx context.Context, s *session.Session
 	dnsCache := netmonitor.NewDNSCache(5 * time.Minute)
 	// Create correlation map for DNS-to-IP mapping (used by connect redirect)
 	correlationMap := redirect.NewCorrelationMap(5 * time.Minute)
-	tcp, tcpPort, err := netmonitor.StartTransparentTCP("0.0.0.0:0", s.ID, s, dnsCache, a.policy, a.approvals, em, a.dbBypass)
+	tcp, tcpPort, err := netmonitor.StartTransparentTCP("0.0.0.0:0", s.ID, s, dnsCache, a.Policy, a.approvals, em, a.dbBypass)
 	if err != nil {
 		return err
 	}
@@ -802,7 +802,7 @@ func (a *App) tryStartTransparentNetwork(ctx context.Context, s *session.Session
 		torRedirectPorts = socksPorts
 		slog.Info("tor onion gateway active for session", "session", s.ID, "upstream", upstream)
 	}
-	dns, dnsPort, err := netmonitor.StartDNS("0.0.0.0:0", "8.8.8.8:53", s.ID, s, dnsCache, a.policy, a.approvals, em, correlationMap)
+	dns, dnsPort, err := netmonitor.StartDNS("0.0.0.0:0", "8.8.8.8:53", s.ID, s, dnsCache, a.Policy, a.approvals, em, correlationMap)
 	if err != nil {
 		_ = tcp.Close()
 		return err

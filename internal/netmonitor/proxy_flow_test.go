@@ -25,7 +25,7 @@ func TestHandleConnectDeniedWrites403(t *testing.T) {
 		t.Fatalf("NewEngine: %v", err)
 	}
 	em := &stubEmitter{}
-	p := &Proxy{sessionID: "s", policy: engine, emit: em}
+	p := &Proxy{sessionID: "s", policy: staticEngine(engine), emit: em}
 
 	client, server := net.Pipe()
 	defer client.Close()
