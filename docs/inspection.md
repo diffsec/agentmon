@@ -245,6 +245,77 @@ A sidecar is **not** a `LocalProvider`, even bound to `127.0.0.1`. Content
 sent to it leaves the process, and nothing in an HTTP URL proves where it
 resolves to, so `privacy.allow_remote` must be on for it to run at all.
 
+### The Shieldstral provider
+
+`type: shieldstral` is the safety half of inspection: it answers
+natural-language yes/no questions about content rather than labelling spans in
+it. That is what `exfil`-style profiles in this document have always referred
+to.
+
+```yaml
+inspection:
+  enabled: true
+  providers:
+    shieldstral:
+      enabled: true
+      type: shieldstral
+      api_key_env: AGENTMON_SHIELDSTRAL_TOKEN   # optional; sent as a bearer token
+      options:
+        base_url: http://127.0.0.1:8000/v1
+        model: mistralai/Shieldstral-1.0-3B
+        concurrency: 4
+  privacy:
+    allow_remote: true      # required: this is not a local provider
+```
+
+**No sidecar is needed.** Shieldstral ships no server, but its whole contract
+is one forward pass returning a single `yes`/`no` token, and vLLM, llama.cpp
+(`llama-server`) and SGLang all serve it behind the OpenAI chat-completions
+API. `max_tokens: 1` with `logprobs` returns exactly that token's candidate
+set, so this provider is an HTTP client and about forty lines of arithmetic.
+
+`options.model` is required. It is what the server routes on, and an empty one
+reaches a server that answers 404 or, worse, picks a default checkpoint that
+is not a safety classifier and returns prose.
+
+**The prompt format is fixed by the model.** A constant system message, then a
+user message of `<Instruct>`, `<Query>` and `<Document>` separated by blank
+lines. Get either wrong and the model still answers, still returns a yes/no
+token, and still produces a confident-looking score — it is just answering a
+different question, and nothing downstream can detect that. Both are pinned by
+`TestShieldstral_PromptMatchesTheModelCard` rather than left to review.
+
+`instruct` is the profile's framing: evaluation context, strictness, and
+optionally the categories to watch for. Keep it constant across a surface.
+Each `query` is one yes/no question — one policy per query, phrased as a
+question rather than a label. Screening against many policies at once is done
+by listing them in `instruct` and asking one broad query.
+
+**The score** is the softmax over the `yes` and `no` logprobs at the answer
+position, compared against the query's `threshold` (default 0.5). A finding's
+category is the query's id, and it carries no span: the model answers about
+the whole document and reports no offsets, so `on_violation: redact` cannot
+act on a Shieldstral finding and `inspect.Resolve` denies instead of passing
+the content through.
+
+**One divergence from the model card's reference helper.** That helper floors
+a missing token at `-10.0`, so a reply containing neither `yes` nor `no`
+scores exactly 0.5 and is reported safe. Here it is an error. A model that did
+not answer the question has not screened the content, and it routes through
+`on_failure`, which denies by default. Likewise, one failed query fails the
+whole profile: returning the others as clean would mean the profile checked
+less than it said.
+
+Each query is a separate forward pass, so a profile's queries run
+concurrently, bounded by `options.concurrency` (default 4). In sequence they
+would multiply the latency of every request the rule gates; unbounded they
+would burst a server that may be a single GPU.
+
+Shieldstral is **not** a `LocalProvider`, even bound to `127.0.0.1`, so
+`privacy.allow_remote` must be on. A profile using `categories:` here is
+refused rather than ignored — silently dropping them would let the profile
+read as if it were screening for those labels while nothing looked for them.
+
 ### The Privacy Filter provider
 
 `type: privacy_filter` runs OpenAI Privacy Filter in-process through ONNX

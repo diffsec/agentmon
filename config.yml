@@ -535,6 +535,30 @@ inspection:
     #   options:
     #     base_url: http://127.0.0.1:8731
 
+    # Mistral Shieldstral, the safety half of inspection: it answers
+    # natural-language yes/no questions about content rather than labelling
+    # spans in it. Profiles use `queries:`, not `categories:`.
+    #
+    # No sidecar is needed. Shieldstral ships no server, but its contract is
+    # one forward pass returning a single yes/no token, and vLLM, llama.cpp
+    # (llama-server) and SGLang all serve it behind the OpenAI
+    # chat-completions API. Point base_url at that.
+    #
+    # options.model is required: it is what the server routes on, and an
+    # empty one reaches a server that answers 404 or picks a default
+    # checkpoint that is not a safety classifier at all.
+    #
+    # NOT a local provider even on 127.0.0.1, so privacy.allow_remote must be
+    # true below.
+    # shieldstral:
+    #   enabled: true
+    #   type: shieldstral
+    #   api_key_env: AGENTMON_SHIELDSTRAL_TOKEN
+    #   options:
+    #     base_url: http://127.0.0.1:8000/v1
+    #     model: mistralai/Shieldstral-1.0-3B
+    #     concurrency: 4        # each query is a separate forward pass
+
     # OpenAI Privacy Filter, running in this process via ONNX Runtime.
     #
     # It is a LOCAL provider: content never leaves the machine, which is the
