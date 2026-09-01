@@ -97,11 +97,74 @@ func (a *App) shellCOpaqueMode() policy.ShellCOpaqueMode {
 // would otherwise have torChecker == nil, silently skipping the ptrace
 // connect/execve Tor vectors. Guarded so the shared global engine is never
 // re-written (SetTorPolicy is unsynchronized).
+// attachEngineServices installs the process-wide services a freshly compiled
+// engine does not carry.
+//
+// NewEngine and NewEngineWithVariables build an engine from a policy document
+// and nothing else. The threat feed store, the Tor coordinator and the content
+// inspector are all installed afterwards, and until now only on the
+// process-global engine built at startup (internal/server/server.go and
+// inspect_glue.go). Every session created through createSession gets its own
+// engine, and every one of them was missing all three:
+//
+//   - no threat store, so a configured feed checked no domain in any session
+//   - no inspector, so every `decision: inspect` command rule resolved through
+//     on_failure and denied
+//   - Tor was the one already handled, by attachSessionTor
+//
+// The inspector is resolved from the registry for THIS engine's policy rather
+// than copied from the global one, because a different policy names different
+// profiles. The threat store is process-wide and is copied.
+//
+// Call it through installSessionEngine rather than directly.
+func (a *App) attachEngineServices(eng *policy.Engine) {
+	if a == nil || eng == nil {
+		return
+	}
+	// A session engine that IS the global one already has everything, and
+	// re-attaching would be a no-op at best and a race at worst.
+	if eng == a.Policy() {
+		return
+	}
+	if store, action := a.Policy().ThreatStore(); store != nil {
+		eng.SetThreatStore(store, action)
+	}
+	if ic := a.Inspector(eng); ic != nil {
+		eng.SetInspector(ic)
+	}
+	a.attachSessionTor(eng)
+}
+
+// installSessionEngine attaches the process-wide services and installs the
+// engine on the session.
+//
+// The two halves are one operation, and separating them is how a session ended
+// up enforcing a policy with no threat store and no inspector: every creation
+// path remembered SetPolicyEngine and none of them attached anything but Tor.
+// TestSetPolicyEngineOnlyCalledViaInstall keeps the pairing from coming apart
+// again.
+func (a *App) installSessionEngine(s *session.Session, eng *policy.Engine) {
+	if s == nil || eng == nil {
+		return
+	}
+	a.attachEngineServices(eng)
+	s.SetPolicyEngine(eng)
+}
+
 func (a *App) attachSessionTor(eng *policy.Engine) {
 	if a == nil || a.torPolicy == nil || eng == nil {
 		return
 	}
 	if eng == a.Policy() {
+		return
+	}
+	// A coordinator already installed was installed deliberately, and the
+	// only thing that does so is attachDenyTor putting this session into
+	// Tor-deny. Replacing it with the app-wide policy would quietly lift that
+	// deny -- which is what happened when installSessionEngine started
+	// running this after attachDenyTor had already set its adapter, and what
+	// TestApplyTorFailClosed_ProfileSession_DeniesTor caught.
+	if eng.TorPolicy() != nil {
 		return
 	}
 	eng.SetTorPolicy(&tor.PolicyAdapter{Policy: a.torPolicy})
@@ -129,7 +192,10 @@ func (a *App) attachDenyTor(s *session.Session, deny *tor.Policy) bool {
 		return false
 	}
 	eng.SetTorPolicy(adapter)
-	s.SetPolicyEngine(eng)
+	// Through installSessionEngine, not SetPolicyEngine: the clone is a
+	// brand-new engine, so attaching deny-Tor to a session must not be the
+	// thing that turns off its threat feed and content inspection.
+	a.installSessionEngine(s, eng)
 	return true
 }
 

@@ -566,8 +566,7 @@ func (a *App) createSessionWithProfile(ctx context.Context, req types.CreateSess
 		}
 		s.ProjectRoot = policyVars["PROJECT_ROOT"]
 		s.GitRoot = policyVars["GIT_ROOT"]
-		a.attachSessionTor(engine)
-		s.SetPolicyEngine(engine)
+		a.installSessionEngine(s, engine)
 		if err := a.startSessionDBProxy(ctx, s, dbRuleSet, dbStateDir); err != nil {
 			a.cleanupCreatedSession(s)
 			return types.Session{}, http.StatusInternalServerError, fmt.Errorf("start DB proxy: %w", err)
@@ -762,8 +761,7 @@ func (a *App) createSessionCore(ctx context.Context, req types.CreateSessionRequ
 	// Store roots and session-specific policy engine
 	s.ProjectRoot = policyVars["PROJECT_ROOT"]
 	s.GitRoot = policyVars["GIT_ROOT"]
-	a.attachSessionTor(engine)
-	s.SetPolicyEngine(engine)
+	a.installSessionEngine(s, engine)
 
 	// Apply real-paths mode if requested
 	a.applyRealPaths(s, req.RealPaths)
@@ -1508,8 +1506,7 @@ func (a *App) ensureFUSEMount(ctx context.Context, s *session.Session) {
 
 	// Store session-specific engine if session doesn't have one yet
 	if s.PolicyEngine() == nil {
-		a.attachSessionTor(engine)
-		s.SetPolicyEngine(engine)
+		a.installSessionEngine(s, engine)
 	}
 
 	a.mountFUSEForSession(ctx, fuseMountParams{
