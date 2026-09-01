@@ -55,9 +55,15 @@ type ExecveResult struct {
 	Redirect *types.RedirectInfo
 }
 
-// PolicyChecker interface for policy evaluation
+// PolicyChecker interface for policy evaluation.
+//
+// CheckExecveCtx takes the context so a command rule carrying an inspect spec
+// can be resolved inside the check and bounded by the caller's deadline. The
+// seccomp supervisor has no deadline of its own: the traced process stays
+// blocked until a verdict arrives, so an unbounded inspector would hang an
+// exec with nothing in the log to explain it.
 type PolicyChecker interface {
-	CheckExecve(filename string, argv []string, depth int) PolicyDecision
+	CheckExecveCtx(ctx context.Context, filename string, argv []string, depth int) PolicyDecision
 }
 
 // PolicyDecision represents a policy check result
@@ -264,14 +270,14 @@ func (h *ExecveHandler) Handle(goCtx context.Context, ctx ExecveContext) (Execve
 		ctx.PayloadCommand = payloadCmd
 
 		// Evaluate the payload command against policy
-		payloadDecision := h.policy.CheckExecve(payloadCmd, payloadArgs, ctx.Depth)
+		payloadDecision := h.policy.CheckExecveCtx(goCtx, payloadCmd, payloadArgs, ctx.Depth)
 		payloadEffective := payloadDecision.EffectiveDecision
 		if payloadEffective == "" {
 			payloadEffective = payloadDecision.Decision
 		}
 
 		// Evaluate the wrapper command against policy
-		wrapperDecision := h.policy.CheckExecve(ctx.Filename, ctx.Argv, ctx.Depth)
+		wrapperDecision := h.policy.CheckExecveCtx(goCtx, ctx.Filename, ctx.Argv, ctx.Depth)
 		wrapperEffective := wrapperDecision.EffectiveDecision
 		if wrapperEffective == "" {
 			wrapperEffective = wrapperDecision.Decision
@@ -347,7 +353,7 @@ func (h *ExecveHandler) Handle(goCtx context.Context, ctx ExecveContext) (Execve
 	}
 
 	// Check policy
-	decision := h.policy.CheckExecve(ctx.Filename, ctx.Argv, ctx.Depth)
+	decision := h.policy.CheckExecveCtx(goCtx, ctx.Filename, ctx.Argv, ctx.Depth)
 
 	// Use EffectiveDecision for actual enforcement (respects shadow mode)
 	// Use Decision for logging to preserve full policy semantics

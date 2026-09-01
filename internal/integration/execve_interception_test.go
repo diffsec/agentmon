@@ -402,8 +402,8 @@ type policyEngineWrapper struct {
 	engine *policy.Engine
 }
 
-func (w *policyEngineWrapper) CheckExecve(filename string, argv []string, depth int) unixmon.PolicyDecision {
-	dec := w.engine.CheckExecve(filename, argv, depth)
+func (w *policyEngineWrapper) CheckExecveCtx(ctx context.Context, filename string, argv []string, depth int) unixmon.PolicyDecision {
+	dec := w.engine.CheckExecveCtx(ctx, filename, argv, depth)
 	return unixmon.PolicyDecision{
 		Decision:          string(dec.PolicyDecision),
 		EffectiveDecision: string(dec.EffectiveDecision),
