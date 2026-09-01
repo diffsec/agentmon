@@ -47,8 +47,9 @@ type InspectProviderConfig struct {
 	// fails at startup, with the reason that it is disabled.
 	Enabled bool `yaml:"enabled"`
 
-	// Type selects the implementation. "regex" is the only built-in
-	// today; it runs in-process and needs no credentials.
+	// Type selects the implementation: regex, sidecar, shieldstral or
+	// privacy_filter. regex and privacy_filter run in-process; sidecar and
+	// shieldstral send content over HTTP and are gated by privacy below.
 	Type string `yaml:"type"`
 
 	// Patterns adds or overrides regex categories, for type: regex. The

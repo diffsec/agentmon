@@ -152,6 +152,33 @@ func buildInspectProvider(ctx context.Context, name string, pc config.InspectPro
 			return nil, fmt.Errorf("inspection provider %q: %w", name, err)
 		}
 		return p, nil
+	case "shieldstral":
+		if name != provider.ShieldstralName {
+			return nil, fmt.Errorf("inspection provider %q: a type: shieldstral provider must be named %q, because that is the name a policy profile refers to",
+				name, provider.ShieldstralName)
+		}
+		baseURL := optString(pc.Options, "base_url")
+		if baseURL == "" {
+			return nil, fmt.Errorf("inspection provider %q: options.base_url is required for type: shieldstral (the OpenAI-compatible root of a vLLM, llama-server or SGLang instance)", name)
+		}
+		model := optString(pc.Options, "model")
+		if model == "" {
+			return nil, fmt.Errorf("inspection provider %q: options.model is required for type: shieldstral; it is what the server routes on, and an empty one reaches whatever checkpoint the server defaults to", name)
+		}
+		apiKey, err := inspectAPIKey(name, pc.APIKeyEnv)
+		if err != nil {
+			return nil, err
+		}
+		p, err := provider.NewShieldstral(provider.ShieldstralConfig{
+			BaseURL:     baseURL,
+			Model:       model,
+			APIKey:      apiKey,
+			Concurrency: optInt(pc.Options, "concurrency", 0),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("inspection provider %q: %w", name, err)
+		}
+		return p, nil
 	case "privacy_filter":
 		if name != privacyfilter.Name {
 			return nil, fmt.Errorf("inspection provider %q: a type: privacy_filter provider must be named %q, because that is the name a policy profile refers to",
@@ -174,7 +201,7 @@ func buildInspectProvider(ctx context.Context, name string, pc config.InspectPro
 	case "":
 		return nil, fmt.Errorf("inspection provider %q: type is required", name)
 	default:
-		return nil, fmt.Errorf("inspection provider %q: unknown type %q (known types: regex, sidecar, privacy_filter)", name, pc.Type)
+		return nil, fmt.Errorf("inspection provider %q: unknown type %q (known types: regex, sidecar, shieldstral, privacy_filter)", name, pc.Type)
 	}
 }
 
