@@ -27,7 +27,7 @@ type TransparentTCP struct {
 	sessionID string
 	sess      *session.Session
 	dnsCache  *DNSCache
-	policy    *policy.Engine
+	policy    EngineFunc
 	approvals *approvals.Manager
 	emit      Emitter
 	dbBypass  atomic.Pointer[dbevents.BypassEmitter]
@@ -39,7 +39,7 @@ type TransparentTCP struct {
 	done chan struct{}
 }
 
-func StartTransparentTCP(listenAddr string, sessionID string, sess *session.Session, dnsCache *DNSCache, engine *policy.Engine, approvalsMgr *approvals.Manager, emit Emitter, dbBypass ...*dbevents.BypassEmitter) (*TransparentTCP, int, error) {
+func StartTransparentTCP(listenAddr string, sessionID string, sess *session.Session, dnsCache *DNSCache, engine EngineFunc, approvalsMgr *approvals.Manager, emit Emitter, dbBypass ...*dbevents.BypassEmitter) (*TransparentTCP, int, error) {
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return nil, 0, err
@@ -210,7 +210,10 @@ func (t *TransparentTCP) policyEngine() *policy.Engine {
 			return engine
 		}
 	}
-	return t.policy
+	if t.policy == nil {
+		return nil
+	}
+	return t.policy()
 }
 
 func (t *TransparentTCP) emitDBBypassAttempt(ctx context.Context, commandID string, pid int, ruleName string, reason string) {

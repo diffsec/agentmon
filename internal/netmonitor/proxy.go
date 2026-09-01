@@ -33,10 +33,22 @@ type mcpAddrSource interface {
 	ServerAddrs() map[string]string
 }
 
+// EngineFunc supplies the policy engine for the current decision.
+//
+// It is a function rather than a stored pointer because these interceptors
+// outlive a policy update. StartProxy, StartTransparentTCP and StartDNS used
+// to capture *policy.Engine at construction, so App.SwapPolicy -- the live
+// install path in internal/server/wtp.go -- replaced the engine every
+// command-time check read while the network, transparent-TCP and DNS paths
+// went on enforcing the policy that was live when the session started. A live
+// policy update that silently does not reach three enforcement paths is the
+// failure class this project exists to remove.
+type EngineFunc func() *policy.Engine
+
 type Proxy struct {
 	sessionID string
 	sess      *session.Session
-	policy    *policy.Engine
+	policy    EngineFunc
 	approvals *approvals.Manager
 	emit      Emitter
 	dbBypass  atomic.Pointer[dbevents.BypassEmitter]
@@ -46,7 +58,7 @@ type Proxy struct {
 	done chan struct{}
 }
 
-func StartProxy(listenAddr string, sessionID string, sess *session.Session, engine *policy.Engine, approvalsMgr *approvals.Manager, emit Emitter, dbBypass ...*dbevents.BypassEmitter) (*Proxy, string, error) {
+func StartProxy(listenAddr string, sessionID string, sess *session.Session, engine EngineFunc, approvalsMgr *approvals.Manager, emit Emitter, dbBypass ...*dbevents.BypassEmitter) (*Proxy, string, error) {
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return nil, "", err
@@ -488,7 +500,10 @@ func (p *Proxy) policyEngine() *policy.Engine {
 			return engine
 		}
 	}
-	return p.policy
+	if p.policy == nil {
+		return nil
+	}
+	return p.policy()
 }
 
 func (p *Proxy) emitDBBypassAttempt(ctx context.Context, commandID string, pid int, ruleName string, reason string) {

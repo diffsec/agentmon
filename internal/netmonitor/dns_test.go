@@ -75,7 +75,7 @@ func TestDNSInterceptor_DenyDoesNotForwardAndRefuses(t *testing.T) {
 		pc:        serverPC,
 		upstream:  up.LocalAddr().String(),
 		emit:      em,
-		policy:    engine,
+		policy:    staticEngine(engine),
 	}
 
 	query := makeDNSQuery(t, "example.com", 0xBEEF)
@@ -235,7 +235,7 @@ func TestDNSInterceptor_ThreatMetadataInEvent(t *testing.T) {
 		pc:        serverPC,
 		upstream:  up.LocalAddr().String(),
 		emit:      em,
-		policy:    engine,
+		policy:    staticEngine(engine),
 	}
 
 	query := makeDNSQuery(t, "evil.com", 0xABCD)
@@ -296,7 +296,7 @@ func TestDNSInterceptor_MonitorOnlyPreservesThreatMetadata(t *testing.T) {
 		pc:        serverPC,
 		upstream:  up.LocalAddr().String(),
 		emit:      em,
-		policy:    engine,
+		policy:    staticEngine(engine),
 	}
 
 	query := makeDNSQuery(t, "evil.com", 0x1234)
@@ -400,7 +400,7 @@ func TestDNSInterceptor_OnionEmitsTorControl(t *testing.T) {
 		pc:        serverPC,
 		upstream:  up.LocalAddr().String(),
 		emit:      em,
-		policy:    engine,
+		policy:    staticEngine(engine),
 	}
 
 	query := makeDNSQuery(t, "abcdefghij.onion", 0x0F0F)

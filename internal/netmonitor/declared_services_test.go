@@ -57,7 +57,7 @@ func newEngineWithDeclaredGitHub(t *testing.T, allowDirect bool) *policy.Engine 
 func TestHandleConnect_DeniesDeclaredHost(t *testing.T) {
 	eng := newEngineWithDeclaredGitHub(t, false)
 	em := &stubEmitter{}
-	p := &Proxy{sessionID: "s", policy: eng, emit: em}
+	p := &Proxy{sessionID: "s", policy: staticEngine(eng), emit: em}
 
 	client, server := net.Pipe()
 	defer client.Close()
@@ -139,7 +139,7 @@ func TestHandleConnect_DeniesDeclaredHost(t *testing.T) {
 func TestHandleHTTP_DeniesDeclaredHost(t *testing.T) {
 	eng := newEngineWithDeclaredGitHub(t, false)
 	em := &stubEmitter{}
-	p := &Proxy{sessionID: "s", policy: eng, emit: em}
+	p := &Proxy{sessionID: "s", policy: staticEngine(eng), emit: em}
 
 	client, server := net.Pipe()
 	defer client.Close()
@@ -253,7 +253,7 @@ func TestHandleConnect_AllowDirectSkipsCheck(t *testing.T) {
 	}
 
 	em := &stubEmitter{}
-	p := &Proxy{sessionID: "s", policy: eng, emit: em}
+	p := &Proxy{sessionID: "s", policy: staticEngine(eng), emit: em}
 
 	client, server := net.Pipe()
 	defer client.Close()
