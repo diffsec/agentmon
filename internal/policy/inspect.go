@@ -286,8 +286,17 @@ func (p Policy) validateInspection() error {
 		}
 	}
 	for i, r := range p.CommandRules {
-		if err := validateRuleDecision(fmt.Sprintf("command_rules[%d] (%s)", i, r.Name), r.Decision, r.Inspect, profiles, true); err != nil {
+		where := fmt.Sprintf("command_rules[%d] (%s)", i, r.Name)
+		if err := validateRuleDecision(where, r.Decision, r.Inspect, profiles, true); err != nil {
 			return err
+		}
+		// Redaction rewrites the inspected content and hands it back. For a
+		// command there is nowhere to put it: a Decision carries a verdict,
+		// not arguments, and running the command with placeholder arguments
+		// would be worse than refusing it. Saying so at load time beats
+		// resolving to a deny the operator has to reverse-engineer.
+		if r.Inspect != nil && r.Inspect.OnViolation == "redact" {
+			return fmt.Errorf("%s: inspect.on_violation: redact is not supported on a command rule; there is nowhere to put a rewritten argv, so use deny or approve", where)
 		}
 	}
 	for i, r := range p.UnixRules {

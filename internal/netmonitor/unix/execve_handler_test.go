@@ -21,7 +21,7 @@ type mockPolicy struct {
 	decision PolicyDecision
 }
 
-func (m *mockPolicy) CheckExecve(filename string, argv []string, depth int) PolicyDecision {
+func (m *mockPolicy) CheckExecveCtx(_ context.Context, filename string, argv []string, depth int) PolicyDecision {
 	return m.decision
 }
 
@@ -567,7 +567,7 @@ type mockPolicyWithUnwrap struct {
 	decisions map[string]PolicyDecision
 }
 
-func (m *mockPolicyWithUnwrap) CheckExecve(filename string, argv []string, depth int) PolicyDecision {
+func (m *mockPolicyWithUnwrap) CheckExecveCtx(_ context.Context, filename string, argv []string, depth int) PolicyDecision {
 	if dec, ok := m.decisions[filename]; ok {
 		return dec
 	}

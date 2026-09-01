@@ -652,7 +652,23 @@ func ParseShellCOpaqueMode(s string) ShellCOpaqueMode {
 // restrictive command rule is present). See CheckCommandWithExecve for callers
 // on an execve-policed execution path.
 func (e *Engine) CheckCommand(command string, args []string) Decision {
-	return e.checkCommand(command, args, false, ShellCOpaqueEnforce)
+	return e.CheckCommandCtx(context.Background(), command, args)
+}
+
+// CheckCommandCtx is CheckCommand with a caller context bounding content
+// inspection.
+//
+// A command rule carrying `decision: inspect` or `inspect: {require: true}`
+// is resolved here, not deferred to the caller. For a command the engine
+// already holds the content -- the argv IS the content -- and resolving in one
+// place is what makes every enforcement layer agree. See
+// resolveCommandInspection.
+//
+// ctx bounds the inspector call, and the rule's own inspect.timeout (or
+// DefaultCommandInspectTimeout) bounds it again, tighter, from inside.
+func (e *Engine) CheckCommandCtx(ctx context.Context, command string, args []string) Decision {
+	dec := e.checkCommand(command, args, false, ShellCOpaqueEnforce)
+	return e.resolveCommandInspection(ctx, dec, command, args)
 }
 
 // CheckCommandWithExecve is CheckCommand for callers whose execution path has
@@ -661,7 +677,14 @@ func (e *Engine) CheckCommand(command string, args []string) Decision {
 // the opaque shell-c pre-deny is skipped — the script runs and its inner
 // commands are enforced precisely at exec time. Issue #375.
 func (e *Engine) CheckCommandWithExecve(command string, args []string, execveEnforcementActive bool, opaqueMode ShellCOpaqueMode) Decision {
-	return e.checkCommand(command, args, execveEnforcementActive, opaqueMode)
+	return e.CheckCommandWithExecveCtx(context.Background(), command, args, execveEnforcementActive, opaqueMode)
+}
+
+// CheckCommandWithExecveCtx is CheckCommandWithExecve with a caller context
+// bounding content inspection.
+func (e *Engine) CheckCommandWithExecveCtx(ctx context.Context, command string, args []string, execveEnforcementActive bool, opaqueMode ShellCOpaqueMode) Decision {
+	dec := e.checkCommand(command, args, execveEnforcementActive, opaqueMode)
+	return e.resolveCommandInspection(ctx, dec, command, args)
 }
 
 func (e *Engine) checkCommand(command string, args []string, execveEnforcementActive bool, opaqueMode ShellCOpaqueMode) Decision {
@@ -1454,7 +1477,18 @@ func (e *Engine) EvaluateConnectRedirect(hostPort string) *ConnectRedirectResult
 // CheckExecve evaluates an execve call against command rules with depth context support.
 // Returns the decision from the first matching rule, or default deny if none match.
 // The depth parameter represents the ancestry depth: 0 = direct (user-typed), 1+ = nested (script-spawned).
-func (e *Engine) CheckExecve(filename string, argv []string, depth int) (dec Decision) {
+func (e *Engine) CheckExecve(filename string, argv []string, depth int) Decision {
+	return e.CheckExecveCtx(context.Background(), filename, argv, depth)
+}
+
+// CheckExecveCtx is CheckExecve with a caller context bounding content
+// inspection. The seccomp path has no deadline of its own -- the process stays
+// blocked until the verdict arrives -- so this is where a caller supplies one.
+func (e *Engine) CheckExecveCtx(ctx context.Context, filename string, argv []string, depth int) Decision {
+	return e.resolveCommandInspection(ctx, e.checkExecve(filename, argv, depth), filename, argv)
+}
+
+func (e *Engine) checkExecve(filename string, argv []string, depth int) (dec Decision) {
 	if e.torChecker != nil {
 		if v, ok := e.torChecker.EvalExecve(filename, argv); ok {
 			tv := v

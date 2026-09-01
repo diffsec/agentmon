@@ -102,6 +102,17 @@ func (a *PolicyAdapter) CheckExec(executable string, args []string, pid int32, p
 		}
 	}
 
+	// CheckCommand resolves a command rule's `inspect:` block in the engine,
+	// which means an inspection provider runs on this callback. There is no
+	// context to thread here -- the policy socket carries a request, not a
+	// deadline -- so the bound is the engine's own: the rule's
+	// inspect.timeout, or policy.DefaultCommandInspectTimeout.
+	//
+	// That default is 2s to match execDecisionTimeout in
+	// macos/AgentMon/ESFClient.swift, whose watchdog denies the exec if no
+	// verdict arrives. A rule asking for longer is denied by the watchdog
+	// regardless, so the two answer the same way rather than one silently
+	// overruling the other.
 	dec := a.engine.CheckCommand(executable, args)
 
 	// Use PolicyDecision for audit logging (the raw policy intent)
