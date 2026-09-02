@@ -419,6 +419,34 @@ func (e *Engine) PackageRules() []PackageRule {
 	return e.policy.PackageRules
 }
 
+// ThreatStore returns the installed threat feed store and the action it
+// applies, or (nil, "").
+//
+// It exists so a freshly compiled engine can be given the same store the
+// process-wide one already has. SetThreatStore, SetTorPolicy and SetInspector
+// all run after construction, so NewEngine and NewEngineWithVariables produce
+// an engine with none of them -- and a per-session engine built that way
+// silently stops checking domains against the feed the operator configured.
+
+func (e *Engine) ThreatStore() (ThreatChecker, string) {
+	if e == nil {
+		return nil, ""
+	}
+	return e.threatStore, e.threatAction
+}
+
+// TorPolicy returns the installed Tor coordinator, or nil.
+//
+// It exists so a caller can tell "no coordinator" from "one that was installed
+// deliberately". A session put into Tor-deny gets a coordinator of its own,
+// and the app-wide one must not replace it.
+func (e *Engine) TorPolicy() TorChecker {
+	if e == nil {
+		return nil
+	}
+	return e.torChecker
+}
+
 // SetThreatStore configures an optional threat feed store for domain checking.
 // action must be "deny" or "audit"; defaults to "deny" if invalid.
 func (e *Engine) SetThreatStore(store ThreatChecker, action string) {
