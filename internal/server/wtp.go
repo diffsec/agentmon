@@ -541,12 +541,6 @@ func makePolicyInstallHook(
 				"policy_id", p.PolicyID, "err", err.Error())
 			return
 		}
-		newEngine, err := policy.NewEngine(newPolicy, enforceApprovals, true)
-		if err != nil {
-			slog.Warn("policy install: build new engine failed; engine not swapped",
-				"policy_id", p.PolicyID, "err", err.Error())
-			return
-		}
 		app := appHolder.Load()
 		if app == nil {
 			// App not yet constructed (early startup race). Next
@@ -557,11 +551,18 @@ func makePolicyInstallHook(
 				"policy_id", p.PolicyID, "policy_version", p.PolicyVersion)
 			return
 		}
-		app.SwapPolicy(newEngine)
-		slog.Info("policy install: engine swapped",
-			"policy_id", p.PolicyID,
-			"policy_version", p.PolicyVersion,
-		)
+		// ReloadPolicy rather than SwapPolicy: swapping the global engine
+		// reaches only sessions that follow it, and every session created
+		// through createSession holds its own. A pushed update that stopped
+		// at the global pointer reached sessions created after it and no
+		// others, on every enforcement path.
+		res, err := app.ReloadPolicy(newPolicy)
+		if err != nil {
+			slog.Warn("policy install: reload failed; engine not swapped",
+				"policy_id", p.PolicyID, "err", err.Error())
+			return
+		}
+		api.LogPolicyReload(res, p.PolicyID, p.PolicyVersion)
 		// Record the installed identity so the next SessionAck carrying
 		// the same (policy_id, content_hash) short-circuits via the
 		// idempotency check at the top of this callback.

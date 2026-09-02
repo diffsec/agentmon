@@ -135,19 +135,24 @@ func (a *App) attachEngineServices(eng *policy.Engine) {
 	a.attachSessionTor(eng)
 }
 
-// installSessionEngine attaches the process-wide services and installs the
-// engine on the session.
+// installSessionEngine attaches the process-wide services, records the
+// variables the engine was compiled with, and installs it on the session.
 //
-// The two halves are one operation, and separating them is how a session ended
-// up enforcing a policy with no threat store and no inspector: every creation
+// The three are one operation, and separating them is how a session ended up
+// enforcing a policy with no threat store and no inspector: every creation
 // path remembered SetPolicyEngine and none of them attached anything but Tor.
-// TestSetPolicyEngineOnlyCalledViaInstall keeps the pairing from coming apart
-// again.
-func (a *App) installSessionEngine(s *session.Session, eng *policy.Engine) {
+// The variables are here for the same reason -- ReloadPolicy needs them to
+// rebuild the engine from a new document, and a path that set the engine
+// without them would leave that session silently un-reloadable.
+// TestSetPolicyEngineOnlyCalledViaInstall keeps the three from coming apart.
+//
+// vars may be nil, for an engine compiled without substitutions.
+func (a *App) installSessionEngine(s *session.Session, eng *policy.Engine, vars map[string]string) {
 	if s == nil || eng == nil {
 		return
 	}
 	a.attachEngineServices(eng)
+	s.SetPolicyVars(vars)
 	s.SetPolicyEngine(eng)
 }
 
@@ -195,7 +200,11 @@ func (a *App) attachDenyTor(s *session.Session, deny *tor.Policy) bool {
 	// Through installSessionEngine, not SetPolicyEngine: the clone is a
 	// brand-new engine, so attaching deny-Tor to a session must not be the
 	// thing that turns off its threat feed and content inspection.
-	a.installSessionEngine(s, eng)
+	//
+	// nil vars, matching NewEngineWithVariables above. This path is reached
+	// only when the session was following the global engine, which is
+	// compiled without substitutions too.
+	a.installSessionEngine(s, eng, nil)
 	return true
 }
 

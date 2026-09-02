@@ -259,7 +259,7 @@ func TestInstallSessionEngine_DoesBothHalves(t *testing.T) {
 	}
 	s := &session.Session{ID: "s1"}
 
-	a.installSessionEngine(s, sessionEng)
+	a.installSessionEngine(s, sessionEng, nil)
 
 	got := s.PolicyEngine()
 	if got != sessionEng {
@@ -279,8 +279,8 @@ func TestInstallSessionEngine_NilSafe(t *testing.T) {
 		t.Fatalf("global engine: %v", err)
 	}
 	a := &App{policy: global}
-	a.installSessionEngine(nil, global)
-	a.installSessionEngine(&session.Session{ID: "s"}, nil)
+	a.installSessionEngine(nil, global, nil)
+	a.installSessionEngine(&session.Session{ID: "s"}, nil, nil)
 	if eng := (&session.Session{ID: "s"}).PolicyEngine(); eng != nil {
 		t.Error("a nil engine was installed")
 	}
@@ -317,14 +317,16 @@ func TestAttachDenyTor_CloneKeepsTheServices(t *testing.T) {
 	}
 }
 
-// TestSetPolicyEngineOnlyCalledViaInstall keeps the two halves from coming
+// TestSetPolicyEngineOnlyCalledViaInstall keeps the three halves from coming
 // apart again.
 //
 // Every path that gives a session its own engine has to go through
-// installSessionEngine. A unit test cannot reach the createSession call sites
-// without a full store, broker and workspace harness, and a mutation that
-// swapped one back to a bare SetPolicyEngine survived every behavioural test
-// here. Reading the source is what catches it.
+// installSessionEngine, which attaches the services, records the policy
+// variables and installs the engine. A unit test cannot reach the
+// createSession call sites without a full store, broker and workspace harness,
+// and mutations that swapped one back to a bare SetPolicyEngine, or dropped
+// the SetPolicyVars beside it, survived every behavioural test here. Reading
+// the source is what catches them.
 func TestSetPolicyEngineOnlyCalledViaInstall(t *testing.T) {
 	files, err := filepath.Glob("*.go")
 	if err != nil {
@@ -358,7 +360,7 @@ func TestSetPolicyEngineOnlyCalledViaInstall(t *testing.T) {
 				return true
 			}
 			sel, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok || sel.Sel.Name != "SetPolicyEngine" {
+			if !ok || (sel.Sel.Name != "SetPolicyEngine" && sel.Sel.Name != "SetPolicyVars") {
 				return true
 			}
 			// proxy.Proxy has a method of the same name; only the session's
@@ -368,7 +370,65 @@ func TestSetPolicyEngineOnlyCalledViaInstall(t *testing.T) {
 				return true
 			}
 			if enclosing != "installSessionEngine" {
-				t.Errorf("%s: %s calls s.SetPolicyEngine directly; go through installSessionEngine so the engine gets the threat store and inspector",
+				t.Errorf("%s: %s calls s.%s directly; go through installSessionEngine so the engine gets the threat store, the inspector and its policy variables",
+					fset.Position(call.Pos()), enclosing, sel.Sel.Name)
+			}
+			return true
+		})
+	}
+}
+
+// nilVarsIsCorrect names the functions that legitimately install a session
+// engine with no policy variables. attachDenyTor is the only one: its clone is
+// compiled from the global document, which carries no substitutions either.
+var nilVarsIsCorrect = map[string]bool{"attachDenyTor": true}
+
+// TestInstallSessionEngineIsGivenTheVariables.
+//
+// A session installed with nil variables cannot be rebuilt when a policy is
+// pushed: ReloadPolicy skips it with SkipNoPolicyVars and it keeps enforcing
+// the document it started with. Passing nil at a createSession call site is a
+// one-token mistake that no behavioural test in this package can reach, and a
+// mutation doing exactly that survived every one of them.
+func TestInstallSessionEngineIsGivenTheVariables(t *testing.T) {
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fset := token.NewFileSet()
+
+	for _, name := range files {
+		if strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		src, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f, err := parser.ParseFile(fset, name, src, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", name, err)
+		}
+
+		var enclosing string
+		ast.Inspect(f, func(n ast.Node) bool {
+			if fn, ok := n.(*ast.FuncDecl); ok {
+				enclosing = fn.Name.Name
+				return true
+			}
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || sel.Sel.Name != "installSessionEngine" || len(call.Args) != 3 {
+				return true
+			}
+			if nilVarsIsCorrect[enclosing] {
+				return true
+			}
+			if id, ok := call.Args[2].(*ast.Ident); ok && id.Name == "nil" {
+				t.Errorf("%s: %s installs a session engine with nil policy variables; that session cannot be rebuilt when a policy is pushed",
 					fset.Position(call.Pos()), enclosing)
 			}
 			return true

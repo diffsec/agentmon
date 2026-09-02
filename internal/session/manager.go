@@ -103,6 +103,47 @@ type Session struct {
 	// Injected into spawned processes bypassing policy filtering.
 	// Nil if no services declare inject.env.
 	serviceEnvVars map[string]string
+
+	// policyVars are the substitutions this session's engine was compiled
+	// with -- PROJECT_ROOT, GIT_ROOT, HOME. They are kept because rebuilding
+	// the engine from a new policy document needs them again, and two of the
+	// three cannot be recovered from the Session's other fields: HOME is
+	// nowhere else, and ProjectRoot/GitRoot are stored but not as the map the
+	// compiler takes.
+	policyVars map[string]string
+}
+
+// SetPolicyVars records the substitutions this session's engine was compiled
+// with. A session with none recorded cannot be recompiled from a new policy
+// document, so every path that compiles a session engine must set them.
+func (s *Session) SetPolicyVars(vars map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if vars == nil {
+		s.policyVars = nil
+		return
+	}
+	cp := make(map[string]string, len(vars))
+	for k, v := range vars {
+		cp[k] = v
+	}
+	s.policyVars = cp
+}
+
+// PolicyVars returns a copy of the substitutions this session's engine was
+// compiled with, or nil. A copy because the caller hands it to a compiler that
+// is free to keep it, and the session's own record must not change underneath.
+func (s *Session) PolicyVars() map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.policyVars == nil {
+		return nil
+	}
+	cp := make(map[string]string, len(s.policyVars))
+	for k, v := range s.policyVars {
+		cp[k] = v
+	}
+	return cp
 }
 
 // SetPolicyEngine stores the session-specific policy engine with expanded variables.
