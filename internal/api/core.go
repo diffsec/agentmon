@@ -566,7 +566,7 @@ func (a *App) createSessionWithProfile(ctx context.Context, req types.CreateSess
 		}
 		s.ProjectRoot = policyVars["PROJECT_ROOT"]
 		s.GitRoot = policyVars["GIT_ROOT"]
-		a.installSessionEngine(s, engine)
+		a.installSessionEngine(s, engine, policyVars)
 		if err := a.startSessionDBProxy(ctx, s, dbRuleSet, dbStateDir); err != nil {
 			a.cleanupCreatedSession(s)
 			return types.Session{}, http.StatusInternalServerError, fmt.Errorf("start DB proxy: %w", err)
@@ -761,7 +761,7 @@ func (a *App) createSessionCore(ctx context.Context, req types.CreateSessionRequ
 	// Store roots and session-specific policy engine
 	s.ProjectRoot = policyVars["PROJECT_ROOT"]
 	s.GitRoot = policyVars["GIT_ROOT"]
-	a.installSessionEngine(s, engine)
+	a.installSessionEngine(s, engine, policyVars)
 
 	// Apply real-paths mode if requested
 	a.applyRealPaths(s, req.RealPaths)
@@ -1456,6 +1456,9 @@ func (a *App) ensureFUSEMount(ctx context.Context, s *session.Session) {
 	// Load the session's policy engine for FUSE policy adapter.
 	// Must use NewEngineWithVariables to expand ${PROJECT_ROOT} etc.
 	var engine *policy.Engine
+	// Hoisted so the vars the engine was compiled with can be recorded on the
+	// session; a later policy reload needs them to rebuild it.
+	var policyVars map[string]string
 	if a.cfg.Policies.Dir != "" {
 		policyPath, pErr := policy.ResolvePolicyPath(a.cfg.Policies.Dir, s.Policy)
 		if pErr == nil {
@@ -1489,7 +1492,7 @@ func (a *App) ensureFUSEMount(ctx context.Context, s *session.Session) {
 
 				pol, lErr := policy.LoadFromBytes(policyData)
 				if lErr == nil {
-					policyVars := map[string]string{
+					policyVars = map[string]string{
 						"PROJECT_ROOT": s.Workspace,
 						"GIT_ROOT":     s.Workspace,
 						"HOME":         os.Getenv("HOME"),
@@ -1506,7 +1509,7 @@ func (a *App) ensureFUSEMount(ctx context.Context, s *session.Session) {
 
 	// Store session-specific engine if session doesn't have one yet
 	if s.PolicyEngine() == nil {
-		a.installSessionEngine(s, engine)
+		a.installSessionEngine(s, engine, policyVars)
 	}
 
 	a.mountFUSEForSession(ctx, fuseMountParams{
