@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -96,4 +97,33 @@ func TestVerify_KeyRotation(t *testing.T) {
 	result, err := VerifyPolicy(policyPath, ts)
 	if err != nil { t.Fatalf("expected valid with key rotation: %v", err) }
 	if result.KeyID == "" { t.Fatal("expected key_id in result") }
+}
+
+// TestVerifyBytes_RejectsAnAbsentSignature.
+//
+// VerifyBytes is what a source with no file path calls: a policy pushed over
+// the wire, or fetched from a server that sent no signature header. An empty
+// slice there is an unsigned policy, and treating it as "nothing to check"
+// would let signing: enforce pass anything the server chose not to sign.
+func TestVerifyBytes_RejectsAnAbsentSignature(t *testing.T) {
+	ts := &TrustStore{Keys: map[string]*PublicKeyFile{}}
+
+	for _, sig := range [][]byte{nil, {}} {
+		_, err := VerifyBytes([]byte("version: 1\n"), sig, ts)
+		if err == nil {
+			t.Fatalf("an empty signature (%v) was accepted", sig)
+		}
+		if !strings.Contains(err.Error(), "missing_signature") {
+			t.Errorf("error = %v, want missing_signature", err)
+		}
+	}
+
+	// Malformed JSON is a different failure and must say so.
+	_, err := VerifyBytes([]byte("version: 1\n"), []byte("{not json"), ts)
+	if err == nil {
+		t.Fatal("a malformed signature record was accepted")
+	}
+	if strings.Contains(err.Error(), "missing_signature") {
+		t.Errorf("error = %v, want a parse failure rather than missing_signature", err)
+	}
 }
