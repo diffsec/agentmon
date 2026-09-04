@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -389,9 +388,11 @@ func toWireDecisionContext(dc decisionctx.DecisionContext) *wtpv1.DecisionContex
 // makePolicyInstallHook returns the OnPolicyPushed callback that runs
 // when watchtower ships a policy down via SessionAck. Three responsibilities:
 //
-//  1. Verify ed25519(content, signature) against the agent's locally
-//     configured trust bundle, looked up by SignerKeyID. Empty trust
-//     store or unknown key → log WARN and skip the install.
+//  1. Verify the signature against the agent's locally configured trust
+//     bundle, looked up by SignerKeyID, through signing.Verify -- the same
+//     function the disk load path and the CLI use. Empty trust store,
+//     unknown key, expired key or a failed signature → log WARN and skip
+//     the install.
 //  2. Confirm sha256(content) matches the wire's ContentHash. A mismatch
 //     means the wire was tampered with mid-flight or the operator
 //     mis-signed; either way refuse the install.
@@ -465,21 +466,29 @@ func makePolicyInstallHook(
 		// Wire-format key IDs use an "ed25519:" prefix; the
 		// agent's trust-store key IDs are bare hex (hex(sha256(pub))).
 		keyID := strings.TrimPrefix(p.SignerKeyID, "ed25519:")
-		kf, err := ts.FindKey(keyID)
-		if err != nil {
-			slog.Warn("policy install: unknown signer key",
-				"signer_key_id", p.SignerKeyID, "err", err.Error())
-			return
+
+		// Build the .sig record BEFORE verifying, and verify through
+		// signing.Verify rather than calling ed25519 here.
+		//
+		// This used to look up the key and run ed25519.Verify inline, which
+		// made it a fourth implementation of a check that has to agree with
+		// the other three: the SigFile schema gate, the trust-store lookup,
+		// the key-length guard and the expiry check all live in that one
+		// function. Verifying the exact record that is then written to disk
+		// also closes a smaller gap -- the agent now proves the bytes it
+		// stores are the bytes it verified, rather than verifying one shape
+		// and persisting another.
+		sig := signing.SigFile{
+			Version:   1,
+			Algorithm: "ed25519",
+			KeyID:     keyID,
+			Signer:    "watchtower-push",
+			SignedAt:  time.Now().UTC().Format(time.RFC3339),
+			Signature: base64.StdEncoding.EncodeToString(p.Signature),
 		}
-		pub, err := base64.StdEncoding.DecodeString(kf.PublicKey)
-		if err != nil {
-			slog.Warn("policy install: decode trust-store public key",
-				"key_id", keyID, "err", err.Error())
-			return
-		}
-		if !ed25519.Verify(ed25519.PublicKey(pub), p.Content, p.Signature) {
-			slog.Warn("policy install: ed25519 verify failed",
-				"key_id", keyID, "policy_id", p.PolicyID)
+		if err := signing.Verify(p.Content, &sig, ts); err != nil {
+			slog.Warn("policy install: signature verification failed",
+				"key_id", keyID, "policy_id", p.PolicyID, "err", err.Error())
 			return
 		}
 		// Content-hash double-check. The wire format is "sha256:<hex>".
@@ -494,15 +503,12 @@ func makePolicyInstallHook(
 
 		yamlPath := filepath.Join(dir, p.PolicyID+".yaml")
 		sigPath := yamlPath + ".sig"
-		sig := signing.SigFile{
-			Version:   1,
-			Algorithm: "ed25519",
-			KeyID:     keyID,
-			Signer:    "watchtower-push",
-			SignedAt:  time.Now().UTC().Format(time.RFC3339),
-			Signature: base64.StdEncoding.EncodeToString(p.Signature),
+		sigBytes, err := json.Marshal(sig)
+		if err != nil {
+			slog.Warn("policy install: encode signature record",
+				"policy_id", p.PolicyID, "err", err.Error())
+			return
 		}
-		sigBytes, _ := json.Marshal(sig)
 		// Atomic-write both via tmp+rename so a crash mid-write can't
 		// leave the agent's policy dir half-updated.
 		if err := atomicWrite(yamlPath, p.Content, 0o644); err != nil {

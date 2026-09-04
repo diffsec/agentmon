@@ -59,6 +59,22 @@ func VerifyPolicyBytes(policyBytes []byte, sigPath string, ts *TrustStore) (*Ver
 	if err != nil {
 		return nil, fmt.Errorf("missing_signature: %w", err)
 	}
+	return VerifyBytes(policyBytes, sigData, ts)
+}
+
+// VerifyBytes verifies policyBytes against a detached signature already in
+// memory.
+//
+// It exists because a signature does not always arrive as a file next to the
+// policy. A policy pushed over the wire carries its signature in the same
+// message, and a policy fetched from a server carries it in a header or a
+// sibling response -- neither has a path for VerifyPolicyBytes to read. Every
+// verification in the tree now funnels through here or through Verify, rather
+// than each caller assembling its own ed25519 check.
+func VerifyBytes(policyBytes, sigData []byte, ts *TrustStore) (*VerifyResult, error) {
+	if len(sigData) == 0 {
+		return nil, fmt.Errorf("missing_signature: no signature supplied")
+	}
 	var sig SigFile
 	if err := json.Unmarshal(sigData, &sig); err != nil {
 		return nil, fmt.Errorf("parse signature file: %w", err)
