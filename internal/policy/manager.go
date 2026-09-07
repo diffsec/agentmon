@@ -156,7 +156,7 @@ func (m *Manager) loadLocked(ctx context.Context) (*Policy, error) {
 	if err := m.verifyBundle(bundle); err != nil {
 		return nil, err
 	}
-	return parseAndValidate(bundle.Data)
+	return ParseAndValidate(bundle.Data)
 }
 
 // verifyBundle applies the signing mode. It runs on every source, which is the
@@ -182,7 +182,12 @@ func (m *Manager) verifyBundle(b *Bundle) error {
 	return nil
 }
 
-func parseAndValidate(data []byte) (*Policy, error) {
+// ParseAndValidate decodes a policy document with unknown fields refused and
+// runs Validate. It is exported so a policy server can apply the same bar
+// before serving a bundle as an agent applies before installing one; a
+// document only one side accepts is a fleet-wide fail-closed discovered by the
+// fleet.
+func ParseAndValidate(data []byte) (*Policy, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	var p Policy

@@ -285,6 +285,7 @@ Examples:
 	cmd.AddCommand(verifyCmd)
 
 	cmd.AddCommand(newPolicyDBCmd(configPath, dir))
+	cmd.AddCommand(newPolicyServeCmd(&configPath, &dir))
 
 	return cmd
 }

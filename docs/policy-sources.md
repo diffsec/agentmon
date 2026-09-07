@@ -103,8 +103,19 @@ store on the load path — the same check, in the same place, whatever the
 source. That is the reason the split keeps verification on the Manager rather
 than letting each source do its own.
 
+## The server
+
+`agentmon policy serve` is the other half of the contract: it answers the
+conditional GET, carries the signature in `X-Agentmon-Policy-Signature`, and
+holds a `wait=` poll open until the bundle changes. It holds no signing key.
+See `docs/policy-server.md`.
+
+`internal/policyserve/roundtrip_test.go` drives a real `Manager` with
+`signing: enforce` against a real server, including the case that matters most:
+a bundle signed with a key the agent does not trust does not install.
+
 ## Not wired yet
 
-Nothing selects a `RemoteSource` from configuration. That arrives with
-`agentmon policy serve`, which is the other half of the contract; wiring a
-client to an endpoint nothing serves would be a config knob with no meaning.
+Nothing selects a `RemoteSource` from agent configuration. That is the next
+piece; until then a `RemoteSource` is installed by calling
+`Manager.SetSource`.
