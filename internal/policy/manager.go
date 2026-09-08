@@ -27,7 +27,14 @@ type Manager struct {
 	trustStorePath string
 	src            Source
 	policy         *Policy
-	err            error
+	// dataHash is the digest of the bytes m.policy was parsed from. A fetch
+	// returning identical bytes keeps the existing *Policy, so a caller can
+	// compare pointers to detect a real change. Without it a source with no
+	// change token -- or a server that sends no ETag -- would look like a new
+	// policy on every poll, and the poller would rebuild every session's
+	// engine every interval for nothing.
+	dataHash [32]byte
+	err      error
 }
 
 var nameRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
@@ -110,16 +117,36 @@ func (m *Manager) Reload() (*Policy, error) {
 // conditional GET answering 304 means the agent already has the current
 // document, and installing an error there would take enforcement down on the
 // first quiet poll.
+//
+// No failure replaces a policy that already loaded. A reload that cannot fetch,
+// cannot verify or cannot parse returns the cached policy alongside the error,
+// so the caller reports the failure while Get() keeps answering with the last
+// document that was actually good. Installing the error instead would mean one
+// unreachable poll made every subsequent session creation fail against a policy
+// that never changed -- and, on the WTP push path, a single malformed push
+// poisoned the Manager for the life of the process.
+//
+// Callers must treat a non-nil error as a failed reload even when a policy
+// comes back with it: the policy is the old one.
 func (m *Manager) ReloadContext(ctx context.Context) (*Policy, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	p, err := m.loadLocked(ctx)
-	if errors.Is(err, ErrNotModified) && m.policy != nil {
-		return m.policy, nil
+	if err != nil {
+		if m.policy == nil {
+			// Nothing loaded yet, so there is nothing to keep. The error is
+			// installed and Get() surfaces it: fail closed on first load.
+			m.err = err
+			return nil, err
+		}
+		if errors.Is(err, ErrNotModified) {
+			return m.policy, nil
+		}
+		return m.policy, err
 	}
 	m.policy = p
-	m.err = err
-	return p, err
+	m.err = nil
+	return p, nil
 }
 
 // source returns the Source this Manager loads from.
@@ -133,6 +160,31 @@ func (m *Manager) source() Source {
 		return m.src
 	}
 	return &FileSource{Dir: m.dir, Name: m.selectedName, ManifestPath: m.manifestPath}
+}
+
+// Cached returns the policy already loaded, without fetching. It is nil before
+// the first load.
+//
+// A poller uses it to learn what is already in force: calling Get() for that
+// would fetch, and the document it fetched would then never be reported as a
+// change.
+func (m *Manager) Cached() *Policy {
+	if m == nil {
+		return nil
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.policy
+}
+
+// SourceDescription names where the policy comes from, for logs.
+func (m *Manager) SourceDescription() string {
+	if m == nil {
+		return ""
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.source().Describe()
 }
 
 // SetSource replaces where the policy is fetched from. Pass nil to go back to
@@ -156,7 +208,18 @@ func (m *Manager) loadLocked(ctx context.Context) (*Policy, error) {
 	if err := m.verifyBundle(bundle); err != nil {
 		return nil, err
 	}
-	return ParseAndValidate(bundle.Data)
+	// Verification runs first. Skipping it for identical bytes would let a
+	// bundle that was signed once keep loading after its key was revoked.
+	sum := sha256.Sum256(bundle.Data)
+	if m.policy != nil && sum == m.dataHash {
+		return m.policy, nil
+	}
+	p, err := ParseAndValidate(bundle.Data)
+	if err != nil {
+		return nil, err
+	}
+	m.dataHash = sum
+	return p, nil
 }
 
 // verifyBundle applies the signing mode. It runs on every source, which is the

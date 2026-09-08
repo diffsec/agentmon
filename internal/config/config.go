@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	seccompPkg "github.com/diffsec/agentmon/internal/seccomp"
@@ -839,17 +840,160 @@ func (c *SigningConfig) Validate() error {
 
 // PoliciesConfig configures policy loading.
 type PoliciesConfig struct {
-	Dir               string          `yaml:"dir"`
-	Default           string          `yaml:"default"`
-	Allowed           []string        `yaml:"allowed"`
-	ManifestPath      string          `yaml:"manifest_path"`
-	Signing           SigningConfig   `yaml:"signing"`
-	EnvPolicy         EnvPolicyConfig `yaml:"env_policy"`
-	EnvShimPath       string          `yaml:"env_shim_path"`
-	ReloadInterval    string          `yaml:"reload_interval"`
-	DetectProjectRoot *bool           `yaml:"detect_project_root"` // nil means true (default enabled)
-	ProjectMarkers    []string        `yaml:"project_markers"`     // Override default markers
-	SymlinkEscape     string          `yaml:"symlink_escape"`      // "evaluate"/"deny"
+	Dir               string             `yaml:"dir"`
+	Default           string             `yaml:"default"`
+	Allowed           []string           `yaml:"allowed"`
+	ManifestPath      string             `yaml:"manifest_path"`
+	Signing           SigningConfig      `yaml:"signing"`
+	EnvPolicy         EnvPolicyConfig    `yaml:"env_policy"`
+	EnvShimPath       string             `yaml:"env_shim_path"`
+	Remote            RemotePolicyConfig `yaml:"remote"`
+	DetectProjectRoot *bool              `yaml:"detect_project_root"` // nil means true (default enabled)
+	ProjectMarkers    []string           `yaml:"project_markers"`     // Override default markers
+	SymlinkEscape     string             `yaml:"symlink_escape"`      // "evaluate"/"deny"
+}
+
+// RemotePolicyConfig points the policy manager at a policy server instead of
+// the local directory. Setting url is what enables it; there is no separate
+// flag, so a configured URL never sits there doing nothing.
+type RemotePolicyConfig struct {
+	// URL is the policy endpoint, e.g. https://policy.example/v1/policy.
+	URL string `yaml:"url"`
+	// PollInterval bounds how long a change takes to arrive when the server
+	// does not honour long-polling. Default 5m.
+	PollInterval string `yaml:"poll_interval"`
+	// LongPoll is the wait= duration sent to the server. Empty or "0s"
+	// disables it and the ticker alone drives updates. Default 30s.
+	LongPoll string `yaml:"long_poll"`
+	// MaxBytes caps the fetched document. Zero uses policy.DefaultRemoteMaxBytes.
+	MaxBytes int64 `yaml:"max_bytes"`
+	// CacheDir holds the last bundle the server served, so a daemon that
+	// restarts while the server is unreachable comes up on the policy that
+	// server last published rather than refusing to start. Empty defaults to
+	// <data dir>/policy-cache. Set cache: false to disable.
+	CacheDir string `yaml:"cache_dir"`
+	// Cache enables the on-disk last-known-good bundle. nil means true.
+	Cache *bool `yaml:"cache"`
+	// AuthHeader and AuthTokenEnv send a credential. The token is read from
+	// the environment, never written in config, matching ProviderConfig.APIKeyEnv.
+	AuthHeader   string `yaml:"auth_header"`
+	AuthTokenEnv string `yaml:"auth_token_env"`
+	// SendDecisionContext reports hostname, user and tags so the server can
+	// bind a policy to this agent. nil means true.
+	SendDecisionContext *bool `yaml:"send_decision_context"`
+	// TLS configures the client side of the connection.
+	TLS RemotePolicyTLSConfig `yaml:"tls"`
+}
+
+// RemotePolicyTLSConfig is the client half of mTLS to the policy server.
+type RemotePolicyTLSConfig struct {
+	CACertFile         string `yaml:"ca_cert_file"`
+	ClientCertFile     string `yaml:"client_cert_file"`
+	ClientKeyFile      string `yaml:"client_key_file"`
+	InsecureSkipVerify bool   `yaml:"insecure_skip_verify"`
+}
+
+// Enabled reports whether a policy server is configured.
+func (c *RemotePolicyConfig) Enabled() bool { return strings.TrimSpace(c.URL) != "" }
+
+// CacheEnabled reports whether the last served bundle is kept on disk.
+func (c *RemotePolicyConfig) CacheEnabled() bool { return c.Cache == nil || *c.Cache }
+
+// DecisionContextEnabled reports whether identity is sent with the fetch.
+func (c *RemotePolicyConfig) DecisionContextEnabled() bool {
+	return c.SendDecisionContext == nil || *c.SendDecisionContext
+}
+
+// Default poll and long-poll durations, applied when the fields are empty.
+const (
+	DefaultRemotePolicyPollInterval = 5 * time.Minute
+	DefaultRemotePolicyLongPoll     = 30 * time.Second
+)
+
+// ResolvedPollInterval returns the ticker period.
+func (c *RemotePolicyConfig) ResolvedPollInterval() time.Duration {
+	return parseDurationOr(c.PollInterval, DefaultRemotePolicyPollInterval)
+}
+
+// ResolvedLongPoll returns the wait= duration, or zero when disabled.
+func (c *RemotePolicyConfig) ResolvedLongPoll() time.Duration {
+	return parseDurationOr(c.LongPoll, DefaultRemotePolicyLongPoll)
+}
+
+func parseDurationOr(raw string, fallback time.Duration) time.Duration {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d < 0 {
+		// Validate rejects these before startup; a bad value reaching here
+		// takes the default rather than a zero-length ticker.
+		return fallback
+	}
+	return d
+}
+
+// Validate checks the remote policy source.
+//
+// The signature is the trust boundary, not the transport: a remote source with
+// signing off hands whoever owns the server, or the wire, full control of what
+// every agent enforces. Refusing the combination is the one rule here that is
+// not a preference.
+func (c *RemotePolicyConfig) Validate(signingMode string) error {
+	if !c.Enabled() {
+		return nil
+	}
+	u, err := url.Parse(strings.TrimSpace(c.URL))
+	if err != nil {
+		return fmt.Errorf("policies.remote.url %q: %w", c.URL, err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("policies.remote.url %q must be http or https", c.URL)
+	}
+	if u.Host == "" {
+		return fmt.Errorf("policies.remote.url %q has no host", c.URL)
+	}
+	if signingMode != "enforce" {
+		return fmt.Errorf("policies.remote.url requires policies.signing.mode: enforce (got %q); an unverified remote policy puts the policy server in charge of what every agent enforces", signingMode)
+	}
+	if err := validateOptionalDuration("policies.remote.poll_interval", c.PollInterval); err != nil {
+		return err
+	}
+	if err := validateOptionalDuration("policies.remote.long_poll", c.LongPoll); err != nil {
+		return err
+	}
+	if c.ResolvedPollInterval() <= 0 {
+		return fmt.Errorf("policies.remote.poll_interval must be positive")
+	}
+	if c.MaxBytes < 0 {
+		return fmt.Errorf("policies.remote.max_bytes must not be negative")
+	}
+	if (c.TLS.ClientCertFile == "") != (c.TLS.ClientKeyFile == "") {
+		return fmt.Errorf("policies.remote.tls: client_cert_file and client_key_file must be set together")
+	}
+	if c.AuthTokenEnv != "" && c.AuthHeader == "" {
+		return fmt.Errorf("policies.remote.auth_token_env requires auth_header")
+	}
+	if c.AuthHeader != "" && c.AuthTokenEnv == "" {
+		return fmt.Errorf("policies.remote.auth_header requires auth_token_env; the token is read from the environment, never from config")
+	}
+	return nil
+}
+
+func validateOptionalDuration(field, raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		return fmt.Errorf("%s %q: %w", field, raw, err)
+	}
+	if d < 0 {
+		return fmt.Errorf("%s must not be negative", field)
+	}
+	return nil
 }
 
 // SymlinkEscapeDeny reports whether the workspace-escape blanket deny
@@ -2589,6 +2733,9 @@ func validateConfig(cfg *Config) error {
 	}
 	if err := cfg.Policies.Signing.Validate(); err != nil {
 		return fmt.Errorf("signing config: %w", err)
+	}
+	if err := cfg.Policies.Remote.Validate(cfg.Policies.Signing.SigningMode()); err != nil {
+		return err
 	}
 	return nil
 }

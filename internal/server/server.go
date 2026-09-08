@@ -81,6 +81,8 @@ type Server struct {
 
 	torSyncer *tor.Syncer
 
+	policyPoller *policyPoller
+
 	skillcheckDaemon *skillcheck.Daemon // nil when skillcheck.enabled=false
 
 	app *api.App // for lifecycle management (ptrace tracer shutdown)
@@ -169,6 +171,19 @@ func New(cfg *config.Config) (*Server, error) {
 		os.Getenv("AGENTMON_POLICY_NAME"),
 	)
 	pm.SetSigningConfig(cfg.Policies.Signing.SigningMode(), cfg.Policies.Signing.TrustStore)
+	// A policy server, when one is configured, replaces the local directory as
+	// the source. Everything after the fetch -- verification, parse, validate --
+	// is unchanged, so a served policy clears the same bar as a local one.
+	remoteSrc, err := buildRemotePolicySource(context.Background(), cfg, slog.Default())
+	if err != nil {
+		return nil, fmt.Errorf("policy source: %w", err)
+	}
+	if remoteSrc != nil {
+		pm.SetSource(remoteSrc)
+		slog.Info("policy source is remote", "source", pm.SourceDescription(),
+			"poll_interval", cfg.Policies.Remote.ResolvedPollInterval(),
+			"long_poll", cfg.Policies.Remote.ResolvedLongPoll())
+	}
 	p, err := pm.Get()
 	if err != nil {
 		return nil, err
@@ -194,6 +209,16 @@ func New(cfg *config.Config) (*Server, error) {
 	// + sig but skips the engine swap (the App's first Manager.Get on
 	// the new session picks up the freshly-written file).
 	appHolder := &atomic.Pointer[api.App]{}
+
+	// The poller installs a changed document through App.ReloadPolicy, which
+	// reaches every running session's engine and not just the global one.
+	var polPoller *policyPoller
+	if remoteSrc != nil {
+		polPoller = newPolicyPoller(pm, installViaApp(appHolder.Load),
+			cfg.Policies.Remote.ResolvedPollInterval(),
+			cfg.Policies.Remote.ResolvedLongPoll(),
+			slog.Default())
+	}
 
 	// Threat feed (optional).
 	var threatStore *threatfeed.Store
@@ -799,6 +824,7 @@ func New(cfg *config.Config) (*Server, error) {
 		threatSyncer:     threatSyncer,
 		threatStore:      threatStore,
 		torSyncer:        torSyncer,
+		policyPoller:     polPoller,
 		skillcheckDaemon: skillcheckDaemon,
 		app:              app,
 		kmsProvider:      kmsProvider,
@@ -1102,6 +1128,20 @@ func (s *Server) Run(ctx context.Context) error {
 		}()
 	}
 
+	var policyPollerDone chan struct{}
+	if s.policyPoller != nil {
+		policyPollerDone = make(chan struct{})
+		go func() {
+			defer close(policyPollerDone)
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("policy poller panicked", "panic", r)
+				}
+			}()
+			s.policyPoller.Run(ctx)
+		}()
+	}
+
 	var torSyncerDone chan struct{}
 	if s.torSyncer != nil {
 		torSyncerDone = make(chan struct{})
@@ -1181,6 +1221,9 @@ func (s *Server) Run(ctx context.Context) error {
 		}
 		if torSyncerDone != nil {
 			<-torSyncerDone
+		}
+		if policyPollerDone != nil {
+			<-policyPollerDone
 		}
 		if skillcheckDone != nil {
 			<-skillcheckDone
