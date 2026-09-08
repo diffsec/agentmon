@@ -135,13 +135,21 @@ reads as "require client certificates", and honouring it on a plaintext
 listener is impossible, so accepting it would authenticate nothing while
 looking like it authenticated everything.
 
-## Not wired yet
+## Pointing an agent at it
 
-Nothing selects a `RemoteSource` from agent configuration; that is the next
-piece. Until then the round trip is exercised by
-`internal/policyserve/roundtrip_test.go`, which drives a real `policy.Manager`
-with `signing: enforce` against a real server.
+See "Configuring an agent to use one" in `docs/policy-sources.md`. The short
+version:
 
-`internal/server/server.go` still uses `credentials.NewServerTLSFromFile` for
-the gRPC listener, which is one-way TLS with no `ClientCAs`. The mTLS here
-covers the policy endpoint only.
+```yaml
+policies:
+  signing: {mode: enforce, trust_store: /etc/agentmon/trust}
+  remote:
+    url: https://policy.example/v1/policy
+    long_poll: 30s
+```
+
+## Still one-way
+
+`internal/server/server.go` uses `credentials.NewServerTLSFromFile` for the
+gRPC listener, which is one-way TLS with no `ClientCAs`. The mTLS here covers
+the policy endpoint only.

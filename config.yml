@@ -369,8 +369,19 @@ policies:
   # Default policy to use if not specified
   default: "default"
   
-  # Policy reload interval (0 to disable hot reload)
-  reload_interval: "30s"
+  # Signature verification. `enforce` is required when `remote.url` is set.
+  signing:
+    mode: "off"
+    # trust_store: "/etc/agentmon/trust"
+
+  # Fetch policy from a policy server instead of `dir`. Setting `url` enables
+  # it; see docs/policy-sources.md and docs/policy-server.md.
+  # remote:
+  #   url: "https://policy.example/v1/policy"
+  #   poll_interval: "5m"
+  #   long_poll: "30s"
+  #   auth_header: "Authorization"
+  #   auth_token_env: "AGENTMON_POLICY_TOKEN"
 
 # =============================================================================
 # MOUNT PROFILES (for multi-mount sessions)

@@ -114,8 +114,89 @@ See `docs/policy-server.md`.
 `signing: enforce` against a real server, including the case that matters most:
 a bundle signed with a key the agent does not trust does not install.
 
-## Not wired yet
+## Configuring an agent to use one
 
-Nothing selects a `RemoteSource` from agent configuration. That is the next
-piece; until then a `RemoteSource` is installed by calling
-`Manager.SetSource`.
+```yaml
+policies:
+  signing:
+    mode: enforce                      # required; see below
+    trust_store: /etc/agentmon/trust
+  remote:
+    url: https://policy.example/v1/policy
+    poll_interval: 5m                  # ticker; the floor when long-polling is off
+    long_poll: 30s                     # the wait= parameter; "0s" disables it
+    cache_dir: ""                      # default <data dir>/policy-cache
+    auth_header: Authorization
+    auth_token_env: AGENTMON_POLICY_TOKEN
+    tls:
+      ca_cert_file: /etc/agentmon/policy-ca.pem
+      client_cert_file: /etc/agentmon/agent.pem
+      client_key_file: /etc/agentmon/agent-key.pem
+```
+
+Setting `url` is what enables it; there is no separate flag, so a configured
+URL never sits there doing nothing. The token is read from the environment and
+never written in config, matching `ProviderConfig.APIKeyEnv`. An absent token
+is a warning rather than a startup failure: the endpoint that needs it answers
+401, which reaches the log as a fetch failure.
+
+**`signing.mode: enforce` is required.** A remote source with signing off hands
+whoever owns the server, or the wire, full control of what every agent
+enforces. `config.RemotePolicyConfig.Validate` refuses the combination, so
+`agentmon config validate` catches it before deploy. An operator who does not
+want signatures can keep using the local policy directory.
+
+The identity the server binds on comes from `audit.watchtower.decision_context`,
+sent as `X-Agentmon-{Hostname,User,Tags,Tenant}`. That block is named for
+Watchtower but it configures the identity an agent reports so a server can
+resolve its bound policy, which is exactly what the policy server binds on. A
+second, parallel block under `policies.remote` could disagree with it, and then
+one agent would report one identity to Watchtower and a different one to the
+policy server.
+
+The context is resolved once, at startup. Re-resolving it per fetch would let a
+transient tailscaled outage silently move the agent to a different binding.
+
+## Polling
+
+`internal/server/policy_poller.go` fetches and installs. A changed document
+goes through `App.ReloadPolicy`, which swaps the global engine *and* rebuilds
+every running session's engine -- the work #45 added, because swapping the
+global engine alone reaches only sessions that follow it.
+
+With long-polling on, the next fetch starts immediately after one the server
+actually held. A fetch that returned well inside the wait means the server
+ignored the parameter, and the poller falls back to the ticker rather than
+spinning against it.
+
+A failed poll is logged and changes nothing: the Manager keeps the document it
+has. That is a deliberate change to `Manager.ReloadContext`, which previously
+installed the error, so one unreachable poll made every subsequent session
+creation fail against a policy that never changed. On the WTP push path the
+same bug meant a single malformed push poisoned the Manager for the life of the
+process.
+
+Change is detected by pointer identity, which the Manager now guarantees:
+identical bytes keep the existing `*Policy`. Without that, a server sending no
+ETag would look like a new policy on every poll and rebuild every session
+engine every interval. Verification still runs on the fetched bytes before the
+hash is compared -- skipping it would let a bundle keep loading after its
+signing key was revoked.
+
+## The cache
+
+`CachingSource` writes the last bundle the server returned to
+`policies.remote.cache_dir`. Without it, a policy server outage plus any daemon
+restart is a daemon that will not start.
+
+The fallback is not "some other local policy" but the exact document the server
+last served, and it is verified by the same `Manager.verifyBundle` as a fresh
+fetch, so a tampered cache file fails there.
+
+It is only consulted before anything has been fetched in this process. Once a
+fetch has succeeded, a later failure is reported and the Manager keeps the
+policy already in memory; falling back to disk there would silently reinstall
+an older document.
+
+A cached bundle carries no `Version`. The agent has not proved to the server
+that it holds that document, so it must not satisfy a later conditional GET.
