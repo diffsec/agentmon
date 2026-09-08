@@ -142,3 +142,63 @@ func TestValidateConfig_RejectsRemoteWithoutEnforce(t *testing.T) {
 		t.Errorf("error = %v", err)
 	}
 }
+
+func TestServerTLS_Validate(t *testing.T) {
+	cases := []struct {
+		name    string
+		cfg     ServerTLSConfig
+		wantErr string
+	}{
+		{"disabled", ServerTLSConfig{}, ""},
+		{"ca without tls", ServerTLSConfig{CAFile: "/ca.pem"}, "ca_file requires"},
+		{"enabled without keypair", ServerTLSConfig{Enabled: true}, "cert_file/key_file"},
+		{"cert without key", ServerTLSConfig{Enabled: true, CertFile: "/c.pem"}, "cert_file/key_file"},
+		{"one-way", ServerTLSConfig{Enabled: true, CertFile: "/c.pem", KeyFile: "/k.pem"}, ""},
+		{"mutual", ServerTLSConfig{Enabled: true, CertFile: "/c.pem", KeyFile: "/k.pem", CAFile: "/ca.pem"}, ""},
+	}
+	for _, c := range cases {
+		err := c.cfg.Validate()
+		if c.wantErr == "" {
+			if err != nil {
+				t.Errorf("%s: %v", c.name, err)
+			}
+			continue
+		}
+		if err == nil {
+			t.Errorf("%s: accepted", c.name)
+			continue
+		}
+		if !strings.Contains(err.Error(), c.wantErr) {
+			t.Errorf("%s: error = %v, want %q", c.name, err, c.wantErr)
+		}
+	}
+}
+
+func TestServerTLS_MutualTLS(t *testing.T) {
+	if (&ServerTLSConfig{CAFile: "/ca.pem"}).MutualTLS() {
+		t.Error("ca_file with tls disabled reported mutual TLS")
+	}
+	if (&ServerTLSConfig{Enabled: true}).MutualTLS() {
+		t.Error("tls with no ca_file reported mutual TLS")
+	}
+	if (&ServerTLSConfig{Enabled: true, CAFile: "  "}).MutualTLS() {
+		t.Error("a whitespace ca_file reported mutual TLS")
+	}
+	if !(&ServerTLSConfig{Enabled: true, CAFile: "/ca.pem"}).MutualTLS() {
+		t.Error("tls plus ca_file is mutual TLS")
+	}
+}
+
+func TestValidateConfig_RejectsCAFileWithoutTLS(t *testing.T) {
+	cfg := Config{}
+	cfg.Sandbox.FUSE.Audit.Mode = "monitor"
+	cfg.Sandbox.Network.InterceptMode = "all"
+	cfg.Server.TLS.CAFile = "/etc/agentmon/clients-ca.pem"
+	err := validateConfig(&cfg)
+	if err == nil {
+		t.Fatal("agentmon config validate accepted ca_file with tls disabled")
+	}
+	if !strings.Contains(err.Error(), "server.tls.ca_file") {
+		t.Errorf("error = %v", err)
+	}
+}

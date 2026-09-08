@@ -100,7 +100,33 @@ type ServerTLSConfig struct {
 	Enabled  bool   `yaml:"enabled"`
 	CertFile string `yaml:"cert_file"`
 	KeyFile  string `yaml:"key_file"`
-	CAFile   string `yaml:"ca_file"`
+	// CAFile turns on mutual TLS: a client must present a certificate this
+	// bundle signs, on both the HTTP and gRPC listeners. Empty means one-way
+	// TLS, where the server proves who it is and the client proves nothing.
+	CAFile string `yaml:"ca_file"`
+}
+
+// MutualTLS reports whether client certificates are required.
+func (c *ServerTLSConfig) MutualTLS() bool {
+	return c.Enabled && strings.TrimSpace(c.CAFile) != ""
+}
+
+// Validate checks the inbound TLS config.
+func (c *ServerTLSConfig) Validate() error {
+	if !c.Enabled {
+		if strings.TrimSpace(c.CAFile) != "" {
+			// The field reads as "require client certificates", and honouring
+			// it on a plaintext listener is impossible. Ignoring it would
+			// authenticate nothing while looking like it authenticated
+			// everything.
+			return fmt.Errorf("server.tls.ca_file requires server.tls.enabled: true")
+		}
+		return nil
+	}
+	if strings.TrimSpace(c.CertFile) == "" || strings.TrimSpace(c.KeyFile) == "" {
+		return fmt.Errorf("server.tls enabled but cert_file/key_file missing")
+	}
+	return nil
 }
 
 type AuthConfig struct {
@@ -2735,6 +2761,9 @@ func validateConfig(cfg *Config) error {
 		return fmt.Errorf("signing config: %w", err)
 	}
 	if err := cfg.Policies.Remote.Validate(cfg.Policies.Signing.SigningMode()); err != nil {
+		return err
+	}
+	if err := cfg.Server.TLS.Validate(); err != nil {
 		return err
 	}
 	return nil

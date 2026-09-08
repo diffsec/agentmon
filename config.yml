@@ -31,8 +31,11 @@ server:
     enabled: false
     cert_file: "/etc/agentmon/tls/server.crt"
     key_file: "/etc/agentmon/tls/server.key"
-    ca_file: "/etc/agentmon/tls/ca.crt"        # For mTLS
-    client_auth: false                         # Require client certs
+    # Setting ca_file turns on mutual TLS on both the HTTP and gRPC
+    # listeners: a client must present a certificate this bundle signs.
+    # It requires enabled: true, and is refused otherwise rather than
+    # ignored. There is no separate client_auth switch.
+    # ca_file: "/etc/agentmon/tls/clients-ca.crt"
 
 # =============================================================================
 # AUTHENTICATION

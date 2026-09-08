@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -859,19 +860,14 @@ func New(cfg *config.Config) (*Server, error) {
 			grpc.UnaryInterceptor(api.GRPCUnaryAuthInterceptor(app)),
 			grpc.StreamInterceptor(api.GRPCStreamAuthInterceptor(app)),
 		)
-		if cfg.Server.TLS.Enabled {
-			if cfg.Server.TLS.CertFile == "" || cfg.Server.TLS.KeyFile == "" {
-				_ = grpcLn.Close()
-				_ = store.Close()
-				return nil, fmt.Errorf("server.tls enabled but cert_file/key_file missing")
-			}
-			creds, err := credentials.NewServerTLSFromFile(cfg.Server.TLS.CertFile, cfg.Server.TLS.KeyFile)
-			if err != nil {
-				_ = grpcLn.Close()
-				_ = store.Close()
-				return nil, fmt.Errorf("load grpc tls keypair: %w", err)
-			}
-			opts = append(opts, grpc.Creds(creds))
+		grpcTLS, tlsErr := serverTLSConfig(cfg.Server.TLS)
+		if tlsErr != nil {
+			_ = grpcLn.Close()
+			_ = store.Close()
+			return nil, fmt.Errorf("grpc tls: %w", tlsErr)
+		}
+		if grpcTLS != nil {
+			opts = append(opts, grpc.Creds(credentials.NewTLS(grpcTLS)))
 		}
 
 		gs := grpc.NewServer(opts...)
@@ -983,17 +979,14 @@ func listenHTTP(cfg *config.Config) (net.Listener, error) {
 			return nil, fmt.Errorf("refusing to listen on %q with auth.type=none (use 127.0.0.1/localhost or enable auth)", addr)
 		}
 	}
-	if !cfg.Server.TLS.Enabled {
-		return net.Listen("tcp", addr)
-	}
-	if cfg.Server.TLS.CertFile == "" || cfg.Server.TLS.KeyFile == "" {
-		return nil, fmt.Errorf("server.tls enabled but cert_file/key_file missing")
-	}
-	cert, err := tlsLoad(cfg.Server.TLS.CertFile, cfg.Server.TLS.KeyFile)
+	tlsCfg, err := serverTLSConfig(cfg.Server.TLS)
 	if err != nil {
 		return nil, err
 	}
-	return tlsListen(addr, cert)
+	if tlsCfg == nil {
+		return net.Listen("tcp", addr)
+	}
+	return tls.Listen("tcp", addr, tlsCfg)
 }
 
 func listenGRPC(cfg *config.Config) (net.Listener, error) {
@@ -1037,17 +1030,48 @@ func isLoopbackListenAddr(addr string) bool {
 	return false
 }
 
-func tlsLoad(certFile, keyFile string) (tls.Certificate, error) {
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		return tls.Certificate{}, fmt.Errorf("load tls keypair: %w", err)
+// serverTLSConfig builds the inbound TLS config, or nil when TLS is off.
+//
+// Both listeners go through it. They used to build their own -- the HTTP one
+// from tls.LoadX509KeyPair, the gRPC one from credentials.NewServerTLSFromFile
+// -- and neither read server.tls.ca_file, so the field existed in the schema
+// and configured nothing. One builder is what stops the two drifting again:
+// mutual TLS on the HTTP port and one-way on the gRPC port is not a
+// configuration anyone would choose deliberately.
+func serverTLSConfig(tc config.ServerTLSConfig) (*tls.Config, error) {
+	if err := tc.Validate(); err != nil {
+		return nil, err
 	}
-	return cert, nil
-}
-
-func tlsListen(addr string, cert tls.Certificate) (net.Listener, error) {
-	cfg := &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
-	return tls.Listen("tcp", addr, cfg)
+	if !tc.Enabled {
+		return nil, nil
+	}
+	cert, err := tls.LoadX509KeyPair(tc.CertFile, tc.KeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("load tls keypair: %w", err)
+	}
+	cfg := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+	}
+	if !tc.MutualTLS() {
+		return cfg, nil
+	}
+	pem, err := os.ReadFile(tc.CAFile)
+	if err != nil {
+		return nil, fmt.Errorf("server.tls.ca_file: %w", err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(pem) {
+		// An empty pool verifies nothing, so every client would be rejected
+		// and the operator would be debugging handshakes rather than a typo.
+		return nil, fmt.Errorf("server.tls.ca_file %s contains no certificates", tc.CAFile)
+	}
+	cfg.ClientCAs = pool
+	// RequireAndVerifyClientCert, not RequestClientCert or
+	// VerifyClientCertIfGiven: both of those accept a client that presents
+	// nothing, which is every client an attacker controls.
+	cfg.ClientAuth = tls.RequireAndVerifyClientCert
+	return cfg, nil
 }
 
 type serverEmitter struct {
