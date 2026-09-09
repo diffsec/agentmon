@@ -1017,13 +1017,13 @@ command_rules:
     
   - name: approve-package-install
     commands: [npm, pip, cargo, apt]
-    args_patterns: ["install*", "add*"]
+    args_patterns: ["(^|\\s)(install|add)(\\s|$)"]   # regex, not glob
     decision: approve
     message: "Agent wants to install packages: {args}"
     
   - name: deny-dangerous
     commands: [rm, dd, mkfs, fdisk]
-    args_patterns: ["-rf*", "-r *"]
+    args_patterns: ["(^|\\s)-[a-zA-Z]*r[a-zA-Z]*f"]    # regex, not glob
     decision: deny
 
 # Registry rules (Windows-only)

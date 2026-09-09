@@ -449,6 +449,32 @@ command_rules:
       - printenv
     decision: allow
     
+  # ---------------------------------------------------------------------------
+  # Approve risky commands
+  #
+  # Rules are first-match-wins, so anything narrower than allow-dev-tools has
+  # to sit above it. This rule used to sit below, where allow-dev-tools already
+  # matched npm, pip, pip3 and cargo -- so package installs on those four were
+  # allowed outright and the approval never fired.
+  # ---------------------------------------------------------------------------
+
+  - name: approve-package-install
+    description: Require approval for package installation
+    commands:
+      - npm
+      - pip
+      - pip3
+      - cargo
+      - apt
+      - apt-get
+      - yum
+    # args_patterns are regexes matched against the joined argument string,
+    # not globs. "install*" would mean "instal" plus zero or more "l".
+    args_patterns:
+      - "(^|\\s)(install|add|update|upgrade)(\\s|$)"
+    decision: approve
+    message: "Agent wants to install packages: {{.Args}}"
+    
   - name: allow-dev-tools
     description: Development tools
     commands:
@@ -467,28 +493,6 @@ command_rules:
       - cmake
     decision: allow
 
-  # ---------------------------------------------------------------------------
-  # Approve risky commands
-  # ---------------------------------------------------------------------------
-  
-  - name: approve-package-install
-    description: Require approval for package installation
-    commands:
-      - npm
-      - pip
-      - pip3
-      - cargo
-      - apt
-      - apt-get
-      - yum
-    args_patterns:
-      - "install*"
-      - "add*"
-      - "update*"
-      - "upgrade*"
-    decision: approve
-    message: "Agent wants to install packages: {{.Args}}"
-    
   - name: approve-curl-wget
     description: Require approval for downloads
     commands:
@@ -506,9 +510,13 @@ command_rules:
     commands:
       - rm
     args_patterns:
-      - "*-rf*"
-      - "*-fr*"
-      - "*--force*--recursive*"
+      # A short-flag bundle carrying both r and f, in either order. (?i)
+      # matters: rm -R is the documented spelling on BSD and macOS.
+      - "(?i)(^|\\s)-[a-z]*r[a-z]*f"
+      - "(?i)(^|\\s)-[a-z]*f[a-z]*r"
+      # The long forms, in either order.
+      - "--force(\\s.*)?\\s--recursive"
+      - "--recursive(\\s.*)?\\s--force"
     decision: deny
     
   - name: block-system-commands
