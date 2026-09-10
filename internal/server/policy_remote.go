@@ -75,7 +75,7 @@ func buildRemotePolicySource(ctx context.Context, cfg *config.Config, logger *sl
 	}
 	dir := strings.TrimSpace(rc.CacheDir)
 	if dir == "" {
-		dir = filepath.Join(config.GetDataDir(), "policy-cache")
+		dir = filepath.Join(cfg.ResolvedDataDir(), "policy-cache")
 	}
 	return policy.NewCachingSource(src, dir, logger), nil
 }

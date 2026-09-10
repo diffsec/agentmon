@@ -16,6 +16,18 @@ import (
 )
 
 type Config struct {
+	// DataDir is where the daemon keeps state it writes at runtime: the
+	// threat-feed cache, the Tor relay cache, the policy cache. Its default
+	// follows the config source, so a user-level daemon writes under the
+	// user's data directory and a system one under /var/lib.
+	//
+	// The three caches used to call GetDataDir() directly, which always
+	// returns the system path. Both shipped units run the daemon as the
+	// logged-in user -- a systemd --user service and a launchd LaunchAgent --
+	// so every one of those writes failed, and each failure was a warning at
+	// first use rather than anything that stopped startup.
+	DataDir string `yaml:"data_dir"`
+
 	Platform          PlatformConfig          `yaml:"platform"`
 	Server            ServerConfig            `yaml:"server"`
 	Auth              AuthConfig              `yaml:"auth"`
@@ -1755,6 +1767,18 @@ func resolveRelativePaths(cfg *Config, baseDir string) {
 	cfg.Sessions.BaseDir = resolve(cfg.Sessions.BaseDir)
 }
 
+// ResolvedDataDir returns the directory the daemon writes runtime state to.
+//
+// It falls back to the system path only for a Config that never went through
+// Load -- tests build Config{} directly -- so a real daemon always gets the
+// source-aware value.
+func (c *Config) ResolvedDataDir() string {
+	if c == nil || strings.TrimSpace(c.DataDir) == "" {
+		return GetDataDir()
+	}
+	return c.DataDir
+}
+
 // getDefaultDataDir returns the appropriate data directory based on config source.
 func getDefaultDataDir(source ConfigSource, configPath string) string {
 	switch source {
@@ -1769,10 +1793,25 @@ func getDefaultDataDir(source ConfigSource, configPath string) string {
 	case ConfigSourceBundle:
 		return GetUserDataDir()
 	case ConfigSourceSystem:
-		return GetDataDir()
+		return systemOrUserDataDir()
 	default:
+		return systemOrUserDataDir()
+	}
+}
+
+// systemOrUserDataDir returns the system data directory only when this process
+// can actually write it.
+//
+// Where the config file lives says nothing about what the daemon may write. A
+// user-level daemon reading /etc/agentmon/config.yaml still cannot create
+// /var/lib/agentmon, and both shipped units run as the logged-in user: a
+// systemd --user service and a launchd LaunchAgent. Resolving on the effective
+// uid answers the question that is actually being asked.
+func systemOrUserDataDir() string {
+	if os.Geteuid() == 0 {
 		return GetDataDir()
 	}
+	return GetUserDataDir()
 }
 
 // getDefaultPoliciesDir returns the appropriate policies directory based on config source.
@@ -1836,6 +1875,13 @@ func seedPoliciesFromBundle(bundleDir, userDir string) {
 // - Env config: defaults use the directory containing the config file
 func applyDefaultsWithSource(cfg *Config, source ConfigSource, configPath string) {
 	dataDir := getDefaultDataDir(source, configPath)
+	if cfg.DataDir == "" {
+		cfg.DataDir = dataDir
+	} else {
+		// An explicit data_dir wins for everything derived from it, so the
+		// override is one setting rather than one per cache.
+		dataDir = cfg.DataDir
+	}
 	policiesDir := getDefaultPoliciesDir(source, configPath)
 
 	// Platform defaults

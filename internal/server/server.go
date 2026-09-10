@@ -171,6 +171,13 @@ func New(cfg *config.Config) (*Server, error) {
 		cfg.Policies.ManifestPath,
 		os.Getenv("AGENTMON_POLICY_NAME"),
 	)
+	// Check the data directory once, loudly, rather than letting each cache
+	// discover it at first use. A daemon that cannot write here still runs,
+	// but every cache it owns is memory-only: the threat feed re-downloads on
+	// each start and blocks nothing until the first sync lands, and a policy
+	// server outage across a restart leaves no policy to fall back to.
+	checkDataDir(cfg.ResolvedDataDir())
+
 	pm.SetSigningConfig(cfg.Policies.Signing.SigningMode(), cfg.Policies.Signing.TrustStore)
 	// A policy server, when one is configured, replaces the local directory as
 	// the source. Everything after the fetch -- verification, parse, validate --
@@ -227,7 +234,7 @@ func New(cfg *config.Config) (*Server, error) {
 	if cfg.ThreatFeeds.Enabled {
 		cacheDir := cfg.ThreatFeeds.CacheDir
 		if cacheDir == "" {
-			cacheDir = filepath.Join(config.GetDataDir(), "threat-feeds")
+			cacheDir = filepath.Join(cfg.ResolvedDataDir(), "threat-feeds")
 		}
 		threatStore = threatfeed.NewStore(cacheDir, cfg.ThreatFeeds.Allowlist)
 		if err := threatStore.LoadFromDisk(); err != nil {
@@ -245,7 +252,7 @@ func New(cfg *config.Config) (*Server, error) {
 	if torCfg.Enabled {
 		// Default the relay-feed cache dir alongside the threat-feed cache.
 		if torCfg.RelayFeed.Enabled && torCfg.RelayFeed.CacheDir == "" {
-			torCfg.RelayFeed.CacheDir = filepath.Join(config.GetDataDir(), "tor-relays")
+			torCfg.RelayFeed.CacheDir = filepath.Join(cfg.ResolvedDataDir(), "tor-relays")
 		}
 		p, err := tor.New(torCfg)
 		if err != nil {
@@ -970,6 +977,38 @@ func withRequestBodyLimit(next http.Handler, maxBytes int64) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// checkDataDir reports whether the daemon can write the directory its caches
+// live in.
+//
+// It does not fail startup. Every cache below it degrades to memory-only,
+// which is worse than working and better than not running at all, and an
+// operator who set the directory deliberately on a read-only host should not
+// be locked out of enforcement over it. What is not acceptable is finding out
+// from three separate warnings at first use.
+func checkDataDir(dir string) {
+	if strings.TrimSpace(dir) == "" {
+		slog.Error("data directory is empty; the threat feed, Tor relay and policy caches are memory-only")
+		return
+	}
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		slog.Error("cannot create the data directory; the threat feed, Tor relay and policy caches are memory-only, so a restart starts from nothing",
+			"dir", dir, "error", err)
+		return
+	}
+	probe := filepath.Join(dir, ".writable")
+	f, err := os.OpenFile(probe, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		// MkdirAll succeeds on a directory that already exists and is not
+		// writable, so creating the directory proves nothing on its own.
+		slog.Error("the data directory is not writable; the threat feed, Tor relay and policy caches are memory-only, so a restart starts from nothing",
+			"dir", dir, "error", err)
+		return
+	}
+	_ = f.Close()
+	_ = os.Remove(probe)
+	slog.Debug("data directory is writable", "dir", dir)
 }
 
 func listenHTTP(cfg *config.Config) (net.Listener, error) {
