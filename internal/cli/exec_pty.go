@@ -22,6 +22,7 @@ import (
 	"golang.org/x/term"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -152,13 +153,7 @@ func execPTYWithDeps(ctx context.Context, cfg *clientConfig, sessionID string, r
 			autoCreateRoot, _ = os.Getwd()
 		}
 		if autoCreateRoot != "" {
-			cl, clErr := client.NewForCLI(client.CLIOptions{
-				HTTPBaseURL:   cfg.serverAddr,
-				GRPCAddr:      cfg.grpcAddr,
-				APIKey:        cfg.apiKey,
-				Transport:     cfg.transport,
-				ClientTimeout: cfg.getClientTimeout(),
-			})
+			cl, clErr := client.NewForCLI(cfg.cliOptions())
 			if clErr == nil {
 				createReq := types.CreateSessionRequest{
 					ID:        sessionID,
@@ -232,9 +227,22 @@ func execPTYGRPC(ctx context.Context, cfg *clientConfig, sessionID string, req e
 		}
 	}
 
+	// This path dials gRPC directly rather than through client.NewGRPCWithTLS,
+	// because it streams a PTY over a generated stub. The credentials have to
+	// be built the same way regardless, or `agentmon exec --tty` is the one
+	// command that cannot reach a TLS daemon.
+	tlsCfg, tlsErr := cfg.tlsOptions().Config()
+	if tlsErr != nil {
+		return tlsErr
+	}
+	creds := insecure.NewCredentials()
+	if tlsCfg != nil {
+		creds = credentials.NewTLS(tlsCfg)
+	}
+
 	dctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	conn, err := grpc.DialContext(dctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.DialContext(dctx, addr, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return err
 	}

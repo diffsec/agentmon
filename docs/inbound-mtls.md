@@ -76,9 +76,29 @@ public CA bundle would then let any publicly issued certificate onto the API.
 Relaxing a fail-closed check is a deliberate decision, not a side effect of
 adding one.
 
-**The in-tree gRPC client cannot connect to a TLS listener at all.**
-`internal/client/grpc_client.go:43` and `internal/cli/exec_pty.go:237` both
-dial with `insecure.NewCredentials()`. That predates this change -- turning on
-`server.tls` already broke `--transport grpc` -- and client certificates would
-need new flags on top. The HTTP client in `internal/client/client.go:54` has no
-TLS options either.
+## Connecting to it
+
+The CLI reads the same material through five persistent flags, each with an
+`AGENTMON_*` environment default:
+
+```
+agentmon --server https://daemon:18080 \
+  --tls-ca /etc/agentmon/tls/ca.crt \
+  --tls-cert ~/.agentmon/client.crt \
+  --tls-key ~/.agentmon/client.key \
+  session list
+```
+
+`--transport grpc` uses the same flags for the gRPC dial. `--tls` alone turns
+TLS on for gRPC against a server whose certificate the system roots already
+trust; any other `--tls-*` flag implies it. `--tls-server-name` overrides the
+name checked against the certificate, for connecting by IP.
+`--tls-insecure-skip-verify` disables verification.
+
+Two mismatches are refused rather than ignored. TLS flags with an `http://`
+server URL is an error, because attaching a `tls.Config` to an `http://`
+client does nothing and the request would go out in the clear while the
+operator believed `--tls-ca` had been honoured. TLS flags with a `unix://`
+socket is an error for the same reason. Over `--transport grpc` an `http://`
+base URL is fine: the flags belong to the gRPC leg, and the HTTP one carries
+only the endpoints gRPC does not.

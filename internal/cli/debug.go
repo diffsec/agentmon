@@ -36,12 +36,7 @@ func newDebugStatsCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sessionID := args[0]
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{
-				HTTPBaseURL: cfg.serverAddr,
-				GRPCAddr:    cfg.grpcAddr,
-				APIKey:      cfg.apiKey,
-				Transport:   cfg.transport,
-			})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}
@@ -200,12 +195,7 @@ func newDebugPendingCmd() *cobra.Command {
 		Short: "List pending approval requests",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{
-				HTTPBaseURL: cfg.serverAddr,
-				GRPCAddr:    cfg.grpcAddr,
-				APIKey:      cfg.apiKey,
-				Transport:   cfg.transport,
-			})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}
@@ -314,12 +304,7 @@ func newDebugPolicyTestCmd() *cobra.Command {
 			}
 
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{
-				HTTPBaseURL: cfg.serverAddr,
-				GRPCAddr:    cfg.grpcAddr,
-				APIKey:      cfg.apiKey,
-				Transport:   cfg.transport,
-			})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}

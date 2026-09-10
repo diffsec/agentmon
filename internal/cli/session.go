@@ -37,7 +37,7 @@ func newSessionCreateCmd() *cobra.Command {
 		Short: "Create a new session",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{HTTPBaseURL: cfg.serverAddr, GRPCAddr: cfg.grpcAddr, APIKey: cfg.apiKey, Transport: cfg.transport})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}
@@ -71,7 +71,7 @@ func newSessionListCmd() *cobra.Command {
 		Short: "List sessions",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{HTTPBaseURL: cfg.serverAddr, GRPCAddr: cfg.grpcAddr, APIKey: cfg.apiKey, Transport: cfg.transport})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}
@@ -92,7 +92,7 @@ func newSessionInfoCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{HTTPBaseURL: cfg.serverAddr, GRPCAddr: cfg.grpcAddr, APIKey: cfg.apiKey, Transport: cfg.transport})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}
@@ -113,7 +113,7 @@ func newSessionDestroyCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{HTTPBaseURL: cfg.serverAddr, GRPCAddr: cfg.grpcAddr, APIKey: cfg.apiKey, Transport: cfg.transport})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}
@@ -150,7 +150,7 @@ func newSessionUpdateCmd() *cobra.Command {
 			}
 
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{HTTPBaseURL: cfg.serverAddr, GRPCAddr: cfg.grpcAddr, APIKey: cfg.apiKey, Transport: cfg.transport})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}
@@ -225,7 +225,7 @@ When no type is specified, all log types are shown.`,
 			}
 
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{HTTPBaseURL: cfg.serverAddr, GRPCAddr: cfg.grpcAddr, APIKey: cfg.apiKey, Transport: cfg.transport})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}

@@ -44,12 +44,7 @@ func newTaintListCmd() *cobra.Command {
 		Long:  `Lists all processes currently tracked as tainted (descended from AI tools).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{
-				HTTPBaseURL: cfg.serverAddr,
-				GRPCAddr:    cfg.grpcAddr,
-				APIKey:      cfg.apiKey,
-				Transport:   cfg.transport,
-			})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}
@@ -115,12 +110,7 @@ func newTaintShowCmd() *cobra.Command {
 			}
 
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{
-				HTTPBaseURL: cfg.serverAddr,
-				GRPCAddr:    cfg.grpcAddr,
-				APIKey:      cfg.apiKey,
-				Transport:   cfg.transport,
-			})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}
@@ -191,12 +181,7 @@ specified process, including classification of each intermediate process.`,
 			}
 
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{
-				HTTPBaseURL: cfg.serverAddr,
-				GRPCAddr:    cfg.grpcAddr,
-				APIKey:      cfg.apiKey,
-				Transport:   cfg.transport,
-			})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}
@@ -279,12 +264,7 @@ func newTaintWatchCmd() *cobra.Command {
 		Long:  `Watches for taint events (new taints, propagation, removal) in real-time.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{
-				HTTPBaseURL: cfg.serverAddr,
-				GRPCAddr:    cfg.grpcAddr,
-				APIKey:      cfg.apiKey,
-				Transport:   cfg.transport,
-			})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}

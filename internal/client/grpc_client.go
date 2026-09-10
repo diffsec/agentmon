@@ -3,6 +3,7 @@ package client
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/diffsec/agentmon/pkg/types"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -27,6 +29,17 @@ type GRPCClient struct {
 }
 
 func NewGRPC(addr string, apiKey string) (*GRPCClient, error) {
+	return NewGRPCWithTLS(addr, apiKey, nil)
+}
+
+// NewGRPCWithTLS dials the daemon's gRPC listener, optionally over TLS.
+//
+// A nil tlsCfg dials plaintext, which is what every existing loopback
+// invocation does. With server.tls enabled on the daemon this client could not
+// connect at all: the dial was hardcoded to insecure.NewCredentials(), so
+// turning TLS on broke --transport grpc outright, and the mutual TLS the
+// daemon can now require had no client in this tree that could satisfy it.
+func NewGRPCWithTLS(addr string, apiKey string, tlsCfg *tls.Config) (*GRPCClient, error) {
 	a := strings.TrimSpace(addr)
 	if strings.Contains(a, "://") {
 		if u, err := url.Parse(a); err == nil {
@@ -40,7 +53,11 @@ func NewGRPC(addr string, apiKey string) (*GRPCClient, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	conn, err := grpc.DialContext(ctx, a, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	creds := insecure.NewCredentials()
+	if tlsCfg != nil {
+		creds = credentials.NewTLS(tlsCfg)
+	}
+	conn, err := grpc.DialContext(ctx, a, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, err
 	}

@@ -2,8 +2,10 @@ package cli
 
 import (
 	"os"
+	"strings"
 	"time"
 
+	"github.com/diffsec/agentmon/internal/client"
 	"github.com/spf13/cobra"
 )
 
@@ -24,6 +26,12 @@ func NewRoot(version string) *cobra.Command {
 	cmd.PersistentFlags().StringVar(&cfg.grpcAddr, "grpc-addr", getenvDefault("AGENTMON_GRPC_ADDR", "127.0.0.1:9090"), "agentmon gRPC address (host:port)")
 	cmd.PersistentFlags().StringVar(&cfg.apiKey, "api-key", getenvDefault("AGENTMON_API_KEY", ""), "API key (sent as X-API-Key)")
 	cmd.PersistentFlags().StringVar(&cfg.clientTimeout, "client-timeout", getenvDefault("AGENTMON_CLIENT_TIMEOUT", "30s"), "HTTP client timeout for API requests (e.g. 30s, 5m)")
+	cmd.PersistentFlags().BoolVar(&cfg.tlsEnabled, "tls", getenvBool("AGENTMON_TLS"), "Use TLS for the gRPC transport (implied by any other --tls-* flag; the HTTP transport takes it from the --server scheme)")
+	cmd.PersistentFlags().StringVar(&cfg.tlsCACert, "tls-ca", getenvDefault("AGENTMON_TLS_CA", ""), "CA bundle verifying the server (default: system roots)")
+	cmd.PersistentFlags().StringVar(&cfg.tlsCert, "tls-cert", getenvDefault("AGENTMON_TLS_CERT", ""), "Client certificate, for a server that sets server.tls.ca_file")
+	cmd.PersistentFlags().StringVar(&cfg.tlsKey, "tls-key", getenvDefault("AGENTMON_TLS_KEY", ""), "Client private key, paired with --tls-cert")
+	cmd.PersistentFlags().StringVar(&cfg.tlsServerName, "tls-server-name", getenvDefault("AGENTMON_TLS_SERVER_NAME", ""), "Name checked against the server certificate, when connecting by IP")
+	cmd.PersistentFlags().BoolVar(&cfg.tlsSkipVerify, "tls-insecure-skip-verify", getenvBool("AGENTMON_TLS_INSECURE_SKIP_VERIFY"), "Do not verify the server certificate")
 
 	cmd.AddCommand(newServerCmd())
 	cmd.AddCommand(newSessionCmd())
@@ -64,6 +72,42 @@ type clientConfig struct {
 	grpcAddr      string
 	apiKey        string
 	clientTimeout string
+
+	tlsEnabled    bool
+	tlsCACert     string
+	tlsCert       string
+	tlsKey        string
+	tlsServerName string
+	tlsSkipVerify bool
+}
+
+// cliOptions is the single place the client options are assembled.
+//
+// Every command used to build client.CLIOptions inline, and they had drifted:
+// several passed no ClientTimeout at all, so --client-timeout was silently
+// ignored on approve, attach and the session commands. Adding TLS to 31
+// literals would have repeated that.
+func (c *clientConfig) cliOptions() client.CLIOptions {
+	return client.CLIOptions{
+		HTTPBaseURL:   c.serverAddr,
+		GRPCAddr:      c.grpcAddr,
+		APIKey:        c.apiKey,
+		Transport:     c.transport,
+		ClientTimeout: c.getClientTimeout(),
+		TLS:           c.tlsOptions(),
+	}
+}
+
+// tlsOptions collects the --tls-* flags.
+func (c *clientConfig) tlsOptions() client.TLSOptions {
+	return client.TLSOptions{
+		Enabled:            c.tlsEnabled,
+		CACertFile:         c.tlsCACert,
+		ClientCertFile:     c.tlsCert,
+		ClientKeyFile:      c.tlsKey,
+		ServerName:         c.tlsServerName,
+		InsecureSkipVerify: c.tlsSkipVerify,
+	}
 }
 
 func getClientConfig(cmd *cobra.Command) *clientConfig {
@@ -75,7 +119,30 @@ func getClientConfig(cmd *cobra.Command) *clientConfig {
 	if serverAddr == "" {
 		serverAddr = "http://127.0.0.1:18080"
 	}
-	return &clientConfig{serverAddr: serverAddr, transport: transport, grpcAddr: grpcAddr, apiKey: apiKey, clientTimeout: clientTimeout}
+	flags := cmd.Root().PersistentFlags()
+	tlsEnabled, _ := flags.GetBool("tls")
+	tlsCACert, _ := flags.GetString("tls-ca")
+	tlsCert, _ := flags.GetString("tls-cert")
+	tlsKey, _ := flags.GetString("tls-key")
+	tlsServerName, _ := flags.GetString("tls-server-name")
+	tlsSkipVerify, _ := flags.GetBool("tls-insecure-skip-verify")
+	return &clientConfig{
+		serverAddr: serverAddr, transport: transport, grpcAddr: grpcAddr,
+		apiKey: apiKey, clientTimeout: clientTimeout,
+		tlsEnabled: tlsEnabled, tlsCACert: tlsCACert, tlsCert: tlsCert,
+		tlsKey: tlsKey, tlsServerName: tlsServerName, tlsSkipVerify: tlsSkipVerify,
+	}
+}
+
+// getenvBool reads a boolean environment default. Anything other than a
+// recognised true value is false, so a typo disables the setting rather than
+// enabling it -- which for --tls-insecure-skip-verify is the safe direction.
+func getenvBool(k string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(k))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }
 
 func (c *clientConfig) getClientTimeout() time.Duration {

@@ -140,12 +140,7 @@ func (m *memoryEventStore) AppendEvent(ctx context.Context, ev types.Event) erro
 func (m *memoryEventStore) Close() error                                          { return nil }
 
 func loadReportFromAPI(ctx context.Context, cfg *clientConfig, sessionArg string) (types.Session, []types.Event, error) {
-	c, err := client.NewForCLI(client.CLIOptions{
-		HTTPBaseURL: cfg.serverAddr,
-		GRPCAddr:    cfg.grpcAddr,
-		APIKey:      cfg.apiKey,
-		Transport:   cfg.transport,
-	})
+	c, err := client.NewForCLI(cfg.cliOptions())
 	if err != nil {
 		return types.Session{}, nil, err
 	}

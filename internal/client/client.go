@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -47,11 +48,27 @@ func New(baseURL string, apiKey string) *Client {
 }
 
 func NewWithTimeout(baseURL string, apiKey string, timeout time.Duration) *Client {
+	c, _ := NewWithOptions(baseURL, apiKey, timeout, nil)
+	return c
+}
+
+// NewWithOptions is NewWithTimeout with a TLS config for an https server.
+//
+// A nil tlsCfg leaves the transport alone, so an http:// base URL and a
+// loopback daemon behave exactly as before. The config is what carries a
+// private CA and, for a daemon running with server.tls.ca_file, the client
+// certificate it now requires.
+func NewWithOptions(baseURL string, apiKey string, timeout time.Duration, tlsCfg *tls.Config) (*Client, error) {
 	baseURL = strings.TrimRight(baseURL, "/")
 	if timeout <= 0 {
 		timeout = DefaultClientTimeout
 	}
 	hc := &http.Client{Timeout: timeout}
+	if tlsCfg != nil {
+		tr := http.DefaultTransport.(*http.Transport).Clone()
+		tr.TLSClientConfig = tlsCfg
+		hc.Transport = tr
+	}
 	if u, err := url.Parse(baseURL); err == nil && strings.EqualFold(u.Scheme, "unix") {
 		sock := u.Path
 		if sock == "" {
@@ -62,6 +79,12 @@ func NewWithTimeout(baseURL string, apiKey string, timeout time.Duration) *Clien
 		sock = strings.TrimSpace(sock)
 		if sock != "" {
 			dialer := &net.Dialer{}
+			// A unix socket carries no TLS. Replacing the transport here
+			// would drop a tls.Config the caller supplied and connect
+			// anyway, so say so instead.
+			if tlsCfg != nil {
+				return nil, fmt.Errorf("tls options were given for the unix socket %s, which does not use TLS", sock)
+			}
 			hc.Transport = &http.Transport{
 				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 					return dialer.DialContext(ctx, "unix", sock)
@@ -74,7 +97,7 @@ func NewWithTimeout(baseURL string, apiKey string, timeout time.Duration) *Clien
 		baseURL:    baseURL,
 		apiKey:     apiKey,
 		httpClient: hc,
-	}
+	}, nil
 }
 
 func (c *Client) CreateSession(ctx context.Context, workspace, policy string) (types.Session, error) {

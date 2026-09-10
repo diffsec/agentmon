@@ -56,6 +56,11 @@ type CLIOptions struct {
 	APIKey        string
 	Transport     string        // http|grpc
 	ClientTimeout time.Duration // HTTP client timeout (0 = default 30s)
+
+	// TLS configures the client side of the connection. Zero value means
+	// plaintext gRPC and an HTTP transport whose scheme decides, which is
+	// what every loopback invocation gets today.
+	TLS TLSOptions
 }
 
 func NewForCLI(opts CLIOptions) (CLIClient, error) {
@@ -63,23 +68,60 @@ func NewForCLI(opts CLIOptions) (CLIClient, error) {
 	if transport == "" {
 		transport = "http"
 	}
+	tlsCfg, err := opts.TLS.Config()
+	if err != nil {
+		return nil, err
+	}
+	// The HTTP transport takes TLS from the URL scheme, because "host:port"
+	// cannot express it and a scheme can. Attaching a tls.Config to an
+	// http:// client does nothing at all, so rather than drop it silently and
+	// send the request in the clear, say which two settings disagree.
+	httpTLS := tlsCfg
+	if !isHTTPS(opts.HTTPBaseURL) {
+		httpTLS = nil
+	}
 	switch transport {
 	case "http":
-		return NewWithTimeout(opts.HTTPBaseURL, opts.APIKey, opts.ClientTimeout), nil
+		if tlsCfg != nil && httpTLS == nil && !isUnixURL(opts.HTTPBaseURL) {
+			return nil, fmt.Errorf("tls options were given but the server URL is %q; use https:// or drop the tls flags", opts.HTTPBaseURL)
+		}
+		return NewWithOptions(opts.HTTPBaseURL, opts.APIKey, opts.ClientTimeout, httpTLS)
 	case "grpc":
-		httpc := NewWithTimeout(opts.HTTPBaseURL, opts.APIKey, opts.ClientTimeout)
+		httpc, herr := NewWithOptions(opts.HTTPBaseURL, opts.APIKey, opts.ClientTimeout, httpTLS)
+		if herr != nil {
+			return nil, herr
+		}
 		gaddr := strings.TrimSpace(opts.GRPCAddr)
 		if gaddr == "" {
 			gaddr = "127.0.0.1:9090"
 		}
-		grpcC, err := NewGRPC(gaddr, opts.APIKey)
-		if err != nil {
-			return nil, err
+		grpcC, gerr := NewGRPCWithTLS(gaddr, opts.APIKey, tlsCfg)
+		if gerr != nil {
+			return nil, gerr
 		}
 		return &HybridClient{Client: httpc, grpc: grpcC}, nil
 	default:
 		return nil, fmt.Errorf("unknown transport %q (expected http|grpc)", opts.Transport)
 	}
+}
+
+// isHTTPS reports whether the base URL selects TLS.
+func isHTTPS(raw string) bool {
+	return schemeOf(raw) == "https"
+}
+
+// isUnixURL reports whether the base URL is a unix socket, which carries no
+// TLS and is reported by NewWithOptions rather than here.
+func isUnixURL(raw string) bool {
+	return schemeOf(raw) == "unix"
+}
+
+func schemeOf(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(u.Scheme)
 }
 
 type HybridClient struct {

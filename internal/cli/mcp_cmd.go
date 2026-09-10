@@ -92,13 +92,7 @@ func newMCPToolsCmd() *cobra.Command {
 
 			// API mode
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{
-				HTTPBaseURL:   cfg.serverAddr,
-				GRPCAddr:      cfg.grpcAddr,
-				APIKey:        cfg.apiKey,
-				Transport:     cfg.transport,
-				ClientTimeout: cfg.getClientTimeout(),
-			})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}
@@ -194,13 +188,7 @@ func newMCPServersCmd() *cobra.Command {
 
 			// API mode
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{
-				HTTPBaseURL:   cfg.serverAddr,
-				GRPCAddr:      cfg.grpcAddr,
-				APIKey:        cfg.apiKey,
-				Transport:     cfg.transport,
-				ClientTimeout: cfg.getClientTimeout(),
-			})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}
@@ -313,13 +301,7 @@ func newMCPEventsCmd() *cobra.Command {
 
 			// API mode
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{
-				HTTPBaseURL:   cfg.serverAddr,
-				GRPCAddr:      cfg.grpcAddr,
-				APIKey:        cfg.apiKey,
-				Transport:     cfg.transport,
-				ClientTimeout: cfg.getClientTimeout(),
-			})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}
@@ -480,13 +462,7 @@ func newMCPCallsCmd() *cobra.Command {
 			}
 
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{
-				HTTPBaseURL:   cfg.serverAddr,
-				GRPCAddr:      cfg.grpcAddr,
-				APIKey:        cfg.apiKey,
-				Transport:     cfg.transport,
-				ClientTimeout: cfg.getClientTimeout(),
-			})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}
@@ -629,13 +605,7 @@ func newMCPDetectionsCmd() *cobra.Command {
 
 			// API mode
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{
-				HTTPBaseURL:   cfg.serverAddr,
-				GRPCAddr:      cfg.grpcAddr,
-				APIKey:        cfg.apiKey,
-				Transport:     cfg.transport,
-				ClientTimeout: cfg.getClientTimeout(),
-			})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}
