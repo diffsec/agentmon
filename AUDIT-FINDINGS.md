@@ -182,6 +182,7 @@ Scoring guide:
 - **Issue:** On the `/tmp/agentmon` fallback base (parent `/tmp` world-writable), an attacker who pre-creates `/tmp/agentmon/session-global.sid` (or a workspace `.sid`) as a symlink to a victim file causes the shim to (a) read that target's bytes as the session id (info leak to the server) and (b) `Truncate(0)`+write `"session-<uuid>\n"` over the target.
 - **Impact:** Cross-user session-id spoofing / clobbering of user-writable files on shared hosts.
 - **Fix:** Open with `O_RDWR|O_CREATE|O_EXCL|O_NOFOLLOW` (retry on EEXIST after stat-rejecting symlinks), or scope session dirs to `0o700`.
+- **Status: FIXED.** `internal/safepath` opens with `O_NOFOLLOW` and verifies the descriptor's owner and type after the open; session directories are created `0o700` and refused when another uid owns them; the `/tmp` fallback is per-uid (`/tmp/agentmon-<uid>`), so a squatter has to win one specific user's race and loses anyway on the ownership check. The same helpers fixed a second instance of the class: `internal/api/core.go` wrote the sandbox config (the child's whole policy) to a predictable `/tmp/agentmon-sandbox-<session>.json` with `os.WriteFile`, which has neither `O_EXCL` nor `O_NOFOLLOW`, so a pre-created file was filled in at the attacker's mode and a symlink redirected the write. It now goes to a private directory under the user state dir.
 
 ---
 
