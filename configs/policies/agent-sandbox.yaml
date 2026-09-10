@@ -377,6 +377,28 @@ command_rules:
       - which
     decision: allow
 
+  # ---------------------------------------------------------------------------
+  # Approve package installation
+  #
+  # Rules are first-match-wins, so this has to sit above allow-dev-tools. Below
+  # it, allow-dev-tools already matched npm, pip, pip3 and cargo, so installs
+  # on all four ran without ever reaching the approval.
+  # ---------------------------------------------------------------------------
+
+  - name: approve-package-install
+    description: Require approval for package installation
+    commands:
+      - npm
+      - pip
+      - pip3
+      - cargo
+    # Regexes over the joined argument string, anchored on a word boundary so
+    # "install.*" cannot match "reinstallation" or a package named "install".
+    args_patterns:
+      - "(^|\\s)(install|add)(\\s|$)"
+    decision: approve
+    message: "Agent wants to install packages: {{.Args}}"
+
   - name: allow-dev-tools
     description: Development tools
     commands:
@@ -391,23 +413,6 @@ command_rules:
       - go
       - make
     decision: allow
-
-  # ---------------------------------------------------------------------------
-  # Approve package installation
-  # ---------------------------------------------------------------------------
-
-  - name: approve-package-install
-    description: Require approval for package installation
-    commands:
-      - npm
-      - pip
-      - pip3
-      - cargo
-    args_patterns:
-      - "install.*"
-      - "add.*"
-    decision: approve
-    message: "Agent wants to install packages: {{.Args}}"
 
   # ---------------------------------------------------------------------------
   # Block dangerous commands

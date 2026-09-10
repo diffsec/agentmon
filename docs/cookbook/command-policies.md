@@ -35,6 +35,19 @@ If the rule also specifies `args_patterns`, the joined arg string must match
 at least one of the regex patterns for the rule to apply — otherwise the
 engine skips to the next rule.
 
+`args_patterns` are **regexes**, unlike `commands`, which are globs. Writing a
+glob there is the easy mistake: `install*` compiles fine and means "instal"
+followed by zero or more "l", so it matches `reinstallation` and misses
+nothing you meant to catch only by luck. `*-rf*` does not compile at all, and
+the failure lands at engine build rather than at policy load. Anchor on a word
+boundary instead: `(^|\s)install(\s|$)`.
+
+Rules are first match wins, and a rule with `args_patterns` is narrower than
+one without. Put the narrow rule **above** the broad one. An
+`approve-package-install` rule placed below an `allow-dev-tools` rule that
+names `npm` is unreachable, and nothing reports it: the policy loads, the
+engine builds, and the approval never fires.
+
 `command_rules` at `depth: 0` (the default) apply to direct commands from
 `agentmon exec`. Rules with `context.min_depth: 1` apply only to nested
 execve calls observed by the seccomp/ptrace tracer (commands that the agent

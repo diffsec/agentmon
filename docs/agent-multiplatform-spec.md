@@ -7801,7 +7801,7 @@ command_rules:
       
   - name: redirect-git-clone
     commands: [git]
-    args_patterns: ["clone*", "pull*", "fetch*", "push*"]
+    args_patterns: ["^(clone|pull|fetch|push)(\\s|$)"]  # regex, not glob
     decision: redirect
     redirect_to:
       command: agentmon-git

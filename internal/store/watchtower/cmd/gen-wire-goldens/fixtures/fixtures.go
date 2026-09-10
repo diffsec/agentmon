@@ -12,10 +12,15 @@
 // proto.MarshalOptions{Deterministic: true} in both this package and
 // the test, otherwise the byte-comparison tests will become flaky.
 //
-// Compressed fixtures (event_batch_zstd.bin, event_batch_gzip.bin) are
-// additionally pinned to: zstd level 3, gzip level 6, and the
-// klauspost/compress version in go.sum. Bumping any of those requires
-// regenerating the goldens via `go run ./internal/store/watchtower/cmd/gen-wire-goldens`.
+// Compressed fixtures (event_batch_zstd.bin, event_batch_gzip.bin) are NOT
+// compared byte for byte. gzip here is stdlib compress/gzip, not
+// klauspost/compress, so its DEFLATE output is a property of the Go toolchain
+// rather than of anything go.sum pins: the checked-in golden holds a deflated
+// block and a newer toolchain emits a stored block for the same input at the
+// same level. Both are valid gzip and decode identically. The test compares
+// what a compressed fixture decodes to, plus its envelope and declared
+// algorithm; levels are covered directly in
+// internal/store/watchtower/transport/compress.
 package fixtures
 
 import (
