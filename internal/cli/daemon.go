@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/diffsec/agentmon/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -254,9 +255,15 @@ func installSystemdService(cmd *cobra.Command, force bool) error {
 		return nil
 	}
 
-	// Data directory for read-write access
-	dataDir := filepath.Join(home, ".local", "share", "agentmon")
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
+	// Data directory for read-write access.
+	//
+	// ProtectSystem=strict plus ProtectHome=read-only means the unit can write
+	// nothing except what ReadWritePaths grants, so this has to be the same
+	// directory the daemon actually resolves. It was hardcoded here and
+	// computed by config.GetUserDataDir() there, which agree only while
+	// XDG_DATA_HOME is unset.
+	dataDir := config.GetUserDataDir()
+	if err := os.MkdirAll(dataDir, 0o750); err != nil {
 		return fmt.Errorf("create data directory: %w", err)
 	}
 

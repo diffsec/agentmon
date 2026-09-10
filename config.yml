@@ -361,6 +361,13 @@ llm_storage:
     max_size_mb: 500
     eviction: "oldest_first"   # oldest_first | largest_first
 
+# Where the daemon writes runtime state: the threat-feed cache, the Tor relay
+# cache and the policy cache. Left unset it follows the config source, and
+# falls back to the user's data directory whenever the daemon is not root --
+# both shipped units run it as the logged-in user, so /var/lib/agentmon is not
+# writable and every cache would be memory-only.
+# data_dir: "/var/lib/agentmon"
+
 # =============================================================================
 # POLICIES
 # =============================================================================

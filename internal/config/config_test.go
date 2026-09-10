@@ -472,21 +472,47 @@ func TestApplyDefaultsWithSource_UserSource(t *testing.T) {
 	}
 }
 
+// TestApplyDefaultsWithSource_SystemSource pins that a system config resolves
+// to a directory this process can write.
+//
+// It used to assert GetDataDir() unconditionally. Where the config file lives
+// says nothing about what the daemon may write: both shipped units run it as
+// the logged-in user, so a non-root daemon reading /etc/agentmon/config.yaml
+// got /var/lib/agentmon for its sessions, its audit database and its caches,
+// and could create none of them.
 func TestApplyDefaultsWithSource_SystemSource(t *testing.T) {
 	cfg := &Config{}
 	applyDefaultsWithSource(cfg, ConfigSourceSystem, "")
 
-	// Sessions.BaseDir should use system data dir
-	systemDataDir := GetDataDir()
-	wantSessionsDir := filepath.Join(systemDataDir, "sessions")
+	wantDataDir := GetDataDir()
+	if os.Geteuid() != 0 {
+		wantDataDir = GetUserDataDir()
+	}
+	if cfg.DataDir != wantDataDir {
+		t.Errorf("DataDir = %q, want %q", cfg.DataDir, wantDataDir)
+	}
+
+	wantSessionsDir := filepath.Join(wantDataDir, "sessions")
 	if cfg.Sessions.BaseDir != wantSessionsDir {
 		t.Errorf("Sessions.BaseDir = %q, want %q", cfg.Sessions.BaseDir, wantSessionsDir)
 	}
 
-	// Audit.Storage.SQLitePath should use system data dir
-	wantSQLitePath := filepath.Join(systemDataDir, "events.db")
+	wantSQLitePath := filepath.Join(wantDataDir, "events.db")
 	if cfg.Audit.Storage.SQLitePath != wantSQLitePath {
 		t.Errorf("Audit.Storage.SQLitePath = %q, want %q", cfg.Audit.Storage.SQLitePath, wantSQLitePath)
+	}
+}
+
+// TestApplyDefaultsWithSource_SystemSourceAsRoot documents the other branch,
+// which this host cannot exercise: a root daemon keeps the system paths.
+func TestApplyDefaultsWithSource_SystemSourceAsRoot(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("not running as root")
+	}
+	cfg := &Config{}
+	applyDefaultsWithSource(cfg, ConfigSourceSystem, "")
+	if cfg.DataDir != GetDataDir() {
+		t.Errorf("DataDir = %q, want the system path %q", cfg.DataDir, GetDataDir())
 	}
 }
 
