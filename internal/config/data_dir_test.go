@@ -17,16 +17,21 @@ func TestResolvedDataDir_UsesTheConfiguredValue(t *testing.T) {
 func TestResolvedDataDir_FallsBackForAZeroConfig(t *testing.T) {
 	// Tests across the tree build Config{} directly; a daemon always goes
 	// through Load, which fills DataDir in.
+	// The fallback must still be a directory this process can write, or a CLI
+	// subcommand with no config reaches for /var/lib and fails on mkdir.
 	var cfg Config
-	if got := cfg.ResolvedDataDir(); got != GetDataDir() {
-		t.Errorf("ResolvedDataDir() = %q, want %q", got, GetDataDir())
+	if got := cfg.ResolvedDataDir(); got != DefaultDataDir() {
+		t.Errorf("ResolvedDataDir() = %q, want %q", got, DefaultDataDir())
 	}
-	if got := (*Config)(nil).ResolvedDataDir(); got != GetDataDir() {
+	if got := (*Config)(nil).ResolvedDataDir(); got != DefaultDataDir() {
 		t.Errorf("nil receiver: %q", got)
 	}
 	blank := &Config{DataDir: "   "}
-	if got := blank.ResolvedDataDir(); got != GetDataDir() {
+	if got := blank.ResolvedDataDir(); got != DefaultDataDir() {
 		t.Errorf("whitespace data_dir: %q", got)
+	}
+	if os.Geteuid() != 0 && cfg.ResolvedDataDir() == GetDataDir() {
+		t.Errorf("the fallback is the system path %q, which this user cannot write", GetDataDir())
 	}
 }
 

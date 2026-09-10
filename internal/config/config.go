@@ -1769,12 +1769,12 @@ func resolveRelativePaths(cfg *Config, baseDir string) {
 
 // ResolvedDataDir returns the directory the daemon writes runtime state to.
 //
-// It falls back to the system path only for a Config that never went through
+// It falls back to DefaultDataDir only for a Config that never went through
 // Load -- tests build Config{} directly -- so a real daemon always gets the
-// source-aware value.
+// source-aware value, and the fallback is still one this process can write.
 func (c *Config) ResolvedDataDir() string {
 	if c == nil || strings.TrimSpace(c.DataDir) == "" {
-		return GetDataDir()
+		return DefaultDataDir()
 	}
 	return c.DataDir
 }
@@ -1799,20 +1799,26 @@ func getDefaultDataDir(source ConfigSource, configPath string) string {
 	}
 }
 
-// systemOrUserDataDir returns the system data directory only when this process
-// can actually write it.
+// DefaultDataDir returns the system data directory only when this process can
+// actually write it.
 //
 // Where the config file lives says nothing about what the daemon may write. A
 // user-level daemon reading /etc/agentmon/config.yaml still cannot create
 // /var/lib/agentmon, and both shipped units run as the logged-in user: a
 // systemd --user service and a launchd LaunchAgent. Resolving on the effective
 // uid answers the question that is actually being asked.
-func systemOrUserDataDir() string {
+//
+// It is exported because the CLI subcommands need the same answer when they
+// have no config to read: `agentmon checkpoint list` against a missing config
+// used to reach for the system path and fail on mkdir.
+func DefaultDataDir() string {
 	if os.Geteuid() == 0 {
 		return GetDataDir()
 	}
 	return GetUserDataDir()
 }
+
+func systemOrUserDataDir() string { return DefaultDataDir() }
 
 // getDefaultPoliciesDir returns the appropriate policies directory based on config source.
 func getDefaultPoliciesDir(source ConfigSource, configPath string) string {

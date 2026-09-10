@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/diffsec/agentmon/internal/config"
 	"github.com/diffsec/agentmon/internal/session"
 	"github.com/spf13/cobra"
 )
@@ -26,15 +28,36 @@ func newCheckpointCmd() *cobra.Command {
 }
 
 func addCheckpointStorageFlag(cmd *cobra.Command) {
-	cmd.Flags().String("storage-dir", "", "checkpoint storage directory (default: config sessions.checkpoints.storage_dir)")
+	cmd.Flags().String("storage-dir", "", "checkpoint storage directory (default: sessions.checkpoints.storage_dir, else <data dir>/checkpoints)")
+	cmd.Flags().String("config", "", "Config file path (defaults to AGENTMON_CONFIG or config.yml)")
+}
+
+// resolveCheckpointDir picks the checkpoint directory, most explicit first.
+//
+// The flag help promised "config sessions.checkpoints.storage_dir" while the
+// code fell back to a hardcoded /var/lib/agentmon/checkpoints, so a configured
+// storage_dir was ignored and `agentmon checkpoint list` looked at a directory
+// nothing wrote. The system path is also unwritable for a non-root user, and
+// both shipped units run the daemon as the logged-in user.
+func resolveCheckpointDir(cmd *cobra.Command) string {
+	if dir, _ := cmd.Flags().GetString("storage-dir"); strings.TrimSpace(dir) != "" {
+		return dir
+	}
+	configPath, _ := cmd.Flags().GetString("config")
+	cfg, _, err := loadLocalConfig(configPath)
+	if err != nil || cfg == nil {
+		// No config is not an error here: the checkpoint commands operate on a
+		// directory, and a reachable default beats refusing to run.
+		return filepath.Join(config.DefaultDataDir(), "checkpoints")
+	}
+	if dir := strings.TrimSpace(cfg.Sessions.Checkpoints.StorageDir); dir != "" {
+		return dir
+	}
+	return filepath.Join(cfg.ResolvedDataDir(), "checkpoints")
 }
 
 func getCheckpointStorage(cmd *cobra.Command) (*session.FileCheckpointStorage, error) {
-	dir, _ := cmd.Flags().GetString("storage-dir")
-	if dir == "" {
-		dir = "/var/lib/agentmon/checkpoints"
-	}
-	return session.NewFileCheckpointStorage(dir, 0)
+	return session.NewFileCheckpointStorage(resolveCheckpointDir(cmd), 0)
 }
 
 func newCheckpointCreateCmd() *cobra.Command {
