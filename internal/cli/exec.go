@@ -129,13 +129,7 @@ it, or how to launch a long-lived agent under "agentmon wrap" instead.`,
 			}
 
 			cfg := getClientConfig(cmd)
-			cl, err := client.NewForCLI(client.CLIOptions{
-				HTTPBaseURL:   cfg.serverAddr,
-				GRPCAddr:      cfg.grpcAddr,
-				APIKey:        cfg.apiKey,
-				Transport:     cfg.transport,
-				ClientTimeout: cfg.getClientTimeout(),
-			})
+			cl, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}

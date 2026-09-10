@@ -42,12 +42,7 @@ Examples:
 			}
 
 			cfg := getClientConfig(cmd)
-			c, err := client.NewForCLI(client.CLIOptions{
-				HTTPBaseURL: cfg.serverAddr,
-				GRPCAddr:    cfg.grpcAddr,
-				APIKey:      cfg.apiKey,
-				Transport:   cfg.transport,
-			})
+			c, err := client.NewForCLI(cfg.cliOptions())
 			if err != nil {
 				return err
 			}

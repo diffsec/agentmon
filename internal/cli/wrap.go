@@ -82,12 +82,7 @@ type wrapOptions struct {
 
 func runWrap(ctx context.Context, cfg *clientConfig, opts wrapOptions) error {
 	// 1. Create or reuse session
-	c, err := client.NewForCLI(client.CLIOptions{
-		HTTPBaseURL: cfg.serverAddr,
-		GRPCAddr:    cfg.grpcAddr,
-		APIKey:      cfg.apiKey,
-		Transport:   cfg.transport,
-	})
+	c, err := client.NewForCLI(cfg.cliOptions())
 	if err != nil {
 		return fmt.Errorf("client: %w", err)
 	}
