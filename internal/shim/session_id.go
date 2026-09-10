@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/diffsec/agentmon/internal/safepath"
 	"github.com/google/uuid"
 )
 
@@ -142,8 +143,15 @@ func hashKey(s string) string {
 	return hex.EncodeToString(h[:])[:16]
 }
 
+// ensureSessionFilePath prepares the directory the session file lives in.
+//
+// 0700, not 0755. The session id is a capability: whoever holds it can act as
+// that session against the daemon, so a world-readable directory under /tmp
+// published it to every account on the host. EnsurePrivateDir also refuses a
+// directory this user does not own, which is what turns a squatted
+// /tmp/agentmon-<uid> into a fall-through to the next base dir.
 func ensureSessionFilePath(baseDir, scope, key string) (string, error) {
-	if err := os.MkdirAll(baseDir, 0o755); err != nil {
+	if err := safepath.EnsurePrivateDir(baseDir); err != nil {
 		return "", err
 	}
 	switch scope {
@@ -151,7 +159,7 @@ func ensureSessionFilePath(baseDir, scope, key string) (string, error) {
 		return filepath.Join(baseDir, "session-global.sid"), nil
 	case "workspace":
 		sdir := filepath.Join(baseDir, "sessions")
-		if err := os.MkdirAll(sdir, 0o755); err != nil {
+		if err := safepath.EnsurePrivateDir(sdir); err != nil {
 			return "", err
 		}
 		return filepath.Join(sdir, "workspace-"+key+".sid"), nil
@@ -164,11 +172,16 @@ func readOrCreateSessionIDFile(path string) (string, error) {
 	if strings.TrimSpace(path) == "" {
 		return "", errors.New("session file path is empty")
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := safepath.EnsurePrivateDir(filepath.Dir(path)); err != nil {
 		return "", err
 	}
 
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
+	// O_NOFOLLOW, via safepath.OpenPrivate. Following a symlink here read the
+	// target's bytes back as the session id and then truncated the target when
+	// a new id was written -- an information leak and an arbitrary-file
+	// clobber, both reachable by any account that could create the path first
+	// (AUDIT H22).
+	f, err := safepath.OpenPrivate(path, os.O_RDWR|os.O_CREATE, safepath.PrivateFileMode)
 	if err != nil {
 		return "", err
 	}

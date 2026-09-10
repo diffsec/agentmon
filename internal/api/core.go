@@ -23,6 +23,7 @@ import (
 	"github.com/diffsec/agentmon/internal/platform/helperbin"
 	"github.com/diffsec/agentmon/internal/policy"
 	"github.com/diffsec/agentmon/internal/policy/signing"
+	"github.com/diffsec/agentmon/internal/safepath"
 	"github.com/diffsec/agentmon/internal/session"
 	"github.com/diffsec/agentmon/internal/signal"
 	"github.com/diffsec/agentmon/internal/wrapperlog"
@@ -1617,12 +1618,27 @@ func (a *App) wrapWithMacSandbox(
 	// Use file-based config if payload is too large for env var
 	cfgStr := string(cfgJSON)
 	if len(cfgStr) > 64*1024 {
-		tmpFile := fmt.Sprintf("/tmp/agentmon-sandbox-%s.json", sess.ID)
-		if err := os.WriteFile(tmpFile, cfgJSON, 0600); err != nil {
+		// This file is the policy constraining the child: the compiled SBPL
+		// profile, the allowed paths, the mach-service lists. It used to be
+		// written with os.WriteFile to /tmp/agentmon-sandbox-<session>.json,
+		// which handed it to anyone on the host. The name is predictable, /tmp
+		// is world-writable, and os.WriteFile is O_WRONLY|O_CREATE|O_TRUNC:
+		// no O_EXCL, so an attacker who created the path first got a file the
+		// daemon then filled in (the 0600 argument applies only on creation),
+		// and no O_NOFOLLOW, so a symlink there redirected the write onto any
+		// file the daemon could touch. That is AUDIT M58's leak again, through
+		// the filesystem rather than the environment.
+		dir := sandboxConfigDir()
+		if err := safepath.EnsurePrivateDir(dir); err != nil {
+			slog.Warn("failed to prepare the sandbox config directory", "dir", dir, "error", err)
+			return
+		}
+		cfgFile := filepath.Join(dir, "sandbox-"+sess.ID+".json")
+		if err := safepath.WritePrivate(cfgFile, cfgJSON, safepath.PrivateFileMode); err != nil {
 			slog.Warn("failed to write sandbox config file", "error", err)
 			return
 		}
-		req.Env["AGENTMON_SANDBOX_CONFIG_FILE"] = tmpFile
+		req.Env["AGENTMON_SANDBOX_CONFIG_FILE"] = cfgFile
 	} else {
 		req.Env["AGENTMON_SANDBOX_CONFIG"] = cfgStr
 	}
@@ -1631,6 +1647,17 @@ func (a *App) wrapWithMacSandbox(
 	// bundle's Contents/MacOS on PATH, so a bare name would fail to exec.
 	req.Command = wrapperPath
 	req.Args = append([]string{"--", origCommand}, origArgs...)
+}
+
+// sandboxConfigDir is where a too-large sandbox config is staged for the
+// wrapper to read.
+//
+// Under the user's state directory rather than /tmp: the wrapper runs as the
+// same user, so nothing needs a shared location, and a directory the user owns
+// end to end removes the world-writable parent that made the old path
+// attackable. agentmon-macwrap removes the file once it has read it.
+func sandboxConfigDir() string {
+	return filepath.Join(config.GetUserStateDir(), "sandbox")
 }
 
 // emitPackageCheckEvent publishes a package check audit event.
