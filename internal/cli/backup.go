@@ -48,7 +48,7 @@ func newBackupCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (default: agentmon-backup-<timestamp>.tar.gz)")
 	cmd.Flags().BoolVar(&verify, "verify", false, "Verify backup after creation")
-	cmd.Flags().StringVar(&configPath, "config", "/etc/agentmon/config.yaml", "Path to config file")
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to config file (defaults to AGENTMON_CONFIG or config.yml)")
 
 	return cmd
 }
@@ -57,6 +57,7 @@ func newRestoreCmd() *cobra.Command {
 	var input string
 	var verify bool
 	var dryRun bool
+	var configPath string
 
 	cmd := &cobra.Command{
 		Use:   "restore",
@@ -65,31 +66,65 @@ func newRestoreCmd() *cobra.Command {
 			if input == "" {
 				return fmt.Errorf("--input is required")
 			}
-			return restoreBackup(cmd, input, verify, dryRun)
+			return restoreBackup(cmd, input, configPath, verify, dryRun)
 		},
 	}
 
 	cmd.Flags().StringVarP(&input, "input", "i", "", "Input backup file (required)")
 	cmd.Flags().BoolVar(&verify, "verify", false, "Verify restored data")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be restored without making changes")
+	// Restore wrote to /etc/agentmon and /var/lib/agentmon whatever the
+	// installation looked like. It needs the same config the backup was taken
+	// against, or it puts the files somewhere the daemon does not read.
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to config file, deciding where the restored files go (defaults to AGENTMON_CONFIG or config.yml)")
 	cmd.MarkFlagRequired("input")
 
 	return cmd
 }
 
-func createBackup(cmd *cobra.Command, output, configPath string, verify bool) error {
-	// Load config to get actual paths
-	cfg, err := config.Load(configPath)
-	if err != nil {
-		fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not load config from %s: %v (using defaults)\n", configPath, err)
-		cfg = &config.Config{}
-		// Apply defaults manually if config load fails
-		cfg.Audit.Storage.SQLitePath = "/var/lib/agentmon/events.db"
-		cfg.Policies.Dir = "/etc/agentmon/policies"
-	}
+// backupPaths are the three locations backup reads and restore writes.
+//
+// Both used to hardcode /etc/agentmon and /var/lib/agentmon. Neither is
+// writable by a non-root user, and both shipped units run the daemon as the
+// logged-in user, so restore either failed outright or -- run as root against
+// a user installation -- wrote files the daemon would never read.
+type backupPaths struct {
+	config   string
+	auditDB  string
+	policies string
+}
 
-	auditDB := cfg.Audit.Storage.SQLitePath
-	policiesDir := cfg.Policies.Dir
+// resolveBackupPaths reads the config the operator points at, and falls back
+// to source-aware defaults rather than to a fixed system path.
+func resolveBackupPaths(cmd *cobra.Command, configPath string) backupPaths {
+	cfg, _, err := loadLocalConfig(configPath)
+	resolved := configPath
+	if strings.TrimSpace(resolved) == "" {
+		resolved, _ = findConfigPath()
+	}
+	if err != nil || cfg == nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not load config from %s: %v (using defaults)\n", resolved, err)
+		cfg = &config.Config{}
+	}
+	p := backupPaths{
+		config:   resolved,
+		auditDB:  strings.TrimSpace(cfg.Audit.Storage.SQLitePath),
+		policies: strings.TrimSpace(cfg.Policies.Dir),
+	}
+	if p.auditDB == "" {
+		p.auditDB = filepath.Join(cfg.ResolvedDataDir(), "events.db")
+	}
+	if p.policies == "" {
+		p.policies = filepath.Join(config.GetUserConfigDir(), "policies")
+	}
+	return p
+}
+
+func createBackup(cmd *cobra.Command, output, configPath string, verify bool) error {
+	paths := resolveBackupPaths(cmd, configPath)
+	configPath = paths.config
+	auditDB := paths.auditDB
+	policiesDir := paths.policies
 
 	// Write to temp file first, rename on success to avoid partial backups
 	tempFile := output + ".tmp"
@@ -212,7 +247,7 @@ func verifyBackup(cmd *cobra.Command, backupPath string) error {
 	return nil
 }
 
-func restoreBackup(cmd *cobra.Command, input string, verify, dryRun bool) error {
+func restoreBackup(cmd *cobra.Command, input, configPath string, verify, dryRun bool) error {
 	f, err := os.Open(input)
 	if err != nil {
 		return fmt.Errorf("open backup: %w", err)
@@ -227,10 +262,13 @@ func restoreBackup(cmd *cobra.Command, input string, verify, dryRun bool) error 
 
 	tr := tar.NewReader(gr)
 
-	// Default restore paths (can be overridden via flags in future)
-	configDest := "/etc/agentmon/config.yaml"
-	auditDBDest := "/var/lib/agentmon/events.db"
-	policiesDest := "/etc/agentmon/policies"
+	// Where the files go is decided by the config the operator points at, the
+	// same resolution the backup was taken with, rather than by a fixed system
+	// path this installation may not use or be able to write.
+	paths := resolveBackupPaths(cmd, configPath)
+	configDest := paths.config
+	auditDBDest := paths.auditDB
+	policiesDest := paths.policies
 
 	restoredCount := 0
 	for {
