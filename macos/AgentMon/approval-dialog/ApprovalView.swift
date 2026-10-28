@@ -1,282 +1,130 @@
-// macos/ApprovalDialog/ApprovalView.swift
+// macos/AgentMon/approval-dialog/ApprovalView.swift
 import SwiftUI
 
-/// SwiftUI view for displaying a network access approval dialog.
-/// Shows process and connection information with action buttons for the user to decide.
+/// Shows one pending approval and asks for an answer.
 struct ApprovalView: View {
     let request: ApprovalRequestData
-    let onDecision: (String, Bool) -> Void  // (decision, permanent)
+    /// Called once, with true for approve and false for deny.
+    let onDecision: (Bool) -> Void
 
-    @State private var timeRemaining: TimeInterval
-    @State private var timer: Timer?
-    @State private var decisionMade: Bool = false  // Prevents timer from firing after user action
+    @State private var now = Date()
+    @State private var decided = false
+    private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
-    init(request: ApprovalRequestData, onDecision: @escaping (String, Bool) -> Void) {
-        self.request = request
-        self.onDecision = onDecision
-        // Calculate initial time remaining based on timestamp and timeout
-        let elapsed = Date().timeIntervalSince(request.timestamp)
-        let remaining = max(0, request.timeout - elapsed)
-        self._timeRemaining = State(initialValue: remaining)
-    }
+    private var remaining: TimeInterval { max(0, request.expiresAt.timeIntervalSince(now)) }
+    private var expired: Bool { remaining <= 0 }
+    private var total: TimeInterval { max(1, request.expiresAt.timeIntervalSince(request.createdAt)) }
 
     var body: some View {
-        VStack(spacing: 20) {
-            // Header with warning icon
-            headerSection
-
-            // Process info GroupBox
-            processInfoSection
-
-            // Connection info GroupBox
-            connectionInfoSection
-
-            // Timeout progress indicator
-            timeoutSection
-
-            // Action buttons (2x2 grid)
-            actionButtons
+        VStack(alignment: .leading, spacing: 16) {
+            header
+            details
+            countdown
+            buttons
         }
         .padding(24)
-        .frame(width: 420)
-        .onAppear(perform: startTimer)
-        .onDisappear(perform: stopTimer)
+        .frame(width: 460)
+        .onReceive(tick) { now = $0 }
     }
 
-    // MARK: - Header Section
-
-    private var headerSection: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "network.badge.shield.half.filled")
-                .font(.system(size: 48))
+    private var header: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 36))
                 .foregroundColor(.orange)
-
-            Text("Network Access Request")
-                .font(.title.bold())
-        }
-    }
-
-    // MARK: - Process Info Section
-
-    private var processInfoSection: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 8) {
-                infoRow(label: "Process", value: request.processName, icon: "app.fill")
-
-                if let bundleID = request.bundleID, !bundleID.isEmpty {
-                    infoRow(label: "Bundle ID", value: bundleID, icon: "shippingbox.fill")
-                }
-
-                if let executablePath = request.executablePath, !executablePath.isEmpty {
-                    infoRow(label: "Path", value: executablePath, icon: "folder.fill")
-                }
-
-                infoRow(label: "PID", value: "\(request.pid)", icon: "number")
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            Label("Process Information", systemImage: "gearshape.fill")
-                .font(.headline)
-        }
-    }
-
-    // MARK: - Connection Info Section
-
-    private var connectionInfoSection: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 8) {
-                infoRow(label: "Host", value: request.targetHost, icon: "server.rack")
-                infoRow(label: "Port", value: "\(request.targetPort)", icon: "number.circle.fill")
-                infoRow(label: "Protocol", value: request.targetProtocol.uppercased(), icon: "arrow.left.arrow.right")
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            Label("Connection Details", systemImage: "network")
-                .font(.headline)
-        }
-    }
-
-    // MARK: - Timeout Section
-
-    private var timeoutSection: some View {
-        VStack(spacing: 8) {
-            ProgressView(value: timeRemaining, total: request.timeout)
-                .progressViewStyle(.linear)
-                .tint(timeoutColor)
-
-            HStack {
-                Image(systemName: "clock.fill")
-                    .foregroundColor(timeoutColor)
-                Text(timeoutText)
-                    .font(.caption)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.title2.bold())
+                Text("An agent is waiting for your answer.")
                     .foregroundColor(.secondary)
             }
         }
     }
 
-    private var timeoutColor: Color {
-        if timeRemaining <= 5 {
-            return .red
-        } else if timeRemaining <= 15 {
-            return .orange
-        }
-        return .blue
-    }
-
-    private var timeoutText: String {
-        let seconds = Int(timeRemaining)
-        if seconds <= 0 {
-            return "Auto-denying..."
-        }
-        return "Auto-deny in \(seconds) second\(seconds == 1 ? "" : "s")"
-    }
-
-    // MARK: - Action Buttons
-
-    private var actionButtons: some View {
-        VStack(spacing: 12) {
-            // Allow buttons row
-            HStack(spacing: 12) {
-                Button(action: { submitDecision("allow_once", false) }) {
-                    Label("Allow Once", systemImage: "checkmark.circle")
-                        .frame(maxWidth: .infinity)
+    private var details: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 8) {
+                if !request.target.isEmpty {
+                    row("Target", request.target, monospaced: true)
                 }
-                .buttonStyle(.bordered)
-                .tint(.green)
-                .controlSize(.large)
-                .disabled(decisionMade)
-
-                Button(action: { submitDecision("allow_permanent", true) }) {
-                    Label("Allow Always", systemImage: "checkmark.circle.fill")
-                        .frame(maxWidth: .infinity)
+                if !request.message.isEmpty {
+                    row("Reason", request.message)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-                .controlSize(.large)
-                .disabled(decisionMade)
+                if !request.rule.isEmpty {
+                    row("Rule", request.rule, monospaced: true)
+                }
+                ForEach(request.fields, id: \.key) { field in
+                    row(field.key, field.value, monospaced: true)
+                }
+                if !request.sessionID.isEmpty {
+                    row("Session", request.sessionID, monospaced: true)
+                }
             }
-
-            // Deny buttons row
-            HStack(spacing: 12) {
-                Button(action: { submitDecision("deny_once", false) }) {
-                    Label("Deny Once", systemImage: "xmark.circle")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .tint(.red)
-                .controlSize(.large)
-                .disabled(decisionMade)
-
-                Button(action: { submitDecision("deny_forever", true) }) {
-                    Label("Deny Always", systemImage: "xmark.circle.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.red)
-                .controlSize(.large)
-                .disabled(decisionMade)
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    // MARK: - Decision Handling
-
-    /// Submit a decision, stopping the timer first to prevent race conditions.
-    private func submitDecision(_ decision: String, _ permanent: Bool) {
-        // Guard against repeat taps
-        guard !decisionMade else { return }
-
-        // Stop timer immediately to prevent it from firing during submission
-        stopTimer()
-        decisionMade = true
-        onDecision(decision, permanent)
+    private var countdown: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ProgressView(value: remaining, total: total)
+                .tint(remaining <= 15 ? .red : .accentColor)
+            Text(expired
+                 ? "Expired. The daemon denied this request."
+                 : "Denied automatically in \(Int(remaining.rounded(.up))) seconds.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
     }
 
-    // MARK: - Helper Views
+    private var buttons: some View {
+        HStack {
+            Spacer()
+            // Escape denies. Neither button takes Return, so a reflexive
+            // keypress cannot approve anything.
+            Button("Deny") { decide(false) }
+                .keyboardShortcut(.cancelAction)
+                .controlSize(.large)
+            Button("Approve") { decide(true) }
+                .tint(.green)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+        }
+        .disabled(decided || expired)
+    }
 
-    private func infoRow(label: String, value: String, icon: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: icon)
+    private func decide(_ approved: Bool) {
+        guard !decided, !expired else { return }
+        decided = true
+        onDecision(approved)
+    }
+
+    private func row(_ label: String, _ value: String, monospaced: Bool = false) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(label)
                 .foregroundColor(.secondary)
-                .frame(width: 16)
-
-            Text(label + ":")
-                .foregroundColor(.secondary)
-                .frame(width: 70, alignment: .leading)
-
+                .frame(width: 80, alignment: .leading)
             Text(value)
-                .fontWeight(.medium)
-                .lineLimit(2)
+                .font(monospaced ? .system(.body, design: .monospaced) : .body)
+                .textSelection(.enabled)
+                .lineLimit(4)
                 .truncationMode(.middle)
         }
-        .font(.system(.body, design: .default))
     }
 
-    // MARK: - Timer Management
-
-    private func startTimer() {
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            if timeRemaining > 0 {
-                timeRemaining -= 1
-            } else {
-                stopTimer()
-                // Auto-deny when timeout reaches zero, but only if user hasn't already acted
-                if !decisionMade {
-                    decisionMade = true
-                    onDecision("deny_once", false)
-                }
-            }
+    private var title: String {
+        switch request.kind {
+        case "command": return "Run a command?"
+        case "file": return "Access a file?"
+        case "network": return "Open a connection?"
+        default: return "Approval needed"
         }
     }
 
-    private func stopTimer() {
-        timer?.invalidate()
-        timer = nil
+    private var icon: String {
+        switch request.kind {
+        case "command": return "terminal"
+        case "file": return "doc.badge.ellipsis"
+        case "network": return "network.badge.shield.half.filled"
+        default: return "exclamationmark.shield"
+        }
     }
 }
-
-// MARK: - Preview
-
-#if DEBUG
-struct ApprovalView_Previews: PreviewProvider {
-    static var previews: some View {
-        ApprovalView(
-            request: ApprovalRequestData(
-                requestID: "preview-123",
-                processName: "curl",
-                bundleID: nil,
-                pid: 12345,
-                targetHost: "api.example.com",
-                targetPort: 443,
-                targetProtocol: "tcp",
-                timestamp: Date(),
-                timeout: 30,
-                executablePath: "/usr/bin/curl"
-            ),
-            onDecision: { decision, permanent in
-                print("Decision: \(decision), Permanent: \(permanent)")
-            }
-        )
-        .previewDisplayName("CLI Tool Request")
-
-        ApprovalView(
-            request: ApprovalRequestData(
-                requestID: "preview-456",
-                processName: "Safari",
-                bundleID: "com.apple.Safari",
-                pid: 54321,
-                targetHost: "www.apple.com",
-                targetPort: 443,
-                targetProtocol: "tcp",
-                timestamp: Date(),
-                timeout: 30,
-                executablePath: "/Applications/Safari.app/Contents/MacOS/Safari"
-            ),
-            onDecision: { decision, permanent in
-                print("Decision: \(decision), Permanent: \(permanent)")
-            }
-        )
-        .previewDisplayName("App Request")
-    }
-}
-#endif

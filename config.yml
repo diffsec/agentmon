@@ -447,6 +447,10 @@ approvals:
   # Approval mode:
   # - local_tty: prompt on server /dev/tty (safe for local dev)
   # - api: approvals resolved via /api/v1/approvals/* (requires auth.type=api_key to prevent self-approval)
+  # - totp: code from an authenticator app
+  # - webauthn: security key or passkey
+  # - gui: native approval dialog (macOS only, see docs/approval-auth.md 4.4)
+  # Any other value is refused when the config loads.
   mode: "local_tty"
   # How long to wait for approval
   timeout: "5m"

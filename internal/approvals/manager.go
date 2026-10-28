@@ -53,6 +53,9 @@ type Manager struct {
 	// webauthnApprover handles WebAuthn approval challenges (webauthn mode only)
 	webauthnApprover *WebAuthnApprover
 
+	// launcher shows the approval dialog for a request (gui mode only).
+	launcher Launcher
+
 	mu      sync.Mutex
 	pending map[string]*pending
 
@@ -91,6 +94,19 @@ func New(mode string, timeout time.Duration, emit Emitter) *Manager {
 		m.prompt = m.promptTTY
 	}
 	return m
+}
+
+// Launcher shows a pending request to a person, who then resolves it out of
+// band. It returns once the dialog is up, not once it is answered.
+type Launcher func(ctx context.Context, req Request) error
+
+// SetLauncher sets how gui mode shows a request. Without one, gui mode denies
+// every request at once with a reason, rather than letting it sit until the
+// timeout with nothing on screen.
+func (m *Manager) SetLauncher(l Launcher) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.launcher = l
 }
 
 // SetTOTPSecretLookup sets the callback for retrieving TOTP secrets by session ID.
@@ -249,8 +265,19 @@ func (m *Manager) RequestApproval(ctx context.Context, req Request) (Resolution,
 		}()
 	}
 
-	if m.mode == "local_tty" {
-		// Fall through to select; prompt resolution will deliver on p.ch.
+	if m.mode == "gui" {
+		m.mu.Lock()
+		launch := m.launcher
+		m.mu.Unlock()
+		// A launch failure denies now, with the reason. Waiting out the
+		// timeout instead would hold the agent for minutes on a request
+		// nobody can see, and then report it as "approval timeout", which
+		// reads as a person who did not answer.
+		if launch == nil {
+			_ = m.Resolve(req.ID, false, "gui approval mode has no dialog launcher")
+		} else if err := launch(ctx, req); err != nil {
+			_ = m.Resolve(req.ID, false, "approval dialog could not be shown: "+err.Error())
+		}
 	}
 
 	timeout := time.Until(req.ExpiresAt)

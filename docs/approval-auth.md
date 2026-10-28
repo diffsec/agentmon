@@ -2,7 +2,7 @@
 
 **Version:** 0.2.0
 **Date:** January 2025
-**Status:** Implemented (WebAuthn, TOTP, API, local_tty modes)
+**Status:** Implemented (WebAuthn, TOTP, API, local_tty, gui modes)
 
 ---
 
@@ -682,6 +682,45 @@ approvals:
 | Security-conscious local work | `totp` |
 | Remote/headless with dedicated UI | `api` + WebAuthn |
 | Air-gapped or no-network | `totp` (works offline) |
+| Local work on macOS | `gui` (native dialog) |
+
+### 4.4 macOS Approval Dialog (`gui` mode)
+
+`approvals.mode: gui` shows each request in a native window. The daemon opens `AgentMon.app/Contents/Resources/approval-dialog.app` once per request, with `open -n`. The dialog reads the request over the policy socket and sends the answer back the same way.
+
+```yaml
+approvals:
+  enabled: true
+  mode: gui
+  timeout: 5m
+```
+
+The mode works only on macOS. Configuration validation refuses it on other platforms. It also requires `policy_socket.team_id`, which defaults to the release signing team.
+
+#### How the daemon tells the dialog apart from an agent
+
+The policy socket gives every connection a role when it connects. A peer gets the approval dialog role only if all of these hold:
+
+- It runs as the same user as the daemon.
+- Its PID is readable.
+- Its binary satisfies `anchor apple generic and identifier "dev.diffsec.agentmon.approval-dialog" and certificate leaf[subject.OU] = "<team_id>"`.
+
+The identifier matters because an agent can exec any binary in the bundle, including the team-signed `agentmon` CLI. With the identifier pinned, only the dialog's own code can hold the role, and the dialog resolves a request only when a person clicks.
+
+The dialog role may send `list_approvals` and `resolve_approval` and nothing else. No other role may send those two requests, including the root system extension. A build without cgo cannot check signatures, so in that build no peer can resolve an approval.
+
+#### Failure behaviour
+
+- If `approval-dialog.app` is not in the bundle, the daemon refuses to start.
+- If `open` fails for a request, the daemon denies that request at once, with the reason in the audit event. It does not wait out the timeout.
+- If the dialog cannot reach the socket, it shows the error. The request is denied when the timeout ends.
+- Escape denies. Neither button takes Return, so a reflexive keypress cannot approve.
+
+#### Limits
+
+- The daemon must run as the logged-in user, which is how `agentmon daemon install` sets it up. A root daemon cannot open a window in the user's session, and its socket check would refuse the user's dialog.
+- The dialog looks for the socket at the default path only: `~/Library/Application Support/agentmon/policy.sock`. A custom `policy_socket.path` breaks it, as it breaks the system extension.
+- The signature check runs against the binary at the peer's PID, at connect time.
 
 ---
 
@@ -977,6 +1016,7 @@ approvals:
   # - "local_tty": Math challenge on terminal (default)
   # - "api": Remote approval via API (requires separate approver credentials)
   # - "totp": TOTP code from authenticator app (per-session secret)
+  # - "gui": native approval dialog (macOS only; see section 4.4)
   mode: local_tty
 
   # How long approvals are valid

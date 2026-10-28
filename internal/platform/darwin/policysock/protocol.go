@@ -46,6 +46,11 @@ const (
 
 	// Event stream connection type (persistent, fire-and-forget)
 	RequestTypeEventStreamInit RequestType = "event_stream_init"
+
+	// Approval requests from the approval dialog. Only a peer in the
+	// roleApprovalDialog role may send these.
+	RequestTypeListApprovals   RequestType = "list_approvals"
+	RequestTypeResolveApproval RequestType = "resolve_approval"
 )
 
 // PolicyRequest is sent from the policy socket to the Go policy server.
@@ -83,6 +88,10 @@ type PolicyRequest struct {
 	RequestID string `json:"request_id,omitempty"` // Approval request ID
 	Permanent bool   `json:"permanent,omitempty"`  // Whether to create permanent rule
 
+	// resolve_approval fields
+	Approved bool   `json:"approved,omitempty"`
+	Reason   string `json:"reason,omitempty"`
+
 	// PNACL configuration fields
 	BlockingEnabled bool    `json:"blocking_enabled,omitempty"` // Enable actual blocking
 	DecisionTimeout float64 `json:"decision_timeout,omitempty"` // Timeout in seconds
@@ -118,6 +127,9 @@ type PolicyResponse struct {
 	RuleID    string             `json:"rule_id,omitempty"`   // Matched rule identifier
 	Success   bool               `json:"success,omitempty"`   // For operations that return success/fail
 	Approvals []ApprovalResponse `json:"approvals,omitempty"` // Pending approval requests
+
+	// PendingApprovals answers list_approvals.
+	PendingApprovals []PendingApproval `json:"pending_approvals,omitempty"`
 
 	// Policy snapshot fields (returned by fetch_policy_snapshot)
 	SnapshotVersion uint64                `json:"version,omitempty"`

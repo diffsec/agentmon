@@ -491,6 +491,18 @@ func New(cfg *config.Config) (*Server, error) {
 		timeout, _ := time.ParseDuration(cfg.Approvals.Timeout)
 		approvalsMgr = approvals.New(cfg.Approvals.Mode, timeout, emitter)
 
+		// gui mode opens the approval dialog shipped in this bundle. A
+		// missing dialog fails startup here, rather than denying the first
+		// approval with a reason the operator sees only in the audit log.
+		if cfg.Approvals.Mode == "gui" {
+			launch, err := approvals.DialogLauncher()
+			if err != nil {
+				_ = store.Close()
+				return nil, err
+			}
+			approvalsMgr.SetLauncher(launch)
+		}
+
 		// Wire up TOTP secret lookup for TOTP approval mode
 		if cfg.Approvals.Mode == "totp" {
 			approvalsMgr.SetTOTPSecretLookup(func(sessionID string) string {
@@ -839,7 +851,7 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 
 	// Start the policy socket server (macOS only; no-op on other platforms).
-	srv.startPolicySocket(cfg, engine)
+	srv.startPolicySocket(cfg, engine, approvalsMgr)
 	// Wire cmdResolver and sessionTracker into the app (darwin only).
 	if srv.cmdResolver != nil {
 		app.SetCmdResolver(srv.cmdResolver)
