@@ -20,7 +20,10 @@ env:
 
 jobs:
   goreleaser:
-    runs-on: ubuntu-latest
+    # Pinned for the same reason as build-linux-arm64-cgo in ci.yml: the
+    # multiarch install needs amd64 and arm64 packages at the same version,
+    # and ubuntu-latest ships newer amd64 builds than the ports archive.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -59,16 +62,23 @@ jobs:
 
       - name: Install build deps (envshim, fuse, seccomp, multiarch)
         run: |
-          # Ubuntu 24.04 hosts arm64 packages on ports.ubuntu.com, not
+          # Ubuntu hosts arm64 packages on ports.ubuntu.com, not
           # archive.ubuntu.com. Without restricting the default sources
           # to amd64 and adding a ports source for arm64, `apt-get
           # update` after `dpkg --add-architecture arm64` 404s on every
           # arm64 Packages file.
+          #
+          # The suite comes from the host. It was hardcoded to noble, and
+          # when ubuntu-latest moved past 24.04 the arm64 packages came
+          # from an older release than the amd64 ones: libseccomp-dev
+          # 2.5.5 for arm64 against 2.6.0 for amd64, which apt cannot
+          # install side by side.
+          . /etc/os-release
           sudo sed -i '/^Types: deb$/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources
-          sudo tee /etc/apt/sources.list.d/arm64-ports.sources >/dev/null <<'EOF'
+          sudo tee /etc/apt/sources.list.d/arm64-ports.sources >/dev/null <<EOF
           Types: deb
           URIs: http://ports.ubuntu.com/ubuntu-ports
-          Suites: noble noble-updates noble-security
+          Suites: ${VERSION_CODENAME} ${VERSION_CODENAME}-updates ${VERSION_CODENAME}-security
           Components: main universe restricted multiverse
           Architectures: arm64
           Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
