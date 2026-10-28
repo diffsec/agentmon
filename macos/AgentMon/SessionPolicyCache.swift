@@ -118,10 +118,13 @@ class SessionPolicyCache {
     // MARK: - Session Lifecycle
 
     func registerSession(sessionID: String, rootPID: pid_t, snapshot: SessionCache) {
+        // Set at once, not on the queue, so that disableEnforcementIfIdle
+        // cannot see "no session" between this call and the barrier block.
+        OSAtomicCompareAndSwap32(0, 1, &_hasActiveSessions)
+        invalidateOutsideSessions()
         queue.async(flags: .barrier) {
             self.sessions[sessionID] = snapshot
             self.pidToSession[rootPID] = sessionID
-            OSAtomicCompareAndSwap32(0, 1, &self._hasActiveSessions)
         }
     }
 
@@ -135,6 +138,7 @@ class SessionPolicyCache {
             self.sessions.removeValue(forKey: sessionID)
             if self.sessions.isEmpty {
                 OSAtomicCompareAndSwap32(1, 0, &self._hasActiveSessions)
+                ESFClient.shared?.disableEnforcementIfIdle()
             }
         }
     }
@@ -142,6 +146,70 @@ class SessionPolicyCache {
     var hasActiveSessions: Bool {
         _hasActiveSessions != 0
     }
+
+    // MARK: - Processes Outside Every Session
+
+    /// PIDs known to belong to no session, each stamped with the generation it
+    /// was checked in.
+    ///
+    /// Without this, every event from every process on the machine walked the
+    /// whole process tree while any session existed: one sysctl and one queue
+    /// sync per ancestor, for each file open and each close. Measured with one
+    /// session open: 1000 runs of /bin/cat by a process outside the session
+    /// took 13.5 s, against 4.0 s with no session, and the extension used 60%
+    /// CPU.
+    ///
+    /// An entry stays valid until either the process exits (forgetPID, from
+    /// NOTIFY_EXIT, which comes before the PID can be reused) or a session
+    /// registers (the generation changes, because the new session's root may
+    /// be an ancestor). Subscribing again also changes the generation, because
+    /// exits are not seen while unsubscribed.
+    private var outsideSessions: [pid_t: UInt64] = [:]
+    private var outsideGeneration: UInt64 = 0
+    private var outsideLock = os_unfair_lock()
+
+    private func isKnownOutsideSessions(_ pid: pid_t) -> Bool {
+        os_unfair_lock_lock(&outsideLock)
+        defer { os_unfair_lock_unlock(&outsideLock) }
+        return outsideSessions[pid] == outsideGeneration
+    }
+
+    private func currentOutsideGeneration() -> UInt64 {
+        os_unfair_lock_lock(&outsideLock)
+        defer { os_unfair_lock_unlock(&outsideLock) }
+        return outsideGeneration
+    }
+
+    /// Record the answer only if no session registered during the walk. A
+    /// session that did may have this process's ancestor as its root.
+    private func rememberOutsideSessions(_ pid: pid_t, checkedIn generation: UInt64) {
+        os_unfair_lock_lock(&outsideLock)
+        if generation == outsideGeneration {
+            outsideSessions[pid] = generation
+        }
+        os_unfair_lock_unlock(&outsideLock)
+    }
+
+    /// Drop every "outside" answer. See outsideSessions.
+    func invalidateOutsideSessions() {
+        os_unfair_lock_lock(&outsideLock)
+        outsideGeneration &+= 1
+        outsideSessions.removeAll(keepingCapacity: true)
+        os_unfair_lock_unlock(&outsideLock)
+    }
+
+    /// Forget a PID that exited, so that a process that reuses it is checked
+    /// again.
+    func forgetExitedPID(_ pid: pid_t) {
+        os_unfair_lock_lock(&outsideLock)
+        outsideSessions.removeValue(forKey: pid)
+        os_unfair_lock_unlock(&outsideLock)
+    }
+
+    /// Snapshot fetches in flight. While one is, a session may be about to
+    /// register, so the extension stays subscribed.
+    private var _pendingFetches: Int32 = 0
+    var hasPendingFetches: Bool { OSAtomicAdd32(0, &_pendingFetches) != 0 }
 
     // MARK: - PID Tracking (called from NOTIFY_FORK/EXIT)
 
@@ -190,15 +258,35 @@ class SessionPolicyCache {
         if let sid = queue.sync(execute: { pidToSession[pid] }) {
             return sid
         }
+        if isKnownOutsideSessions(pid) {
+            return nil
+        }
 
         // Nothing is tracked at all -- skip the sysctl walk entirely. This is
         // the common case on an idle machine and it is on the ESF AUTH hot path.
         guard _hasActiveSessions != 0 else { return nil }
 
-        for ancestor in ProcessHierarchy.shared.getAncestors(pid: pid) {
+        let generation = currentOutsideGeneration()
+        // One parent at a time, not getAncestors, which reads every level
+        // before returning. Most walks end at the first parent.
+        var current = pid
+        var visited = Set<pid_t>()
+        while let ancestor = ProcessHierarchy.shared.getParent(pid: current),
+              visited.insert(ancestor).inserted {
+            // An ancestor known to be outside every session settles it: the
+            // ancestors below it were checked by this loop and none is a
+            // session root, and a registration would have cleared the entry.
+            if isKnownOutsideSessions(ancestor) {
+                break
+            }
             guard let sid = queue.sync(execute: { pidToSession[ancestor] }) else {
+                if ancestor <= 1 { break }
+                current = ancestor
                 continue
             }
+            // Found a session. The ancestors walked so far were not session
+            // members, but they are not recorded as outside: this answer is
+            // for pid, and a walked ancestor below a root is in that session.
             queue.async(flags: .barrier) {
                 // Re-check under the barrier: another thread may have mapped it.
                 guard self.pidToSession[pid] == nil,
@@ -207,6 +295,12 @@ class SessionPolicyCache {
                 self.pidToSession[pid] = sid
             }
             return sid
+        }
+        // No session above pid. Every ancestor walked is outside too: the
+        // rest of its own walk is the part of this walk above it.
+        rememberOutsideSessions(pid, checkedIn: generation)
+        for ancestor in visited {
+            rememberOutsideSessions(ancestor, checkedIn: generation)
         }
         return nil
     }
@@ -539,45 +633,86 @@ class SessionPolicyCache {
     private func handlePolicyUpdateNotification() {
         PolicySocketClient.shared.onServerNotification()
 
-        let sessionIDs = allSessionIDs()
-        for sessionID in sessionIDs {
-            NotificationCenter.default.post(
-                name: .policyCacheNeedsRefresh,
-                object: nil,
-                userInfo: ["session_id": sessionID]
-            )
+        syncWithDaemon { [weak self] in
+            guard let self = self else { return }
+            for sessionID in self.allSessionIDs() {
+                NotificationCenter.default.post(
+                    name: .policyCacheNeedsRefresh,
+                    object: nil,
+                    userInfo: ["session_id": sessionID]
+                )
+            }
         }
     }
 
     private func handleSessionRegisteredNotification() {
         PolicySocketClient.shared.onServerNotification()
+        syncWithDaemon(then: nil)
+    }
 
+    /// Make the cached sessions match the daemon's active sessions.
+    ///
+    /// Sessions the daemon no longer has are dropped. Before this, nothing
+    /// called unregisterSession, so once any session had registered,
+    /// hasActiveSessions stayed true until the extension restarted, and every
+    /// file open on the machine took the slow path. The daemon posts this
+    /// notification when a session ends and when its policy socket starts,
+    /// which covers a daemon restart.
+    ///
+    /// Sessions the extension has not seen are fetched. Darwin notifications
+    /// coalesce, so two sessions registering close together can produce one
+    /// delivery, and the latest-session fetch returns only one of them.
+    private func syncWithDaemon(then done: (() -> Void)?) {
         // session_id "" asks for the most recently registered session.
         fetchSnapshot(sessionID: "") { [weak self] response in
             guard let self = self, let response = response else { return }
-
-            // Darwin notifications coalesce. Two sessions registering close
-            // together can produce one delivery, and the fetch above only
-            // returns the latest -- so the other would never be fetched, would
-            // hold no policy, and would enforce nothing for its whole life. The
-            // daemon sends the full list precisely so that cannot happen.
-            guard let active = response["active_sessions"] as? [String] else { return }
+            guard let active = Self.activeSessions(inSnapshotReply: response) else { return }
             let known = Set(self.allSessionIDs())
+            for sessionID in known where !active.contains(sessionID) {
+                self.unregisterSession(sessionID: sessionID)
+            }
             for sessionID in active where !known.contains(sessionID) {
                 self.fetchSnapshot(sessionID: sessionID, completion: nil)
             }
+            done?()
         }
+    }
+
+    /// The daemon's active sessions, from its reply to a latest-session
+    /// snapshot fetch, or nil when the reply does not say.
+    ///
+    /// With no session registered, the daemon answers with a fail-closed
+    /// snapshot that has no session_id and no active_sessions
+    /// (denyAllSnapshot in internal/platform/darwin/policysock/handler.go).
+    /// That means the set is empty.
+    static func activeSessions(inSnapshotReply reply: [String: Any]) -> Set<String>? {
+        if let list = reply["active_sessions"] as? [String] {
+            return Set(list)
+        }
+        if reply["session_id"] == nil, reply["rule"] as? String == "no-policy-fail-closed" {
+            return []
+        }
+        return nil
     }
 
     /// Fetch one session's snapshot and install it. Passing "" asks the daemon
     /// for the most recently registered session.
     private func fetchSnapshot(sessionID: String,
                                completion: (([String: Any]?) -> Void)?) {
+        // Subscribe before asking. The daemon starts a session's first command
+        // once it has handed out the snapshot, so the subscription must be in
+        // place by then.
+        OSAtomicIncrement32(&_pendingFetches)
+        ESFClient.shared?.enableEnforcement()
         PolicySocketClient.shared.request([
             "type": "fetch_policy_snapshot",
             "session_id": sessionID,
             "version": 0
         ]) { response in
+            defer {
+                OSAtomicDecrement32(&SessionPolicyCache.shared._pendingFetches)
+                ESFClient.shared?.disableEnforcementIfIdle()
+            }
             defer { completion?(response) }
 
             guard let response = response,
