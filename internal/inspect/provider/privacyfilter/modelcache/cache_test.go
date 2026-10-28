@@ -400,13 +400,14 @@ func TestEnsure_BoundsWhatItReadsFromAnOversizedBody(t *testing.T) {
 		t.Fatal("an unbounded body was accepted")
 	}
 
-	// One byte past the spec is how the cache detects an oversized body.
-	// Anything beyond that means the read is not bounded.
-	if got := atomic.LoadInt64(&read); got > expected+1 {
-		t.Errorf("Ensure read %d bytes against a %d-byte spec; the read is not bounded", got, expected)
-	}
-	if atomic.LoadInt64(&served) == 0 {
-		t.Fatal("the server sent nothing, so the test proved nothing")
+	// One byte past the spec is how the cache detects an oversized body, so
+	// Ensure must read exactly that much. Fewer means it never saw the
+	// oversized body and the test proved nothing. More means the read is not
+	// bounded. The server's own byte count is no guard here: a Write that
+	// fails because the client hung up can report zero bytes after the
+	// client already read 1,025.
+	if got := atomic.LoadInt64(&read); got != expected+1 {
+		t.Errorf("Ensure read %d bytes against a %d-byte spec, want exactly %d", got, expected, expected+1)
 	}
 }
 

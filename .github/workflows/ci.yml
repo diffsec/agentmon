@@ -162,7 +162,12 @@ jobs:
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=$CGO_ENABLED go build ./...
 
   build-linux-arm64-cgo:
-    runs-on: ubuntu-latest
+    # Pinned. This job installs amd64 and arm64 builds of the same
+    # libraries side by side, and multiarch needs matching versions. On
+    # ubuntu-latest (26.04 by 2026-10-28) the image ships newer amd64 builds
+    # than the arm64 ports archive, and apt can only satisfy the install by
+    # downgrading 38 packages.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4

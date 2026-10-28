@@ -20,7 +20,10 @@ env:
 
 jobs:
   goreleaser:
-    runs-on: ubuntu-latest
+    # Pinned for the same reason as build-linux-arm64-cgo in ci.yml: the
+    # multiarch install needs amd64 and arm64 packages at the same version,
+    # and ubuntu-latest ships newer amd64 builds than the ports archive.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
