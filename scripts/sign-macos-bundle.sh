@@ -60,6 +60,12 @@ codesign --force --sign "$SIGNING_IDENTITY" \
   "${APP}/Contents/Library/SystemExtensions/${SYSEXT}"
 
 # 3. Approval Dialog
+# Its entitlements are empty, so the App Sandbox is off. The dialog connects to
+# the daemon's unix socket under ~/Library/Application Support/agentmon/, and
+# the sandbox refuses a connect() outside the app's container. The dialog still
+# runs under the hardened runtime, from --options runtime below. The reason is
+# recorded here, not in the .entitlements file, because codesign rejects an
+# XML comment there: "AMFIUnserializeXML: syntax error".
 echo "Signing Approval Dialog"
 codesign --force --sign "$SIGNING_IDENTITY" \
   --entitlements macos/AgentMon/approval-dialog/approval-dialog.entitlements \
