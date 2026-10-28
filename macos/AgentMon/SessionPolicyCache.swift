@@ -266,10 +266,26 @@ class SessionPolicyCache {
         guard _hasActiveSessions != 0 else { return nil }
 
         let generation = currentOutsideGeneration()
-        for ancestor in ProcessHierarchy.shared.getAncestors(pid: pid) {
+        // One parent at a time, not getAncestors, which reads every level
+        // before returning. Most walks end at the first parent.
+        var current = pid
+        var visited = Set<pid_t>()
+        while let ancestor = ProcessHierarchy.shared.getParent(pid: current),
+              visited.insert(ancestor).inserted {
+            // An ancestor known to be outside every session settles it: the
+            // ancestors below it were checked by this loop and none is a
+            // session root, and a registration would have cleared the entry.
+            if isKnownOutsideSessions(ancestor) {
+                break
+            }
             guard let sid = queue.sync(execute: { pidToSession[ancestor] }) else {
+                if ancestor <= 1 { break }
+                current = ancestor
                 continue
             }
+            // Found a session. The ancestors walked so far were not session
+            // members, but they are not recorded as outside: this answer is
+            // for pid, and a walked ancestor below a root is in that session.
             queue.async(flags: .barrier) {
                 // Re-check under the barrier: another thread may have mapped it.
                 guard self.pidToSession[pid] == nil,
@@ -279,7 +295,12 @@ class SessionPolicyCache {
             }
             return sid
         }
+        // No session above pid. Every ancestor walked is outside too: the
+        // rest of its own walk is the part of this walk above it.
         rememberOutsideSessions(pid, checkedIn: generation)
+        for ancestor in visited {
+            rememberOutsideSessions(ancestor, checkedIn: generation)
+        }
         return nil
     }
 
