@@ -15,8 +15,6 @@ type PolicySnapshotResponse struct {
 	DNSRules     []SnapshotDNSRule     `json:"dns_rules"`
 	ExecRules    []SnapshotExecRule    `json:"exec_rules"`
 	Defaults     *SnapshotDefaults     `json:"defaults"`
-	ProxyAddr    string                `json:"proxy_addr,omitempty"`
-	DirectAllow  []DirectAllow         `json:"direct_allow,omitempty"`
 
 	// NetworkEnforcement is "block" or "audit"; NetworkFailOpen says what a
 	// blocking-mode timeout or socket failure does. See networkEnforcement in
