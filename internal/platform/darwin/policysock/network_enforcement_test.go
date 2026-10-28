@@ -308,3 +308,35 @@ func TestAwaitSnapshot(t *testing.T) {
 		}
 	})
 }
+
+// TestNoSessionSnapshotShape pins the reply the system extension reads as "no
+// session is registered": no session_id, no active_sessions, and rule
+// no-policy-fail-closed. SessionPolicyCache.activeSessions(inSnapshotReply:)
+// turns that into an empty set and drops every cached session. If this shape
+// changes, the extension keeps ended sessions, and every file open on the
+// machine takes the slow path.
+func TestNoSessionSnapshotShape(t *testing.T) {
+	engine, err := policy.NewEngine(&policy.Policy{Version: 1, Name: "t"}, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp := NewPolicyAdapter(engine, NewSessionTracker()).BuildPolicySnapshot("", 0)
+
+	raw, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := decoded["session_id"]; ok {
+		t.Errorf("session_id is present: %s", raw)
+	}
+	if _, ok := decoded["active_sessions"]; ok {
+		t.Errorf("active_sessions is present: %s", raw)
+	}
+	if decoded["rule"] != "no-policy-fail-closed" {
+		t.Errorf("rule = %v, want no-policy-fail-closed", decoded["rule"])
+	}
+}

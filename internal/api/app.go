@@ -921,6 +921,9 @@ func (a *App) destroySession(w http.ResponseWriter, r *http.Request) {
 	// and BuildPolicySnapshot's LatestSession can return it.
 	if a.sessionTracker != nil {
 		a.sessionTracker.EndSession(id)
+		// Tell the system extension, so that it drops the session. While it
+		// holds any session, it checks every file open on the machine.
+		notifySessionRegistered()
 	}
 	_ = a.sessions.Destroy(id)
 
