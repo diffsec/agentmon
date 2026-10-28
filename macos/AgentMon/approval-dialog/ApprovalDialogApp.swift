@@ -29,6 +29,12 @@ final class DialogAppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
     private var receivedURL = false
     private var stateSubscription: AnyCancellable?
+    /// Measures the content for the window. It is never shown. See makeWindow.
+    private lazy var measurer = NSHostingController(rootView: DialogRootView(model: model))
+
+    private func contentSize() -> NSSize {
+        measurer.sizeThatFits(in: NSSize(width: 10_000, height: 10_000))
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         showWindow()
@@ -70,21 +76,41 @@ final class DialogAppDelegate: NSObject, NSApplicationDelegate {
         self.window = window
         window.level = .floating
         window.collectionBehavior.insert([.canJoinAllSpaces, .fullScreenAuxiliary])
-        window.center()
+        Self.fit(window, to: contentSize())
         window.orderFrontRegardless()
         NSApp.activate()
     }
 
+    /// Size the window to its content and center it on the screen that holds
+    /// the pointer.
+    ///
+    /// NSWindow.center() is not used. It puts a window above the vertical
+    /// center on purpose, and AppKit keeps the origin fixed when the content
+    /// grows, so the dialog sat high and drifted further as the request
+    /// loaded.
+    private static func fit(_ window: NSWindow, to contentSize: NSSize) {
+        let frameSize = window.frameRect(forContentRect: NSRect(origin: .zero, size: contentSize)).size
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
+        guard let visible = screen?.visibleFrame else {
+            window.setContentSize(contentSize)
+            return
+        }
+        let origin = NSPoint(x: visible.midX - frameSize.width / 2, y: visible.midY - frameSize.height / 2)
+        window.setFrame(NSRect(origin: origin, size: frameSize), display: true)
+    }
+
     private func makeWindow() -> NSWindow {
-        // The window is sized explicitly, once per state change, from the
-        // content's fitting size. Letting the hosting view drive the window
-        // size (sizingOptions .preferredContentSize) crashed the dialog:
-        // AppKit threw "needing another Update Constraints in Window pass"
-        // while the loading spinner ran.
+        // The hosting view does not size the window. With sizingOptions
+        // .preferredContentSize the dialog crashed: AppKit threw "needing
+        // another Update Constraints in Window pass" while the loading spinner
+        // ran. With sizing off, the hosting view's fittingSize is zero, so the
+        // content is measured by a separate controller, and the window is
+        // sized and centered from that on each state change.
         let hosting = NSHostingView(rootView: DialogRootView(model: model))
         hosting.sizingOptions = []
         let window = NSWindow(
-            contentRect: NSRect(origin: .zero, size: hosting.fittingSize),
+            contentRect: NSRect(origin: .zero, size: contentSize()),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false)
@@ -93,13 +119,13 @@ final class DialogAppDelegate: NSObject, NSApplicationDelegate {
         window.isReleasedWhenClosed = false
         stateSubscription = model.$state
             .receive(on: DispatchQueue.main)
-            .sink { [weak window, weak hosting] _ in
-                guard let window, let hosting else { return }
-                // Center again after each resize. AppKit keeps the window's
-                // origin fixed, so a window centered while it showed the
-                // loading view drifts off center when the request loads.
-                window.setContentSize(hosting.fittingSize)
-                window.center()
+            .sink { [weak self, weak window] _ in
+                // The next pass of the run loop, so that the measuring
+                // controller sees the new state.
+                DispatchQueue.main.async {
+                    guard let self, let window else { return }
+                    Self.fit(window, to: self.contentSize())
+                }
             }
         return window
     }
