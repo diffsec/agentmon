@@ -53,11 +53,10 @@ jobs:
           echo "=== Before stripping ==="
           find AgentMon.app -type d -maxdepth 4 | sort
           rm -rf AgentMon.app/Contents/Library/SystemExtensions
-          rm -rf AgentMon.app/Contents/XPCServices
           rm -rf AgentMon.app/Contents/Resources/approval-dialog.app
           echo "=== After stripping ==="
           find AgentMon.app -type d -maxdepth 4 | sort
-          echo "Stripped sysext, xpc, and approval-dialog for diagnostic submission"
+          echo "Stripped sysext and approval-dialog for diagnostic submission"
 
       - name: Submit fresh notarization
         if: inputs.mode == 'resubmit' || inputs.mode == 'test-stripped'

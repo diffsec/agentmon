@@ -59,25 +59,19 @@ codesign --force --sign "$SIGNING_IDENTITY" \
   --options runtime --timestamp \
   "${APP}/Contents/Library/SystemExtensions/${SYSEXT}"
 
-# 3. XPC Service
-echo "Signing XPC Service"
-codesign --force --sign "$SIGNING_IDENTITY" \
-  --options runtime --timestamp \
-  "${APP}/Contents/XPCServices/xpc.xpc"
-
-# 4. Approval Dialog
+# 3. Approval Dialog
 echo "Signing Approval Dialog"
 codesign --force --sign "$SIGNING_IDENTITY" \
   --entitlements macos/AgentMon/approval-dialog/approval-dialog.entitlements \
   --options runtime --timestamp \
   "${APP}/Contents/Resources/approval-dialog.app"
 
-# 5. Main app bundle
+# 4. Main app bundle
 echo "Signing app bundle"
 codesign --force --sign "$SIGNING_IDENTITY" \
   --entitlements "$APP_ENTITLEMENTS" \
   --options runtime --timestamp \
   "${APP}"
 
-# 6. Verify
+# 5. Verify
 codesign --verify --deep --strict --verbose=2 "${APP}"

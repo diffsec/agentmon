@@ -13,7 +13,6 @@ trap 'rm -rf "$TMP"' EXIT
 # Fake Xcode build products
 mkdir -p "$TMP/products/$SYSEXT/Contents/MacOS"
 touch "$TMP/products/$SYSEXT/Contents/MacOS/sysext"
-mkdir -p "$TMP/products/xpc.xpc/Contents"
 mkdir -p "$TMP/products/approval-dialog.app/Contents"
 
 # Fake Go binaries
@@ -43,7 +42,12 @@ require "$APP/Contents/MacOS/agentmon-macwrap"
 require "$APP/Contents/Info.plist"
 require "$APP/Contents/Library/SystemExtensions/$SYSEXT"
 require "$APP/Contents/Library/SystemExtensions/$SYSEXT/Contents/embedded.provisionprofile"
-require "$APP/Contents/XPCServices/xpc.xpc"
+# The XPC service was removed: nothing used it, and it still went through
+# signing and notarization on every release.
+if [ -e "$APP/Contents/XPCServices" ]; then
+  echo "UNEXPECTED: $APP/Contents/XPCServices" >&2
+  fail=1
+fi
 require "$APP/Contents/Resources/approval-dialog.app"
 require "$APP/Contents/embedded.provisionprofile"
 require "$APP/Contents/Resources/config.yml"

@@ -9,57 +9,27 @@ This document describes the technical architecture of the macOS ESF (Endpoint Se
 ESF+NE provides enterprise-tier (90% security score) enforcement on macOS by leveraging Apple's kernel-level security frameworks:
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         macOS Host                                   │
-│                                                                      │
-│  ┌────────────────────────────────────────────────────────────────┐ │
-│  │                    AgentMon.app Bundle                           │ │
-│  │                                                                  │ │
-│  │  ┌──────────────┐    XPC     ┌──────────────────────────────┐  │ │
-│  │  │              │◄──────────►│                              │  │ │
-│  │  │  Go Binary   │            │      XPC Service             │  │ │
-│  │  │  (agentmon)   │            │  (PolicyBridge.swift)        │  │ │
-│  │  │              │            │                              │  │ │
-│  │  │  - Policy    │  Unix      │  - JSON protocol over        │  │ │
-│  │  │    Engine    │  Socket    │    Unix socket               │  │ │
-│  │  │  - Session   │◄──────────►│  - Bridges XPC ↔ Go          │  │ │
-│  │  │    Manager   │            │                              │  │ │
-│  │  │  - API       │            └──────────────────────────────┘  │ │
-│  │  │    Server    │                         ▲                     │ │
-│  │  └──────────────┘                         │ XPC                 │ │
-│  │                                           ▼                     │ │
-│  │  ┌──────────────────────────────────────────────────────────┐  │ │
-│  │  │              System Extension                              │  │ │
-│  │  │              (dev.diffsec.agentmon.SysExt)                          │  │ │
-│  │  │                                                            │  │ │
-│  │  │  ┌────────────────┐  ┌────────────────┐  ┌──────────────┐ │  │ │
-│  │  │  │   ESFClient    │  │ FilterData     │  │ DNSProxy     │ │  │ │
-│  │  │  │                │  │ Provider       │  │ Provider     │ │  │ │
-│  │  │  │  - AUTH_OPEN   │  │                │  │              │ │  │ │
-│  │  │  │  - AUTH_EXEC   │  │  - IP/Port     │  │  - DNS       │ │  │ │
-│  │  │  │  - NOTIFY_*    │  │    filtering   │  │    filtering │ │  │ │
-│  │  │  └────────────────┘  └────────────────┘  └──────────────┘ │  │ │
-│  │  └──────────────────────────────────────────────────────────┘  │ │
-│  └────────────────────────────────────────────────────────────────┘ │
-│                                                                      │
-│  ════════════════════════════════════════════════════════════════   │
-│                           Kernel Boundary                            │
-│  ════════════════════════════════════════════════════════════════   │
-│                                                                      │
-│  ┌────────────────────────────────────────────────────────────────┐ │
-│  │                    Kernel (XNU)                                 │ │
-│  │                                                                  │ │
-│  │  ┌────────────────┐              ┌────────────────────────────┐ │ │
-│  │  │ Endpoint       │              │ Network Extension          │ │ │
-│  │  │ Security       │              │ Framework                  │ │ │
-│  │  │ Framework      │              │                            │ │ │
-│  │  │                │              │  - Packet filtering        │ │ │
-│  │  │  - File events │              │  - DNS interception        │ │ │
-│  │  │  - Exec events │              │                            │ │ │
-│  │  │  - Fork events │              │                            │ │ │
-│  │  └────────────────┘              └────────────────────────────┘ │ │
-│  └────────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                          macOS Host                               │
+│                                                                   │
+│  AgentMon.app bundle                                              │
+│                                                                   │
+│  ┌──────────────────┐   policy socket   ┌──────────────────────┐ │
+│  │  Go daemon       │◄─────────────────►│  System Extension    │ │
+│  │  (agentmon)      │  newline-delimited│  (SysExt)            │ │
+│  │                  │  JSON over a unix │                      │ │
+│  │  - Policy engine │  socket at        │  - ESFClient         │ │
+│  │  - Sessions      │  ~/Library/       │  - FilterData        │ │
+│  │  - Approvals     │  Application      │    Provider          │ │
+│  │  - API server    │  Support/agentmon/│  - DNSProxyProvider  │ │
+│  │                  │  policy.sock      │                      │ │
+│  └──────────────────┘                   └──────────────────────┘ │
+│                                                                   │
+│  ═════════════════════════ Kernel boundary ═════════════════════  │
+│                                                                   │
+│  Endpoint Security Framework      Network Extension framework     │
+│  (file, exec, fork events)        (flow filtering, DNS)           │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ## Components
@@ -70,15 +40,11 @@ The Go binary (`agentmon`) runs the policy engine and API server:
 
 - **Policy Engine** (`internal/policy/`) - Evaluates file, network, and command rules
 - **Session Manager** (`internal/session/`) - Tracks agent sessions and workspaces
-- **XPC Socket Server** (`internal/platform/darwin/xpc/`) - Handles policy queries from Swift
+- **Policy socket server** (`internal/platform/darwin/policysock/`) - Answers policy queries from the System Extension and approval requests from the dialog
 
-### XPC Service
+### Policy socket
 
-The XPC Service (`dev.diffsec.agentmon.xpc`) bridges between Swift and Go:
-
-- **PolicyBridge.swift** - Connects to Go server via Unix socket
-- **XPCServiceDelegate.swift** - Handles XPC connection lifecycle
-- **JSON Protocol** - Serializes policy requests/responses
+The System Extension connects straight to the daemon's policy socket. No XPC service sits in between: an earlier XPC bridge was never used and was removed. The socket carries newline-delimited JSON. When `policy_socket.team_id` is set, `ValidatePeer` admits a peer only if it runs as root and, where its PID is readable, its code signature carries that team ID.
 
 ### System Extension
 
@@ -132,26 +98,20 @@ Network Extension for DNS filtering:
    ├─► Copy es_message_t for async handling
    │
    ▼
-4. XPC call to PolicyBridge
-   │
-   ▼
-5. PolicyBridge queries Go server via Unix socket
+4. PolicySocketClient sends the request over the policy socket
    │
    ├─► JSON: {"type":"file","path":"/...","operation":"read","pid":1234}
    │
    ▼
-6. Go Policy Engine evaluates rules
+5. Go Policy Engine evaluates rules
    │
    ├─► JSON: {"allow":true,"rule":"allow-workspace"}
    │
    ▼
-7. Response flows back through XPC
+6. ESFClient calls es_respond_auth_result()
    │
    ▼
-8. ESFClient calls es_respond_auth_result()
-   │
-   ▼
-9. File operation proceeds (or blocks)
+7. File operation proceeds (or blocks)
 ```
 
 ### Session Tracking
@@ -185,9 +145,9 @@ The session tracker maps PIDs to agentmon sessions:
 6. Policy evaluated in session context
 ```
 
-## XPC Protocol
+## Policy socket protocol
 
-Messages use JSON over Unix socket:
+Messages are newline-delimited JSON over the unix socket:
 
 ### Request Types
 
@@ -228,7 +188,7 @@ es_respond_auth_result(client, event, ...)  // Crash!
 
 // CORRECT: Copy message for async handling
 guard let messageCopy = es_copy_message(event) else { ... }
-// ... async XPC call ...
+// ... async policy socket request ...
 es_respond_auth_result(client, messageCopy, ...)
 es_free_message(messageCopy)
 ```
@@ -243,18 +203,6 @@ type SessionTracker struct {
     pidToSession  map[int32]string
     pidToParent   map[int32]int32
     sessionToPids map[string]map[int32]struct{}
-}
-```
-
-### XPC Connections
-
-XPC connections use serial dispatch queues for thread safety:
-
-```swift
-private let queue = DispatchQueue(label: "dev.diffsec.agentmon.xpc")
-
-queue.sync {
-    self.xpcProxy = connection.remoteObjectProxy as? AgentMonXPCProtocol
 }
 ```
 
@@ -293,7 +241,7 @@ queue.sync {
 | Operation | Latency | Notes |
 |-----------|---------|-------|
 | ESF event handling | 1-5ms | In-kernel, minimal overhead |
-| XPC round-trip | 0.5-2ms | Local IPC |
+| Policy socket round-trip | not measured | Local unix socket |
 | Policy lookup (cached) | <1ms | Go policy engine |
 | Network filter | 0.1-0.5ms | Per-flow, not per-packet |
 | DNS proxy | 1-5ms | Per-query |
@@ -324,7 +272,7 @@ if sysext.IsAvailable() && sysext.IsApproved() {
 5. [ ] App bundle built and signed
 6. [ ] System Extension approved by user
 7. [ ] Network Extension activated
-8. [ ] Go server running and accepting XPC connections
+8. [ ] Go daemon running and accepting policy socket connections
 
 ## Event Stream
 
