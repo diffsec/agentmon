@@ -119,6 +119,11 @@ jobs:
       - name: Swift control directory guard
         run: scripts/test-swift-control-dir.sh
 
+      # The extension must drop sessions the daemon no longer has, or every
+      # file open on the machine stays on the slow path.
+      - name: Swift session sync
+        run: scripts/test-swift-session-sync.sh
+
       # The approval dialog's parser, launch URL, socket path and wire format,
       # checked against the JSON the Go policy socket tests pin.
       - name: Swift approval dialog client

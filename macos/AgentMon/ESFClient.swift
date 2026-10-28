@@ -325,6 +325,22 @@ private func handleESEvent(client: OpaquePointer, event: UnsafePointer<es_messag
 
     os_log(.debug, log: esLog, "handleESEvent: type=%{public}d pid=%{public}d", eventType, pid)
 
+    // With no session registered, nothing is enforced, so every AUTH event
+    // is allowed at once. This runs before any other work: the extension
+    // receives every file open on the machine, and a path copy plus two locks
+    // per event, which the daemon-fork check below costs, made every process
+    // start measurably slower.
+    if !SessionPolicyCache.shared.hasActiveSessions {
+        if message.action_type == ES_ACTION_TYPE_AUTH {
+            if message.event_type == ES_EVENT_TYPE_AUTH_OPEN {
+                es_respond_flags_result(client, event, 0x7FFFFFFF, false)
+            } else {
+                es_respond_auth_result(client, event, ES_AUTH_RESULT_ALLOW, false)
+            }
+        }
+        return
+    }
+
     // The daemon and its forks are not agents. See
     // PolicySocketClient.isDaemonOrFork.
     let process = message.process.pointee

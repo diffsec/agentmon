@@ -537,34 +537,66 @@ class SessionPolicyCache {
     private func handlePolicyUpdateNotification() {
         PolicySocketClient.shared.onServerNotification()
 
-        let sessionIDs = allSessionIDs()
-        for sessionID in sessionIDs {
-            NotificationCenter.default.post(
-                name: .policyCacheNeedsRefresh,
-                object: nil,
-                userInfo: ["session_id": sessionID]
-            )
+        syncWithDaemon { [weak self] in
+            guard let self = self else { return }
+            for sessionID in self.allSessionIDs() {
+                NotificationCenter.default.post(
+                    name: .policyCacheNeedsRefresh,
+                    object: nil,
+                    userInfo: ["session_id": sessionID]
+                )
+            }
         }
     }
 
     private func handleSessionRegisteredNotification() {
         PolicySocketClient.shared.onServerNotification()
+        syncWithDaemon(then: nil)
+    }
 
+    /// Make the cached sessions match the daemon's active sessions.
+    ///
+    /// Sessions the daemon no longer has are dropped. Before this, nothing
+    /// called unregisterSession, so once any session had registered,
+    /// hasActiveSessions stayed true until the extension restarted, and every
+    /// file open on the machine took the slow path. The daemon posts this
+    /// notification when a session ends and when its policy socket starts,
+    /// which covers a daemon restart.
+    ///
+    /// Sessions the extension has not seen are fetched. Darwin notifications
+    /// coalesce, so two sessions registering close together can produce one
+    /// delivery, and the latest-session fetch returns only one of them.
+    private func syncWithDaemon(then done: (() -> Void)?) {
         // session_id "" asks for the most recently registered session.
         fetchSnapshot(sessionID: "") { [weak self] response in
             guard let self = self, let response = response else { return }
-
-            // Darwin notifications coalesce. Two sessions registering close
-            // together can produce one delivery, and the fetch above only
-            // returns the latest -- so the other would never be fetched, would
-            // hold no policy, and would enforce nothing for its whole life. The
-            // daemon sends the full list precisely so that cannot happen.
-            guard let active = response["active_sessions"] as? [String] else { return }
+            guard let active = Self.activeSessions(inSnapshotReply: response) else { return }
             let known = Set(self.allSessionIDs())
+            for sessionID in known where !active.contains(sessionID) {
+                self.unregisterSession(sessionID: sessionID)
+            }
             for sessionID in active where !known.contains(sessionID) {
                 self.fetchSnapshot(sessionID: sessionID, completion: nil)
             }
+            done?()
         }
+    }
+
+    /// The daemon's active sessions, from its reply to a latest-session
+    /// snapshot fetch, or nil when the reply does not say.
+    ///
+    /// With no session registered, the daemon answers with a fail-closed
+    /// snapshot that has no session_id and no active_sessions
+    /// (denyAllSnapshot in internal/platform/darwin/policysock/handler.go).
+    /// That means the set is empty.
+    static func activeSessions(inSnapshotReply reply: [String: Any]) -> Set<String>? {
+        if let list = reply["active_sessions"] as? [String] {
+            return Set(list)
+        }
+        if reply["session_id"] == nil, reply["rule"] as? String == "no-policy-fail-closed" {
+            return []
+        }
+        return nil
     }
 
     /// Fetch one session's snapshot and install it. Passing "" asks the daemon

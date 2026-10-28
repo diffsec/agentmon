@@ -83,10 +83,12 @@ class PolicySocketClient {
     /// A session process whose parent is the daemon cannot turn into one,
     /// because ESFClient refuses any session process an exec of the daemon's
     /// executable.
-    func isDaemonOrFork(token: audit_token_t, parentToken: audit_token_t, executablePath: String) -> Bool {
+    func isDaemonOrFork(token: audit_token_t, parentToken: audit_token_t,
+                        executablePath: @autoclosure () -> String) -> Bool {
         if isValidatedServer(token) { return true }
         guard isValidatedServer(parentToken), let daemonPath = daemonExecutablePath else { return false }
-        return executablePath == daemonPath
+        // The path is read only for a child of the daemon.
+        return executablePath() == daemonPath
     }
 
     private func recordValidatedServer(_ token: audit_token_t, socketPath: String, executablePath: String?) {
