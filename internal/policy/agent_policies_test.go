@@ -730,6 +730,15 @@ func TestAgentDefault_FileDecisions(t *testing.T) {
 			wantRule: "allow-dev-write",
 		},
 		{
+			// dyld opens /dev/dtracehelper for writing in every new process on
+			// macOS. A deny there turns every process start into an audit event.
+			name:     "write /dev/dtracehelper via allow-dev-write",
+			path:     "/dev/dtracehelper",
+			op:       "write",
+			wantDec:  types.DecisionAllow,
+			wantRule: "allow-dev-write",
+		},
+		{
 			name:     "write /dev/tty via allow-dev-write",
 			path:     "/dev/tty",
 			op:       "write",

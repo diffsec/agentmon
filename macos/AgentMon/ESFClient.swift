@@ -252,7 +252,7 @@ class ESFClient {
             "pid": Int(pid),
             "child_pid": Int(childPid),
             "session_id": SessionPolicyCache.shared.sessionForPID(pid) ?? "",
-            "timestamp": ISO8601DateFormatter().string(from: Date())
+            "timestamp": eventTimestampFormatter.string(from: Date())
         ])
     }
 
@@ -276,7 +276,7 @@ class ESFClient {
             "event_type": "process_exit",
             "pid": Int(pid),
             "session_id": SessionPolicyCache.shared.sessionForPID(pid) ?? "",
-            "timestamp": ISO8601DateFormatter().string(from: Date())
+            "timestamp": eventTimestampFormatter.string(from: Date())
         ])
 
         SessionPolicyCache.shared.removePID(pid)
@@ -328,6 +328,12 @@ class ESFClient {
 
 /// Build and send a file event dict via the persistent event stream.
 /// This is a free function (not a method on ESFClient) so AUTH handlers can call it.
+/// One formatter for every event timestamp. Creating an ISO8601DateFormatter
+/// is expensive, and it used to happen once per event, which in a session is
+/// once per file open. ISO8601DateFormatter is safe to use from several
+/// threads.
+private let eventTimestampFormatter = ISO8601DateFormatter()
+
 private func sendFileEvent(
     eventType: String,
     path: String,
@@ -348,7 +354,7 @@ private func sendFileEvent(
         "session_id": sessionID ?? "",
         "decision": decision,
         "rule": rule ?? "",
-        "timestamp": ISO8601DateFormatter().string(from: Date())
+        "timestamp": eventTimestampFormatter.string(from: Date())
     ]
     if let action = action {
         dict["action"] = action

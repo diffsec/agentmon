@@ -34,7 +34,17 @@ def dedent(fn):
 
 rule = extract("struct FileRule {", "\n}\n")
 first = dedent(extract("    static func firstMatchingFileRule(", "\n    }\n").replace("    static func", "    func", 1))
-glob = dedent(extract("    private func globMatch(pattern: String, path: String) -> Bool {", "\n    }\n").replace("    private func", "    func", 1))
+# globMatch is an instance method that uses the static globRegex cache, so
+# both are extracted as they ship and wrapped in a class of the same name.
+cache_start = "    /// Compiled regular expressions for ** patterns, by pattern."
+glob_decl = "    private func globMatch(pattern: String, path: String) -> Bool {"
+if cache_start not in src or glob_decl not in src:
+    sys.exit("glob cache or globMatch not found in %s -- update this script" % sys.argv[1])
+gi = src.index(cache_start)
+gj = src.index("\n    }\n", src.index(glob_decl)) + len("\n    }\n")
+glob = ("final class SessionPolicyCache {\n" + src[gi:gj] + "}\n"
+        + "let globMatch = SessionPolicyCache().globMatch\n")
+glob = glob.replace("    private func globMatch", "    func globMatch", 1)
 
 if ".first {" not in first or "fnmatch" not in glob:
     sys.exit("extracted bodies do not look like the rule matcher -- update this script")
@@ -69,6 +79,16 @@ check("/etc/passwd", "write", "deny", "the catch-all deny still applies when not
 check("/Users/x/.ssh/id_ed25519", "read", "deny", "a deny before an allow still wins")
 check("/tmp/x", "chmod", "audit", "the * operation matches any operation")
 check("/etc/hosts", "read", nil, "no rule matches, so the caller applies the default")
+
+// The compiled pattern is reused, not rebuilt on every match.
+let a = SessionPolicyCache.globRegex(for: "/work/**")
+let b = SessionPolicyCache.globRegex(for: "/work/**")
+if a == nil || a !== b {
+    print("FAIL  a ** pattern is compiled again on each call")
+    failures += 1
+} else {
+    print("ok    a ** pattern is compiled once and reused")
+}
 
 exit(failures == 0 ? 0 : 1)
 ''')

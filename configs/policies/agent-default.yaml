@@ -468,6 +468,10 @@ file_rules:
     paths:
       - "/dev/null"
       - "/dev/zero"
+      # dyld opens this for writing in every new process on macOS, to register
+      # DTrace probes. Denying it changes nothing, and each denial is a file
+      # event the daemon writes to its audit log.
+      - "/dev/dtracehelper"
       - "/dev/tty"
       - "/dev/pts/**"
       - "/dev/urandom"

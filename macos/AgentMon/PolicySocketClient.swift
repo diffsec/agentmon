@@ -346,48 +346,96 @@ class PolicySocketClient {
 
     /// Write a file event to the persistent stream. Fire-and-forget.
     /// If disconnected, buffer up to maxBufferSize events.
+    /// Events waiting for the next flush. Guarded by pendingLock.
+    ///
+    /// Inside a session, every file open produces an event, about 14 for each
+    /// process started. Each one used to cost its own dispatch to streamQueue
+    /// and its own write to the socket. Events are now queued here and
+    /// written in batches, one write per flush.
+    private var pendingEvents: [[String: Any]] = []
+    private var flushScheduled = false
+    private var pendingLock = os_unfair_lock()
+
     func sendEvent(_ event: [String: Any]) {
-        streamQueue.async {
-            if self.streamConnected {
-                self.writeEvent(event)
-            } else {
-                self.eventBuffer.append(event)
-                if self.eventBuffer.count > self.maxBufferSize {
-                    let dropped = self.eventBuffer.count - self.maxBufferSize
-                    self.eventBuffer.removeFirst(dropped)
-                    NSLog("PolicySocketClient: dropped %d events (buffer full)", dropped)
-                }
-            }
+        os_unfair_lock_lock(&pendingLock)
+        pendingEvents.append(event)
+        let schedule = !flushScheduled
+        flushScheduled = true
+        os_unfair_lock_unlock(&pendingLock)
+        if schedule {
+            streamQueue.async { self.flushPending() }
         }
     }
 
-    private func writeEvent(_ event: [String: Any]) {
-        guard streamFD >= 0,
-              let data = try? JSONSerialization.data(withJSONObject: event) else {
+    /// Write everything queued so far. Runs on streamQueue.
+    private func flushPending() {
+        os_unfair_lock_lock(&pendingLock)
+        let batch = pendingEvents
+        pendingEvents.removeAll(keepingCapacity: true)
+        flushScheduled = false
+        os_unfair_lock_unlock(&pendingLock)
+
+        if streamConnected {
+            writeEvents(batch)
+        } else {
+            bufferEvents(batch)
+        }
+    }
+
+    /// Keep events for after the stream reconnects, up to maxBufferSize.
+    private func bufferEvents(_ events: [[String: Any]]) {
+        eventBuffer.append(contentsOf: events)
+        if eventBuffer.count > maxBufferSize {
+            let dropped = eventBuffer.count - maxBufferSize
+            eventBuffer.removeFirst(dropped)
+            NSLog("PolicySocketClient: dropped %d events (buffer full)", dropped)
+        }
+    }
+
+    /// Write events as newline-delimited JSON in as few writes as the socket
+    /// allows. If a write fails, the events from the first one not fully
+    /// written onward are kept for after the reconnect.
+    private func writeEvents(_ events: [[String: Any]]) {
+        guard !events.isEmpty else { return }
+        guard streamFD >= 0 else {
+            bufferEvents(events)
             return
         }
-        var payload = data
-        payload.append(0x0A)
 
-        let written = payload.withUnsafeBytes { ptr in
-            write(streamFD, ptr.baseAddress!, ptr.count)
+        var payload = Data()
+        var ends: [Int] = []  // payload offset after each event
+        var kept: [[String: Any]] = []
+        for event in events {
+            guard let data = try? JSONSerialization.data(withJSONObject: event) else { continue }
+            payload.append(data)
+            payload.append(0x0A)
+            ends.append(payload.count)
+            kept.append(event)
         }
-        if written <= 0 {
-            NSLog("PolicySocketClient: event stream write failed, reconnecting")
-            close(streamFD)
-            streamFD = -1
-            streamConnected = false
-            eventBuffer.append(event)
-            scheduleReconnect()
+
+        var offset = 0
+        while offset < payload.count {
+            let written = payload.withUnsafeBytes { ptr in
+                write(streamFD, ptr.baseAddress! + offset, ptr.count - offset)
+            }
+            if written <= 0 {
+                NSLog("PolicySocketClient: event stream write failed, reconnecting")
+                close(streamFD)
+                streamFD = -1
+                streamConnected = false
+                let firstUnsent = ends.firstIndex { $0 > offset } ?? kept.count
+                bufferEvents(Array(kept[firstUnsent...]))
+                scheduleReconnect()
+                return
+            }
+            offset += written
         }
     }
 
     private func flushBuffer() {
         let buffered = eventBuffer
         eventBuffer.removeAll()
-        for event in buffered {
-            writeEvent(event)
-        }
+        writeEvents(buffered)
     }
 
     private func scheduleReconnect() {
