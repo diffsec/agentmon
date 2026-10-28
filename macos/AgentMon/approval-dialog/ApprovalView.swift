@@ -1,4 +1,5 @@
 // macos/AgentMon/approval-dialog/ApprovalView.swift
+import Combine
 import SwiftUI
 
 /// Shows one pending approval and asks for an answer.

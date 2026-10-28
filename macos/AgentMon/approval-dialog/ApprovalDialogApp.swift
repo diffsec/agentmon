@@ -1,4 +1,5 @@
 // macos/AgentMon/approval-dialog/ApprovalDialogApp.swift
+import AppKit
 import SwiftUI
 
 /// The macOS approvals UI.
