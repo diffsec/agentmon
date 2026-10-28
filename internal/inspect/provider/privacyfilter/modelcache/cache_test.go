@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -381,7 +382,15 @@ func TestEnsure_BoundsWhatItReadsFromAnOversizedBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := modelcache.New(t.TempDir(), srv.Client(), nil)
+	// Count what Ensure reads from the body. This test used to count what the
+	// server managed to write, which includes everything the kernel buffers
+	// on loopback: 2,555,904 bytes on a GitHub runner whose socket buffers
+	// grew, against a 2 MiB threshold, with the client reading 1,025.
+	client := srv.Client()
+	var read int64
+	client.Transport = countingTransport{inner: client.Transport, read: &read}
+
+	c := modelcache.New(t.TempDir(), client, nil)
 	spec := modelcache.Spec{Name: "test-model", Files: []modelcache.File{{
 		Name: "model.onnx", URL: srv.URL + "/model.onnx",
 		Size: expected, SHA256: digest(make([]byte, expected)),
@@ -391,9 +400,38 @@ func TestEnsure_BoundsWhatItReadsFromAnOversizedBody(t *testing.T) {
 		t.Fatal("an unbounded body was accepted")
 	}
 
-	// Some slack for buffering between the handler and the client, but far
-	// below the 8MB the server wanted to send.
-	if got := atomic.LoadInt64(&served); got > 2<<20 {
-		t.Errorf("the server got to send %d bytes against a %d-byte spec; the read is not bounded", got, expected)
+	// One byte past the spec is how the cache detects an oversized body, so
+	// Ensure must read exactly that much. Fewer means it never saw the
+	// oversized body and the test proved nothing. More means the read is not
+	// bounded. The server's own byte count is no guard here: a Write that
+	// fails because the client hung up can report zero bytes after the
+	// client already read 1,025.
+	if got := atomic.LoadInt64(&read); got != expected+1 {
+		t.Errorf("Ensure read %d bytes against a %d-byte spec, want exactly %d", got, expected, expected+1)
 	}
+}
+
+// countingTransport counts the body bytes the caller reads.
+type countingTransport struct {
+	inner http.RoundTripper
+	read  *int64
+}
+
+func (t countingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	resp, err := t.inner.RoundTrip(r)
+	if resp != nil && resp.Body != nil {
+		resp.Body = countingBody{ReadCloser: resp.Body, read: t.read}
+	}
+	return resp, err
+}
+
+type countingBody struct {
+	io.ReadCloser
+	read *int64
+}
+
+func (b countingBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	atomic.AddInt64(b.read, int64(n))
+	return n, err
 }
