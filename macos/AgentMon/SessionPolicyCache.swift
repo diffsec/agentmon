@@ -759,17 +759,43 @@ class SessionPolicyCache {
         return false
     }
 
+    /// Compiled regular expressions for ** patterns, by pattern.
+    ///
+    /// globMatch used to compile one for every ** pattern on every file open
+    /// in a session, and default.yaml is mostly ** patterns. That compile was
+    /// a large part of the extension's CPU while a session ran. Patterns come
+    /// from policy snapshots, so the set is small and fixed between policy
+    /// changes. A pattern that does not compile is stored as nil, and matches
+    /// nothing, as before.
+    private static var globRegexCache: [String: NSRegularExpression?] = [:]
+    private static var globRegexLock = os_unfair_lock()
+
+    static func globRegex(for pattern: String) -> NSRegularExpression? {
+        os_unfair_lock_lock(&globRegexLock)
+        if let cached = globRegexCache[pattern] {
+            os_unfair_lock_unlock(&globRegexLock)
+            return cached
+        }
+        os_unfair_lock_unlock(&globRegexLock)
+
+        let regexPattern = "^" + NSRegularExpression.escapedPattern(for: pattern)
+            .replacingOccurrences(of: "\\*\\*", with: ".*")
+            .replacingOccurrences(of: "\\*", with: "[^/]*")
+        + "$"
+        let regex = try? NSRegularExpression(pattern: regexPattern)
+
+        os_unfair_lock_lock(&globRegexLock)
+        globRegexCache[pattern] = regex
+        os_unfair_lock_unlock(&globRegexLock)
+        return regex
+    }
+
     /// Simple glob matcher supporting * (single segment) and ** (recursive).
     /// Matches the Go policy engine's glob semantics.
     private func globMatch(pattern: String, path: String) -> Bool {
         // Use fnmatch for simple cases, handling ** manually
         if pattern.contains("**") {
-            // Convert ** to regex-style matching
-            let regexPattern = "^" + NSRegularExpression.escapedPattern(for: pattern)
-                .replacingOccurrences(of: "\\*\\*", with: ".*")
-                .replacingOccurrences(of: "\\*", with: "[^/]*")
-            + "$"
-            return (try? NSRegularExpression(pattern: regexPattern))?.firstMatch(
+            return Self.globRegex(for: pattern)?.firstMatch(
                 in: path, range: NSRange(path.startIndex..., in: path)
             ) != nil
         }
