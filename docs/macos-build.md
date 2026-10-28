@@ -118,7 +118,7 @@ build/AgentMon.app/
 │   │           │   ├── embedded.provisionprofile
 │   │           │   └── Info.plist
 │   └── Resources/
-│       └── approval-dialog.app/  # approvals UI (not yet launched by the daemon)
+│       └── approval-dialog.app/  # approvals UI (launched in approvals.mode: gui)
 ```
 
 ## System Extension Approval

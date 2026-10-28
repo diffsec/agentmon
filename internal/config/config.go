@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -1088,9 +1089,49 @@ type WebAuthnConfig struct {
 
 type ApprovalsConfig struct {
 	Enabled  bool           `yaml:"enabled"`
-	Mode     string         `yaml:"mode"`    // "local_tty", "api", "totp", or "webauthn"
+	Mode     string         `yaml:"mode"`    // "local_tty", "api", "totp", "webauthn", or "gui"
 	Timeout  string         `yaml:"timeout"` // duration string, e.g. "5m"
 	WebAuthn WebAuthnConfig `yaml:"webauthn"`
+}
+
+// approvalModes are the values approvals.mode accepts.
+var approvalModes = []string{"local_tty", "api", "totp", "webauthn", "gui"}
+
+// Validate checks approvals.mode.
+//
+// An unrecognised mode used to be accepted and then behave as api mode,
+// because approvals.Manager only special-cases the modes it knows. A typo
+// therefore gave the operator a mode that waits for an API call nobody makes.
+func (c *ApprovalsConfig) Validate(goos, policySocketTeamID string) error {
+	mode := strings.TrimSpace(c.Mode)
+	if mode == "" {
+		// Empty is local_tty: applyDefaults sets it, and approvals.New
+		// treats an empty mode the same way.
+		return nil
+	}
+	known := false
+	for _, m := range approvalModes {
+		if mode == m {
+			known = true
+			break
+		}
+	}
+	if !known {
+		return fmt.Errorf("approvals.mode %q is not one of %s", c.Mode, strings.Join(approvalModes, ", "))
+	}
+	if mode != "gui" {
+		return nil
+	}
+	if goos != "darwin" {
+		return fmt.Errorf("approvals.mode gui needs the macOS approval dialog and is not available on %s", goos)
+	}
+	// The dialog resolves approvals over the policy socket, and the socket
+	// tells the dialog apart from an agent by its code signature. Without a
+	// team ID the socket checks no signatures, and resolving is refused.
+	if strings.TrimSpace(policySocketTeamID) == "" {
+		return fmt.Errorf("approvals.mode gui requires policy_socket.team_id, which is how the policy socket recognises the signed dialog")
+	}
+	return nil
 }
 
 type MetricsConfig struct {
@@ -2816,6 +2857,9 @@ func validateConfig(cfg *Config) error {
 		return err
 	}
 	if err := cfg.Server.TLS.Validate(); err != nil {
+		return err
+	}
+	if err := cfg.Approvals.Validate(runtime.GOOS, cfg.PolicySocket.TeamID); err != nil {
 		return err
 	}
 	return nil

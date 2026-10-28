@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  No App Sandbox. The dialog connects to the daemon's unix socket under
+  ~/Library/Application Support/agentmon/, and the sandbox refuses a connect()
+  outside the app's container. The dialog still runs under the hardened
+  runtime, which scripts/sign-macos-bundle.sh applies with --options runtime.
+-->
 <plist version="1.0">
-<dict>
-    <key>com.apple.security.app-sandbox</key>
-    <true/>
-    <key>com.apple.security.network.client</key>
-    <true/>
-</dict>
+<dict/>
 </plist>

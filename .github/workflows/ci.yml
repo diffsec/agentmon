@@ -111,6 +111,11 @@ jobs:
       - name: Swift CIDR matcher
         run: scripts/test-swift-cidr.sh
 
+      # The approval dialog's parser, launch URL, socket path and wire format,
+      # checked against the JSON the Go policy socket tests pin.
+      - name: Swift approval dialog client
+        run: scripts/test-swift-approval-client.sh
+
   build-matrix:
     needs: [test-linux, test-macos]
     runs-on: ubuntu-latest

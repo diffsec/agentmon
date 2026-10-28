@@ -5,6 +5,7 @@ package policysock
 import (
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"unsafe"
 
@@ -81,6 +82,77 @@ func ValidatePeer(conn *net.UnixConn, teamID string) error {
 	return nil
 }
 
+// classifyPeer decides what a connected peer may ask for.
+//
+// A root peer goes through ValidatePeer unchanged and gets rolePrivileged:
+// that is the system extension. Before roles existed, every non-root peer was
+// rejected here, which also shut out the approval dialog, because the dialog
+// runs as the logged-in user. A non-root peer is now admitted only as the
+// dialog, and only when all three hold:
+//
+//   - it runs as the same user as this daemon, so another account on the
+//     machine cannot answer this user's approvals;
+//   - its PID is readable, so there is a binary to check;
+//   - that binary's code signature carries the team ID and the dialog's
+//     signing identifier.
+//
+// The identifier is the part that keeps an agent out. An agent can exec any
+// binary in the bundle, including the team-signed agentmon CLI, so the team
+// ID alone would admit a binary the agent controls the arguments of. The
+// dialog resolves an approval only when a person clicks.
+func classifyPeer(conn *net.UnixConn, teamID string) (peerRole, error) {
+	uid, pid, err := peerCredentials(conn)
+	if err != nil {
+		return 0, err
+	}
+	if uid == 0 {
+		if err := ValidatePeer(conn, teamID); err != nil {
+			return 0, err
+		}
+		return rolePrivileged, nil
+	}
+	if euid := uint32(os.Geteuid()); uid != euid {
+		return 0, fmt.Errorf("peer UID %d is neither root nor this daemon's user (UID %d)", uid, euid)
+	}
+	if pid <= 0 {
+		return 0, fmt.Errorf("peer UID %d: PID unavailable, so its code signature cannot be checked", uid)
+	}
+	path, err := resolvePIDPath(pid)
+	if err != nil {
+		return 0, fmt.Errorf("resolve pid %d path: %w", pid, err)
+	}
+	if err := verifyRequirement(path, approvalDialogRequirement(teamID)); err != nil {
+		return 0, fmt.Errorf("non-root peer %s (pid %d) is not the signed approval dialog: %w", path, pid, err)
+	}
+	return roleApprovalDialog, nil
+}
+
+// peerCredentials returns the peer's effective UID and, when readable, PID.
+func peerCredentials(conn *net.UnixConn) (uint32, int32, error) {
+	raw, err := conn.SyscallConn()
+	if err != nil {
+		return 0, 0, fmt.Errorf("syscall conn: %w", err)
+	}
+	var uid uint32
+	var pid int32
+	var sockErr error
+	err = raw.Control(func(fd uintptr) {
+		u, err := getpeereid(int(fd))
+		if err != nil {
+			sockErr = fmt.Errorf("getpeereid: %w", err)
+			return
+		}
+		uid = u
+		if p, err := getPeerPID(int(fd)); err == nil {
+			pid = p
+		}
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("control: %w", err)
+	}
+	return uid, pid, sockErr
+}
+
 // LOCAL_PEERPID is the socket option to get the peer's PID on macOS.
 const LOCAL_PEERPID = 0x002
 
@@ -114,10 +186,11 @@ func resolvePIDPath(pid int32) (string, error) {
 
 // validateCodeSignature verifies a binary is signed by the expected team ID.
 func validateCodeSignature(path string, teamID string) error {
-	requirement := fmt.Sprintf(
-		`anchor apple generic and certificate leaf[subject.OU] = "%s"`,
-		teamID,
-	)
+	return verifyRequirement(path, teamRequirement(teamID))
+}
+
+// verifyRequirement checks the binary at path against a code requirement.
+func verifyRequirement(path, requirement string) error {
 	cmd := exec.Command("codesign", "--verify", "-R="+requirement, path)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

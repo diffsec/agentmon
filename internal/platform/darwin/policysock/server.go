@@ -108,6 +108,7 @@ type Server struct {
 	sessionRegistrar SessionRegistrar
 	eventHandler     EventHandler
 	snapshotBuilder  SnapshotBuilder
+	approvalBroker   ApprovalBroker
 	teamID           string
 	listener         net.Listener
 	mu               sync.Mutex
@@ -267,17 +268,21 @@ func (s *Server) Run(ctx context.Context) error {
 			}
 		}
 
-		// Validate peer identity (UID + code signing)
+		// Validate peer identity (UID + code signing) and decide what the
+		// peer may ask for.
+		role := roleUnverified
 		if s.teamID != "" {
-			if err := ValidatePeer(conn, s.teamID); err != nil {
+			r, err := classifyPeer(conn, s.teamID)
+			if err != nil {
 				slog.Warn("rejected policy socket connection", "error", err)
 				conn.Close()
 				continue
 			}
+			role = r
 		}
 
 		s.wg.Add(1)
-		go s.handleConn(conn)
+		go s.handleConn(conn, role)
 	}
 }
 
@@ -291,12 +296,18 @@ func (s *Server) Close() error {
 	return nil
 }
 
-func (s *Server) handleConn(conn net.Conn) {
+func (s *Server) handleConn(conn net.Conn, role peerRole) {
 	defer s.wg.Done()
 	defer conn.Close()
 
-	s.connOpened()
-	defer s.connClosed()
+	// The approval dialog is not the system extension. Counting its
+	// connection would tell the liveness probe that the extension is up
+	// whenever someone has an approval window open.
+	isDialog := role == roleApprovalDialog
+	if !isDialog {
+		s.connOpened()
+		defer s.connClosed()
+	}
 
 	decoder := json.NewDecoder(conn)
 	encoder := json.NewEncoder(conn)
@@ -309,14 +320,19 @@ func (s *Server) handleConn(conn net.Conn) {
 
 	// Event stream mode: persistent read-only connection.
 	if req.Type == RequestTypeEventStreamInit {
+		if isDialog {
+			return
+		}
 		encoder.Encode(map[string]any{"status": "ok"})
 		s.handleEventStream(decoder)
 		return
 	}
 
 	// Normal request-response mode.
-	s.noteContact()
-	resp := s.handleRequest(&req)
+	if !isDialog {
+		s.noteContact()
+	}
+	resp := s.handleRequestAs(role, &req)
 	if err := encoder.Encode(resp); err != nil {
 		return
 	}
@@ -326,8 +342,10 @@ func (s *Server) handleConn(conn net.Conn) {
 		if err := decoder.Decode(&next); err != nil {
 			return
 		}
-		s.noteContact()
-		resp := s.handleRequest(&next)
+		if !isDialog {
+			s.noteContact()
+		}
+		resp := s.handleRequestAs(role, &next)
 		if err := encoder.Encode(resp); err != nil {
 			return
 		}

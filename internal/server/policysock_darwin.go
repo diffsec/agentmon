@@ -6,6 +6,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/diffsec/agentmon/internal/approvals"
 	"github.com/diffsec/agentmon/internal/config"
 	"github.com/diffsec/agentmon/internal/platform/darwin"
 	"github.com/diffsec/agentmon/internal/platform/darwin/policysock"
@@ -15,7 +16,7 @@ import (
 // startPolicySocket creates and starts the policy socket server for macOS
 // system extension IPC. It sets the policySockCancel and policySockDone
 // fields on the Server so the socket is shut down when the server stops.
-func (s *Server) startPolicySocket(cfg *config.Config, engine *policy.Engine) {
+func (s *Server) startPolicySocket(cfg *config.Config, engine *policy.Engine, approvalsMgr *approvals.Manager) {
 	sockPath := cfg.PolicySocket.Path
 	if sockPath == "" {
 		return
@@ -52,6 +53,9 @@ func (s *Server) startPolicySocket(cfg *config.Config, engine *policy.Engine) {
 	psrv.SetSnapshotBuilder(adapter)
 	psrv.SetSessionRegistrar(tracker)
 	psrv.SetEventHandler(eventHandler)
+	if approvalsMgr != nil {
+		psrv.SetApprovalBroker(approvalBroker{mgr: approvalsMgr})
+	}
 
 	// Register the extension-presence probe so CheckSysExtLiveness can tell a
 	// working extension from a crash-looping one. Without this, liveness is
