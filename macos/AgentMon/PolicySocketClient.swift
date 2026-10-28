@@ -61,10 +61,39 @@ class PolicySocketClient {
     }
     private var validatedControlDirectory: String?
 
-    private func recordValidatedServer(_ token: audit_token_t, socketPath: String) {
+    /// The executable path of the validated daemon, or nil before validation.
+    var daemonExecutablePath: String? {
+        serverTokenLock.lock()
+        defer { serverTokenLock.unlock() }
+        return validatedExecutablePath
+    }
+    private var validatedExecutablePath: String?
+
+    /// Whether a process is the daemon, or a fork of the daemon that has not
+    /// exec'd yet.
+    ///
+    /// The daemon starts helpers such as codesign, /usr/bin/open and pfctl,
+    /// and each runs first as a fork of the daemon. The daemon is the root of
+    /// every `agentmon exec` session, so without this a fork looks like an
+    /// agent process. Checking the codesign exec that validates a policy
+    /// socket peer then needs another codesign, and the loop ends only when
+    /// the exec watchdog kills it.
+    ///
+    /// The parent token and the executable path together identify a fork.
+    /// A session process whose parent is the daemon cannot turn into one,
+    /// because ESFClient refuses any session process an exec of the daemon's
+    /// executable.
+    func isDaemonOrFork(token: audit_token_t, parentToken: audit_token_t, executablePath: String) -> Bool {
+        if isValidatedServer(token) { return true }
+        guard isValidatedServer(parentToken), let daemonPath = daemonExecutablePath else { return false }
+        return executablePath == daemonPath
+    }
+
+    private func recordValidatedServer(_ token: audit_token_t, socketPath: String, executablePath: String?) {
         serverTokenLock.lock()
         serverToken = token
         validatedControlDirectory = (socketPath as NSString).deletingLastPathComponent
+        validatedExecutablePath = executablePath
         serverTokenLock.unlock()
         // Mute the daemon, and only the daemon. See ESFClient.subscribe.
         ESFClient.shared?.muteProcess(auditToken: token)
@@ -481,7 +510,13 @@ class PolicySocketClient {
         var tokenLen = socklen_t(MemoryLayout<audit_token_t>.size)
         if getsockopt(fd, SOL_LOCAL, LOCAL_PEERTOKEN, &token, &tokenLen) == 0,
            audit_token_to_pid(token) == peerPID {
-            recordValidatedServer(token, socketPath: socketPath)
+            // proc_pidpath, not SecCodeCopyPath: for an app's main binary
+            // the latter returns the bundle, and ES reports the executable.
+            var buf = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+            let len = proc_pidpath(peerPID, &buf, UInt32(buf.count))
+            let path = len > 0
+                ? URL(fileURLWithPath: String(cString: buf)).resolvingSymlinksInPath().path : nil
+            recordValidatedServer(token, socketPath: socketPath, executablePath: path)
         } else {
             NSLog("PolicySocketClient: could not read the server's audit token; its connections stay subject to the content filter")
         }

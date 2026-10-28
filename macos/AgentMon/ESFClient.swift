@@ -325,6 +325,22 @@ private func handleESEvent(client: OpaquePointer, event: UnsafePointer<es_messag
 
     os_log(.debug, log: esLog, "handleESEvent: type=%{public}d pid=%{public}d", eventType, pid)
 
+    // The daemon and its forks are not agents. See
+    // PolicySocketClient.isDaemonOrFork.
+    let process = message.process.pointee
+    if PolicySocketClient.shared.isDaemonOrFork(
+        token: process.audit_token, parentToken: process.parent_audit_token,
+        executablePath: String(cString: process.executable.pointee.path.data)) {
+        if message.action_type == ES_ACTION_TYPE_AUTH {
+            if message.event_type == ES_EVENT_TYPE_AUTH_OPEN {
+                es_respond_flags_result(client, event, 0x7FFFFFFF, false)
+            } else {
+                es_respond_auth_result(client, event, ES_AUTH_RESULT_ALLOW, false)
+            }
+        }
+        return
+    }
+
     switch message.event_type {
     // AUTH events -- MUST always respond via es_respond_auth_result
     case ES_EVENT_TYPE_AUTH_OPEN:
@@ -616,6 +632,17 @@ private func handleAuthExec(client: OpaquePointer, event: UnsafePointer<es_messa
         .advanced(by: MemoryLayout.offset(of: \es_message_t.event)!)
         .assumingMemoryBound(to: es_event_exec_t.self)
     let execPath = String(cString: execPtr.pointee.target.pointee.executable.pointee.path.data)
+
+    // No session process may run the daemon's executable, whatever the
+    // policy says. The agentmon CLI controls the daemon, and a session
+    // process whose parent is the daemon would otherwise turn into something
+    // isDaemonOrFork accepts as a daemon fork.
+    if execPath == PolicySocketClient.shared.daemonExecutablePath {
+        es_respond_auth_result(client, event, ES_AUTH_RESULT_DENY, false)
+        os_log(.error, log: esLog,
+               "denied exec of the agentmon daemon binary by session pid %{public}d", pid)
+        return
+    }
     let parentPID = event.pointee.process.pointee.ppid
 
     // Everything the daemon needs is extracted here, while the message is
