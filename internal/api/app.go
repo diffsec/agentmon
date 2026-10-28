@@ -460,7 +460,7 @@ func (a *App) authMiddlewareProtected(next http.Handler) http.Handler {
 	authType := strings.ToLower(a.cfg.Auth.Type)
 
 	switch authType {
-	case "api_key":
+	case "api_key", "local":
 		return a.apiKeyAuthHandler(next)
 	case "oidc":
 		return a.oidcAuthHandler(next)

@@ -73,6 +73,7 @@ class SessionCache {
     /// True when the daemon asked for enforcement rather than observation.
     var networkBlocking: Bool { networkEnforcement == "block" }
 
+
     init(sessionID: String, rootPID: pid_t, version: UInt64,
          fileRules: [FileRule], networkRules: [NetworkRule],
          dnsRules: [DNSRule], execRules: [ExecRule],
@@ -263,7 +264,8 @@ class SessionPolicyCache {
         // process the right to change it.
         if Self.touchesControlDirectory(
             path: path, operation: operation,
-            controlDir: PolicySocketClient.shared.controlDirectory) {
+            controlDir: PolicySocketClient.shared.controlDirectory),
+           !(operation == "read" && cacheForSession(sid)?.rootPID == pid) {
             return (.deny, sid)
         }
         return queue.sync {
@@ -605,16 +607,22 @@ class SessionPolicyCache {
         }
     }
 
-    /// Whether an access by a session process would change the daemon's
-    /// directory, `controlDir`.
+    /// Whether an access by a session process touches the daemon's directory,
+    /// `controlDir`.
     ///
-    /// Reads are left to the policy. Anything else inside the directory is
-    /// refused: removing the policy socket and binding a new one there would
-    /// let an agent answer the extension's policy questions. Renaming or
-    /// deleting an ancestor is refused too, because that moves the directory
-    /// away and lets a new one be made at the old path.
+    /// Every access inside the directory is refused, reads included. The
+    /// directory holds the key for auth.type local, which opens the daemon's
+    /// API, and api_keys.yaml when auth.type is api_key. Removing the policy
+    /// socket and binding a new one there would let an agent answer the
+    /// extension's policy questions. Renaming or deleting an ancestor is
+    /// refused too, because that moves the directory away and lets a new one
+    /// be made at the old path.
+    ///
+    /// The caller exempts a session's root from the read check. For
+    /// `agentmon wrap`, the root is the CLI that the person started, and it
+    /// reads the local key.
     static func touchesControlDirectory(path: String, operation: String, controlDir: String) -> Bool {
-        guard !controlDir.isEmpty, operation != "read" else { return false }
+        guard !controlDir.isEmpty else { return false }
         if path == controlDir || path.hasPrefix(controlDir + "/") {
             return true
         }

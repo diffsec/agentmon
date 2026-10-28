@@ -929,7 +929,7 @@ func grpcAuth(app *App, ctx context.Context) error {
 	if app.cfg.Development.DisableAuth || strings.EqualFold(app.cfg.Auth.Type, "none") {
 		return nil
 	}
-	if !strings.EqualFold(app.cfg.Auth.Type, "api_key") {
+	if !strings.EqualFold(app.cfg.Auth.Type, "api_key") && !strings.EqualFold(app.cfg.Auth.Type, "local") {
 		return status.Error(codes.Unauthenticated, "unsupported auth type")
 	}
 	if app.apiKeyAuth == nil {

@@ -125,7 +125,7 @@ func New(cfg *config.Config) (*Server, error) {
 	// by calling the approvals endpoints on localhost.
 	if cfg.Approvals.Enabled && strings.EqualFold(strings.TrimSpace(cfg.Approvals.Mode), "api") {
 		if cfg.Development.DisableAuth || strings.EqualFold(strings.TrimSpace(cfg.Auth.Type), "none") {
-			return nil, fmt.Errorf("approvals.mode=api requires auth.type=api_key (auth is disabled)")
+			return nil, fmt.Errorf("approvals.mode=api requires auth.type=api_key or local (auth is disabled)")
 		}
 	}
 
@@ -516,6 +516,14 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 
 	var apiKeyAuth *auth.APIKeyAuth
+	if !cfg.Development.DisableAuth && cfg.Auth.Type == "local" {
+		key, err := auth.EnsureLocalKey(filepath.Join(config.GetUserDataDir(), auth.LocalKeyFile))
+		if err != nil {
+			_ = store.Close()
+			return nil, err
+		}
+		apiKeyAuth = auth.NewLocalKeyAuth(key, cfg.Auth.APIKey.HeaderName)
+	}
 	if !cfg.Development.DisableAuth && (cfg.Auth.Type == "api_key" || cfg.Auth.Type == "hybrid") {
 		loaded, err := auth.LoadAPIKeys(cfg.Auth.APIKey.KeysFile, cfg.Auth.APIKey.HeaderName)
 		if err != nil {

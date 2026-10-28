@@ -42,8 +42,16 @@ server:
 # =============================================================================
 
 auth:
-  # Authentication type: "none", "api_key", "oidc", "hybrid"
+  # Authentication type: "none", "local", "api_key", "oidc", "hybrid"
   # NOTE: local dev default is unauthenticated; server will refuse to bind to non-loopback addresses.
+  # With "none", any process on this machine can call the API, an agent included,
+  # and create a session with a policy of its choosing.
+  # "local" generates a random key in the user data directory
+  # (macOS: ~/Library/Application Support/agentmon/local-api.key) and requires it.
+  # The agentmon CLI reads that file, so it needs no flag. On macOS the system
+  # extension refuses session processes any access to that directory.
+  # "local" does not suit the Linux shell shim, which calls the API from inside
+  # the session and would need the key in the agent's environment.
   type: "none"
   
   # API key authentication
