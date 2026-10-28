@@ -84,17 +84,33 @@ class FilterDataProvider: NEFilterDataProvider {
             auditTokenData.copyBytes(to: dest)
         }
 
-        // Get full process identification
-        let processInfo = ProcessIdentifier.identify(auditToken: auditToken)
-        let pid = processInfo.pid
+        let pid = audit_token_to_pid(auditToken)
 
-        // Get parent PID from hierarchy (may use cached fork events or sysctl fallback)
-        let parentPID = ProcessHierarchy.shared.getParent(pid: pid) ?? 0
+        // The daemon's own connections are never an agent's. The daemon
+        // registers itself as the root of every `agentmon exec` session
+        // (registerSessionRoot in internal/api/session_root.go), so without
+        // this check its proxy's upstream dial looks like a session process
+        // bypassing the proxy and is dropped. The match is on the audit token
+        // of the server that passed validateServer, PID and PID version both,
+        // so a reused PID or another copy of the agentmon binary does not
+        // match.
+        if PolicySocketClient.shared.isValidatedServer(auditToken) {
+            return .allow()
+        }
 
-        // Session scoping: auto-allow if PID is not in any active session
+        // Session scoping: auto-allow if PID is not in any active session.
+        // This runs before any per-process work. Every flow on the machine
+        // passes through here, and a code signature lookup on each one made
+        // all network connections slow.
         guard let sessionID = SessionPolicyCache.shared.sessionForPID(pid) else {
             return .allow()
         }
+
+        // Get full process identification
+        let processInfo = ProcessIdentifier.identify(auditToken: auditToken)
+
+        // Get parent PID from hierarchy (may use cached fork events or sysctl fallback)
+        let parentPID = ProcessHierarchy.shared.getParent(pid: pid) ?? 0
 
         // Enforcement mode is a property of the session's policy, not of this
         // provider. A missing cache means the snapshot has not arrived yet;
