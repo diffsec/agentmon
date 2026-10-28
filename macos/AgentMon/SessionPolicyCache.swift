@@ -271,23 +271,18 @@ class SessionPolicyCache {
                 return (.allow, nil)  // session ended between resolve and read
             }
 
-            // Check deny rules first
-            for rule in cache.fileRules where rule.action == "deny" {
-                if rule.operations.contains(operation) && globMatch(pattern: rule.pattern, path: path) {
-                    return (.deny, sid)
-                }
-            }
-
-            // Rules requiring server-side logic -> deny locally
-            for rule in cache.fileRules where rule.action != "deny" {
-                if rule.operations.contains(operation) && globMatch(pattern: rule.pattern, path: path) {
-                    if rule.action == "approve" || rule.action == "redirect" || rule.action == "soft_delete" {
-                        return (.deny, sid)
-                    }
-                    if rule.action == "allow" {
-                        return (.allow, sid)
-                    }
-                }
+            // The first rule that matches decides, in policy order, as
+            // Engine.CheckFile does in internal/policy/engine.go. This used to
+            // check every deny rule before any allow rule. A policy that ends
+            // with a catch-all deny, as default.yaml does with
+            // default-deny-files on "**", then denied every write, including
+            // the ones that allow-workspace-write and allow-dev-write allow.
+            if let rule = Self.firstMatchingFileRule(
+                cache.fileRules, path: path, operation: operation, match: globMatch) {
+                // approve, redirect and soft_delete need the daemon, so they
+                // are denied here.
+                let allowed = rule.action == "allow" || rule.action == "audit"
+                return (allowed ? .allow : .deny, sid)
             }
 
             // Apply default
@@ -598,6 +593,17 @@ class SessionPolicyCache {
     }
 
     // MARK: - Glob Matching
+
+    /// The first rule whose operations and pattern both match the access.
+    static func firstMatchingFileRule(
+        _ rules: [FileRule], path: String, operation: String,
+        match: (_ pattern: String, _ path: String) -> Bool
+    ) -> FileRule? {
+        rules.first { rule in
+            (rule.operations.contains(operation) || rule.operations.contains("*"))
+                && match(rule.pattern, path)
+        }
+    }
 
     /// Whether an access by a session process would change the daemon's
     /// directory, `controlDir`.

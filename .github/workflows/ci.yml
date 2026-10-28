@@ -111,6 +111,10 @@ jobs:
       - name: Swift CIDR matcher
         run: scripts/test-swift-cidr.sh
 
+      # File rules must decide in policy order, as the Go engine does.
+      - name: Swift file rule order
+        run: scripts/test-swift-file-rules.sh
+
       # A session process must not be able to change the daemon's directory.
       - name: Swift control directory guard
         run: scripts/test-swift-control-dir.sh
