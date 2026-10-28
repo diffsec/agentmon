@@ -34,11 +34,6 @@ struct ExecRule {
     let action: String    // "allow", "deny", "redirect"
 }
 
-struct DirectAllowEntry {
-    let host: String  // IP, hostname, or "*"
-    let port: Int     // 0 = any port
-}
-
 struct PolicyDefaults {
     let file: String     // "allow" or "deny"
     let network: String
@@ -58,8 +53,6 @@ class SessionCache {
     var dnsRules: [DNSRule]
     var execRules: [ExecRule]
     var defaults: PolicyDefaults
-    var proxyAddr: String?
-    var directAllow: [DirectAllowEntry] = []
 
     /// Whether the content filter should consult the daemon for flows this
     /// cache cannot decide, instead of allowing and reporting them. Sent by the
@@ -78,7 +71,6 @@ class SessionCache {
          fileRules: [FileRule], networkRules: [NetworkRule],
          dnsRules: [DNSRule], execRules: [ExecRule],
          defaults: PolicyDefaults,
-         proxyAddr: String? = nil, directAllow: [DirectAllowEntry] = [],
          networkEnforcement: String = "audit", networkFailOpen: Bool = true) {
         self.sessionID = sessionID
         self.rootPID = rootPID
@@ -89,8 +81,6 @@ class SessionCache {
         self.dnsRules = dnsRules
         self.execRules = execRules
         self.defaults = defaults
-        self.proxyAddr = proxyAddr
-        self.directAllow = directAllow
         self.networkEnforcement = networkEnforcement
         self.networkFailOpen = networkFailOpen
     }
@@ -867,20 +857,6 @@ extension SessionCache {
             exec: defs["exec"] ?? "allow"
         )
 
-        var proxyAddr: String? = nil
-        if let pa = json["proxy_addr"] as? String, !pa.isEmpty {
-            proxyAddr = pa
-        }
-
-        var directAllow: [DirectAllowEntry] = []
-        if let directAllowArr = json["direct_allow"] as? [[String: Any]] {
-            directAllow = directAllowArr.compactMap { entry in
-                guard let host = entry["host"] as? String else { return nil }
-                let port = entry["port"] as? Int ?? 0
-                return DirectAllowEntry(host: host, port: port)
-            }
-        }
-
         // A snapshot from a daemon that predates these fields carries neither.
         // Defaulting to audit keeps that daemon's behaviour exactly as it was
         // rather than silently switching it into a blocking mode it was never
@@ -893,7 +869,6 @@ extension SessionCache {
             sessionID: sessionID, rootPID: rootPID, version: version,
             fileRules: fileRules, networkRules: networkRules,
             dnsRules: dnsRules, execRules: execRules, defaults: defaults,
-            proxyAddr: proxyAddr, directAllow: directAllow,
             networkEnforcement: enforcement, networkFailOpen: failOpen
         )
         return cache
