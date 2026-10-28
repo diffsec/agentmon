@@ -108,7 +108,10 @@ func serveOnce(at sockPath: String, reply: String) -> () -> [String: Any]? {
 
 let sock = "/tmp/amtest-\(getpid()).sock"
 defer { unlink(sock) }
-let client = ApprovalClient(socketPath: sock)
+// The fake daemon runs in this process. When the client refuses it and closes
+// the connection, its reply write would raise SIGPIPE and end the test.
+signal(SIGPIPE, SIG_IGN)
+let client = ApprovalClient(socketPath: sock, serverRequirement: nil)
 
 let goldenText = try! String(contentsOfFile: goldenPath, encoding: .utf8).replacingOccurrences(of: "\n", with: "")
 var wait = serveOnce(at: sock, reply: goldenText)
@@ -172,9 +175,23 @@ do {
 }
 _ = wait()
 
-unlink(sock)
+// With the real requirement, the client refuses a daemon that is not signed
+// as agentmon. The fake daemon here is this unsigned test binary, which is
+// what a process that took the socket path would be.
+wait = serveOnce(at: sock, reply: #"{"allow":true,"pending_approvals":[]}"#)
 do {
     _ = try ApprovalClient(socketPath: sock).list()
+    check(false, "an unsigned daemon is refused")
+} catch let e as ApprovalClient.ClientError {
+    check(e == .untrustedServer(sock), "an unsigned daemon is untrustedServer")
+} catch {
+    check(false, "an unsigned daemon throws ClientError (got \(error))")
+}
+_ = wait()
+
+unlink(sock)
+do {
+    _ = try ApprovalClient(socketPath: sock, serverRequirement: nil).list()
     check(false, "no daemon throws")
 } catch let e as ApprovalClient.ClientError {
     check(e == .connectionFailed(sock), "no daemon is connectionFailed")

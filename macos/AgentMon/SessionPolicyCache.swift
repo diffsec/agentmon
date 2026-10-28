@@ -258,6 +258,14 @@ class SessionPolicyCache {
         guard let sid = sessionForPID(pid) else {
             return (.allow, nil)
         }
+        // The daemon's own directory holds the policy socket, the daemon's
+        // configuration and its audit data. No policy can grant a session
+        // process the right to change it.
+        if Self.touchesControlDirectory(
+            path: path, operation: operation,
+            controlDir: PolicySocketClient.shared.controlDirectory) {
+            return (.deny, sid)
+        }
         return queue.sync {
             guard let cache = sessions[sid] else {
                 return (.allow, nil)  // session ended between resolve and read
@@ -595,6 +603,25 @@ class SessionPolicyCache {
             (rule.operations.contains(operation) || rule.operations.contains("*"))
                 && match(rule.pattern, path)
         }
+    }
+
+    /// Whether an access by a session process would change the daemon's
+    /// directory, `controlDir`.
+    ///
+    /// Reads are left to the policy. Anything else inside the directory is
+    /// refused: removing the policy socket and binding a new one there would
+    /// let an agent answer the extension's policy questions. Renaming or
+    /// deleting an ancestor is refused too, because that moves the directory
+    /// away and lets a new one be made at the old path.
+    static func touchesControlDirectory(path: String, operation: String, controlDir: String) -> Bool {
+        guard !controlDir.isEmpty, operation != "read" else { return false }
+        if path == controlDir || path.hasPrefix(controlDir + "/") {
+            return true
+        }
+        if operation == "rename" || operation == "delete" {
+            return controlDir.hasPrefix(path + "/")
+        }
+        return false
     }
 
     /// Simple glob matcher supporting * (single segment) and ** (recursive).
