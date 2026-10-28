@@ -64,6 +64,10 @@ class ESFClient {
             ES_EVENT_TYPE_AUTH_RENAME,
             ES_EVENT_TYPE_AUTH_EXEC,
             ES_EVENT_TYPE_AUTH_UIPC_BIND,
+            ES_EVENT_TYPE_AUTH_UIPC_CONNECT,
+            ES_EVENT_TYPE_AUTH_LINK,
+            ES_EVENT_TYPE_AUTH_CLONE,
+            ES_EVENT_TYPE_AUTH_COPYFILE,
             ES_EVENT_TYPE_AUTH_SIGNAL,
             ES_EVENT_TYPE_NOTIFY_CLOSE,
             ES_EVENT_TYPE_NOTIFY_EXIT,
@@ -415,6 +419,17 @@ private func handleESEvent(client: OpaquePointer, event: UnsafePointer<es_messag
         handleAuthExec(client: client, event: event, pid: pid)
     case ES_EVENT_TYPE_AUTH_UIPC_BIND:
         handleAuthUIPCBind(client: client, event: event, pid: pid)
+    case ES_EVENT_TYPE_AUTH_UIPC_CONNECT:
+        handleAuthUIPCConnect(client: client, event: event, pid: pid)
+    case ES_EVENT_TYPE_AUTH_LINK:
+        handleAuthCopySource(client: client, event: event, pid: pid,
+                             source: event.pointee.event.link.source)
+    case ES_EVENT_TYPE_AUTH_CLONE:
+        handleAuthCopySource(client: client, event: event, pid: pid,
+                             source: event.pointee.event.clone.source)
+    case ES_EVENT_TYPE_AUTH_COPYFILE:
+        handleAuthCopySource(client: client, event: event, pid: pid,
+                             source: event.pointee.event.copyfile.source)
     case ES_EVENT_TYPE_AUTH_SIGNAL:
         handleAuthSignal(client: client, event: event, pid: pid)
 
@@ -608,6 +623,50 @@ private func handleAuthUIPCBind(client: OpaquePointer, event: UnsafePointer<es_m
     if denied {
         sendFileEvent(eventType: "file_create", path: path, operation: "create", pid: pid,
                       sessionID: sessionID, decision: "deny", rule: "protect-agentmon-control-directory")
+    }
+}
+
+/// Refuse a session process, other than the session's root, a connection to
+/// a unix socket in the daemon's directory. Those sockets are the daemon's
+/// unix-socket API and the policy socket. Through the API, an agent could
+/// create a session with a policy of its choosing.
+private func handleAuthUIPCConnect(client: OpaquePointer, event: UnsafePointer<es_message_t>, pid: pid_t) {
+    guard SessionPolicyCache.shared.hasActiveSessions,
+          let sessionID = SessionPolicyCache.shared.sessionForPID(pid),
+          SessionPolicyCache.shared.cacheForSession(sessionID)?.rootPID != pid else {
+        es_respond_auth_result(client, event, ES_AUTH_RESULT_ALLOW, false)
+        return
+    }
+    let path = String(cString: event.pointee.event.uipc_connect.file.pointee.path.data)
+    let dir = PolicySocketClient.shared.controlDirectory
+    let denied = !dir.isEmpty && path.hasPrefix(dir + "/")
+    es_respond_auth_result(client, event, denied ? ES_AUTH_RESULT_DENY : ES_AUTH_RESULT_ALLOW, false)
+    if denied {
+        os_log(.error, log: esLog,
+               "denied connect to %{public}s from session pid %{public}d", path, pid)
+    }
+}
+
+/// Refuse a session process a hard link, clone or copyfile whose source is in
+/// the daemon's directory. Each of them reaches the file's content without an
+/// open, so without this a session process could copy the local API key out
+/// of the directory and read the copy. The session's root is exempt, as it is
+/// for reads in evaluateFile.
+private func handleAuthCopySource(client: OpaquePointer, event: UnsafePointer<es_message_t>,
+                                  pid: pid_t, source: UnsafeMutablePointer<es_file_t>) {
+    guard SessionPolicyCache.shared.hasActiveSessions,
+          let sessionID = SessionPolicyCache.shared.sessionForPID(pid),
+          SessionPolicyCache.shared.cacheForSession(sessionID)?.rootPID != pid else {
+        es_respond_auth_result(client, event, ES_AUTH_RESULT_ALLOW, false)
+        return
+    }
+    let path = String(cString: source.pointee.path.data)
+    let denied = SessionPolicyCache.touchesControlDirectory(
+        path: path, operation: "read", controlDir: PolicySocketClient.shared.controlDirectory)
+    es_respond_auth_result(client, event, denied ? ES_AUTH_RESULT_DENY : ES_AUTH_RESULT_ALLOW, false)
+    if denied {
+        os_log(.error, log: esLog,
+               "denied a copy of %{public}s from session pid %{public}d", path, pid)
     }
 }
 

@@ -420,3 +420,50 @@ func TestHybridAuthModeNeitherSucceeds(t *testing.T) {
 		t.Fatalf("expected 401 for invalid OIDC token in hybrid mode, got %d", rr2.Code)
 	}
 }
+
+// TestLocalAuthModeRequiresTheLocalKey covers auth.type local. Without a key,
+// an agent on the same machine could call the API to create a session with a
+// policy of its choosing. With the local key, the CLI keeps working with no
+// flag.
+func TestLocalAuthModeRequiresTheLocalKey(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Auth.Type = "local"
+	cfg.Health.Path = "/health"
+	cfg.Health.ReadinessPath = "/ready"
+	cfg.Metrics.Enabled = false
+
+	sessions := session.NewManager(10)
+	engine, err := policy.NewEngine(&policy.Policy{Version: 1, Name: "test"}, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := NewApp(cfg, sessions, composite.New(nil, nil), engine, events.NewBroker(), auth.NewLocalKeyAuth("local-key", ""), nil, nil, metrics.New(), nil, nil, nil)
+	h := app.Router()
+
+	for _, tc := range []struct {
+		name string
+		key  string
+		want func(int) bool
+	}{
+		{"no key", "", func(c int) bool { return c == http.StatusUnauthorized }},
+		{"a wrong key", "guess", func(c int) bool { return c == http.StatusUnauthorized }},
+		{"the local key", "local-key", func(c int) bool { return c != http.StatusUnauthorized && c != http.StatusForbidden }},
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/sessions", nil)
+		if tc.key != "" {
+			req.Header.Set("X-API-Key", tc.key)
+		}
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if !tc.want(rr.Code) {
+			t.Errorf("%s: GET /api/v1/sessions = %d", tc.name, rr.Code)
+		}
+	}
+
+	// Health stays open, so the CLI can detect a running daemon.
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/health", nil))
+	if rr.Code != http.StatusOK {
+		t.Errorf("GET /health without a key = %d, want 200", rr.Code)
+	}
+}

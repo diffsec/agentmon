@@ -2,10 +2,13 @@ package cli
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/diffsec/agentmon/internal/auth"
 	"github.com/diffsec/agentmon/internal/client"
+	"github.com/diffsec/agentmon/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -91,11 +94,23 @@ func (c *clientConfig) cliOptions() client.CLIOptions {
 	return client.CLIOptions{
 		HTTPBaseURL:   c.serverAddr,
 		GRPCAddr:      c.grpcAddr,
-		APIKey:        c.apiKey,
+		APIKey:        c.resolvedAPIKey(),
 		Transport:     c.transport,
 		ClientTimeout: c.getClientTimeout(),
 		TLS:           c.tlsOptions(),
 	}
+}
+
+// resolvedAPIKey returns --api-key or AGENTMON_API_KEY when set. Otherwise it
+// returns the key that a daemon with auth.type local stored in the user data
+// directory, so that local use needs no flag. A missing or unreadable file
+// gives "", and a daemon that requires a key then answers 401.
+func (c *clientConfig) resolvedAPIKey() string {
+	if c.apiKey != "" {
+		return c.apiKey
+	}
+	key, _ := auth.ReadLocalKey(filepath.Join(config.GetUserDataDir(), auth.LocalKeyFile))
+	return key
 }
 
 // tlsOptions collects the --tls-* flags.
