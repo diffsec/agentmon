@@ -49,10 +49,25 @@ class PolicySocketClient {
             && audit_token_to_pidversion(token) == audit_token_to_pidversion(server)
     }
 
-    private func recordValidatedServer(_ token: audit_token_t) {
+    /// The directory that holds the policy socket of the validated daemon.
+    ///
+    /// Before any daemon has been validated, it is the directory of the path
+    /// that resolveSocketPath would try.
+    var controlDirectory: String {
+        serverTokenLock.lock()
+        let dir = validatedControlDirectory
+        serverTokenLock.unlock()
+        return dir ?? (Self.resolveSocketPath() as NSString).deletingLastPathComponent
+    }
+    private var validatedControlDirectory: String?
+
+    private func recordValidatedServer(_ token: audit_token_t, socketPath: String) {
         serverTokenLock.lock()
         serverToken = token
+        validatedControlDirectory = (socketPath as NSString).deletingLastPathComponent
         serverTokenLock.unlock()
+        // Mute the daemon, and only the daemon. See ESFClient.subscribe.
+        ESFClient.shared?.muteProcess(auditToken: token)
     }
 
     private init() {}
@@ -243,7 +258,7 @@ class PolicySocketClient {
         }
 
         // Validate server code signing
-        guard validateServer(fd: fd) else {
+        guard validateServer(fd: fd, socketPath: socketPath) else {
             close(fd)
             scheduleReconnect()
             return
@@ -374,7 +389,7 @@ class PolicySocketClient {
         guard connectResult == 0 else { throw SocketError.connectionFailed }
 
         // Validate the server's code signing
-        guard validateServer(fd: fd) else {
+        guard validateServer(fd: fd, socketPath: socketPath) else {
             throw SocketError.connectionFailed
         }
 
@@ -423,7 +438,7 @@ class PolicySocketClient {
 
     /// Validates that the server process at the other end of the socket is signed
     /// by the expected team ID.
-    private func validateServer(fd: Int32) -> Bool {
+    private func validateServer(fd: Int32, socketPath: String) -> Bool {
         // Get peer PID via LOCAL_PEERPID
         var peerPID: pid_t = 0
         var peerPIDLen = socklen_t(MemoryLayout<pid_t>.size)
@@ -443,7 +458,10 @@ class PolicySocketClient {
         }
 
         // Validate code signing against our team ID
-        let requirementStr = "anchor apple generic and certificate leaf[subject.OU] = \"LWSYS6YTUZ\""
+        // The identifier is part of the requirement, so another team-signed
+        // binary from the bundle, such as agentmon-stub, cannot serve the
+        // socket.
+        let requirementStr = "anchor apple generic and identifier \"dev.diffsec.agentmon\" and certificate leaf[subject.OU] = \"LWSYS6YTUZ\""
         var requirement: SecRequirement?
         let reqStatus = SecRequirementCreateWithString(requirementStr as CFString, [], &requirement)
         guard reqStatus == errSecSuccess, let requirement = requirement else {
@@ -463,7 +481,7 @@ class PolicySocketClient {
         var tokenLen = socklen_t(MemoryLayout<audit_token_t>.size)
         if getsockopt(fd, SOL_LOCAL, LOCAL_PEERTOKEN, &token, &tokenLen) == 0,
            audit_token_to_pid(token) == peerPID {
-            recordValidatedServer(token)
+            recordValidatedServer(token, socketPath: socketPath)
         } else {
             NSLog("PolicySocketClient: could not read the server's audit token; its connections stay subject to the content filter")
         }

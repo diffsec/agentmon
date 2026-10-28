@@ -4,9 +4,11 @@ package policysock
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"syscall"
+	"time"
 )
 
 // socketFileMode is the mode the policy socket is created with.
@@ -22,6 +24,11 @@ const socketFileMode = 0o600
 // socketDirMode is the mode the socket's parent directory is created with.
 const socketDirMode = 0o700
 
+// liveSocketProbeTimeout bounds the check for a process still serving an
+// existing socket. A live listener on the same machine answers at once, and a
+// stale socket file refuses the connection at once.
+const liveSocketProbeTimeout = 500 * time.Millisecond
+
 // prepareSocketPath makes the socket's directory safe to bind in and clears any
 // stale socket, refusing rather than adopting anything it does not own.
 //
@@ -35,13 +42,15 @@ const socketDirMode = 0o700
 //
 // What this does NOT defend against, stated plainly: the daemon is installed as
 // a LaunchAgent and runs as the logged-in user, so the socket must live
-// somewhere that user can write. A process running as that same user -- which
-// includes a sandboxed agent that escapes its policy -- can still bind the path
-// while the daemon is not holding it. Filesystem permissions cannot fix that
-// for a user-level daemon; running the daemon as root would. The peer checks on
-// both ends limit the damage to denial of enforcement rather than forged
-// policy: ValidatePeer requires clients signed by the expected team, and the
-// extension validates the server's signature before sending anything.
+// somewhere that user can write. A process running as that same user can still
+// remove the socket and bind the path. Filesystem permissions cannot fix that
+// for a user-level daemon. Three other checks cover an agent in a session: the
+// system extension refuses a session process any change inside this
+// directory, any socket bind there, and any signal to the daemon. The
+// extension also checks the server's signature, including the daemon's
+// signing identifier, before it sends anything. This function adds the last
+// piece: a second agentmon server refuses to replace a socket that a live
+// process still serves.
 func prepareSocketPath(path string) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, socketDirMode); err != nil {
@@ -71,6 +80,14 @@ func prepareSocketPath(path string) error {
 	}
 	if err := checkOwnedByUs(path, info); err != nil {
 		return err
+	}
+	// A socket that accepts a connection is not stale. Some process is
+	// serving it, either another daemon or something that took the path.
+	// Removing it would hand the extension's policy questions to whichever
+	// process binds last, so this refuses instead.
+	if conn, err := net.DialTimeout("unix", path, liveSocketProbeTimeout); err == nil {
+		_ = conn.Close()
+		return fmt.Errorf("refusing to replace policy socket %s: a process is still serving it; stop the other agentmon server first", path)
 	}
 	if err := os.Remove(path); err != nil {
 		return fmt.Errorf("remove stale policy socket %s: %w", path, err)

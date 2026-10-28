@@ -111,6 +111,10 @@ jobs:
       - name: Swift CIDR matcher
         run: scripts/test-swift-cidr.sh
 
+      # A session process must not be able to change the daemon's directory.
+      - name: Swift control directory guard
+        run: scripts/test-swift-control-dir.sh
+
       # The approval dialog's parser, launch URL, socket path and wire format,
       # checked against the JSON the Go policy socket tests pin.
       - name: Swift approval dialog client

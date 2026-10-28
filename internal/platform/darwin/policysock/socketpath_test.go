@@ -96,6 +96,37 @@ func TestPrepareSocketPath_RemovesOurStaleSocket(t *testing.T) {
 	}
 }
 
+// TestPrepareSocketPath_RefusesLiveSocket: a socket that still accepts
+// connections belongs to a running server. Replacing it would let a second
+// agentmon server, started by anyone running as this user, take the policy
+// socket from the daemon the extension trusts.
+func TestPrepareSocketPath_RefusesLiveSocket(t *testing.T) {
+	// See TestPrepareSocketPath_RemovesOurStaleSocket for why not t.TempDir().
+	base, err := os.MkdirTemp("/tmp", "amsock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(base) })
+	sock := filepath.Join(base, "policy.sock")
+
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	err = prepareSocketPath(sock)
+	if err == nil {
+		t.Fatal("prepareSocketPath replaced a socket that a live process serves")
+	}
+	if !strings.Contains(err.Error(), "still serving") {
+		t.Errorf("error = %q, want it to say the socket is still being served", err)
+	}
+	if _, statErr := os.Lstat(sock); statErr != nil {
+		t.Errorf("the live socket was removed: %v", statErr)
+	}
+}
+
 // TestPrepareSocketPath_RefusesNonSocket is the destructive case. The old code
 // called os.Remove unconditionally, so a regular file -- or anything else -- at
 // the configured path was simply deleted.

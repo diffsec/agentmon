@@ -64,7 +64,9 @@ class ESFClient {
             ES_EVENT_TYPE_AUTH_CREATE,
             ES_EVENT_TYPE_AUTH_UNLINK,
             ES_EVENT_TYPE_AUTH_RENAME,
-            ES_EVENT_TYPE_AUTH_EXEC
+            ES_EVENT_TYPE_AUTH_EXEC,
+            ES_EVENT_TYPE_AUTH_UIPC_BIND,
+            ES_EVENT_TYPE_AUTH_SIGNAL
         ]
         let notifyEvents: [es_event_type_t] = [
             ES_EVENT_TYPE_NOTIFY_CLOSE,
@@ -85,108 +87,17 @@ class ESFClient {
             es_subscribe(client, setAttrEvents, UInt32(setAttrEvents.count))
         }
 
-        muteOwnBinaries(client: client)
         return true
     }
 
-    /// Stop ES delivering events caused by agentmon's own binaries.
-    ///
-    /// Without this the enforcement machinery polices itself: agentmon-stub and
-    /// agentmon-macwrap run as children of the agent, so they are inside the
-    /// tracked session, and their own reads and execs are evaluated against the
-    /// session's policy. A policy that denies what the wrapper needs breaks the
-    /// wrapper rather than the agent.
-    ///
-    /// This replaces two hardcoded paths that could not have worked, for two
-    /// separate reasons:
-    ///
-    ///   - They were /usr/local/bin/agentmon and /usr/local/bin/agentmon-stub.
-    ///     The binaries install to AgentMon.app/Contents/MacOS, and muting
-    ///     happens after symlink resolution, so even the Homebrew cask's
-    ///     symlinks resolve elsewhere. Neither path exists on a real install.
-    ///
-    ///   - They used ES_MUTE_PATH_TYPE_TARGET_LITERAL, which matches the
-    ///     *arguments to syscalls*, not the process making them. It would have
-    ///     muted events about someone opening the agentmon binary -- the
-    ///     opposite of a recursion guard. ES_MUTE_PATH_TYPE_PREFIX is the
-    ///     instigating-program form.
-    /// Canonical location of the daemon and helper binaries once installed.
-    ///
-    /// Hardcoding this is safe, and necessary. macOS refuses to activate a
-    /// system extension whose containing app is anywhere else --
-    /// OSSystemExtensionErrorUnsupportedParentBundleLocation, "App containing
-    /// System Extension to be activated must be in /Applications folder" -- so
-    /// if this extension is running at all, the app is here.
-    ///
-    /// It cannot be derived from Bundle.main. Once activated, the extension is
-    /// staged at /Library/SystemExtensions/<uuid>/….systemextension, and
-    /// walking that path upwards never reaches an .app. That is exactly what
-    /// went wrong: helperBinaryDirectory fell through to the extension's own
-    /// directory and muted only itself.
-    private static let installedHelperDirectory = "/Applications/AgentMon.app/Contents/MacOS"
-
-    /// Stop ESF reporting agentmon's own processes to agentmon.
-    ///
-    /// Not muting the daemon is not merely noisy, it is recursive. The daemon
-    /// spawns subprocesses -- `codesign`, for one, on every policy-socket
-    /// connection it validates -- and since exec decisions are now answered by
-    /// the daemon, an unmuted `codesign` exec asks the daemon, whose answer
-    /// requires validating the peer, which spawns `codesign`. Observed on a
-    /// live machine as a stream of
-    /// "code signing validation failed … codesign verification failed: signal:
-    /// killed", with every session left unenforced because the extension could
-    /// no longer be validated at all.
-    ///
-    /// Both paths are muted: the installed location, and whatever
-    /// helperBinaryDirectory derives, which is what covers a development build
-    /// running outside /Applications.
-    private func muteOwnBinaries(client: OpaquePointer) {
-        var muted: [String] = []
-        var candidates = [Self.installedHelperDirectory]
-        if let derived = Self.helperBinaryDirectory(), derived != Self.installedHelperDirectory {
-            candidates.append(derived)
-        }
-
-        for dir in candidates {
-            if es_mute_path(client, dir, ES_MUTE_PATH_TYPE_PREFIX) == ES_RETURN_SUCCESS {
-                muted.append(dir)
-            } else {
-                NSLog("ESFClient: failed to mute \(dir)")
-            }
-        }
-
-        if muted.isEmpty {
-            NSLog("ESFClient: agentmon's own binaries are NOT muted; exec checks will recurse through the daemon")
-            return
-        }
-        NSLog("ESFClient: muted agentmon binaries under \(muted.joined(separator: ", "))")
-    }
-
-    /// The directory holding agentmon's executables, resolved from wherever
-    /// this extension is actually installed rather than assumed.
-    ///
-    /// The system extension lives at
-    ///   AgentMon.app/Contents/Library/SystemExtensions/<id>.systemextension
-    /// so the app bundle is found by walking up to the enclosing .app. The path
-    /// is resolved because ES matches after symlink resolution.
-    static func helperBinaryDirectory() -> String? {
-        var url = Bundle.main.bundleURL.resolvingSymlinksInPath()
-        for _ in 0..<8 {
-            if url.pathExtension == "app" {
-                return url.appendingPathComponent("Contents/MacOS").path
-            }
-            let parent = url.deletingLastPathComponent()
-            if parent.path == url.path { break }
-            url = parent
-        }
-        // Not inside an app bundle -- a development build run directly. Mute
-        // the extension executable's own directory, which is where a locally
-        // built agentmon sits next to it.
-        return Bundle.main.executableURL?
-            .resolvingSymlinksInPath()
-            .deletingLastPathComponent()
-            .path
-    }
+    // agentmon's own binaries are not muted by path. Muting every process
+    // under AgentMon.app/Contents/MacOS let an agent escape all file checks by
+    // running one of those binaries, because a muted process reports nothing,
+    // its forks included. Only the daemon is muted, by its audit token, once
+    // PolicySocketClient.validateServer has checked its signature. That still
+    // stops the recursion the path mute was for: the daemon's own execs, such
+    // as the codesign it runs to check each policy socket peer, are not
+    // reported back to it.
 
     func stop() {
         if let client = client {
@@ -426,6 +337,10 @@ private func handleESEvent(client: OpaquePointer, event: UnsafePointer<es_messag
         handleAuthRename(client: client, event: event, pid: pid)
     case ES_EVENT_TYPE_AUTH_EXEC:
         handleAuthExec(client: client, event: event, pid: pid)
+    case ES_EVENT_TYPE_AUTH_UIPC_BIND:
+        handleAuthUIPCBind(client: client, event: event, pid: pid)
+    case ES_EVENT_TYPE_AUTH_SIGNAL:
+        handleAuthSignal(client: client, event: event, pid: pid)
 
     // NOTIFY events -- best effort, no response needed
     case ES_EVENT_TYPE_NOTIFY_FORK:
@@ -595,6 +510,45 @@ private func handleAuthRename(client: OpaquePointer, event: UnsafePointer<es_mes
             extraFields: ["path2": destPath]
         )
     }
+}
+
+/// Refuse a session process that binds a unix socket in the daemon's
+/// directory. A process that binds the policy socket path answers every
+/// policy question the extension asks.
+private func handleAuthUIPCBind(client: OpaquePointer, event: UnsafePointer<es_message_t>, pid: pid_t) {
+    guard SessionPolicyCache.shared.hasActiveSessions,
+          let sessionID = SessionPolicyCache.shared.sessionForPID(pid) else {
+        es_respond_auth_result(client, event, ES_AUTH_RESULT_ALLOW, false)
+        return
+    }
+
+    let bind = event.pointee.event.uipc_bind
+    let dir = String(cString: bind.dir.pointee.path.data)
+    let path = dir + "/" + String(cString: bind.filename.data)
+    let denied = SessionPolicyCache.touchesControlDirectory(
+        path: path, operation: "create", controlDir: PolicySocketClient.shared.controlDirectory)
+
+    es_respond_auth_result(client, event, denied ? ES_AUTH_RESULT_DENY : ES_AUTH_RESULT_ALLOW, false)
+    if denied {
+        sendFileEvent(eventType: "file_create", path: path, operation: "create", pid: pid,
+                      sessionID: sessionID, decision: "deny", rule: "protect-agentmon-control-directory")
+    }
+}
+
+/// Refuse a session process that signals the daemon. An agent that kills the
+/// daemon could bind the policy socket before launchd restarts it.
+private func handleAuthSignal(client: OpaquePointer, event: UnsafePointer<es_message_t>, pid: pid_t) {
+    let target = event.pointee.event.signal.target.pointee.audit_token
+    guard SessionPolicyCache.shared.hasActiveSessions,
+          PolicySocketClient.shared.isValidatedServer(target),
+          SessionPolicyCache.shared.sessionForPID(pid) != nil else {
+        es_respond_auth_result(client, event, ES_AUTH_RESULT_ALLOW, false)
+        return
+    }
+    os_log(.error, log: esLog,
+           "denied signal %{public}d from session pid %{public}d to the agentmon daemon",
+           event.pointee.event.signal.sig, pid)
+    es_respond_auth_result(client, event, ES_AUTH_RESULT_DENY, false)
 }
 
 /// How long to wait for the daemon's exec verdict before failing closed.

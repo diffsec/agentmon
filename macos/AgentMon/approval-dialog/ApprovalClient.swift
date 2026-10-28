@@ -1,10 +1,12 @@
 // macos/AgentMon/approval-dialog/ApprovalClient.swift
 //
 // Everything the dialog does that is not drawing: the request model, the
-// socket path, the wire format and the launch URL. It imports only
-// Foundation, so scripts/test-swift-approval-client.sh can compile this file
-// as it ships and test it without Xcode.
+// socket path, the wire format, the launch URL and the check on the daemon's
+// signature. It imports only Foundation and Security, so
+// scripts/test-swift-approval-client.sh can compile this file as it ships and
+// test it without Xcode.
 import Foundation
+import Security
 
 /// One pending approval, as the daemon's list_approvals reply describes it.
 /// Mirrors policysock.PendingApproval in
@@ -130,6 +132,7 @@ struct ApprovalClient {
         case readFailed
         case timeout
         case invalidResponse
+        case untrustedServer(String)
         case server(String)
 
         var errorDescription: String? {
@@ -144,17 +147,31 @@ struct ApprovalClient {
                 return "The daemon did not answer within 5 seconds."
             case .invalidResponse:
                 return "The daemon sent a reply that the dialog cannot read."
+            case .untrustedServer(let path):
+                return "The process at \(path) is not the signed agentmon daemon, so the dialog will not trust it."
             case .server(let message):
                 return message
             }
         }
     }
 
+    /// The code requirement for the daemon: agentmon's signing identifier and
+    /// team. Any process running as this user can bind the socket path while
+    /// the daemon is not holding it. Without this check, such a process could
+    /// show the person a request of its choosing.
+    nonisolated static let daemonRequirement =
+        "anchor apple generic and identifier \"dev.diffsec.agentmon\" and certificate leaf[subject.OU] = \"LWSYS6YTUZ\""
+
     let socketPath: String
+    /// The requirement the peer must meet, or nil to skip the check. Only the
+    /// test harness passes nil, because its fake daemon is not signed.
+    let serverRequirement: String?
     var timeout: TimeInterval = 5
 
-    nonisolated init(socketPath: String = ApprovalSocket.defaultPath()) {
+    nonisolated init(socketPath: String = ApprovalSocket.defaultPath(),
+                     serverRequirement: String? = ApprovalClient.daemonRequirement) {
         self.socketPath = socketPath
+        self.serverRequirement = serverRequirement
     }
 
     /// All pending approvals.
@@ -184,6 +201,25 @@ struct ApprovalClient {
         }
     }
 
+    /// Whether the process at the other end of fd meets the code requirement.
+    ///
+    /// The peer is identified by its audit token, not its PID, so a process
+    /// that exits and leaves its PID to another cannot pass as the daemon.
+    nonisolated static func peerSatisfies(fd: Int32, requirement: String) -> Bool {
+        var token = audit_token_t()
+        var len = socklen_t(MemoryLayout<audit_token_t>.size)
+        guard getsockopt(fd, SOL_LOCAL, LOCAL_PEERTOKEN, &token, &len) == 0 else { return false }
+        let tokenData = withUnsafeBytes(of: &token) { Data($0) } as CFData
+        var code: SecCode?
+        guard SecCodeCopyGuestWithAttributes(
+            nil, [kSecGuestAttributeAudit: tokenData] as CFDictionary, [], &code) == errSecSuccess,
+            let code else { return false }
+        var req: SecRequirement?
+        guard SecRequirementCreateWithString(requirement as CFString, [], &req) == errSecSuccess,
+              let req else { return false }
+        return SecCodeCheckValidity(code, [], req) == errSecSuccess
+    }
+
     /// Sends one newline-delimited JSON request and reads one reply.
     nonisolated func send(_ request: [String: Any]) throws -> [String: Any] {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
@@ -205,6 +241,9 @@ struct ApprovalClient {
             }
         }
         guard connected == 0 else { throw ClientError.connectionFailed(socketPath) }
+        if let requirement = serverRequirement, !Self.peerSatisfies(fd: fd, requirement: requirement) {
+            throw ClientError.untrustedServer(socketPath)
+        }
 
         var tv = timeval(tv_sec: Int(timeout), tv_usec: 0)
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
