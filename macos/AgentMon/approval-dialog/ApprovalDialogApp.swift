@@ -95,7 +95,11 @@ final class DialogAppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: DispatchQueue.main)
             .sink { [weak window, weak hosting] _ in
                 guard let window, let hosting else { return }
+                // Center again after each resize. AppKit keeps the window's
+                // origin fixed, so a window centered while it showed the
+                // loading view drifts off center when the request loads.
                 window.setContentSize(hosting.fittingSize)
+                window.center()
             }
         return window
     }
