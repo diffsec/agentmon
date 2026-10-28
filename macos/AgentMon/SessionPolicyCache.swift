@@ -117,10 +117,12 @@ class SessionPolicyCache {
     // MARK: - Session Lifecycle
 
     func registerSession(sessionID: String, rootPID: pid_t, snapshot: SessionCache) {
+        // Set at once, not on the queue, so that disableEnforcementIfIdle
+        // cannot see "no session" between this call and the barrier block.
+        OSAtomicCompareAndSwap32(0, 1, &_hasActiveSessions)
         queue.async(flags: .barrier) {
             self.sessions[sessionID] = snapshot
             self.pidToSession[rootPID] = sessionID
-            OSAtomicCompareAndSwap32(0, 1, &self._hasActiveSessions)
         }
     }
 
@@ -134,6 +136,7 @@ class SessionPolicyCache {
             self.sessions.removeValue(forKey: sessionID)
             if self.sessions.isEmpty {
                 OSAtomicCompareAndSwap32(1, 0, &self._hasActiveSessions)
+                ESFClient.shared?.disableEnforcementIfIdle()
             }
         }
     }
@@ -141,6 +144,11 @@ class SessionPolicyCache {
     var hasActiveSessions: Bool {
         _hasActiveSessions != 0
     }
+
+    /// Snapshot fetches in flight. While one is, a session may be about to
+    /// register, so the extension stays subscribed.
+    private var _pendingFetches: Int32 = 0
+    var hasPendingFetches: Bool { OSAtomicAdd32(0, &_pendingFetches) != 0 }
 
     // MARK: - PID Tracking (called from NOTIFY_FORK/EXIT)
 
@@ -603,11 +611,20 @@ class SessionPolicyCache {
     /// for the most recently registered session.
     private func fetchSnapshot(sessionID: String,
                                completion: (([String: Any]?) -> Void)?) {
+        // Subscribe before asking. The daemon starts a session's first command
+        // once it has handed out the snapshot, so the subscription must be in
+        // place by then.
+        OSAtomicIncrement32(&_pendingFetches)
+        ESFClient.shared?.enableEnforcement()
         PolicySocketClient.shared.request([
             "type": "fetch_policy_snapshot",
             "session_id": sessionID,
             "version": 0
         ]) { response in
+            defer {
+                OSAtomicDecrement32(&SessionPolicyCache.shared._pendingFetches)
+                ESFClient.shared?.disableEnforcementIfIdle()
+            }
             defer { completion?(response) }
 
             guard let response = response,
