@@ -514,7 +514,7 @@ func (s *grpcServer) ListSessions(ctx context.Context, in *structpb.Struct) (*st
 	for _, sess := range all {
 		out = append(out, sess.Snapshot())
 	}
-	return jsonToProto(out)
+	return jsonListToProto(out)
 }
 
 func (s *grpcServer) GetSession(ctx context.Context, in *structpb.Struct) (*structpb.Struct, error) {
@@ -669,7 +669,7 @@ func (s *grpcServer) QueryEvents(ctx context.Context, in *structpb.Struct) (*str
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	return jsonToProto(evs)
+	return jsonListToProto(evs)
 }
 
 func (s *grpcServer) SearchEvents(ctx context.Context, in *structpb.Struct) (*structpb.Struct, error) {
@@ -689,7 +689,7 @@ func (s *grpcServer) SearchEvents(ctx context.Context, in *structpb.Struct) (*st
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	return jsonToProto(evs)
+	return jsonListToProto(evs)
 }
 
 func (s *grpcServer) OutputChunk(ctx context.Context, in *structpb.Struct) (*structpb.Struct, error) {
@@ -744,9 +744,9 @@ func (s *grpcServer) ListApprovals(ctx context.Context, in *structpb.Struct) (*s
 		return nil, status.Error(codes.Internal, "server not initialized")
 	}
 	if s.app.approvals == nil {
-		return jsonToProto([]any{})
+		return jsonListToProto([]any{})
 	}
-	return jsonToProto(s.app.approvals.ListPending())
+	return jsonListToProto(s.app.approvals.ListPending())
 }
 
 func (s *grpcServer) ResolveApproval(ctx context.Context, in *structpb.Struct) (*structpb.Struct, error) {
@@ -863,6 +863,13 @@ func jsonToProto(v any) (*structpb.Struct, error) {
 		return nil, status.Error(codes.Internal, "marshal response")
 	}
 	return out, nil
+}
+
+// jsonListToProto returns a list as {"items": [...]}. A structpb.Struct
+// holds only a JSON object, so jsonToProto fails on a bare array with
+// "marshal response".
+func jsonListToProto(items any) (*structpb.Struct, error) {
+	return jsonToProto(map[string]any{"items": items})
 }
 
 // eventQueryFromMap parses event query parameters from a map.
