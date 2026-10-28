@@ -65,7 +65,7 @@ macos/AgentMon/
 ├── SessionPolicyCache.swift # Per-session policy snapshot cache
 ├── Info.plist               # Bundle configuration
 ├── SysExt.entitlements      # ESF + NE entitlements
-├── approval-dialog/         # Approvals UI (not yet launched by the daemon)
+├── approval-dialog/         # Approvals UI (launched in approvals.mode: gui)
 └── agentmon.xcodeproj/      # Xcode project
 ```
 
