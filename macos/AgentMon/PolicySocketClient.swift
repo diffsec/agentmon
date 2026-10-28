@@ -30,6 +30,31 @@ class PolicySocketClient {
     private let maxReconnectDelay: TimeInterval = 30.0
     private var streamConnected = false
 
+    // MARK: - Validated Server Identity
+
+    /// The audit token of the last server that passed validateServer, or nil.
+    private var serverToken: audit_token_t?
+    private let serverTokenLock = NSLock()
+
+    /// Whether a process is the daemon this client last validated.
+    ///
+    /// Compares PID and PID version. The PID version changes on exec and is
+    /// never reused with the same PID, so a later process that inherits the
+    /// daemon's PID does not match.
+    func isValidatedServer(_ token: audit_token_t) -> Bool {
+        serverTokenLock.lock()
+        defer { serverTokenLock.unlock() }
+        guard let server = serverToken else { return false }
+        return audit_token_to_pid(token) == audit_token_to_pid(server)
+            && audit_token_to_pidversion(token) == audit_token_to_pidversion(server)
+    }
+
+    private func recordValidatedServer(_ token: audit_token_t) {
+        serverTokenLock.lock()
+        serverToken = token
+        serverTokenLock.unlock()
+    }
+
     private init() {}
 
     // MARK: - Socket Path Resolution
@@ -430,6 +455,17 @@ class PolicySocketClient {
         if checkStatus != errSecSuccess {
             NSLog("PolicySocketClient: Server code signing validation FAILED for pid %d: %d", peerPID, checkStatus)
             return false
+        }
+
+        // Record the validated server for the content filter. The audit token
+        // carries the PID version, which the PID alone does not.
+        var token = audit_token_t()
+        var tokenLen = socklen_t(MemoryLayout<audit_token_t>.size)
+        if getsockopt(fd, SOL_LOCAL, LOCAL_PEERTOKEN, &token, &tokenLen) == 0,
+           audit_token_to_pid(token) == peerPID {
+            recordValidatedServer(token)
+        } else {
+            NSLog("PolicySocketClient: could not read the server's audit token; its connections stay subject to the content filter")
         }
 
         return true
