@@ -1,0 +1,68 @@
+# AgentMon for macOS: the configuration that the app bundle ships.
+#
+# The daemon reads this file only when no configuration exists at
+# ~/Library/Application Support/agentmon/config.yml. To change a setting,
+# copy this file to that path and edit the copy. The full list of settings,
+# with comments, is config.yml at the root of the agentmon repository.
+#
+# A relative path in this file, or in a copy in Application Support, is
+# relative to ~/Library/Application Support/agentmon. It is never relative to
+# the working directory, because launchd starts the daemon in /.
+
+server:
+  http:
+    addr: "127.0.0.1:18080"
+  unix_socket:
+    enabled: true
+    path: "data/agentmon.sock"
+    permissions: "0660"
+
+auth:
+  # "local" writes a random key to
+  # ~/Library/Application Support/agentmon/local-api.key and requires it on
+  # every API call. The agentmon CLI reads that file. The system extension
+  # refuses session processes all access to that directory, so an agent
+  # cannot read the key and call the API itself.
+  type: "local"
+
+# The LaunchAgent sends stderr to ~/Library/Logs/agentmon/agentmon.err.
+logging:
+  level: "info"
+  format: "json"
+
+audit:
+  enabled: true
+  output: "data/audit.jsonl"
+  storage:
+    sqlite_path: "data/events.db"
+  rotation:
+    max_size_mb: 500
+    max_age_days: 90
+    max_backups: 10
+    compress: true
+
+sessions:
+  base_dir: "data/sessions"
+  default_timeout: "4h"
+  default_idle_timeout: "30m"
+
+sandbox:
+  # The per-session network proxy. The content filter in the system
+  # extension sends a session's connections through it.
+  network:
+    enabled: true
+
+approvals:
+  # An "approve" rule asks a person only when approvals are enabled.
+  # Otherwise the rule allows the operation.
+  enabled: true
+  # The native macOS approval dialog.
+  mode: "gui"
+  timeout: "5m"
+
+policies:
+  # Left unset, policies.dir is the policies directory in this bundle, so an
+  # update of the app updates the policies. A copy of this file in
+  # Application Support must set policies.dir, for example to
+  # "/Applications/AgentMon.app/Contents/Resources/configs/policies".
+  default: "default"
