@@ -47,10 +47,6 @@ cp macos/AgentMon-files/Info.plist "${APP}/Contents/"
 mkdir -p "${APP}/Contents/Library/SystemExtensions"
 cp -R "${PRODUCTS_DIR}/${SYSEXT}" "${APP}/Contents/Library/SystemExtensions/"
 
-# XPC Service
-mkdir -p "${APP}/Contents/XPCServices"
-cp -R "${PRODUCTS_DIR}/xpc.xpc" "${APP}/Contents/XPCServices/"
-
 # Approval Dialog
 mkdir -p "${APP}/Contents/Resources"
 cp -R "${PRODUCTS_DIR}/approval-dialog.app" "${APP}/Contents/Resources/"

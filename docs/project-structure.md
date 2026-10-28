@@ -56,25 +56,21 @@ For gRPC:
 The `macos/` directory contains Swift code for the macOS System Extension that provides ESF+NE enforcement:
 
 ```
-macos/
-├── SysExt/                      # System Extension bundle
-│   ├── main.swift               # System Extension entry point
-│   ├── ESFClient.swift          # Endpoint Security Framework client
-│   ├── FilterDataProvider.swift # Network Extension flow filter
-│   ├── DNSProxyProvider.swift   # Network Extension DNS proxy
-│   ├── Info.plist               # Bundle configuration
-│   └── SysExt.entitlements      # ESF + NE entitlements
-├── XPCService/                  # XPC service bridging Swift ↔ Go
-│   ├── main.swift               # XPC service entry point
-│   ├── XPCServiceDelegate.swift # XPC connection handling
-│   └── PolicyBridge.swift       # Unix socket bridge to Go policy server
-├── Shared/                      # Shared Swift types
-│   └── XPCProtocol.swift        # XPC protocol definition
-└── AgentMon.xcodeproj/           # Xcode project (build with Xcode 15+)
+macos/AgentMon/
+├── main.swift               # System Extension entry point
+├── ESFClient.swift          # Endpoint Security Framework client
+├── FilterDataProvider.swift # Network Extension flow filter
+├── DNSProxyProvider.swift   # Network Extension DNS proxy
+├── PolicySocketClient.swift # Client for the daemon's policy socket
+├── SessionPolicyCache.swift # Per-session policy snapshot cache
+├── Info.plist               # Bundle configuration
+├── SysExt.entitlements      # ESF + NE entitlements
+├── approval-dialog/         # Approvals UI (not yet launched by the daemon)
+└── agentmon.xcodeproj/      # Xcode project
 ```
 
 Related Go packages:
-- `internal/platform/darwin/xpc/` — XPC protocol types and Unix socket server
+- `internal/platform/darwin/policysock/` — the policy socket server that the extension connects to
 - `internal/platform/darwin/sysext.go` — System Extension manager
 
 **Build:** `make build-macos-enterprise` (requires Xcode 15+, Apple entitlements)

@@ -379,7 +379,7 @@ The generated config includes only security-related sections (`security:`, `land
 - **No file events on macOS:** ensure the system extension is approved in System Settings > General > Login Items & Extensions.
 - **bindfs mount fails (Lima):** ensure bindfs is installed in the VM (`sudo apt install bindfs`) and `/dev/fuse` is available.
 - **System Extension not loading (macOS ESF+NE):** check System Settings > General > Login Items & Extensions. User must approve the System Extension.
-- **XPC connection fails (macOS ESF+NE):** verify the System Extension is approved and running. Check Console.app for XPC errors.
+- **Policy socket connection fails (macOS ESF+NE):** make sure that the daemon is running and that `~/Library/Application Support/agentmon/policy.sock` exists.
 - **ESF client initialization fails:** ensure the app is signed with valid ESF entitlement from Apple (requires approval).
 - **Transparent network mode fails:** run as root / with NET_ADMIN capabilities; otherwise rely on proxy mode.
 - **cgroups errors:** keep `sandbox.cgroups.enabled: false` unless you have a writable cgroup v2 base path configured.

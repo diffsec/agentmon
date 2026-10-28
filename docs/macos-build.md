@@ -64,12 +64,12 @@ make build-macos-go
 #### 2. Build Swift Components
 
 ```bash
-# Build System Extension and XPC Service
+# Build the System Extension and the approval dialog
 make build-swift
 
 # This builds:
 # - dev.diffsec.agentmon.SysExt.systemextension
-# - xpc.xpc
+# - approval-dialog.app
 ```
 
 #### 3. Assemble App Bundle
@@ -117,12 +117,8 @@ build/AgentMon.app/
 │   │           │   │   └── dev.diffsec.agentmon.SysExt  # ESF + NE
 │   │           │   ├── embedded.provisionprofile
 │   │           │   └── Info.plist
-│   └── XPCServices/
-│       └── xpc.xpc/
-│           ├── Contents/
-│           │   ├── MacOS/
-│           │   │   └── xpc  # XPC bridge
-│           │   └── Info.plist
+│   └── Resources/
+│       └── approval-dialog.app/  # approvals UI (not yet launched by the daemon)
 ```
 
 ## System Extension Approval
@@ -173,9 +169,9 @@ SIGNING_IDENTITY="Apple Development: you@email.com (TEAMID)" make sign-bundle
 **"System Extension blocked"**
 - User must approve in System Settings > General > Login Items & Extensions
 
-**"XPC connection failed"**
-- Verify System Extension is approved and running
-- Check Console.app for XPC errors
+**"Failed to connect to policy server"**
+- The extension reaches the daemon over its policy socket, at `~/Library/Application Support/agentmon/policy.sock`
+- Verify that the daemon is running and that the socket file exists
 
 **"ESF client initialization failed"**
 - App must be signed with valid ESF entitlement and provisioning profile
