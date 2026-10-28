@@ -120,6 +120,7 @@ class SessionPolicyCache {
         // Set at once, not on the queue, so that disableEnforcementIfIdle
         // cannot see "no session" between this call and the barrier block.
         OSAtomicCompareAndSwap32(0, 1, &_hasActiveSessions)
+        invalidateOutsideSessions()
         queue.async(flags: .barrier) {
             self.sessions[sessionID] = snapshot
             self.pidToSession[rootPID] = sessionID
@@ -143,6 +144,65 @@ class SessionPolicyCache {
 
     var hasActiveSessions: Bool {
         _hasActiveSessions != 0
+    }
+
+    // MARK: - Processes Outside Every Session
+
+    /// PIDs known to belong to no session, each stamped with the generation it
+    /// was checked in.
+    ///
+    /// Without this, every event from every process on the machine walked the
+    /// whole process tree while any session existed: one sysctl and one queue
+    /// sync per ancestor, for each file open and each close. Measured with one
+    /// session open: 1000 runs of /bin/cat by a process outside the session
+    /// took 13.5 s, against 4.0 s with no session, and the extension used 60%
+    /// CPU.
+    ///
+    /// An entry stays valid until either the process exits (forgetPID, from
+    /// NOTIFY_EXIT, which comes before the PID can be reused) or a session
+    /// registers (the generation changes, because the new session's root may
+    /// be an ancestor). Subscribing again also changes the generation, because
+    /// exits are not seen while unsubscribed.
+    private var outsideSessions: [pid_t: UInt64] = [:]
+    private var outsideGeneration: UInt64 = 0
+    private var outsideLock = os_unfair_lock()
+
+    private func isKnownOutsideSessions(_ pid: pid_t) -> Bool {
+        os_unfair_lock_lock(&outsideLock)
+        defer { os_unfair_lock_unlock(&outsideLock) }
+        return outsideSessions[pid] == outsideGeneration
+    }
+
+    private func currentOutsideGeneration() -> UInt64 {
+        os_unfair_lock_lock(&outsideLock)
+        defer { os_unfair_lock_unlock(&outsideLock) }
+        return outsideGeneration
+    }
+
+    /// Record the answer only if no session registered during the walk. A
+    /// session that did may have this process's ancestor as its root.
+    private func rememberOutsideSessions(_ pid: pid_t, checkedIn generation: UInt64) {
+        os_unfair_lock_lock(&outsideLock)
+        if generation == outsideGeneration {
+            outsideSessions[pid] = generation
+        }
+        os_unfair_lock_unlock(&outsideLock)
+    }
+
+    /// Drop every "outside" answer. See outsideSessions.
+    func invalidateOutsideSessions() {
+        os_unfair_lock_lock(&outsideLock)
+        outsideGeneration &+= 1
+        outsideSessions.removeAll(keepingCapacity: true)
+        os_unfair_lock_unlock(&outsideLock)
+    }
+
+    /// Forget a PID that exited, so that a process that reuses it is checked
+    /// again.
+    func forgetExitedPID(_ pid: pid_t) {
+        os_unfair_lock_lock(&outsideLock)
+        outsideSessions.removeValue(forKey: pid)
+        os_unfair_lock_unlock(&outsideLock)
     }
 
     /// Snapshot fetches in flight. While one is, a session may be about to
@@ -197,11 +257,15 @@ class SessionPolicyCache {
         if let sid = queue.sync(execute: { pidToSession[pid] }) {
             return sid
         }
+        if isKnownOutsideSessions(pid) {
+            return nil
+        }
 
         // Nothing is tracked at all -- skip the sysctl walk entirely. This is
         // the common case on an idle machine and it is on the ESF AUTH hot path.
         guard _hasActiveSessions != 0 else { return nil }
 
+        let generation = currentOutsideGeneration()
         for ancestor in ProcessHierarchy.shared.getAncestors(pid: pid) {
             guard let sid = queue.sync(execute: { pidToSession[ancestor] }) else {
                 continue
@@ -215,6 +279,7 @@ class SessionPolicyCache {
             }
             return sid
         }
+        rememberOutsideSessions(pid, checkedIn: generation)
         return nil
     }
 

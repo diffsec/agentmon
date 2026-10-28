@@ -106,6 +106,9 @@ class ESFClient {
                 return
             }
             subscribed = true
+            // Exits were not seen while unsubscribed, so earlier "outside
+            // every session" answers may name reused PIDs.
+            SessionPolicyCache.shared.invalidateOutsideSessions()
             NSLog("ESFClient: subscribed, a session is active")
         }
     }
@@ -250,6 +253,9 @@ class ESFClient {
     }
 
     fileprivate func handleNotifyExit(_ message: es_message_t, pid: pid_t) {
+        // Every exit, in a session or not: the PID can now be reused.
+        defer { SessionPolicyCache.shared.forgetExitedPID(pid) }
+
         // Fast-path: skip all work if no active sessions
         guard SessionPolicyCache.shared.hasActiveSessions else { return }
 
