@@ -42,6 +42,16 @@ func (s *Server) startPolicySocket(cfg *config.Config, engine *policy.Engine, ap
 	// via register_session messages from the system extension.
 	tracker := policysock.NewSessionTracker()
 	adapter := policysock.NewPolicyAdapter(engine, tracker)
+	adapter.SetSessionEngineLookup(func(sessionID string) *policy.Engine {
+		if s.sessions == nil {
+			return nil
+		}
+		sess, ok := s.sessions.Get(sessionID)
+		if !ok {
+			return nil
+		}
+		return sess.PolicyEngine()
+	})
 
 	// Create command resolver and event handler.
 	cmdResolver := policysock.NewCommandResolver()
