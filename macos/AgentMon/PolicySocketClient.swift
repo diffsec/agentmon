@@ -400,10 +400,43 @@ class PolicySocketClient {
 
     // MARK: - Socket I/O (synchronous, called on sendQueue)
 
+    /// The connection that request and send use, kept open between calls.
+    /// Only touched on sendQueue.
+    ///
+    /// A new connection per request made every exec check in a session slow.
+    /// Each connection cost a code-signature check here, and the daemon ran
+    /// /usr/bin/codesign to check this extension on every new connection.
+    /// Measured: 52 ms for each process started inside a session, against
+    /// about 4 ms outside. The daemon reads any number of requests on one
+    /// connection (Server.handleConn), so both checks now run once per
+    /// connection.
+    private var requestFD: Int32 = -1
+
     private func sendSync(_ request: [String: Any]) throws -> [String: Any] {
+        do {
+            return try exchange(request, on: requestConnection())
+        } catch {
+            // A kept connection can be dead, for example after the daemon
+            // restarted. Reconnect once. Every request is a lookup or a
+            // one-way report, so sending it again is safe.
+            closeRequestConnection()
+            return try exchange(request, on: requestConnection())
+        }
+    }
+
+    private func closeRequestConnection() {
+        if requestFD >= 0 {
+            close(requestFD)
+            requestFD = -1
+        }
+    }
+
+    /// The kept connection, opened and checked if there is none.
+    private func requestConnection() throws -> Int32 {
+        if requestFD >= 0 { return requestFD }
+
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw SocketError.creation }
-        defer { close(fd) }
 
         // Connect
         var addr = sockaddr_un()
@@ -417,10 +450,14 @@ class PolicySocketClient {
                 connect(fd, sockPtr, addrLen)
             }
         }
-        guard connectResult == 0 else { throw SocketError.connectionFailed }
+        guard connectResult == 0 else {
+            close(fd)
+            throw SocketError.connectionFailed
+        }
 
         // Validate the server's code signing
         guard validateServer(fd: fd, socketPath: socketPath) else {
+            close(fd)
             throw SocketError.connectionFailed
         }
 
@@ -429,6 +466,17 @@ class PolicySocketClient {
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
 
+        // A kept connection can outlive the daemon. Writing to it must return
+        // an error, not raise SIGPIPE, which would kill the extension.
+        var nosigpipe: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &nosigpipe, socklen_t(MemoryLayout<Int32>.size))
+
+        requestFD = fd
+        return fd
+    }
+
+    /// Send one request on fd and read one reply.
+    private func exchange(_ request: [String: Any], on fd: Int32) throws -> [String: Any] {
         // Send (newline-delimited JSON)
         let requestData = try JSONSerialization.data(withJSONObject: request)
         var dataWithNewline = requestData
@@ -443,7 +491,8 @@ class PolicySocketClient {
             totalWritten += written
         }
 
-        // Read response
+        // Read response. The daemon writes exactly one line per request, so
+        // nothing after the newline belongs to a later reply.
         var responseBuffer = Data()
         var buffer = [UInt8](repeating: 0, count: 4096)
         while true {
