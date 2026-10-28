@@ -586,8 +586,6 @@ class SessionPolicyCache {
 
     // MARK: - Glob Matching
 
-    /// Simple glob matcher supporting * (single segment) and ** (recursive).
-    /// Matches the Go policy engine's glob semantics.
     /// The first rule whose operations and pattern both match the access.
     static func firstMatchingFileRule(
         _ rules: [FileRule], path: String, operation: String,
@@ -599,6 +597,8 @@ class SessionPolicyCache {
         }
     }
 
+    /// Simple glob matcher supporting * (single segment) and ** (recursive).
+    /// Matches the Go policy engine's glob semantics.
     private func globMatch(pattern: String, path: String) -> Bool {
         // Use fnmatch for simple cases, handling ** manually
         if pattern.contains("**") {
