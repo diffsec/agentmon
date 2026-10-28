@@ -599,8 +599,6 @@ class SessionPolicyCache {
 
     // MARK: - Glob Matching
 
-    /// Simple glob matcher supporting * (single segment) and ** (recursive).
-    /// Matches the Go policy engine's glob semantics.
     /// Whether an access by a session process would change the daemon's
     /// directory, `controlDir`.
     ///
@@ -620,6 +618,8 @@ class SessionPolicyCache {
         return false
     }
 
+    /// Simple glob matcher supporting * (single segment) and ** (recursive).
+    /// Matches the Go policy engine's glob semantics.
     private func globMatch(pattern: String, path: String) -> Bool {
         // Use fnmatch for simple cases, handling ** manually
         if pattern.contains("**") {
