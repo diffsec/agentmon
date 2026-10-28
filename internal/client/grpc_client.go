@@ -140,9 +140,10 @@ func (c *GRPCClient) ListSessions(ctx context.Context) ([]types.Session, error) 
 	if err := c.invokeUnary(ctx, "/agentmon.v1.Agentmon/ListSessions", in, resp); err != nil {
 		return nil, err
 	}
-	b, _ := protojson.Marshal(resp)
 	var out []types.Session
-	_ = json.Unmarshal(b, &out)
+	if err := decodeItems(resp, &out); err != nil {
+		return nil, err
+	}
 	return out, nil
 }
 
@@ -368,9 +369,10 @@ func (c *GRPCClient) QuerySessionEvents(ctx context.Context, sessionID string, q
 	if err := c.invokeUnary(ctx, "/agentmon.v1.Agentmon/QueryEvents", in, resp); err != nil {
 		return nil, err
 	}
-	b, _ := protojson.Marshal(resp)
 	var out []types.Event
-	_ = json.Unmarshal(b, &out)
+	if err := decodeItems(resp, &out); err != nil {
+		return nil, err
+	}
 	return out, nil
 }
 
@@ -418,9 +420,10 @@ func (c *GRPCClient) SearchEvents(ctx context.Context, q url.Values) ([]types.Ev
 	if err := c.invokeUnary(ctx, "/agentmon.v1.Agentmon/SearchEvents", in, resp); err != nil {
 		return nil, err
 	}
-	b, _ := protojson.Marshal(resp)
 	var out []types.Event
-	_ = json.Unmarshal(b, &out)
+	if err := decodeItems(resp, &out); err != nil {
+		return nil, err
+	}
 	return out, nil
 }
 
@@ -451,9 +454,10 @@ func (c *GRPCClient) ListApprovals(ctx context.Context) ([]map[string]any, error
 	if err := c.invokeUnary(ctx, "/agentmon.v1.Agentmon/ListApprovals", in, resp); err != nil {
 		return nil, err
 	}
-	b, _ := protojson.Marshal(resp)
 	var out []map[string]any
-	_ = json.Unmarshal(b, &out)
+	if err := decodeItems(resp, &out); err != nil {
+		return nil, err
+	}
 	return out, nil
 }
 
@@ -565,4 +569,26 @@ func jsonToStruct(v any) (*structpb.Struct, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+// decodeItems reads a list response, which the server sends as
+// {"items": [...]} because a structpb.Struct cannot hold a bare array.
+func decodeItems(resp *structpb.Struct, out any) error {
+	b, err := protojson.Marshal(resp)
+	if err != nil {
+		return fmt.Errorf("decode response: %w", err)
+	}
+	var wrapper struct {
+		Items json.RawMessage `json:"items"`
+	}
+	if err := json.Unmarshal(b, &wrapper); err != nil {
+		return fmt.Errorf("decode response: %w", err)
+	}
+	if len(wrapper.Items) == 0 {
+		return fmt.Errorf("decode response: no items field")
+	}
+	if err := json.Unmarshal(wrapper.Items, out); err != nil {
+		return fmt.Errorf("decode response items: %w", err)
+	}
+	return nil
 }
