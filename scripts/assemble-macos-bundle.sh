@@ -62,7 +62,7 @@ cp "$SYSEXT_PROFILE" \
   "${APP}/Contents/Library/SystemExtensions/${SYSEXT}/Contents/embedded.provisionprofile"
 
 # Default config and policies (used as fallback when no user/system config exists)
-cp config.yml default-policy.yml "${APP}/Contents/Resources/"
+cp macos/AgentMon-files/config.yml default-policy.yml "${APP}/Contents/Resources/"
 mkdir -p "${APP}/Contents/Resources/configs/policies"
 cp configs/policies/*.yaml "${APP}/Contents/Resources/configs/policies/"
 

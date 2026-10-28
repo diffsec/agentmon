@@ -51,6 +51,13 @@ fi
 require "$APP/Contents/Resources/approval-dialog.app"
 require "$APP/Contents/embedded.provisionprofile"
 require "$APP/Contents/Resources/config.yml"
+# The bundle ships the macOS config, not the repository's development config.
+# The development config uses auth.type none and paths relative to the working
+# directory, which is / under launchd.
+if ! cmp -s macos/AgentMon-files/config.yml "$APP/Contents/Resources/config.yml"; then
+  echo "WRONG: Resources/config.yml is not macos/AgentMon-files/config.yml" >&2
+  fail=1
+fi
 require "$APP/Contents/Resources/default-policy.yml"
 [ -n "$(ls "$APP/Contents/Resources/configs/policies/"*.yaml 2>/dev/null)" ] \
   || { echo "MISSING: Resources/configs/policies/*.yaml" >&2; fail=1; }

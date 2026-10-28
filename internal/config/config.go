@@ -1780,8 +1780,8 @@ func LoadWithSource(path string, source ConfigSource) (*Config, ConfigSource, er
 		slog.Warn("unknown key under sandbox.fuse ignored; check the config schema",
 			"key", k, "hint", "soft-delete uses sandbox.fuse.audit.mode and sandbox.fuse.audit.trash_path")
 	}
-	if source == ConfigSourceBundle {
-		resolveRelativePaths(&cfg, GetUserDataDir())
+	if source == ConfigSourceBundle || source == ConfigSourceUser {
+		resolveRelativePaths(&cfg, GetUserDataDir(), GetUserConfigDir())
 	}
 	applyEnvOverrides(&cfg)
 	if err := validateConfig(&cfg); err != nil {
@@ -1790,22 +1790,31 @@ func LoadWithSource(path string, source ConfigSource) (*Config, ConfigSource, er
 	return &cfg, source, nil
 }
 
-// resolveRelativePaths rewrites relative file paths in the config to be
-// relative to baseDir instead of the current working directory. This is
-// needed when loading config from the macOS app bundle, where the CWD is
-// unpredictable.
-func resolveRelativePaths(cfg *Config, baseDir string) {
-	resolve := func(p string) string {
-		if p == "" || p == "stdout" || p == "stderr" || filepath.IsAbs(p) {
-			return p
+// resolveRelativePaths rewrites relative paths in a bundle or user config.
+// Data paths become relative to dataDir, and the policies directory and the
+// API keys file become relative to configDir. The daemon runs under launchd or
+// systemd --user, which start it in / or the home directory, so a path
+// relative to the working directory never points where the author meant.
+// An explicit --config or AGENTMON_CONFIG keeps working-directory paths,
+// which development runs from the repository rely on.
+func resolveRelativePaths(cfg *Config, dataDir, configDir string) {
+	under := func(base string) func(string) string {
+		return func(p string) string {
+			if p == "" || p == "stdout" || p == "stderr" || filepath.IsAbs(p) {
+				return p
+			}
+			return filepath.Join(base, p)
 		}
-		return filepath.Join(baseDir, p)
 	}
-	cfg.Server.UnixSocket.Path = resolve(cfg.Server.UnixSocket.Path)
-	cfg.Logging.Output = resolve(cfg.Logging.Output)
-	cfg.Audit.Output = resolve(cfg.Audit.Output)
-	cfg.Audit.Storage.SQLitePath = resolve(cfg.Audit.Storage.SQLitePath)
-	cfg.Sessions.BaseDir = resolve(cfg.Sessions.BaseDir)
+	data, conf := under(dataDir), under(configDir)
+	cfg.Server.UnixSocket.Path = data(cfg.Server.UnixSocket.Path)
+	cfg.Logging.Output = data(cfg.Logging.Output)
+	cfg.Audit.Output = data(cfg.Audit.Output)
+	cfg.Audit.Storage.SQLitePath = data(cfg.Audit.Storage.SQLitePath)
+	cfg.Sessions.BaseDir = data(cfg.Sessions.BaseDir)
+	cfg.Sandbox.FUSE.MountBaseDir = data(cfg.Sandbox.FUSE.MountBaseDir)
+	cfg.Policies.Dir = conf(cfg.Policies.Dir)
+	cfg.Auth.APIKey.KeysFile = conf(cfg.Auth.APIKey.KeysFile)
 }
 
 // ResolvedDataDir returns the directory the daemon writes runtime state to.
@@ -1873,45 +1882,17 @@ func getDefaultPoliciesDir(source ConfigSource, configPath string) string {
 	case ConfigSourceUser:
 		return filepath.Join(GetUserConfigDir(), "policies")
 	case ConfigSourceBundle:
-		// Use user-writable policies dir; seed from bundle on first run
-		userPolicies := filepath.Join(GetUserConfigDir(), "policies")
+		// The policies in the bundle itself. They are signed with the app and
+		// replaced on each update, so a policy fix reaches the user. A copy
+		// in the user's directory would keep the first version forever.
 		if configPath != "" {
-			bundlePolicies := filepath.Join(filepath.Dir(configPath), "policies")
-			seedPoliciesFromBundle(bundlePolicies, userPolicies)
+			return filepath.Join(filepath.Dir(configPath), "configs", "policies")
 		}
-		return userPolicies
+		return filepath.Join(GetUserConfigDir(), "policies")
 	case ConfigSourceSystem:
 		return GetPoliciesDir()
 	default:
 		return GetPoliciesDir()
-	}
-}
-
-// seedPoliciesFromBundle copies bundled policy files to the user's config
-// directory if it doesn't exist yet, giving users a writable starting point.
-func seedPoliciesFromBundle(bundleDir, userDir string) {
-	// Only seed if user dir doesn't exist
-	if _, err := os.Stat(userDir); err == nil {
-		return
-	}
-	entries, err := os.ReadDir(bundleDir)
-	if err != nil || len(entries) == 0 {
-		return
-	}
-	if err := os.MkdirAll(userDir, 0o755); err != nil {
-		return
-	}
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		src := filepath.Join(bundleDir, e.Name())
-		dst := filepath.Join(userDir, e.Name())
-		data, err := os.ReadFile(src)
-		if err != nil {
-			continue
-		}
-		_ = os.WriteFile(dst, data, 0o644)
 	}
 }
 
