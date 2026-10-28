@@ -83,10 +83,12 @@ class PolicySocketClient {
     /// A session process whose parent is the daemon cannot turn into one,
     /// because ESFClient refuses any session process an exec of the daemon's
     /// executable.
-    func isDaemonOrFork(token: audit_token_t, parentToken: audit_token_t, executablePath: String) -> Bool {
+    func isDaemonOrFork(token: audit_token_t, parentToken: audit_token_t,
+                        executablePath: @autoclosure () -> String) -> Bool {
         if isValidatedServer(token) { return true }
         guard isValidatedServer(parentToken), let daemonPath = daemonExecutablePath else { return false }
-        return executablePath == daemonPath
+        // The path is read only for a child of the daemon.
+        return executablePath() == daemonPath
     }
 
     private func recordValidatedServer(_ token: audit_token_t, socketPath: String, executablePath: String?) {
@@ -344,48 +346,96 @@ class PolicySocketClient {
 
     /// Write a file event to the persistent stream. Fire-and-forget.
     /// If disconnected, buffer up to maxBufferSize events.
+    /// Events waiting for the next flush. Guarded by pendingLock.
+    ///
+    /// Inside a session, every file open produces an event, about 14 for each
+    /// process started. Each one used to cost its own dispatch to streamQueue
+    /// and its own write to the socket. Events are now queued here and
+    /// written in batches, one write per flush.
+    private var pendingEvents: [[String: Any]] = []
+    private var flushScheduled = false
+    private var pendingLock = os_unfair_lock()
+
     func sendEvent(_ event: [String: Any]) {
-        streamQueue.async {
-            if self.streamConnected {
-                self.writeEvent(event)
-            } else {
-                self.eventBuffer.append(event)
-                if self.eventBuffer.count > self.maxBufferSize {
-                    let dropped = self.eventBuffer.count - self.maxBufferSize
-                    self.eventBuffer.removeFirst(dropped)
-                    NSLog("PolicySocketClient: dropped %d events (buffer full)", dropped)
-                }
-            }
+        os_unfair_lock_lock(&pendingLock)
+        pendingEvents.append(event)
+        let schedule = !flushScheduled
+        flushScheduled = true
+        os_unfair_lock_unlock(&pendingLock)
+        if schedule {
+            streamQueue.async { self.flushPending() }
         }
     }
 
-    private func writeEvent(_ event: [String: Any]) {
-        guard streamFD >= 0,
-              let data = try? JSONSerialization.data(withJSONObject: event) else {
+    /// Write everything queued so far. Runs on streamQueue.
+    private func flushPending() {
+        os_unfair_lock_lock(&pendingLock)
+        let batch = pendingEvents
+        pendingEvents.removeAll(keepingCapacity: true)
+        flushScheduled = false
+        os_unfair_lock_unlock(&pendingLock)
+
+        if streamConnected {
+            writeEvents(batch)
+        } else {
+            bufferEvents(batch)
+        }
+    }
+
+    /// Keep events for after the stream reconnects, up to maxBufferSize.
+    private func bufferEvents(_ events: [[String: Any]]) {
+        eventBuffer.append(contentsOf: events)
+        if eventBuffer.count > maxBufferSize {
+            let dropped = eventBuffer.count - maxBufferSize
+            eventBuffer.removeFirst(dropped)
+            NSLog("PolicySocketClient: dropped %d events (buffer full)", dropped)
+        }
+    }
+
+    /// Write events as newline-delimited JSON in as few writes as the socket
+    /// allows. If a write fails, the events from the first one not fully
+    /// written onward are kept for after the reconnect.
+    private func writeEvents(_ events: [[String: Any]]) {
+        guard !events.isEmpty else { return }
+        guard streamFD >= 0 else {
+            bufferEvents(events)
             return
         }
-        var payload = data
-        payload.append(0x0A)
 
-        let written = payload.withUnsafeBytes { ptr in
-            write(streamFD, ptr.baseAddress!, ptr.count)
+        var payload = Data()
+        var ends: [Int] = []  // payload offset after each event
+        var kept: [[String: Any]] = []
+        for event in events {
+            guard let data = try? JSONSerialization.data(withJSONObject: event) else { continue }
+            payload.append(data)
+            payload.append(0x0A)
+            ends.append(payload.count)
+            kept.append(event)
         }
-        if written <= 0 {
-            NSLog("PolicySocketClient: event stream write failed, reconnecting")
-            close(streamFD)
-            streamFD = -1
-            streamConnected = false
-            eventBuffer.append(event)
-            scheduleReconnect()
+
+        var offset = 0
+        while offset < payload.count {
+            let written = payload.withUnsafeBytes { ptr in
+                write(streamFD, ptr.baseAddress! + offset, ptr.count - offset)
+            }
+            if written <= 0 {
+                NSLog("PolicySocketClient: event stream write failed, reconnecting")
+                close(streamFD)
+                streamFD = -1
+                streamConnected = false
+                let firstUnsent = ends.firstIndex { $0 > offset } ?? kept.count
+                bufferEvents(Array(kept[firstUnsent...]))
+                scheduleReconnect()
+                return
+            }
+            offset += written
         }
     }
 
     private func flushBuffer() {
         let buffered = eventBuffer
         eventBuffer.removeAll()
-        for event in buffered {
-            writeEvent(event)
-        }
+        writeEvents(buffered)
     }
 
     private func scheduleReconnect() {
@@ -398,10 +448,43 @@ class PolicySocketClient {
 
     // MARK: - Socket I/O (synchronous, called on sendQueue)
 
+    /// The connection that request and send use, kept open between calls.
+    /// Only touched on sendQueue.
+    ///
+    /// A new connection per request made every exec check in a session slow.
+    /// Each connection cost a code-signature check here, and the daemon ran
+    /// /usr/bin/codesign to check this extension on every new connection.
+    /// Measured: 52 ms for each process started inside a session, against
+    /// about 4 ms outside. The daemon reads any number of requests on one
+    /// connection (Server.handleConn), so both checks now run once per
+    /// connection.
+    private var requestFD: Int32 = -1
+
     private func sendSync(_ request: [String: Any]) throws -> [String: Any] {
+        do {
+            return try exchange(request, on: requestConnection())
+        } catch {
+            // A kept connection can be dead, for example after the daemon
+            // restarted. Reconnect once. Every request is a lookup or a
+            // one-way report, so sending it again is safe.
+            closeRequestConnection()
+            return try exchange(request, on: requestConnection())
+        }
+    }
+
+    private func closeRequestConnection() {
+        if requestFD >= 0 {
+            close(requestFD)
+            requestFD = -1
+        }
+    }
+
+    /// The kept connection, opened and checked if there is none.
+    private func requestConnection() throws -> Int32 {
+        if requestFD >= 0 { return requestFD }
+
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw SocketError.creation }
-        defer { close(fd) }
 
         // Connect
         var addr = sockaddr_un()
@@ -415,10 +498,14 @@ class PolicySocketClient {
                 connect(fd, sockPtr, addrLen)
             }
         }
-        guard connectResult == 0 else { throw SocketError.connectionFailed }
+        guard connectResult == 0 else {
+            close(fd)
+            throw SocketError.connectionFailed
+        }
 
         // Validate the server's code signing
         guard validateServer(fd: fd, socketPath: socketPath) else {
+            close(fd)
             throw SocketError.connectionFailed
         }
 
@@ -427,6 +514,17 @@ class PolicySocketClient {
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
 
+        // A kept connection can outlive the daemon. Writing to it must return
+        // an error, not raise SIGPIPE, which would kill the extension.
+        var nosigpipe: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &nosigpipe, socklen_t(MemoryLayout<Int32>.size))
+
+        requestFD = fd
+        return fd
+    }
+
+    /// Send one request on fd and read one reply.
+    private func exchange(_ request: [String: Any], on fd: Int32) throws -> [String: Any] {
         // Send (newline-delimited JSON)
         let requestData = try JSONSerialization.data(withJSONObject: request)
         var dataWithNewline = requestData
@@ -441,7 +539,8 @@ class PolicySocketClient {
             totalWritten += written
         }
 
-        // Read response
+        // Read response. The daemon writes exactly one line per request, so
+        // nothing after the newline belongs to a later reply.
         var responseBuffer = Data()
         var buffer = [UInt8](repeating: 0, count: 4096)
         while true {

@@ -60,6 +60,7 @@ var skiplist = map[string]string{
 	"api_key": "config false-positive: cfg.Auth.Type value, not an event type",
 	"oidc":    "config false-positive: cfg.Auth.Type value, not an event type",
 	"hybrid":  "config false-positive: cfg.Auth.Type value, not an event type",
+	"local":   "config false-positive: cfg.Auth.Type value, not an event type",
 	// Explicit test sentinels that don't match the above categories.
 	"definitely_not_in_registry_xyz": "test fixture: explicit unknown-type sentinel in mapper_test.go",
 	"session_started":                "test fixture: unrelated-event placeholder in mcp_bridge_test.go",

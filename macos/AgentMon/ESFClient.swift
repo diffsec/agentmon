@@ -55,11 +55,9 @@ class ESFClient {
         return ESFClient(client: newClient)
     }
 
-    /// Subscribe to ES events. Must be called AFTER ESFClient.shared is set.
-    func subscribe() -> Bool {
-        guard let client = client else { return false }
-
-        let authEvents: [es_event_type_t] = [
+    /// The events the extension handles while any session exists.
+    private static var enforcedEvents: [es_event_type_t] {
+        var events: [es_event_type_t] = [
             ES_EVENT_TYPE_AUTH_OPEN,
             ES_EVENT_TYPE_AUTH_CREATE,
             ES_EVENT_TYPE_AUTH_UNLINK,
@@ -70,28 +68,71 @@ class ESFClient {
             ES_EVENT_TYPE_AUTH_LINK,
             ES_EVENT_TYPE_AUTH_CLONE,
             ES_EVENT_TYPE_AUTH_COPYFILE,
-            ES_EVENT_TYPE_AUTH_SIGNAL
-        ]
-        let notifyEvents: [es_event_type_t] = [
+            ES_EVENT_TYPE_AUTH_SIGNAL,
             ES_EVENT_TYPE_NOTIFY_CLOSE,
             ES_EVENT_TYPE_NOTIFY_EXIT,
             ES_EVENT_TYPE_NOTIFY_FORK,
         ]
-        let allEvents = authEvents + notifyEvents
-        let subscribeResult = es_subscribe(client, allEvents, UInt32(allEvents.count))
-        guard subscribeResult == ES_RETURN_SUCCESS else {
-            NSLog("Failed to subscribe: \(subscribeResult.rawValue)")
-            return false
-        }
-        NSLog("ESF client subscribed successfully")
-
-        // Subscribe to SETATTRLIST events for chmod/chown tracking (macOS 26+)
+        // SETATTRLIST tracks chmod and chown (macOS 26+).
         if #available(macOS 26.0, *) {
-            let setAttrEvents: [es_event_type_t] = [ES_EVENT_TYPE_NOTIFY_SETATTRLIST]
-            es_subscribe(client, setAttrEvents, UInt32(setAttrEvents.count))
+            events.append(ES_EVENT_TYPE_NOTIFY_SETATTRLIST)
         }
+        return events
+    }
 
+    private let subscriptionQueue = DispatchQueue(label: "dev.diffsec.agentmon.esf-subscription")
+    private var subscribed = false
+
+    /// Prepare the client. Events are not subscribed here.
+    ///
+    /// The extension subscribes only while a session exists. A subscription to
+    /// AUTH_OPEN makes the kernel hold every file open on the machine until the
+    /// extension answers, however fast the answer is. Measured on a signed
+    /// install with no session open: 1000 runs of /bin/cat took 4.5 s
+    /// subscribed and 4.0 s with the extension off, and the extension used 8%
+    /// CPU. See enableEnforcement and disableEnforcementIfIdle.
+    func subscribe() -> Bool {
+        guard client != nil else { return false }
+        NSLog("ESF client ready; events are subscribed while a session exists")
         return true
+    }
+
+    /// Subscribe to the enforced events. Returns once the subscription is in
+    /// place, so a caller that is about to fetch a session's policy knows the
+    /// extension already sees that session's processes.
+    func enableEnforcement() {
+        subscriptionQueue.sync {
+            guard !subscribed, let client = client else { return }
+            let events = Self.enforcedEvents
+            let result = es_subscribe(client, events, UInt32(events.count))
+            guard result == ES_RETURN_SUCCESS else {
+                NSLog("ESFClient: FAILED to subscribe (\(result.rawValue)) -- sessions are not enforced")
+                return
+            }
+            subscribed = true
+            // Exits were not seen while unsubscribed, so earlier "outside
+            // every session" answers may name reused PIDs.
+            SessionPolicyCache.shared.invalidateOutsideSessions()
+            NSLog("ESFClient: subscribed, a session is active")
+        }
+    }
+
+    /// Unsubscribe when no session exists and no snapshot fetch is in flight.
+    /// The check runs on the subscription queue, after any pending subscribe,
+    /// so a session that registers meanwhile keeps the subscription.
+    func disableEnforcementIfIdle() {
+        subscriptionQueue.async {
+            guard self.subscribed, let client = self.client,
+                  !SessionPolicyCache.shared.hasActiveSessions,
+                  !SessionPolicyCache.shared.hasPendingFetches else { return }
+            let result = es_unsubscribe_all(client)
+            guard result == ES_RETURN_SUCCESS else {
+                NSLog("ESFClient: failed to unsubscribe (\(result.rawValue))")
+                return
+            }
+            self.subscribed = false
+            NSLog("ESFClient: unsubscribed, no session is active")
+        }
     }
 
     // agentmon's own binaries are not muted by path. Muting every process
@@ -211,11 +252,14 @@ class ESFClient {
             "pid": Int(pid),
             "child_pid": Int(childPid),
             "session_id": SessionPolicyCache.shared.sessionForPID(pid) ?? "",
-            "timestamp": ISO8601DateFormatter().string(from: Date())
+            "timestamp": eventTimestampFormatter.string(from: Date())
         ])
     }
 
     fileprivate func handleNotifyExit(_ message: es_message_t, pid: pid_t) {
+        // Every exit, in a session or not: the PID can now be reused.
+        defer { SessionPolicyCache.shared.forgetExitedPID(pid) }
+
         // Fast-path: skip all work if no active sessions
         guard SessionPolicyCache.shared.hasActiveSessions else { return }
 
@@ -232,7 +276,7 @@ class ESFClient {
             "event_type": "process_exit",
             "pid": Int(pid),
             "session_id": SessionPolicyCache.shared.sessionForPID(pid) ?? "",
-            "timestamp": ISO8601DateFormatter().string(from: Date())
+            "timestamp": eventTimestampFormatter.string(from: Date())
         ])
 
         SessionPolicyCache.shared.removePID(pid)
@@ -284,6 +328,12 @@ class ESFClient {
 
 /// Build and send a file event dict via the persistent event stream.
 /// This is a free function (not a method on ESFClient) so AUTH handlers can call it.
+/// One formatter for every event timestamp. Creating an ISO8601DateFormatter
+/// is expensive, and it used to happen once per event, which in a session is
+/// once per file open. ISO8601DateFormatter is safe to use from several
+/// threads.
+private let eventTimestampFormatter = ISO8601DateFormatter()
+
 private func sendFileEvent(
     eventType: String,
     path: String,
@@ -304,7 +354,7 @@ private func sendFileEvent(
         "session_id": sessionID ?? "",
         "decision": decision,
         "rule": rule ?? "",
-        "timestamp": ISO8601DateFormatter().string(from: Date())
+        "timestamp": eventTimestampFormatter.string(from: Date())
     ]
     if let action = action {
         dict["action"] = action
@@ -328,6 +378,22 @@ private func handleESEvent(client: OpaquePointer, event: UnsafePointer<es_messag
     let pid = audit_token_to_pid(message.process.pointee.audit_token)
 
     os_log(.debug, log: esLog, "handleESEvent: type=%{public}d pid=%{public}d", eventType, pid)
+
+    // With no session registered, nothing is enforced, so every AUTH event
+    // is allowed at once. This runs before any other work: the extension
+    // receives every file open on the machine, and a path copy plus two locks
+    // per event, which the daemon-fork check below costs, made every process
+    // start measurably slower.
+    if !SessionPolicyCache.shared.hasActiveSessions {
+        if message.action_type == ES_ACTION_TYPE_AUTH {
+            if message.event_type == ES_EVENT_TYPE_AUTH_OPEN {
+                es_respond_flags_result(client, event, 0x7FFFFFFF, false)
+            } else {
+                es_respond_auth_result(client, event, ES_AUTH_RESULT_ALLOW, false)
+            }
+        }
+        return
+    }
 
     // The daemon and its forks are not agents. See
     // PolicySocketClient.isDaemonOrFork.
