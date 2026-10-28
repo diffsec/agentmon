@@ -20,8 +20,29 @@ type SessionResolver interface {
 
 // PolicyAdapter adapts the policy.Engine to the PolicyHandler interface.
 type PolicyAdapter struct {
-	engine   *policy.Engine
-	sessions SessionResolver
+	engine        *policy.Engine
+	sessions      SessionResolver
+	sessionEngine func(sessionID string) *policy.Engine
+}
+
+// SetSessionEngineLookup gives the adapter each session's own policy engine.
+// Exec checks and policy snapshots for a session then use that session's
+// policy. Without it, every session got the daemon's default policy, and a
+// session created with a stricter policy than the default was enforced with
+// the default's file and exec rules.
+func (a *PolicyAdapter) SetSessionEngineLookup(lookup func(sessionID string) *policy.Engine) {
+	a.sessionEngine = lookup
+}
+
+// engineFor returns the session's own engine when there is one, and the
+// daemon's default engine otherwise.
+func (a *PolicyAdapter) engineFor(sessionID string) *policy.Engine {
+	if a.sessionEngine != nil && sessionID != "" {
+		if e := a.sessionEngine(sessionID); e != nil {
+			return e
+		}
+	}
+	return a.engine
 }
 
 // NewPolicyAdapter creates a new policy adapter.
@@ -92,7 +113,8 @@ func (a *PolicyAdapter) ResolveSession(pid int32) string {
 // CheckExec evaluates a command through the exec pipeline, returning
 // the full decision and action for the ESF client to act on.
 func (a *PolicyAdapter) CheckExec(executable string, args []string, pid int32, parentPID int32, sessionID string, _ ExecContext) ExecCheckResult {
-	if a.engine == nil {
+	engine := a.engineFor(sessionID)
+	if engine == nil {
 		slog.Error("policy socket: no policy engine installed, denying exec (fail closed)",
 			"executable", executable, "pid", pid)
 		return ExecCheckResult{
@@ -113,7 +135,7 @@ func (a *PolicyAdapter) CheckExec(executable string, args []string, pid int32, p
 	// verdict arrives. A rule asking for longer is denied by the watchdog
 	// regardless, so the two answer the same way rather than one silently
 	// overruling the other.
-	dec := a.engine.CheckCommand(executable, args)
+	dec := engine.CheckCommand(executable, args)
 
 	// Use PolicyDecision for audit logging (the raw policy intent)
 	decision := string(dec.PolicyDecision)
@@ -230,17 +252,6 @@ func networkEnforcement(p *policy.Policy) string {
 // BuildPolicySnapshot projects the policy engine's rules into a flat snapshot
 // format suitable for Swift-side local caching and evaluation.
 func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint64) PolicyResponse {
-	if a.engine == nil {
-		slog.Error("policy socket: snapshot requested with no policy engine, denying (fail closed)")
-		return denyAllSnapshot(sessionID)
-	}
-
-	p := a.engine.Policy()
-	if p == nil {
-		slog.Error("policy socket: snapshot requested with no policy loaded, denying (fail closed)")
-		return denyAllSnapshot(sessionID)
-	}
-
 	// If no session_id provided, look up the latest registered session.
 	var rootPID int32
 	if sessionID == "" && a.sessions != nil {
@@ -251,6 +262,20 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 		}
 	} else if a.sessions != nil {
 		rootPID = a.sessions.RootPIDForSession(sessionID)
+	}
+
+	// The session is resolved first, so that the snapshot carries that
+	// session's own policy.
+	engine := a.engineFor(sessionID)
+	if engine == nil {
+		slog.Error("policy socket: snapshot requested with no policy engine, denying (fail closed)")
+		return denyAllSnapshot(sessionID)
+	}
+
+	p := engine.Policy()
+	if p == nil {
+		slog.Error("policy socket: snapshot requested with no policy loaded, denying (fail closed)")
+		return denyAllSnapshot(sessionID)
 	}
 
 	var fileRules []SnapshotFileRule
