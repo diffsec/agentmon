@@ -116,6 +116,11 @@ jobs:
       - name: Swift approval dialog client
         run: scripts/test-swift-approval-client.sh
 
+      # codesign rejects entitlements that plutil accepts, and the xcodebuild
+      # step above signs nothing.
+      - name: Entitlements files sign
+        run: scripts/test-entitlements-sign.sh
+
   build-matrix:
     needs: [test-linux, test-macos]
     runs-on: ubuntu-latest
