@@ -5,12 +5,18 @@ package server
 import (
 	"context"
 	"log/slog"
+	"net"
 
 	"github.com/diffsec/agentmon/internal/approvals"
 	"github.com/diffsec/agentmon/internal/config"
+	"github.com/diffsec/agentmon/internal/events"
+	"github.com/diffsec/agentmon/internal/netmonitor"
 	"github.com/diffsec/agentmon/internal/platform/darwin"
 	"github.com/diffsec/agentmon/internal/platform/darwin/policysock"
 	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/session"
+	"github.com/diffsec/agentmon/internal/store/composite"
+	"github.com/diffsec/agentmon/pkg/types"
 )
 
 // startPolicySocket creates and starts the policy socket server for macOS
@@ -66,6 +72,12 @@ func (s *Server) startPolicySocket(cfg *config.Config, engine *policy.Engine, ap
 	if approvalsMgr != nil {
 		psrv.SetApprovalBroker(approvalBroker{mgr: approvalsMgr})
 	}
+	psrv.SetFlowHandler(flowHandler{
+		sessions:  s.sessions,
+		engine:    engine,
+		approvals: approvalsMgr,
+		emit:      eventEmitter{store: s.store, broker: s.broker},
+	})
 
 	// Register the extension-presence probe so CheckSysExtLiveness can tell a
 	// working extension from a crash-looping one. Without this, liveness is
@@ -120,3 +132,38 @@ func (s *Server) startPolicySocket(cfg *config.Config, engine *policy.Engine, ap
 	// callers anywhere before this.
 	darwin.NotifyPolicyUpdated()
 }
+
+// flowHandler forwards each flow from the system extension's transparent
+// proxy through the session's network policy. It gives a macOS session the
+// checks that the Linux transparent gateway gives a Linux session, for every
+// TCP client, including one that ignores HTTPS_PROXY.
+type flowHandler struct {
+	sessions  *session.Manager
+	engine    *policy.Engine
+	approvals *approvals.Manager
+	emit      netmonitor.Emitter
+}
+
+func (h flowHandler) HandleFlow(conn net.Conn, f policysock.FlowOpen, accepted func() error, refused func(reason string)) {
+	sess, ok := h.sessions.Get(f.SessionID)
+	if !ok {
+		refused("no session " + f.SessionID)
+		_ = conn.Close()
+		return
+	}
+	engine := h.engine
+	gw := netmonitor.NewFlowGateway(f.SessionID, sess, func() *policy.Engine { return engine }, h.approvals, h.emit, nil)
+	_ = gw.ServeFlow(conn, netmonitor.FlowRequest{Host: f.Host, Port: f.Port, Hostname: f.Hostname}, accepted, refused)
+}
+
+// eventEmitter stores and publishes the gateway's events.
+type eventEmitter struct {
+	store  *composite.Store
+	broker *events.Broker
+}
+
+func (e eventEmitter) AppendEvent(ctx context.Context, ev types.Event) error {
+	return e.store.AppendEvent(ctx, ev)
+}
+
+func (e eventEmitter) Publish(ev types.Event) { e.broker.Publish(ev) }

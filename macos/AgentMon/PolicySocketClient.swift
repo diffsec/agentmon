@@ -623,6 +623,48 @@ class PolicySocketClient {
         return true
     }
 
+    /// A new connection to the daemon for one transparent proxy flow, or nil.
+    ///
+    /// The peer must be the validated daemon. Its audit token is compared
+    /// first, which costs one getsockopt. The full code signature check runs
+    /// only when no daemon is validated yet or the daemon restarted, because
+    /// it is too slow to run for every TCP connection that a session opens.
+    func openFlowConnection() -> Int32? {
+        let path = socketPath
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else { return nil }
+
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        _ = withUnsafeMutablePointer(to: &addr.sun_path.0) { ptr in
+            path.withCString { cstr in strcpy(ptr, cstr) }
+        }
+        let connected = withUnsafePointer(to: &addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
+                connect(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        guard connected == 0 else {
+            close(fd)
+            return nil
+        }
+
+        var token = audit_token_t()
+        var tokenLen = socklen_t(MemoryLayout<audit_token_t>.size)
+        let known = getsockopt(fd, SOL_LOCAL, LOCAL_PEERTOKEN, &token, &tokenLen) == 0
+            && isValidatedServer(token)
+        guard known || validateServer(fd: fd, socketPath: path) else {
+            close(fd)
+            return nil
+        }
+
+        // The daemon can go away mid-flow. A write must then fail, not raise
+        // SIGPIPE, which would kill the extension.
+        var nosigpipe: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &nosigpipe, socklen_t(MemoryLayout<Int32>.size))
+        return fd
+    }
+
     enum SocketError: Error {
         case creation, connectionFailed, writeFailed, readFailed, invalidResponse
     }

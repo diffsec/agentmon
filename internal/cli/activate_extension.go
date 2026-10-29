@@ -82,6 +82,12 @@ func newDeactivateExtensionCmd() *cobra.Command {
 			// reported but does not stop the deactivation -- leaving the
 			// extension registered is the worse outcome, because it is what
 			// locks the app bundle against replacement.
+			if pr, perr := darwin.RemoveTransparentProxy(); perr != nil {
+				fmt.Printf("Warning: could not remove the transparent proxy configuration: %v\n", perr)
+				fmt.Println("Remove it manually in System Settings > Network > Filters.")
+			} else if pr == darwin.ActivateOK {
+				fmt.Println("Transparent proxy configuration removed.")
+			}
 			if fr, ferr := darwin.RemoveContentFilter(); ferr != nil {
 				fmt.Printf("Warning: could not remove the content filter configuration: %v\n", ferr)
 				fmt.Println("Remove it manually in System Settings > Network > Filters.")
@@ -134,6 +140,18 @@ func installFilterAfterActivation() error {
 		return nil
 	}
 	if result != darwin.ActivateOK {
+		fmt.Println("Check `agentmon network-filter status` once you have approved it.")
+		return nil
+	}
+
+	// The transparent proxy sends each session TCP flow to the daemon. A
+	// failure leaves the content filter to decide those flows alone, so it
+	// is printed but does not fail the activation.
+	if presult, perr := installTransparentProxyWithMessages(); perr != nil {
+		fmt.Printf("Warning: %v\n", perr)
+		fmt.Println("The content filter still decides session TCP flows.")
+		fmt.Println("Retry with `agentmon network-filter enable`.")
+	} else if presult != darwin.ActivateOK {
 		fmt.Println("Check `agentmon network-filter status` once you have approved it.")
 	}
 	return nil

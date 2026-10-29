@@ -6,12 +6,13 @@
 	     filter through NEFilterManager. The -systemextension suffix is required:
 	     the provider is hosted by a system extension, not an app extension, and
 	     the Developer ID profile grants ONLY the -systemextension variants. The
-	     bare content-filter-provider / dns-proxy values are not granted and the
+	     bare content-filter-provider / dns-proxy / app-proxy-provider values are not granted and the
 	     entitlement must be a subset of what the profile grants. -->
 	<key>com.apple.developer.networking.networkextension</key>
 	<array>
 		<string>content-filter-provider-systemextension</string>
 		<string>dns-proxy-systemextension</string>
+		<string>app-proxy-provider-systemextension</string>
 	</array>
 	<key>com.apple.developer.system-extension.install</key>
 	<true/>

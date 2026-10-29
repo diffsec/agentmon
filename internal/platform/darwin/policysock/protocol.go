@@ -39,6 +39,11 @@ const (
 	// Event stream connection type (persistent, fire-and-forget)
 	RequestTypeEventStreamInit RequestType = "event_stream_init"
 
+	// Flow connection type. The transparent proxy opens one connection for
+	// each TCP flow that it captures. After the response, the connection
+	// carries the flow's bytes in both directions.
+	RequestTypeFlowOpen RequestType = "flow_open"
+
 	// Approval requests from the approval dialog. Only a peer in the
 	// roleApprovalDialog role may send these.
 	RequestTypeListApprovals   RequestType = "list_approvals"
@@ -57,6 +62,9 @@ type PolicyRequest struct {
 	IP     string `json:"ip,omitempty"`
 	Port   int    `json:"port,omitempty"` // Valid range: 0-65535
 	Domain string `json:"domain,omitempty"`
+	// Host is a flow_open endpoint: an address, or a name when the app
+	// connected by name. Domain carries the name that the app asked for.
+	Host string `json:"host,omitempty"`
 
 	// Command-specific fields
 	Args []string `json:"args,omitempty"`

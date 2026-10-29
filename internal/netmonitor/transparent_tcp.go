@@ -1,17 +1,12 @@
-//go:build linux
-// +build linux
-
 package netmonitor
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
-	"unsafe"
 
 	"github.com/diffsec/agentmon/internal/approvals"
 	dbevents "github.com/diffsec/agentmon/internal/db/events"
@@ -20,7 +15,6 @@ import (
 	"github.com/diffsec/agentmon/internal/tor"
 	"github.com/diffsec/agentmon/pkg/types"
 	"github.com/google/uuid"
-	"golang.org/x/sys/unix"
 )
 
 type TransparentTCP struct {
@@ -39,29 +33,6 @@ type TransparentTCP struct {
 	done chan struct{}
 }
 
-func StartTransparentTCP(listenAddr string, sessionID string, sess *session.Session, dnsCache *DNSCache, engine EngineFunc, approvalsMgr *approvals.Manager, emit Emitter, dbBypass ...*dbevents.BypassEmitter) (*TransparentTCP, int, error) {
-	ln, err := net.Listen("tcp", listenAddr)
-	if err != nil {
-		return nil, 0, err
-	}
-	t := &TransparentTCP{
-		sessionID: sessionID,
-		sess:      sess,
-		dnsCache:  dnsCache,
-		policy:    engine,
-		approvals: approvalsMgr,
-		emit:      emit,
-		ln:        ln,
-		done:      make(chan struct{}),
-	}
-	if len(dbBypass) > 0 {
-		t.SetDBBypassEmitter(dbBypass[0])
-	}
-	t.wg.Add(1)
-	go t.acceptLoop()
-	return t, ln.Addr().(*net.TCPAddr).Port, nil
-}
-
 func (t *TransparentTCP) SetDBBypassEmitter(em *dbevents.BypassEmitter) {
 	if t == nil {
 		return
@@ -69,44 +40,33 @@ func (t *TransparentTCP) SetDBBypassEmitter(em *dbevents.BypassEmitter) {
 	t.dbBypass.Store(em)
 }
 
-func (t *TransparentTCP) Close() error {
-	close(t.done)
-	err := t.ln.Close()
-	t.wg.Wait()
-	return err
+// gatewayFlow is one connection that the gateway decides and forwards.
+type gatewayFlow struct {
+	dstIP   net.IP
+	dstPort int
+	// domain is a hostname that the caller already checked against dstIP.
+	// If it is empty, the gateway looks the address up in its DNS cache.
+	domain string
+	// accepted, if set, runs after the upstream dial succeeds and before any
+	// bytes are forwarded. If it returns an error, the flow is dropped.
+	accepted func() error
+	// refused, if set, runs when the policy denies the flow or the upstream
+	// dial fails.
+	refused func(reason string)
 }
 
-func (t *TransparentTCP) acceptLoop() {
-	defer t.wg.Done()
-	for {
-		conn, err := t.ln.Accept()
-		if err != nil {
-			select {
-			case <-t.done:
-				return
-			default:
-				continue
-			}
-		}
-		t.wg.Add(1)
-		go func() {
-			defer t.wg.Done()
-			_ = t.handle(conn)
-		}()
+func (f gatewayFlow) refuse(reason string) {
+	if f.refused != nil {
+		f.refused(reason)
 	}
 }
 
-func (t *TransparentTCP) handle(conn net.Conn) error {
+// serve decides one flow, dials the upstream, and forwards bytes in both
+// directions. The Linux gateway gets the destination from SO_ORIGINAL_DST.
+// The macOS gateway gets it from the system extension.
+func (t *TransparentTCP) serve(conn net.Conn, flow gatewayFlow) error {
 	defer conn.Close()
-	tcp, ok := conn.(*net.TCPConn)
-	if !ok {
-		return nil
-	}
-
-	dstIP, dstPort, err := originalDst(tcp)
-	if err != nil {
-		return nil
-	}
+	dstIP, dstPort := flow.dstIP, flow.dstPort
 	remote := net.JoinHostPort(dstIP.String(), fmt.Sprintf("%d", dstPort))
 
 	commandID, pid := "", 0
@@ -119,8 +79,11 @@ func (t *TransparentTCP) handle(conn net.Conn) error {
 		return handleTorSocks(conn, cfg.upstream, cfg.pol, t.emit, t.sessionID, commandID, pid)
 	}
 
-	domain := dstIP.String()
-	if t.dnsCache != nil {
+	domain := flow.domain
+	if domain == "" {
+		domain = dstIP.String()
+	}
+	if flow.domain == "" && t.dnsCache != nil {
 		if d, ok := t.dnsCache.LookupByIP(dstIP, time.Now().UTC()); ok && d != "" {
 			domain = d
 		}
@@ -159,6 +122,7 @@ func (t *TransparentTCP) handle(conn net.Conn) error {
 
 	if dec.EffectiveDecision == types.DecisionDeny {
 		t.emitDBBypassAttempt(context.Background(), commandID, pid, dec.Rule, dec.Message)
+		flow.refuse("denied by policy rule " + dec.Rule)
 		return nil
 	}
 
@@ -171,9 +135,15 @@ func (t *TransparentTCP) handle(conn net.Conn) error {
 	})
 	up, err := net.DialTimeout(dialTarget.Network, dialTarget.Address, 20*time.Second)
 	if err != nil {
+		flow.refuse("dial " + dialTarget.Address + ": " + err.Error())
 		return nil
 	}
 	defer up.Close()
+	if flow.accepted != nil {
+		if err := flow.accepted(); err != nil {
+			return nil
+		}
+	}
 
 	// conn->up = upBytes (sent), up->conn = downBytes (received).
 	upBytes, downBytes := splice(conn, up)
@@ -182,6 +152,17 @@ func (t *TransparentTCP) handle(conn net.Conn) error {
 	_ = t.emit.AppendEvent(context.Background(), closeEv)
 	t.emit.Publish(closeEv)
 	return nil
+}
+
+// Close stops the listener, if there is one, and waits for its flows.
+func (t *TransparentTCP) Close() error {
+	if t == nil || t.ln == nil {
+		return nil
+	}
+	close(t.done)
+	err := t.ln.Close()
+	t.wg.Wait()
+	return err
 }
 
 func (t *TransparentTCP) policyDecision(domain string, ip net.IP, port int) policy.Decision {
@@ -336,24 +317,4 @@ func (t *TransparentTCP) torGatewayFor(port int) (*torGatewayConfig, bool) {
 		return nil, false
 	}
 	return cfg, true
-}
-
-func originalDst(c *net.TCPConn) (net.IP, int, error) {
-	f, err := c.File()
-	if err != nil {
-		return nil, 0, err
-	}
-	defer f.Close()
-	fd := int(f.Fd())
-
-	var addr unix.RawSockaddrInet4
-	size := uint32(unsafe.Sizeof(addr))
-	_, _, errno := unix.Syscall6(unix.SYS_GETSOCKOPT, uintptr(fd), uintptr(unix.SOL_IP), uintptr(unix.SO_ORIGINAL_DST), uintptr(unsafe.Pointer(&addr)), uintptr(unsafe.Pointer(&size)), 0)
-	if errno != 0 {
-		return nil, 0, errno
-	}
-
-	ip := net.IPv4(addr.Addr[0], addr.Addr[1], addr.Addr[2], addr.Addr[3])
-	port := int(binary.BigEndian.Uint16((*[2]byte)(unsafe.Pointer(&addr.Port))[:]))
-	return ip, port, nil
 }

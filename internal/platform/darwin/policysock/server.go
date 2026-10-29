@@ -109,6 +109,7 @@ type Server struct {
 	eventHandler     EventHandler
 	snapshotBuilder  SnapshotBuilder
 	approvalBroker   ApprovalBroker
+	flowHandler      FlowHandler
 	teamID           string
 	listener         net.Listener
 	mu               sync.Mutex
@@ -180,6 +181,14 @@ func (s *Server) SetSnapshotBuilder(b SnapshotBuilder) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.snapshotBuilder = b
+}
+
+// SetFlowHandler sets the handler for flows from the transparent proxy.
+// If not set, every flow_open request is refused.
+func (s *Server) SetFlowHandler(h FlowHandler) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.flowHandler = h
 }
 
 // SetTeamID sets the team ID for peer code signing validation.
@@ -315,6 +324,15 @@ func (s *Server) handleConn(conn net.Conn, role peerRole) {
 	// Read first request to determine connection mode.
 	var req PolicyRequest
 	if err := decoder.Decode(&req); err != nil {
+		return
+	}
+
+	// Flow mode: one TCP flow from the transparent proxy.
+	if req.Type == RequestTypeFlowOpen {
+		if isDialog {
+			return
+		}
+		s.handleFlow(conn, decoder, &req)
 		return
 	}
 

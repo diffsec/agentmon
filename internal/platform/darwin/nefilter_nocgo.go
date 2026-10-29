@@ -17,3 +17,15 @@ func removeContentFilter() (ActivateResult, error) {
 func contentFilterStatus() (installed, enabled bool, err error) {
 	return false, false, errNoCgoFilter
 }
+
+func installTransparentProxy(string) (ActivateResult, error) {
+	return ActivateFailed, errNoCgoFilter
+}
+
+func removeTransparentProxy() (ActivateResult, error) {
+	return ActivateFailed, errNoCgoFilter
+}
+
+func transparentProxyStatus() (installed, enabled, running bool, err error) {
+	return false, false, false, errNoCgoFilter
+}
