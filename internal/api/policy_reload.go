@@ -73,6 +73,9 @@ func (a *App) ReloadPolicy(doc *policy.Policy) (PolicyReloadResult, error) {
 		newGlobal.SetInspector(ic)
 	}
 	a.SwapPolicy(newGlobal)
+	// A session that follows the global engine changed too. Sessions with
+	// their own engine notify through installSessionEngine below.
+	notifyPolicyUpdated()
 
 	if a.sessions == nil {
 		return res, nil

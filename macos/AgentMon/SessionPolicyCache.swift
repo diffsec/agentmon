@@ -19,8 +19,13 @@ struct FileRule {
     let action: String           // "allow" or "deny"
 }
 
+/// One network rule of the policy. Every selector that it has must match, as
+/// in Engine.CheckNetworkIP: a rule with domains and CIDRs needs both, and a
+/// rule with only ports matches every host on those ports.
 struct NetworkRule {
-    let pattern: String
+    let name: String
+    let domains: [String]
+    let cidrs: [String]
     let ports: Set<Int>
     let proto: String?
     let action: String
@@ -373,11 +378,13 @@ class SessionPolicyCache {
                 return (allowed ? .allow : .deny, sid)
             }
 
-            // Apply default
-            if cache.defaults.file == "deny" {
-                return (.deny, sid)
+            // The default depends on the operation, as in Engine.CheckFile:
+            // a read that no rule matches is allowed, and any other
+            // operation takes the policy's default.
+            if Self.isReadOperation(operation) || cache.defaults.file != "deny" {
+                return (.allow, sid)
             }
-            return (.allow, sid)
+            return (.deny, sid)
         }
     }
 
@@ -409,14 +416,9 @@ class SessionPolicyCache {
             }
 
             func matches(_ rule: NetworkRule) -> Bool {
-                guard rule.ports.isEmpty || rule.ports.contains(port) else { return false }
-                if rule.pattern.contains("/") {
-                    return cidrMatch(pattern: rule.pattern, ip: ip)
-                }
-                // A domain rule is tried against the hostname when there is
-                // one, and against the address otherwise, which is what
-                // patterns like "*" rely on.
-                return globMatch(pattern: rule.pattern, path: host ?? ip)
+                Self.networkRuleMatches(rule, host: host, ip: ip, port: port,
+                                        domainMatch: Self.domainGlobMatch,
+                                        cidrMatch: cidrMatch)
             }
 
             // The first rule that matches decides, in policy order, as
@@ -440,6 +442,80 @@ class SessionPolicyCache {
             }
             return (.allow, sid)
         }
+    }
+
+    /// Whether a connection matches a network rule, as CheckNetworkIP decides
+    /// it. The domain is the hostname when there is one, and the address
+    /// otherwise, which is what the Go gateway passes as the domain too.
+    static func networkRuleMatches(
+        _ rule: NetworkRule, host: String?, ip: String, port: Int,
+        domainMatch: (_ pattern: String, _ name: String) -> Bool,
+        cidrMatch: (_ pattern: String, _ ip: String) -> Bool
+    ) -> Bool {
+        if !rule.ports.isEmpty && !rule.ports.contains(port) { return false }
+        if !rule.domains.isEmpty {
+            let name = (host ?? ip).lowercased()
+            guard !name.isEmpty, rule.domains.contains(where: { domainMatch($0.lowercased(), name) }) else {
+                return false
+            }
+        }
+        if !rule.cidrs.isEmpty {
+            guard rule.cidrs.contains(where: { cidrMatch($0, ip) }) else { return false }
+        }
+        return true
+    }
+
+    /// The operations that the Go engine treats as reads (isReadOperation in
+    /// internal/policy/engine.go). A read that no rule matches is allowed.
+    static func isReadOperation(_ operation: String) -> Bool {
+        ["open", "read", "stat", "list", "readlink", "access"].contains(operation)
+    }
+
+    /// Match a domain the way the Go engine does: gobwas/glob with "." as the
+    /// separator. "*" and "?" stay inside one label, and "**" crosses labels.
+    /// So "*.github.com" matches "api.github.com" but not "a.b.github.com",
+    /// and "*" alone matches only a single-label name. globMatch let "*"
+    /// cross dots, so the extension allowed names that Go refused.
+    static func domainGlobMatch(_ pattern: String, _ name: String) -> Bool {
+        domainGlobRegex(for: pattern)?.firstMatch(
+            in: name, range: NSRange(name.startIndex..., in: name)) != nil
+    }
+
+    private static var domainRegexCache: [String: NSRegularExpression?] = [:]
+    private static var domainRegexLock = os_unfair_lock()
+
+    static func domainGlobRegex(for pattern: String) -> NSRegularExpression? {
+        os_unfair_lock_lock(&domainRegexLock)
+        if let cached = domainRegexCache[pattern] {
+            os_unfair_lock_unlock(&domainRegexLock)
+            return cached
+        }
+        os_unfair_lock_unlock(&domainRegexLock)
+
+        var regex = "^"
+        var chars = Array(pattern)[...]
+        while let c = chars.popFirst() {
+            switch c {
+            case "*":
+                if chars.first == "*" {
+                    chars.removeFirst()
+                    regex += ".*"
+                } else {
+                    regex += "[^.]*"
+                }
+            case "?":
+                regex += "[^.]"
+            default:
+                regex += NSRegularExpression.escapedPattern(for: String(c))
+            }
+        }
+        regex += "$"
+        let compiled = try? NSRegularExpression(pattern: regex)
+
+        os_unfair_lock_lock(&domainRegexLock)
+        domainRegexCache[pattern] = compiled
+        os_unfair_lock_unlock(&domainRegexLock)
+        return compiled
     }
 
     /// The first network rule that matches, in policy order.
@@ -834,11 +910,15 @@ extension SessionCache {
         var networkRules: [NetworkRule] = []
         if let rules = json["network_rules"] as? [[String: Any]] {
             for r in rules {
-                guard let pattern = r["pattern"] as? String,
-                      let action = r["action"] as? String else { continue }
+                guard let action = r["action"] as? String else { continue }
                 let ports = (r["ports"] as? [Int]).map { Set($0) } ?? Set<Int>()
-                let proto = r["protocol"] as? String
-                networkRules.append(NetworkRule(pattern: pattern, ports: ports, proto: proto, action: action))
+                networkRules.append(NetworkRule(
+                    name: r["name"] as? String ?? "",
+                    domains: r["domains"] as? [String] ?? [],
+                    cidrs: r["cidrs"] as? [String] ?? [],
+                    ports: ports,
+                    proto: r["protocol"] as? String,
+                    action: action))
             }
         }
 

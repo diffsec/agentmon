@@ -154,6 +154,9 @@ func (a *App) installSessionEngine(s *session.Session, eng *policy.Engine, vars 
 	a.attachEngineServices(eng)
 	s.SetPolicyVars(vars)
 	s.SetPolicyEngine(eng)
+	// The macOS system extension holds a copy of each session's rules and
+	// does not see this change unless it is told to fetch them again.
+	notifyPolicyUpdated()
 }
 
 func (a *App) attachSessionTor(eng *policy.Engine) {

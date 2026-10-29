@@ -1,0 +1,57 @@
+{
+  "_comment": "Cases that the Go engine and the macOS extension must decide the same way. snapshot_parity_test.go runs them through policy.Engine, and scripts/test-swift-policy-parity.sh runs them through the Swift matchers. Rules are in policy order.",
+  "file_rules": [
+    {"name": "deny-ssh", "paths": ["/Users/*/.ssh/**"], "operations": ["*"], "decision": "deny"},
+    {"name": "allow-workspace", "paths": ["/work", "/work/**"], "operations": ["*"], "decision": "allow"},
+    {"name": "approve-env", "paths": ["**/.env"], "operations": ["read", "open"], "decision": "approve"},
+    {"name": "allow-dev-write", "paths": ["/dev/null"], "operations": ["write", "create", "open"], "decision": "allow"},
+    {"name": "secret-any-op", "paths": ["/secret/**"], "decision": "deny"},
+    {"name": "only-mkdir", "paths": ["/tmp/dirs/**"], "operations": ["mkdir"], "decision": "allow"},
+    {"name": "default-deny-files", "paths": ["**"], "operations": ["write", "create", "delete", "rename", "mkdir", "rmdir", "chmod", "chown", "link", "symlink"], "decision": "deny"}
+  ],
+  "file_cases": [
+    {"path": "/work/a/b.txt", "operation": "write", "want": "allow"},
+    {"path": "/work", "operation": "rmdir", "want": "allow"},
+    {"path": "/Users/x/.ssh/id_ed25519", "operation": "read", "want": "deny"},
+    {"path": "/work/.env", "operation": "read", "want": "allow"},
+    {"path": "/home/.env", "operation": "read", "want": "approve"},
+    {"path": "/dev/null", "operation": "write", "want": "allow"},
+    {"path": "/secret/key", "operation": "read", "want": "deny"},
+    {"path": "/secret/key", "operation": "chmod", "want": "deny"},
+    {"path": "/tmp/dirs/new", "operation": "mkdir", "want": "allow"},
+    {"path": "/tmp/dirs/new", "operation": "create", "want": "deny"},
+    {"path": "/etc/hosts", "operation": "read", "want": "allow"},
+    {"path": "/etc/hosts", "operation": "write", "want": "deny"},
+    {"path": "/etc/hosts", "operation": "stat", "want": "allow"}
+  ],
+  "file_cases_no_catch_all": [
+    {"path": "/etc/hosts", "operation": "write", "want": "deny"},
+    {"path": "/etc/hosts", "operation": "read", "want": "allow"},
+    {"path": "/etc/hosts", "operation": "truncate", "want": "deny"}
+  ],
+  "network_rules": [
+    {"name": "allow-github", "domains": ["github.com", "*.github.com"], "ports": [443, 22], "decision": "allow"},
+    {"name": "allow-deep", "domains": ["**.example.org"], "decision": "allow"},
+    {"name": "allow-internal-https", "domains": ["*.corp.test"], "cidrs": ["10.0.0.0/8"], "ports": [443], "decision": "allow"},
+    {"name": "allow-localhost", "cidrs": ["127.0.0.1/32", "::1/128"], "decision": "allow"},
+    {"name": "deny-private", "cidrs": ["10.0.0.0/8", "192.168.0.0/16"], "decision": "deny"},
+    {"name": "approve-unknown-https", "ports": [443], "decision": "approve"},
+    {"name": "default-deny-network", "domains": ["*"], "decision": "deny"}
+  ],
+  "network_cases": [
+    {"host": "github.com", "ip": "140.82.112.3", "port": 443, "want": "allow"},
+    {"host": "api.github.com", "ip": "140.82.112.5", "port": 22, "want": "allow"},
+    {"host": "a.b.github.com", "ip": "140.82.112.5", "port": 80, "want": "deny"},
+    {"host": "a.b.github.com", "ip": "140.82.112.5", "port": 443, "want": "approve"},
+    {"host": "x.y.example.org", "ip": "93.184.216.34", "port": 8080, "want": "allow"},
+    {"host": "git.corp.test", "ip": "10.1.2.3", "port": 443, "want": "allow"},
+    {"host": "git.corp.test", "ip": "10.1.2.3", "port": 22, "want": "deny"},
+    {"host": "", "ip": "10.1.2.3", "port": 443, "want": "deny"},
+    {"host": "", "ip": "127.0.0.1", "port": 5432, "want": "allow"},
+    {"host": "", "ip": "::1", "port": 8080, "want": "allow"},
+    {"host": "example.com", "ip": "93.184.216.34", "port": 443, "want": "approve"},
+    {"host": "example.com", "ip": "93.184.216.34", "port": 80, "want": "deny"},
+    {"host": "", "ip": "1.1.1.1", "port": 53, "want": "deny"},
+    {"host": "localhost", "ip": "1.2.3.4", "port": 80, "want": "deny"}
+  ]
+}
