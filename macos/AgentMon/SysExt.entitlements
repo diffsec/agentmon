@@ -8,6 +8,7 @@
 	<array>
 		<string>dns-proxy-systemextension</string>
 		<string>content-filter-provider-systemextension</string>
+		<string>app-proxy-provider-systemextension</string>
 	</array>
 </dict>
 </plist>

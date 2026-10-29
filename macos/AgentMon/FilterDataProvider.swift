@@ -120,6 +120,15 @@ class FilterDataProvider: NEFilterDataProvider {
         let blockingEnabled = sessionCache?.networkBlocking ?? false
         let failOpen = sessionCache?.networkFailOpen ?? true
 
+        // While the transparent proxy runs, it sends this session's outbound
+        // TCP flows to the daemon, which applies the full network policy.
+        // A loopback flow is not captured, so the filter still decides it.
+        if #available(macOS 15.0, *), TransparentProxyProvider.isRunning,
+           socketFlow.socketType == SOCK_STREAM, socketFlow.direction == .outbound,
+           !Self.isLoopback(ip) {
+            return .allow()
+        }
+
         // Extract domain from flow if available (SNI/hostname)
         let hostname = socketFlow.remoteHostname
 
@@ -176,6 +185,11 @@ class FilterDataProvider: NEFilterDataProvider {
                 processInfo: processInfo
             )
         }
+    }
+
+    /// Whether an address is loopback, which the transparent proxy excludes.
+    static func isLoopback(_ ip: String) -> Bool {
+        ip.hasPrefix("127.") || ip == "::1" || ip == "localhost"
     }
 
     // MARK: - Audit-Only Mode (Async)

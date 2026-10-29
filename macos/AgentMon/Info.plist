@@ -42,6 +42,8 @@
 			<string>dev_diffsec_agentmon_SysExt.FilterDataProvider</string>
 			<key>com.apple.networkextension.dns-proxy</key>
 			<string>dev_diffsec_agentmon_SysExt.DNSProxyProvider</string>
+			<key>com.apple.networkextension.app-proxy</key>
+			<string>dev_diffsec_agentmon_SysExt.TransparentProxyProvider</string>
 		</dict>
 	</dict>
 	<key>NSEndpointSecurityMachServiceName</key>

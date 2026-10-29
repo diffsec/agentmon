@@ -419,20 +419,19 @@ class SessionPolicyCache {
                 return globMatch(pattern: rule.pattern, path: host ?? ip)
             }
 
-            for rule in cache.networkRules where rule.action == "deny" {
-                if matches(rule) {
+            // The first rule that matches decides, in policy order, as
+            // Engine.CheckNetworkIP does in internal/policy/engine.go. This
+            // used to check every deny rule first, so the catch-all
+            // default-deny-network rule in agent-default denied every direct
+            // connection that an earlier rule allowed.
+            if let rule = Self.firstMatchingNetworkRule(cache.networkRules, matches: matches) {
+                switch rule.action {
+                case "allow", "audit":
+                    return (.allow, sid)
+                case "approve":
+                    return (.fallthrough_, sid)
+                default:
                     return (.deny, sid)
-                }
-            }
-
-            for rule in cache.networkRules where rule.action != "deny" {
-                if matches(rule) {
-                    if rule.action == "approve" {
-                        return (.fallthrough_, sid)
-                    }
-                    if rule.action == "allow" {
-                        return (.allow, sid)
-                    }
                 }
             }
 
@@ -441,6 +440,13 @@ class SessionPolicyCache {
             }
             return (.allow, sid)
         }
+    }
+
+    /// The first network rule that matches, in policy order.
+    static func firstMatchingNetworkRule(
+        _ rules: [NetworkRule], matches: (NetworkRule) -> Bool
+    ) -> NetworkRule? {
+        rules.first(where: matches)
     }
 
     /// Match an address against a CIDR block, for both IPv4 and IPv6.

@@ -45,6 +45,20 @@ func newNetworkFilterStatusCmd() *cobra.Command {
 				fmt.Println("Content filter: not installed — network rules are unenforced.")
 				fmt.Println("Run `agentmon network-filter enable` to install it.")
 			}
+
+			proxy := darwin.CheckTransparentProxy()
+			switch {
+			case proxy.Error != "":
+				fmt.Printf("Transparent proxy: could not read its configuration: %s\n", proxy.Error)
+			case proxy.Installed && proxy.Enabled && proxy.Running:
+				fmt.Println("Transparent proxy: running — session TCP flows go through the daemon's network policy.")
+			case proxy.Installed:
+				fmt.Println("Transparent proxy: installed but not running — the content filter decides session TCP flows.")
+				fmt.Println("Run `agentmon network-filter enable` to start it.")
+			default:
+				fmt.Println("Transparent proxy: not installed — the content filter decides session TCP flows.")
+				fmt.Println("Run `agentmon network-filter enable` to install it.")
+			}
 			return nil
 		},
 	}
@@ -53,7 +67,7 @@ func newNetworkFilterStatusCmd() *cobra.Command {
 func newNetworkFilterEnableCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "enable",
-		Short: "Install and enable the content filter configuration",
+		Short: "Install and enable the content filter and the transparent proxy",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			result, err := installContentFilterWithMessages()
 			if err != nil {
@@ -61,6 +75,13 @@ func newNetworkFilterEnableCmd() *cobra.Command {
 			}
 			if result != darwin.ActivateOK {
 				return &ExitError{code: 1, message: "content filter is not enabled"}
+			}
+			result, err = installTransparentProxyWithMessages()
+			if err != nil {
+				return err
+			}
+			if result != darwin.ActivateOK {
+				return &ExitError{code: 1, message: "transparent proxy is not running"}
 			}
 			return nil
 		},
@@ -70,8 +91,14 @@ func newNetworkFilterEnableCmd() *cobra.Command {
 func newNetworkFilterDisableCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "disable",
-		Short: "Remove the content filter configuration",
+		Short: "Remove the content filter and transparent proxy configurations",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if pr, perr := darwin.RemoveTransparentProxy(); perr != nil {
+				return fmt.Errorf("removing the transparent proxy failed: %w", perr)
+			} else if pr != darwin.ActivateOK {
+				return &ExitError{code: 1, message: "removing the transparent proxy did not complete"}
+			}
+			fmt.Println("Transparent proxy removed.")
 			result, err := darwin.RemoveContentFilter()
 			if err != nil {
 				return fmt.Errorf("removing the content filter failed: %w", err)
@@ -109,5 +136,28 @@ func installContentFilterWithMessages() (darwin.ActivateResult, error) {
 			return result, fmt.Errorf("installing the content filter failed: %w", err)
 		}
 		return result, fmt.Errorf("installing the content filter failed")
+	}
+}
+
+// installTransparentProxyWithMessages installs and starts the transparent
+// proxy and reports what happened. Without it, the content filter decides a
+// session's TCP flows by itself: it can allow or drop them, but it cannot
+// ask for approval, redirect a flow or record the flow's events.
+func installTransparentProxyWithMessages() (darwin.ActivateResult, error) {
+	fmt.Println("Installing the transparent proxy configuration...")
+	result, err := darwin.InstallTransparentProxy()
+	switch result {
+	case darwin.ActivateOK:
+		fmt.Println("Transparent proxy running. Session TCP flows now go through the daemon.")
+		return result, nil
+	case darwin.ActivateNeedsApproval:
+		fmt.Println("The transparent proxy is waiting on your approval.")
+		fmt.Println("Allow it when macOS prompts, then run `agentmon network-filter status` to confirm.")
+		return result, nil
+	default:
+		if err != nil {
+			return result, fmt.Errorf("installing the transparent proxy failed: %w", err)
+		}
+		return result, fmt.Errorf("installing the transparent proxy failed")
 	}
 }
