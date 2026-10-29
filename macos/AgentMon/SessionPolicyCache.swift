@@ -13,7 +13,9 @@ private let sessionRegisteredNotification = "dev.diffsec.agentmon.session-regist
 
 struct FileRule {
     let pattern: String
-    let operations: Set<String>  // "read", "write", "create", "delete", "rename"
+    /// Operation names as the Go engine uses them. An empty set matches
+    /// every operation, as matchOp does in internal/policy/engine.go.
+    let operations: Set<String>
     let action: String           // "allow" or "deny"
 }
 
@@ -727,7 +729,8 @@ class SessionPolicyCache {
         match: (_ pattern: String, _ path: String) -> Bool
     ) -> FileRule? {
         rules.first { rule in
-            (rule.operations.contains(operation) || rule.operations.contains("*"))
+            (rule.operations.isEmpty || rule.operations.contains(operation)
+                || rule.operations.contains("*"))
                 && match(rule.pattern, path)
         }
     }
@@ -813,9 +816,11 @@ extension SessionCache {
         var fileRules: [FileRule] = []
         if let rules = json["file_rules"] as? [[String: Any]] {
             for r in rules {
+                // A rule with no operations arrives as null. It must stay in
+                // the list, because it matches every operation.
                 guard let pattern = r["pattern"] as? String,
-                      let ops = r["operations"] as? [String],
                       let action = r["action"] as? String else { continue }
+                let ops = r["operations"] as? [String] ?? []
                 fileRules.append(FileRule(pattern: pattern, operations: Set(ops), action: action))
             }
         }

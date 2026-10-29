@@ -57,7 +57,7 @@ class ESFClient {
 
     /// The events the extension handles while any session exists.
     private static var enforcedEvents: [es_event_type_t] {
-        var events: [es_event_type_t] = [
+        [
             ES_EVENT_TYPE_AUTH_OPEN,
             ES_EVENT_TYPE_AUTH_CREATE,
             ES_EVENT_TYPE_AUTH_UNLINK,
@@ -69,15 +69,24 @@ class ESFClient {
             ES_EVENT_TYPE_AUTH_CLONE,
             ES_EVENT_TYPE_AUTH_COPYFILE,
             ES_EVENT_TYPE_AUTH_SIGNAL,
+            // Each of these changes a file without an open for writing, so
+            // AUTH_OPEN never sees them. On build 1669, truncate() and chmod()
+            // on a file outside the workspace succeeded in an agent-default
+            // session, where a write to the same file was refused.
+            ES_EVENT_TYPE_AUTH_TRUNCATE,
+            ES_EVENT_TYPE_AUTH_SETMODE,
+            ES_EVENT_TYPE_AUTH_SETOWNER,
+            ES_EVENT_TYPE_AUTH_SETFLAGS,
+            ES_EVENT_TYPE_AUTH_SETACL,
+            ES_EVENT_TYPE_AUTH_SETEXTATTR,
+            ES_EVENT_TYPE_AUTH_DELETEEXTATTR,
+            ES_EVENT_TYPE_AUTH_SETATTRLIST,
+            ES_EVENT_TYPE_AUTH_UTIMES,
+            ES_EVENT_TYPE_AUTH_EXCHANGEDATA,
             ES_EVENT_TYPE_NOTIFY_CLOSE,
             ES_EVENT_TYPE_NOTIFY_EXIT,
             ES_EVENT_TYPE_NOTIFY_FORK,
         ]
-        // SETATTRLIST tracks chmod and chown (macOS 26+).
-        if #available(macOS 26.0, *) {
-            events.append(ES_EVENT_TYPE_NOTIFY_SETATTRLIST)
-        }
-        return events
     }
 
     private let subscriptionQueue = DispatchQueue(label: "dev.diffsec.agentmon.esf-subscription")
@@ -302,26 +311,6 @@ class ESFClient {
             rule: nil
         )
     }
-
-    @available(macOS 26.0, *)
-    fileprivate func handleNotifySetattr(_ message: es_message_t, pid: pid_t) {
-        let sessionID = SessionPolicyCache.shared.sessionForPID(pid)
-        guard let sessionID = sessionID else { return }
-
-        let path = String(cString: message.event.setattrlist.target.pointee.path.data)
-        let attr = message.event.setattrlist.attrlist
-
-        if attr.commonattr & attrgroup_t(ATTR_CMN_OWNERID) != 0 ||
-           attr.commonattr & attrgroup_t(ATTR_CMN_GRPID) != 0 {
-            sendFileEvent(eventType: "file_chown", path: path, operation: "chown",
-                          pid: pid, sessionID: sessionID, decision: "observed", rule: nil)
-        }
-
-        if attr.commonattr & attrgroup_t(ATTR_CMN_ACCESSMASK) != 0 {
-            sendFileEvent(eventType: "file_chmod", path: path, operation: "chmod",
-                          pid: pid, sessionID: sessionID, decision: "observed", rule: nil)
-        }
-    }
 }
 
 // MARK: - Free Function Helpers
@@ -365,6 +354,67 @@ private func sendFileEvent(
         }
     }
     PolicySocketClient.shared.sendEvent(dict)
+}
+
+/// The path of an ES file.
+private func path(of file: UnsafeMutablePointer<es_file_t>) -> String {
+    String(cString: file.pointee.path.data)
+}
+
+/// The text of an ES string token. A token is not always NUL-terminated, so
+/// it is read by its length.
+private func string(_ token: es_string_token_t) -> String {
+    guard token.length > 0, let data = token.data else { return "" }
+    return String(decoding: UnsafeRawBufferPointer(start: data, count: token.length), as: UTF8.self)
+}
+
+/// The policy operation names for ES file events. They are the names that
+/// the Go engine uses (see isReadOperation in internal/policy/engine.go), so
+/// a rule that names an operation matches on macOS as it does on Linux.
+enum FileOperation {
+    /// AUTH_CREATE reports open with O_CREAT, mkdir and symlink. The type
+    /// bits of the new object's mode tell them apart.
+    static func forCreate(mode: mode_t) -> String {
+        switch mode & S_IFMT {
+        case S_IFDIR: return "mkdir"
+        case S_IFLNK: return "symlink"
+        default: return "create"
+        }
+    }
+
+    /// AUTH_UNLINK reports both unlink and rmdir.
+    static func forUnlink(mode: mode_t) -> String {
+        mode & S_IFMT == S_IFDIR ? "rmdir" : "delete"
+    }
+
+    /// The operations that one setattrlist call performs. Owner and group
+    /// changes are chown. Mode, flag and ACL changes are chmod. Every other
+    /// attribute, such as the times or the Finder information, is a write.
+    static func forSetattrlist(_ attrs: attrlist) -> [String] {
+        let owner = attrgroup_t(ATTR_CMN_OWNERID | ATTR_CMN_GRPID | ATTR_CMN_UUID | ATTR_CMN_GRPUUID)
+        let mode = attrgroup_t(ATTR_CMN_ACCESSMASK | ATTR_CMN_FLAGS | ATTR_CMN_EXTENDED_SECURITY)
+        var ops: [String] = []
+        if attrs.commonattr & owner != 0 { ops.append("chown") }
+        if attrs.commonattr & mode != 0 { ops.append("chmod") }
+        if attrs.commonattr & ~(owner | mode) != 0 || attrs.volattr != 0 || attrs.dirattr != 0
+            || attrs.fileattr != 0 || attrs.forkattr != 0 {
+            ops.append("write")
+        }
+        return ops.isEmpty ? ["write"] : ops
+    }
+
+    /// The daemon's event type for an operation.
+    static func eventType(for operation: String) -> String {
+        switch operation {
+        case "mkdir": return "dir_create"
+        case "rmdir": return "dir_delete"
+        case "delete": return "file_delete"
+        case "chmod": return "file_chmod"
+        case "chown": return "file_chown"
+        case "create", "link", "symlink": return "file_create"
+        default: return "file_write"
+        }
+    }
 }
 
 // MARK: - Free Function Event Handlers (AUTH)
@@ -428,16 +478,67 @@ private func handleESEvent(client: OpaquePointer, event: UnsafePointer<es_messag
     case ES_EVENT_TYPE_AUTH_UIPC_CONNECT:
         handleAuthUIPCConnect(client: client, event: event, pid: pid)
     case ES_EVENT_TYPE_AUTH_LINK:
-        handleAuthCopySource(client: client, event: event, pid: pid,
-                             source: event.pointee.event.link.source)
+        handleAuthFileChange(client: client, event: event, pid: pid) { e in
+            let link = e.link
+            let target = path(of: link.target_dir) + "/" + string(link.target_filename)
+            return [(path(of: link.source), "read"), (target, "link")]
+        }
     case ES_EVENT_TYPE_AUTH_CLONE:
-        handleAuthCopySource(client: client, event: event, pid: pid,
-                             source: event.pointee.event.clone.source)
+        handleAuthFileChange(client: client, event: event, pid: pid) { e in
+            let clone = e.clone
+            let target = path(of: clone.target_dir) + "/" + string(clone.target_name)
+            return [(path(of: clone.source), "read"), (target, "create")]
+        }
     case ES_EVENT_TYPE_AUTH_COPYFILE:
-        handleAuthCopySource(client: client, event: event, pid: pid,
-                             source: event.pointee.event.copyfile.source)
+        handleAuthFileChange(client: client, event: event, pid: pid) { e in
+            let copy = e.copyfile
+            let target = copy.target_file.map { path(of: $0) }
+                ?? path(of: copy.target_dir) + "/" + string(copy.target_name)
+            return [(path(of: copy.source), "read"), (target, copy.target_file == nil ? "create" : "write")]
+        }
     case ES_EVENT_TYPE_AUTH_SIGNAL:
         handleAuthSignal(client: client, event: event, pid: pid)
+    case ES_EVENT_TYPE_AUTH_TRUNCATE:
+        handleAuthFileChange(client: client, event: event, pid: pid) { e in
+            [(path(of: e.truncate.target), "write")]
+        }
+    case ES_EVENT_TYPE_AUTH_SETMODE:
+        handleAuthFileChange(client: client, event: event, pid: pid) { e in
+            [(path(of: e.setmode.target), "chmod")]
+        }
+    case ES_EVENT_TYPE_AUTH_SETOWNER:
+        handleAuthFileChange(client: client, event: event, pid: pid) { e in
+            [(path(of: e.setowner.target), "chown")]
+        }
+    case ES_EVENT_TYPE_AUTH_SETFLAGS:
+        handleAuthFileChange(client: client, event: event, pid: pid) { e in
+            [(path(of: e.setflags.target), "chmod")]
+        }
+    case ES_EVENT_TYPE_AUTH_SETACL:
+        handleAuthFileChange(client: client, event: event, pid: pid) { e in
+            [(path(of: e.setacl.target), "chmod")]
+        }
+    case ES_EVENT_TYPE_AUTH_SETEXTATTR:
+        handleAuthFileChange(client: client, event: event, pid: pid) { e in
+            [(path(of: e.setextattr.target), "write")]
+        }
+    case ES_EVENT_TYPE_AUTH_DELETEEXTATTR:
+        handleAuthFileChange(client: client, event: event, pid: pid) { e in
+            [(path(of: e.deleteextattr.target), "write")]
+        }
+    case ES_EVENT_TYPE_AUTH_SETATTRLIST:
+        handleAuthFileChange(client: client, event: event, pid: pid) { e in
+            let target = path(of: e.setattrlist.target)
+            return FileOperation.forSetattrlist(e.setattrlist.attrlist).map { (target, $0) }
+        }
+    case ES_EVENT_TYPE_AUTH_UTIMES:
+        handleAuthFileChange(client: client, event: event, pid: pid) { e in
+            [(path(of: e.utimes.target), "write")]
+        }
+    case ES_EVENT_TYPE_AUTH_EXCHANGEDATA:
+        handleAuthFileChange(client: client, event: event, pid: pid) { e in
+            [(path(of: e.exchangedata.file1), "write"), (path(of: e.exchangedata.file2), "write")]
+        }
 
     // NOTIFY events -- best effort, no response needed
     case ES_EVENT_TYPE_NOTIFY_FORK:
@@ -446,10 +547,6 @@ private func handleESEvent(client: OpaquePointer, event: UnsafePointer<es_messag
         ESFClient.shared?.handleNotifyExit(message, pid: pid)
     case ES_EVENT_TYPE_NOTIFY_CLOSE:
         ESFClient.shared?.handleNotifyClose(message, pid: pid)
-    case ES_EVENT_TYPE_NOTIFY_SETATTRLIST:
-        if #available(macOS 26.0, *) {
-            ESFClient.shared?.handleNotifySetattr(message, pid: pid)
-        }
     default:
         // Safety: respond to any unexpected AUTH event to prevent deadline kill
         if event.pointee.action_type == ES_ACTION_TYPE_AUTH {
@@ -509,15 +606,17 @@ private func handleAuthCreate(client: OpaquePointer, event: UnsafePointer<es_mes
 
     let create = event.pointee.event.create
     let path: String
+    let operation: String
     if create.destination_type == ES_DESTINATION_TYPE_EXISTING_FILE {
         path = String(cString: create.destination.existing_file.pointee.path.data)
+        operation = "create"
     } else {
         let dir = String(cString: create.destination.new_path.dir.pointee.path.data)
-        let filename = String(cString: create.destination.new_path.filename.data)
-        path = dir + "/" + filename
+        path = dir + "/" + string(create.destination.new_path.filename)
+        operation = FileOperation.forCreate(mode: create.destination.new_path.mode)
     }
 
-    let (decision, sessionID) = SessionPolicyCache.shared.evaluateFile(path: path, operation: "create", pid: pid)
+    let (decision, sessionID) = SessionPolicyCache.shared.evaluateFile(path: path, operation: operation, pid: pid)
     if decision == .deny {
         es_respond_auth_result(client, event, ES_AUTH_RESULT_DENY, false)
     } else {
@@ -527,9 +626,9 @@ private func handleAuthCreate(client: OpaquePointer, event: UnsafePointer<es_mes
     // Forward event for PIDs in active sessions
     if let sessionID = sessionID {
         sendFileEvent(
-            eventType: "file_create",
+            eventType: FileOperation.eventType(for: operation),
             path: path,
-            operation: "create",
+            operation: operation,
             pid: pid,
             sessionID: sessionID,
             decision: decision == .deny ? "deny" : "allow",
@@ -544,8 +643,10 @@ private func handleAuthUnlink(client: OpaquePointer, event: UnsafePointer<es_mes
         return
     }
 
-    let path = String(cString: event.pointee.event.unlink.target.pointee.path.data)
-    let (decision, sessionID) = SessionPolicyCache.shared.evaluateFile(path: path, operation: "delete", pid: pid)
+    let target = event.pointee.event.unlink.target.pointee
+    let path = String(cString: target.path.data)
+    let operation = FileOperation.forUnlink(mode: target.stat.st_mode)
+    let (decision, sessionID) = SessionPolicyCache.shared.evaluateFile(path: path, operation: operation, pid: pid)
 
     if decision == .deny {
         es_respond_auth_result(client, event, ES_AUTH_RESULT_DENY, false)
@@ -556,9 +657,9 @@ private func handleAuthUnlink(client: OpaquePointer, event: UnsafePointer<es_mes
     // Forward event for PIDs in active sessions
     if let sessionID = sessionID {
         sendFileEvent(
-            eventType: "file_delete",
+            eventType: FileOperation.eventType(for: operation),
             path: path,
-            operation: "delete",
+            operation: operation,
             pid: pid,
             sessionID: sessionID,
             decision: decision == .deny ? "deny" : "allow",
@@ -580,8 +681,7 @@ private func handleAuthRename(client: OpaquePointer, event: UnsafePointer<es_mes
         destPath = String(cString: rename.destination.existing_file.pointee.path.data)
     } else {
         let dir = String(cString: rename.destination.new_path.dir.pointee.path.data)
-        let filename = String(cString: rename.destination.new_path.filename.data)
-        destPath = dir + "/" + filename
+        destPath = dir + "/" + string(rename.destination.new_path.filename)
     }
 
     let (srcDecision, sessionID) = SessionPolicyCache.shared.evaluateFile(path: sourcePath, operation: "rename", pid: pid)
@@ -653,27 +753,56 @@ private func handleAuthUIPCConnect(client: OpaquePointer, event: UnsafePointer<e
     }
 }
 
-/// Refuse a session process a hard link, clone or copyfile whose source is in
-/// the daemon's directory. Each of them reaches the file's content without an
-/// open, so without this a session process could copy the local API key out
-/// of the directory and read the copy. The session's root is exempt, as it is
-/// for reads in evaluateFile.
-private func handleAuthCopySource(client: OpaquePointer, event: UnsafePointer<es_message_t>,
-                                  pid: pid_t, source: UnsafeMutablePointer<es_file_t>) {
-    guard SessionPolicyCache.shared.hasActiveSessions,
-          let sessionID = SessionPolicyCache.shared.sessionForPID(pid),
-          SessionPolicyCache.shared.cacheForSession(sessionID)?.rootPID != pid else {
+/// Check a file change that AUTH_OPEN does not see against the session
+/// policy, and answer the event.
+///
+/// `accesses` lists each path the change touches with its policy operation.
+/// The change is refused if any access is denied. A hard link, clone or
+/// copyfile reaches a file's content without an open, so each of them checks
+/// `read` on the source as well as the operation on the new name. Without
+/// that, clonefile() copied ~/.ssh/known_hosts into the workspace on build
+/// 1669, and the copy was readable.
+///
+/// The access list is built only for a session process. These events fire
+/// for every process on the machine while a session exists, and most of them
+/// come from processes outside every session.
+private func handleAuthFileChange(client: OpaquePointer, event: UnsafePointer<es_message_t>, pid: pid_t,
+                                  accesses: (es_events_t) -> [(path: String, operation: String)]) {
+    guard SessionPolicyCache.shared.sessionForPID(pid) != nil else {
         es_respond_auth_result(client, event, ES_AUTH_RESULT_ALLOW, false)
         return
     }
-    let path = String(cString: source.pointee.path.data)
-    let denied = SessionPolicyCache.touchesControlDirectory(
-        path: path, operation: "read", controlDir: PolicySocketClient.shared.controlDirectory)
-    es_respond_auth_result(client, event, denied ? ES_AUTH_RESULT_DENY : ES_AUTH_RESULT_ALLOW, false)
-    if denied {
-        os_log(.error, log: esLog,
-               "denied a copy of %{public}s from session pid %{public}d", path, pid)
+    let checks = accesses(event.pointee.event)
+    var sessionID: String?
+    var denied: (path: String, operation: String)?
+    for check in checks {
+        let (decision, sid) = SessionPolicyCache.shared.evaluateFile(
+            path: check.path, operation: check.operation, pid: pid)
+        sessionID = sessionID ?? sid
+        if decision == .deny {
+            denied = check
+            break
+        }
     }
+    es_respond_auth_result(client, event, denied == nil ? ES_AUTH_RESULT_ALLOW : ES_AUTH_RESULT_DENY, false)
+
+    guard let sessionID = sessionID, let last = checks.last else { return }
+    // The event names the file that changes. For a link, clone or copy,
+    // path2 names the source.
+    var extra: [String: Any]? = nil
+    if checks.count > 1 {
+        extra = ["path2": checks[0].path]
+    }
+    sendFileEvent(
+        eventType: FileOperation.eventType(for: last.operation),
+        path: last.path,
+        operation: last.operation,
+        pid: pid,
+        sessionID: sessionID,
+        decision: denied == nil ? "allow" : "deny",
+        rule: nil,
+        extraFields: extra
+    )
 }
 
 /// Refuse a session process that signals the daemon. An agent that kills the
