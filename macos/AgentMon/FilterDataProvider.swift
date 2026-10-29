@@ -6,18 +6,9 @@ class FilterDataProvider: NEFilterDataProvider {
 
     // MARK: - Blocking Configuration
 
-    // blockingEnabled and failOpen used to be stored properties here, hardcoded
-    // to false and true and never assigned by anything -- so the provider was
-    // permanently in audit mode with a fail-open fallback no matter what the
-    // policy said. They now come from the session's snapshot
-    // (network_enforcement / network_fail_open, derived in
-    // policysock/handler.go), which makes them per-session as well as
-    // policy-driven: two concurrent sessions can legitimately want different
-    // answers, and one instance-wide flag could never express that.
-
-    /// Maximum time to wait for policy decision in blocking mode.
-    /// Default is 100ms to minimize latency impact.
-    var decisionTimeout: TimeInterval = 0.1
+    // Whether the filter drops a flow that an approve rule matches comes from
+    // the session's snapshot (network_enforcement, derived in
+    // policysock/handler.go), so two sessions can differ.
 
     override func startFilter(completionHandler: @escaping (Error?) -> Void) {
         // This line is the proof that the content filter is actually running.
@@ -106,20 +97,6 @@ class FilterDataProvider: NEFilterDataProvider {
             return .allow()
         }
 
-        // Get full process identification
-        let processInfo = ProcessIdentifier.identify(auditToken: auditToken)
-
-        // Get parent PID from hierarchy (may use cached fork events or sysctl fallback)
-        let parentPID = ProcessHierarchy.shared.getParent(pid: pid) ?? 0
-
-        // Enforcement mode is a property of the session's policy, not of this
-        // provider. A missing cache means the snapshot has not arrived yet;
-        // audit + fail-open matches what a PID with no known policy already
-        // gets everywhere else in this file.
-        let sessionCache = SessionPolicyCache.shared.cacheForSession(sessionID)
-        let blockingEnabled = sessionCache?.networkBlocking ?? false
-        let failOpen = sessionCache?.networkFailOpen ?? true
-
         // While the transparent proxy runs, it sends this session's outbound
         // TCP flows to the daemon, which applies the full network policy.
         // A loopback flow is not captured, so the filter still decides it.
@@ -146,194 +123,24 @@ class FilterDataProvider: NEFilterDataProvider {
         case .deny:
             return .drop()
         case .fallthrough_:
-            break  // Continue to PolicySocketClient check
-        }
-
-        // Determine protocol (TCP vs UDP)
-        let protocolType: String
-        switch socketFlow.socketType {
-        case SOCK_STREAM:
-            protocolType = "tcp"
-        case SOCK_DGRAM:
-            protocolType = "udp"
-        default:
-            protocolType = "tcp"  // Default to TCP for unknown types
-        }
-
-        // Route to appropriate handler based on blocking mode
-        if blockingEnabled {
-            return handleNewFlowBlocking(
-                ip: ip,
-                port: port,
-                protocolType: protocolType,
-                domain: hostname,
-                pid: pid,
-                parentPID: parentPID,
-                sessionID: sessionID,
-                processInfo: processInfo,
-                failOpen: failOpen
-            )
-        } else {
-            return handleNewFlowAuditOnly(
-                ip: ip,
-                port: port,
-                protocolType: protocolType,
-                domain: hostname,
-                pid: pid,
-                parentPID: parentPID,
-                sessionID: sessionID,
-                processInfo: processInfo
-            )
+            // Enforcement mode is a property of the session's policy. A
+            // missing cache means the snapshot has not arrived yet, and audit
+            // matches what a PID with no known policy gets elsewhere.
+            let blockingEnabled = SessionPolicyCache.shared.cacheForSession(sessionID)?.networkBlocking ?? false
+            // An approve rule. The filter cannot hold a flow while a person
+            // decides, so it denies the flow when the policy enforces and
+            // allows it in audit mode. Through the transparent proxy, the
+            // daemon asks for approval instead. This used to send a
+            // pnacl_check to the daemon, which nothing answered: the daemon
+            // has no PNACL handler, so every check came back allow.
+            NSLog("FilterDataProvider: approve rule for \(hostname ?? ip):\(port) from pid \(pid) -- \(blockingEnabled ? "denied" : "allowed in audit mode")")
+            return blockingEnabled ? .drop() : .allow()
         }
     }
 
     /// Whether an address is loopback, which the transparent proxy excludes.
     static func isLoopback(_ ip: String) -> Bool {
         ip.hasPrefix("127.") || ip == "::1" || ip == "localhost"
-    }
-
-    // MARK: - Audit-Only Mode (Async)
-
-    private func handleNewFlowAuditOnly(
-        ip: String, port: Int, protocolType: String, domain: String?,
-        pid: pid_t, parentPID: pid_t, sessionID: String, processInfo: ProcessInfo
-    ) -> NEFilterNewFlowVerdict {
-        PolicySocketClient.shared.send([
-            "type": "pnacl_check",
-            "ip": ip,
-            "port": port,
-            "protocol": protocolType,
-            "domain": domain ?? "",
-            "pid": Int(pid),
-            "bundle_id": processInfo.bundleID ?? "",
-            "executable_path": processInfo.executablePath ?? "",
-            "process_name": processInfo.processName ?? "",
-            "parent_pid": Int(parentPID),
-            "session_id": sessionID
-        ])
-        return .allow()
-    }
-
-    // MARK: - Blocking Mode (Synchronous)
-
-    private func handleNewFlowBlocking(
-        ip: String, port: Int, protocolType: String, domain: String?,
-        pid: pid_t, parentPID: pid_t, sessionID: String, processInfo: ProcessInfo,
-        failOpen: Bool
-    ) -> NEFilterNewFlowVerdict {
-        let semaphore = DispatchSemaphore(value: 0)
-        var policyDecision: String?
-        var policyRuleID: String?
-
-        PolicySocketClient.shared.request([
-            "type": "pnacl_check",
-            "ip": ip,
-            "port": port,
-            "protocol": protocolType,
-            "domain": domain ?? "",
-            "pid": Int(pid),
-            "bundle_id": processInfo.bundleID ?? "",
-            "executable_path": processInfo.executablePath ?? "",
-            "process_name": processInfo.processName ?? "",
-            "parent_pid": Int(parentPID),
-            "session_id": sessionID
-        ]) { response in
-            policyDecision = response?["decision"] as? String
-            policyRuleID = response?["rule_id"] as? String
-            semaphore.signal()
-        }
-
-        let result = semaphore.wait(timeout: .now() + decisionTimeout)
-
-        let verdict: NEFilterNewFlowVerdict
-        let wasBlocked: Bool
-
-        switch result {
-        case .success:
-            if let decision = policyDecision {
-                switch decision {
-                case "allow", "allow_once", "allow_permanent":
-                    verdict = .allow(); wasBlocked = false
-                case "deny", "deny_once", "deny_forever":
-                    verdict = .drop(); wasBlocked = true
-                case "audit":
-                    verdict = .allow(); wasBlocked = false
-                case "approve", "allow_once_then_approve":
-                    if failOpen || decision == "allow_once_then_approve" {
-                        verdict = .allow(); wasBlocked = false
-                    } else {
-                        verdict = .drop(); wasBlocked = true
-                    }
-                default:
-                    verdict = failOpen ? .allow() : .drop()
-                    wasBlocked = !failOpen
-                }
-            } else {
-                verdict = failOpen ? .allow() : .drop()
-                wasBlocked = !failOpen
-            }
-        case .timedOut:
-            verdict = failOpen ? .allow() : .drop()
-            wasBlocked = !failOpen
-        }
-
-        logPNACLDecision(
-            decision: policyDecision ?? (failOpen ? "allow_fallback" : "deny_fallback"),
-            ruleID: policyRuleID, ip: ip, port: port, pid: pid,
-            bundleID: processInfo.bundleID, blocked: wasBlocked, blocking: true)
-
-        // Report event to server asynchronously (fire-and-forget)
-        PolicySocketClient.shared.send([
-            "type": "pnacl_event",
-            "event_type": "connection_\(policyDecision ?? "unknown")",
-            "ip": ip,
-            "port": port,
-            "protocol": protocolType,
-            "domain": domain ?? "",
-            "pid": Int(pid),
-            "bundle_id": processInfo.bundleID ?? "",
-            "decision": wasBlocked ? "blocked" : "allowed",
-            "rule_id": policyRuleID ?? ""
-        ])
-
-        return verdict
-    }
-
-    // MARK: - Logging
-
-    /// Log PNACL decision for debugging.
-    private func logPNACLDecision(
-        decision: String,
-        ruleID: String?,
-        ip: String,
-        port: Int,
-        pid: pid_t,
-        bundleID: String?,
-        blocked: Bool = false,
-        blocking: Bool = false
-    ) {
-        let bundleStr = bundleID ?? "unknown"
-        let ruleStr = ruleID ?? "none"
-        let modeStr = blocking ? "BLOCKING" : "AUDIT"
-        let actionStr = blocked ? "BLOCKED" : "ALLOWED"
-
-        switch decision {
-        case "allow":
-            // Don't log allowed connections to reduce noise (unless blocked which shouldn't happen)
-            if blocked {
-                NSLog("PNACL [\(modeStr)] \(actionStr): \(ip):\(port) from \(bundleStr) (pid \(pid), decision: allow)")
-            }
-        case "deny":
-            NSLog("PNACL [\(modeStr)] \(actionStr): \(ip):\(port) from \(bundleStr) (pid \(pid), rule: \(ruleStr))")
-        case "approve":
-            NSLog("PNACL [\(modeStr)] APPROVE_NEEDED \(actionStr): \(ip):\(port) from \(bundleStr) (pid \(pid))")
-        default:
-            if decision.contains("timeout") || decision.contains("nil") {
-                NSLog("PNACL [\(modeStr)] ERROR \(actionStr): \(ip):\(port) from \(bundleStr) (pid \(pid), reason: \(decision))")
-            } else {
-                NSLog("PNACL [\(modeStr)] \(decision.uppercased()) \(actionStr): \(ip):\(port) from \(bundleStr) (pid \(pid))")
-            }
-        }
     }
 
     // MARK: - Data Handlers

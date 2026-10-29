@@ -129,6 +129,11 @@ jobs:
       - name: Swift approval dialog client
         run: scripts/test-swift-approval-client.sh
 
+      # The extension must decide file and network cases as the Go engine
+      # does. TestPolicyParity_GoEngine runs the same table through Go.
+      - name: Swift policy parity
+        run: scripts/test-swift-policy-parity.sh
+
       # codesign rejects entitlements that plutil accepts, and the xcodebuild
       # step above signs nothing.
       - name: Entitlements files sign

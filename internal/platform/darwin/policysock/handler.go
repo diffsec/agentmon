@@ -4,6 +4,8 @@ package policysock
 
 import (
 	"log/slog"
+	"sync/atomic"
+	"time"
 
 	"github.com/diffsec/agentmon/internal/policy"
 	"github.com/diffsec/agentmon/pkg/types"
@@ -198,6 +200,9 @@ func denyAllSnapshot(sessionID string) PolicyResponse {
 		Allow:     false,
 		Rule:      "no-policy-fail-closed",
 		SessionID: sessionID,
+		// SessionCache.from rejects a snapshot with no version, so without
+		// one the extension ignored this snapshot and kept what it had.
+		SnapshotVersion: nextSnapshotVersion(),
 		Defaults: &SnapshotDefaults{
 			File:    deny,
 			Network: deny,
@@ -289,31 +294,29 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 		}
 	}
 
-	var networkRules []SnapshotNetworkRule
+	networkRules := make([]SnapshotNetworkRule, 0, len(p.NetworkRules))
 	for _, r := range p.NetworkRules {
-		for _, domain := range r.Domains {
-			networkRules = append(networkRules, SnapshotNetworkRule{
-				Pattern: domain,
-				Ports:   r.Ports,
-				Action:  r.Decision,
-			})
-		}
-		for _, cidr := range r.CIDRs {
-			networkRules = append(networkRules, SnapshotNetworkRule{
-				Pattern: cidr,
-				Ports:   r.Ports,
-				Action:  r.Decision,
-			})
-		}
+		networkRules = append(networkRules, SnapshotNetworkRule{
+			Name:    r.Name,
+			Domains: r.Domains,
+			CIDRs:   r.CIDRs,
+			Ports:   r.Ports,
+			Action:  r.Decision,
+		})
 	}
 
 	// DNS rules are derived from network rules with domain patterns.
 	// The current policy model does not have separate DNS rules.
 	var dnsRules []SnapshotDNSRule
 
+	// The engine's own defaults. CheckFile denies a change that no rule
+	// matches and allows a read, and CheckNetworkIP denies a connection that
+	// no rule matches. These were all "allow", so on macOS an unmatched write
+	// succeeded where Linux refused it. DNS stays "allow" because nothing on
+	// macOS answers DNS for a session yet.
 	defaults := SnapshotDefaults{
-		File:    string(types.DecisionAllow),
-		Network: string(types.DecisionAllow),
+		File:    string(types.DecisionDeny),
+		Network: string(types.DecisionDeny),
 		DNS:     string(types.DecisionAllow),
 	}
 
@@ -347,7 +350,7 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 		Allow:              true,
 		SessionID:          sessionID,
 		RootPID:            rootPID,
-		SnapshotVersion:    1, // Will be replaced by SessionVersions counter in Task 4
+		SnapshotVersion:    nextSnapshotVersion(),
 		FileRules:          fileRules,
 		NetworkRules:       networkRules,
 		DNSRules:           dnsRules,
@@ -356,6 +359,22 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 		NetworkFailOpen:    &failOpen,
 		ActiveSessions:     activeSessions,
 	}
+}
+
+// snapshotVersion numbers snapshots. The extension keeps a snapshot only if
+// its version is higher than the one it holds (SessionPolicyCache.
+// updateSession), so a fixed version meant that a policy reload never
+// reached a running session. Every snapshot gets a new, higher number. The
+// count starts from the clock, so a restarted daemon still sends numbers
+// above the ones that the extension saw from the previous daemon.
+var snapshotVersion atomic.Uint64
+
+func init() {
+	snapshotVersion.Store(uint64(time.Now().UnixNano()))
+}
+
+func nextSnapshotVersion() uint64 {
+	return snapshotVersion.Add(1)
 }
 
 // Compile-time interface checks

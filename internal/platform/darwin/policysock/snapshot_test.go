@@ -17,7 +17,7 @@ func TestPolicySnapshotResponse_JSON(t *testing.T) {
 			{Pattern: "/etc/shadow", Operations: []string{"read"}, Action: "deny"},
 		},
 		NetworkRules: []SnapshotNetworkRule{
-			{Pattern: "*.evil.com", Ports: []int{}, Action: "deny"},
+			{Name: "deny-evil", Domains: []string{"*.evil.com"}, CIDRs: []string{"10.0.0.0/8"}, Ports: []int{443}, Action: "deny"},
 		},
 		DNSRules: []SnapshotDNSRule{
 			{Pattern: "*.evil.com", Action: "nxdomain"},
@@ -44,6 +44,10 @@ func TestPolicySnapshotResponse_JSON(t *testing.T) {
 	}
 	if decoded.FileRules[1].Action != "deny" {
 		t.Fatalf("expected deny, got %s", decoded.FileRules[1].Action)
+	}
+	if len(decoded.NetworkRules) != 1 || len(decoded.NetworkRules[0].Domains) != 1 ||
+		len(decoded.NetworkRules[0].CIDRs) != 1 || decoded.NetworkRules[0].Ports[0] != 443 {
+		t.Fatalf("network rule did not round-trip whole: %+v", decoded.NetworkRules)
 	}
 	if len(decoded.ExecRules) != 2 {
 		t.Fatalf("expected 2 exec rules, got %d", len(decoded.ExecRules))

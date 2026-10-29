@@ -30,12 +30,21 @@ type SnapshotFileRule struct {
 	Action     string   `json:"action"`
 }
 
-// SnapshotNetworkRule represents a single network-access rule in the snapshot.
+// SnapshotNetworkRule is one network rule of the policy, in policy order.
+//
+// It keeps the rule whole, so the extension matches it the way
+// Engine.CheckNetworkIP does: every selector that the rule has must match.
+// A rule with domains and CIDRs needs both, and a rule with only ports
+// matches every host on those ports. The snapshot used to send one entry for
+// each domain and each CIDR, which turned that AND into an OR and dropped
+// port-only rules such as approve-unknown-https.
 type SnapshotNetworkRule struct {
-	Pattern  string `json:"pattern"`
-	Ports    []int  `json:"ports"`
-	Protocol string `json:"protocol,omitempty"`
-	Action   string `json:"action"`
+	Name     string   `json:"name,omitempty"`
+	Domains  []string `json:"domains,omitempty"`
+	CIDRs    []string `json:"cidrs,omitempty"`
+	Ports    []int    `json:"ports,omitempty"`
+	Protocol string   `json:"protocol,omitempty"`
+	Action   string   `json:"action"`
 }
 
 // SnapshotDNSRule represents a single DNS-filtering rule in the snapshot.
@@ -51,6 +60,10 @@ type SnapshotExecRule struct {
 }
 
 // SnapshotDefaults holds the default decision for each resource category.
+//
+// File is the default for operations that change a file. As in
+// Engine.CheckFile, a read that no rule matches is allowed whatever File
+// says.
 type SnapshotDefaults struct {
 	File    string `json:"file"`
 	Network string `json:"network"`

@@ -3,3 +3,5 @@
 package api
 
 func notifySessionRegistered() {}
+
+func notifyPolicyUpdated() {}
