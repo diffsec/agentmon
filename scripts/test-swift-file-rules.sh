@@ -7,6 +7,9 @@
 # used to check every deny rule first, so the catch-all default-deny-files rule
 # denied every write in a session, /dev/null included.
 #
+# It also checks FileOperation in ESFClient.swift, which names the operation
+# for each ES file event with the names that the Go engine uses.
+#
 # Like test-swift-cidr.sh, this extracts the real functions from the source
 # rather than keeping a second copy, and fails loudly if the extraction finds
 # nothing.
@@ -14,13 +17,15 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 SRC=macos/AgentMon/SessionPolicyCache.swift
+ESF=macos/AgentMon/ESFClient.swift
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
-python3 - "$SRC" "$WORK/rules.swift" <<'PY'
+python3 - "$SRC" "$WORK/rules.swift" "$ESF" <<'PY'
 import sys
 
 src = open(sys.argv[1]).read()
+esf = open(sys.argv[3]).read()
 
 def extract(decl, end):
     if decl not in src:
@@ -46,10 +51,16 @@ glob = ("final class SessionPolicyCache {\n" + src[gi:gj] + "}\n"
         + "let globMatch = SessionPolicyCache().globMatch\n")
 glob = glob.replace("    private func globMatch", "    func globMatch", 1)
 
+enum_decl = "enum FileOperation {"
+if enum_decl not in esf:
+    sys.exit("FileOperation not found in %s -- update this script" % sys.argv[3])
+ei = esf.index(enum_decl)
+fileop = esf[ei:esf.index("\n}\n", ei) + 3]
+
 if ".first {" not in first or "fnmatch" not in glob:
     sys.exit("extracted bodies do not look like the rule matcher -- update this script")
 
-open(sys.argv[2], "w").write("import Foundation\n\n" + rule + "\n" + first + "\n" + glob + r'''
+open(sys.argv[2], "w").write("import Foundation\n\n" + rule + "\n" + first + "\n" + glob + "\n" + fileop + r'''
 
 // Rules in the order default.yaml lists them, cut down to what the cases use.
 let rules: [FileRule] = [
@@ -79,6 +90,52 @@ check("/etc/passwd", "write", "deny", "the catch-all deny still applies when not
 check("/Users/x/.ssh/id_ed25519", "read", "deny", "a deny before an allow still wins")
 check("/tmp/x", "chmod", "audit", "the * operation matches any operation")
 check("/etc/hosts", "read", nil, "no rule matches, so the caller applies the default")
+
+// A rule with no operations matches every operation, as matchOp does in Go.
+let anyOp = [FileRule(pattern: "/secret/**", operations: [], action: "deny")]
+for op in ["read", "write", "chmod", "rmdir"] {
+    let got = firstMatchingFileRule(anyOp, path: "/secret/a", operation: op, match: globMatch)?.action
+    if got == "deny" {
+        print("ok    a rule with no operations matches \(op)")
+    } else {
+        print("FAIL  a rule with no operations does not match \(op)")
+        failures += 1
+    }
+}
+
+func expect(_ got: [String], _ want: [String], _ why: String) {
+    if got == want {
+        print("ok    \(why)")
+    } else {
+        print("FAIL  \(why): got \(got), want \(want)")
+        failures += 1
+    }
+}
+
+expect([FileOperation.forCreate(mode: S_IFDIR | 0o755)], ["mkdir"], "a new directory is mkdir")
+expect([FileOperation.forCreate(mode: S_IFLNK | 0o755)], ["symlink"], "a new symbolic link is symlink")
+expect([FileOperation.forCreate(mode: S_IFREG | 0o644)], ["create"], "a new file is create")
+expect([FileOperation.forCreate(mode: 0o644)], ["create"], "a mode with no type bits is create")
+expect([FileOperation.forUnlink(mode: S_IFDIR | 0o755)], ["rmdir"], "removing a directory is rmdir")
+expect([FileOperation.forUnlink(mode: S_IFREG | 0o644)], ["delete"], "removing a file is delete")
+
+func attrs(common: Int32 = 0, file: Int32 = 0) -> attrlist {
+    var a = attrlist()
+    a.commonattr = attrgroup_t(common)
+    a.fileattr = attrgroup_t(file)
+    return a
+}
+expect(FileOperation.forSetattrlist(attrs(common: ATTR_CMN_OWNERID)), ["chown"], "setattrlist of the owner is chown")
+expect(FileOperation.forSetattrlist(attrs(common: ATTR_CMN_ACCESSMASK)), ["chmod"], "setattrlist of the mode is chmod")
+expect(FileOperation.forSetattrlist(attrs(common: ATTR_CMN_FLAGS)), ["chmod"], "setattrlist of the flags is chmod")
+expect(FileOperation.forSetattrlist(attrs(common: ATTR_CMN_MODTIME)), ["write"], "setattrlist of the times is write")
+expect(FileOperation.forSetattrlist(attrs(common: ATTR_CMN_GRPID | ATTR_CMN_ACCESSMASK | ATTR_CMN_MODTIME)),
+       ["chown", "chmod", "write"], "setattrlist of several attributes checks each operation")
+expect(FileOperation.forSetattrlist(attrs(file: ATTR_FILE_DATALENGTH)), ["write"], "setattrlist of a file attribute is write")
+expect(FileOperation.forSetattrlist(attrs()), ["write"], "an empty setattrlist is write")
+expect([FileOperation.eventType(for: "mkdir"), FileOperation.eventType(for: "rmdir"),
+        FileOperation.eventType(for: "chmod"), FileOperation.eventType(for: "truncate")],
+       ["dir_create", "dir_delete", "file_chmod", "file_write"], "each operation has a daemon event type")
 
 // The compiled pattern is reused, not rebuilt on every match.
 let a = SessionPolicyCache.globRegex(for: "/work/**")
