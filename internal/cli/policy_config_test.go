@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 func TestRoot_WiresPolicyAndConfig(t *testing.T) {
@@ -60,5 +62,33 @@ database_rules:
 	}
 	if !strings.Contains(errOut.String(), "warning[canonical_selector_without_resolution_guard]") {
 		t.Fatalf("stderr = %q, want canonical selector warning", errOut.String())
+	}
+}
+
+func TestMacOSPolicyWarnings(t *testing.T) {
+	p := &policy.Policy{
+		FileRules: []policy.FileRule{
+			{Name: "redir", Decision: "redirect"},
+			{Name: "soft", Decision: "soft_delete"},
+			{Name: "ask", Decision: "approve"},
+			{Name: "ok", Decision: "allow"},
+		},
+		NetworkRules: []policy.NetworkRule{
+			{Name: "net-redir", Decision: "redirect"},
+			{Name: "net-ask", Decision: "approve"},
+		},
+		DnsRedirectRules: []policy.DnsRedirectRule{{Name: "dns"}},
+	}
+	got := strings.Join(macOSPolicyWarnings(p), "\n")
+	for _, want := range []string{"rule=redir:", "rule=soft:", "rule=net-redir:", "rule=dns:"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("warnings miss %q:\n%s", want, got)
+		}
+	}
+	// approve works on macOS, through the approval dialog.
+	for _, notWant := range []string{"rule=ask:", "rule=ok:", "rule=net-ask:"} {
+		if strings.Contains(got, notWant) {
+			t.Errorf("warnings include %q:\n%s", notWant, got)
+		}
 	}
 }

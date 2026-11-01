@@ -65,6 +65,13 @@ type Manager struct {
 	rateMu        sync.Mutex
 	sessionCounts map[string]int // session -> active approval count
 	maxPerSession int            // max concurrent approvals per session (0 = unlimited)
+
+	// Grants: see grants.go. grantMu guards the maps.
+	grantTTL      time.Duration
+	grantMu       sync.Mutex
+	decided       map[grantKey]*decision
+	inflight      map[grantKey]*flight
+	onGrantChange func(sessionID string)
 }
 
 type pending struct {
@@ -210,7 +217,21 @@ func (m *Manager) Resolve(id string, approved bool, reason string) bool {
 	return true
 }
 
+// RequestApproval asks a person to approve req and waits for the answer.
+//
+// If grants are on (SetGrantTTL), an identical request that is still waiting
+// shares its answer, and a person's answer is reused for the grant period.
 func (m *Manager) RequestApproval(ctx context.Context, req Request) (Resolution, error) {
+	m.grantMu.Lock()
+	grants := m.grantTTL > 0
+	m.grantMu.Unlock()
+	if grants {
+		return m.requestOnce(ctx, req)
+	}
+	return m.requestApproval(ctx, req)
+}
+
+func (m *Manager) requestApproval(ctx context.Context, req Request) (Resolution, error) {
 	// Rate limiting: check concurrent approval count per session
 	if m.maxPerSession > 0 {
 		m.rateMu.Lock()

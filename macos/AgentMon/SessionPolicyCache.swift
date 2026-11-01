@@ -359,7 +359,8 @@ class SessionPolicyCache {
            !(operation == "read" && cacheForSession(sid)?.rootPID == pid) {
             return (.deny, sid)
         }
-        return queue.sync {
+        var askApproval = false
+        let result: (CacheDecision, String?) = queue.sync {
             guard let cache = sessions[sid] else {
                 return (.allow, nil)  // session ended between resolve and read
             }
@@ -373,8 +374,12 @@ class SessionPolicyCache {
             if let rule = Self.firstMatchingFileRule(
                 cache.fileRules, path: path, operation: operation, match: globMatch) {
                 // approve, redirect and soft_delete need the daemon, so they
-                // are denied here.
+                // are denied here. For approve, the daemon then opens the
+                // approval dialog. If the person approves, the next snapshot
+                // has a grant for this path and operation, and a retry
+                // succeeds.
                 let allowed = rule.action == "allow" || rule.action == "audit"
+                askApproval = rule.action == "approve"
                 return (allowed ? .allow : .deny, sid)
             }
 
@@ -386,6 +391,49 @@ class SessionPolicyCache {
             }
             return (.deny, sid)
         }
+        if askApproval {
+            requestApproval([
+                "kind": "file",
+                "session_id": sid,
+                "path": path,
+                "operation": operation,
+                "pid": Int(pid),
+            ])
+        }
+        return result
+    }
+
+    // MARK: - Approvals
+
+    /// When each approval request was last sent, by its content.
+    private var recentApprovalRequests: [String: Date] = [:]
+    private let approvalLock = NSLock()
+
+    /// A retry loop sends the same request many times a second. The daemon
+    /// shares one dialog between identical requests anyway, so the extension
+    /// sends each one at most once in this interval.
+    private static let approvalRequestInterval: TimeInterval = 2
+
+    /// Ask the daemon to open the approval dialog for an access that the
+    /// extension denied. The daemon checks the policy again, and answers at
+    /// once without waiting for the person.
+    func requestApproval(_ fields: [String: Any]) {
+        let key = fields.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: "\u{0}")
+        let now = Date()
+        approvalLock.lock()
+        if let last = recentApprovalRequests[key], now.timeIntervalSince(last) < Self.approvalRequestInterval {
+            approvalLock.unlock()
+            return
+        }
+        recentApprovalRequests = recentApprovalRequests.filter {
+            now.timeIntervalSince($0.value) < Self.approvalRequestInterval
+        }
+        recentApprovalRequests[key] = now
+        approvalLock.unlock()
+
+        var request = fields
+        request["type"] = "request_approval"
+        PolicySocketClient.shared.send(request)
     }
 
     // MARK: - Network Policy Evaluation

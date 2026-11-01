@@ -44,6 +44,12 @@ const (
 	// carries the flow's bytes in both directions.
 	RequestTypeFlowOpen RequestType = "flow_open"
 
+	// Approval request from the system extension. The extension denied a
+	// file operation or a flow that an approve rule matched, and asks the
+	// daemon to show the approval dialog. The daemon answers at once and
+	// does not wait for the person.
+	RequestTypeRequestApproval RequestType = "request_approval"
+
 	// Approval requests from the approval dialog. Only a peer in the
 	// roleApprovalDialog role may send these.
 	RequestTypeListApprovals   RequestType = "list_approvals"
@@ -65,6 +71,9 @@ type PolicyRequest struct {
 	// Host is a flow_open endpoint: an address, or a name when the app
 	// connected by name. Domain carries the name that the app asked for.
 	Host string `json:"host,omitempty"`
+
+	// For request_approval: "file" or "network".
+	Kind string `json:"kind,omitempty"`
 
 	// Command-specific fields
 	Args []string `json:"args,omitempty"`

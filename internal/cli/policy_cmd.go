@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -101,6 +102,11 @@ func newPolicyCmd() *cobra.Command {
 				return err
 			} else {
 				printDBPolicyWarnings(cmd, warns)
+			}
+			if runtime.GOOS == "darwin" {
+				for _, w := range macOSPolicyWarnings(po) {
+					cmd.PrintErrf("warning[macos_unsupported] %s\n", w)
+				}
 			}
 			fmt.Fprintln(cmd.OutOrStdout(), "ok")
 			return nil
@@ -467,6 +473,31 @@ func printDBExplainText(cmd *cobra.Command, report policyexplain.Report) error {
 		}
 	}
 	return nil
+}
+
+// macOSPolicyWarnings lists the rules that the macOS system extension does
+// not apply as written. The extension can only allow or deny a file
+// operation, so a file redirect or soft delete acts as deny. A network rule
+// with a redirect decision acts as deny too: on macOS a TCP redirect works
+// only through connect_redirects. Nothing answers DNS for a macOS session,
+// so dns_redirects do nothing.
+func macOSPolicyWarnings(p *policy.Policy) []string {
+	var out []string
+	for _, r := range p.FileRules {
+		switch strings.ToLower(r.Decision) {
+		case "redirect", "soft_delete":
+			out = append(out, fmt.Sprintf("rule=%s: file decision %q acts as deny on macOS", r.Name, r.Decision))
+		}
+	}
+	for _, r := range p.NetworkRules {
+		if strings.EqualFold(r.Decision, "redirect") {
+			out = append(out, fmt.Sprintf("rule=%s: network decision \"redirect\" acts as deny on macOS; use connect_redirects", r.Name))
+		}
+	}
+	for _, r := range p.DnsRedirectRules {
+		out = append(out, fmt.Sprintf("rule=%s: dns_redirects are not applied on macOS", r.Name))
+	}
+	return out
 }
 
 func printDBPolicyWarnings(cmd *cobra.Command, warns []dbpolicy.Warning) {

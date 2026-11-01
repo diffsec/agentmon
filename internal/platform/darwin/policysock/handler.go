@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/diffsec/agentmon/internal/approvals"
 	"github.com/diffsec/agentmon/internal/policy"
 	"github.com/diffsec/agentmon/pkg/types"
 )
@@ -25,6 +26,7 @@ type PolicyAdapter struct {
 	engine        *policy.Engine
 	sessions      SessionResolver
 	sessionEngine func(sessionID string) *policy.Engine
+	approvals     *approvals.Manager
 }
 
 // SetSessionEngineLookup gives the adapter each session's own policy engine.
@@ -154,7 +156,9 @@ func (a *PolicyAdapter) CheckExec(executable string, args []string, pid int32, p
 		action = "continue"
 	case types.DecisionDeny:
 		action = "deny"
-	case types.DecisionApprove, types.DecisionRedirect:
+	case types.DecisionApprove:
+		action = a.execApproval(sessionID, executable, dec)
+	case types.DecisionRedirect:
 		action = "redirect"
 	case types.DecisionSoftDelete:
 		// soft-delete is a file operation concept; for exec, treat as continue
@@ -283,7 +287,9 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 		return denyAllSnapshot(sessionID)
 	}
 
-	var fileRules []SnapshotFileRule
+	// Grants from approvals come first, because the first rule that
+	// matches decides.
+	fileRules, networkRules := a.grantRules(sessionID)
 	for _, r := range p.FileRules {
 		for _, path := range r.Paths {
 			fileRules = append(fileRules, SnapshotFileRule{
@@ -294,7 +300,6 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 		}
 	}
 
-	networkRules := make([]SnapshotNetworkRule, 0, len(p.NetworkRules))
 	for _, r := range p.NetworkRules {
 		networkRules = append(networkRules, SnapshotNetworkRule{
 			Name:    r.Name,

@@ -6,6 +6,7 @@ import (
 	"context"
 	"log/slog"
 	"net"
+	"time"
 
 	"github.com/diffsec/agentmon/internal/approvals"
 	"github.com/diffsec/agentmon/internal/config"
@@ -18,6 +19,9 @@ import (
 	"github.com/diffsec/agentmon/internal/store/composite"
 	"github.com/diffsec/agentmon/pkg/types"
 )
+
+// approvalGrantTTL is how long a person's answer to an approval applies.
+const approvalGrantTTL = 60 * time.Second
 
 // startPolicySocket creates and starts the policy socket server for macOS
 // system extension IPC. It sets the policySockCancel and policySockDone
@@ -71,7 +75,16 @@ func (s *Server) startPolicySocket(cfg *config.Config, engine *policy.Engine, ap
 	psrv.SetEventHandler(eventHandler)
 	if approvalsMgr != nil {
 		psrv.SetApprovalBroker(approvalBroker{mgr: approvalsMgr})
+		// The extension cannot hold an ES event while a person answers, so
+		// it denies an approve and asks for the dialog. A person's answer
+		// then holds for approvalGrantTTL: the agent's retry succeeds, and
+		// identical requests share one dialog. Each grant that starts or
+		// ends sends the extension new snapshots.
+		approvalsMgr.SetGrantTTL(approvalGrantTTL)
+		approvalsMgr.OnGrantChange(func(string) { darwin.NotifyPolicyUpdated() })
+		adapter.SetApprovals(approvalsMgr)
 	}
+	psrv.SetApprovalAsker(adapter)
 	psrv.SetFlowHandler(flowHandler{
 		sessions:  s.sessions,
 		engine:    engine,
