@@ -110,6 +110,7 @@ type Server struct {
 	snapshotBuilder  SnapshotBuilder
 	approvalBroker   ApprovalBroker
 	flowHandler      FlowHandler
+	approvalAsker    ApprovalAsker
 	teamID           string
 	listener         net.Listener
 	mu               sync.Mutex
@@ -189,6 +190,14 @@ func (s *Server) SetFlowHandler(h FlowHandler) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.flowHandler = h
+}
+
+// SetApprovalAsker sets the handler for request_approval. If it is not set,
+// an approve rule acts as deny, with no dialog.
+func (s *Server) SetApprovalAsker(a ApprovalAsker) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.approvalAsker = a
 }
 
 // SetTeamID sets the team ID for peer code signing validation.
@@ -460,6 +469,15 @@ func (s *Server) handleRequest(req *PolicyRequest) PolicyResponse {
 
 	case RequestTypeExecRedirectNotify:
 		return s.handleExecRedirectNotify(req)
+
+	case RequestTypeRequestApproval:
+		s.mu.Lock()
+		asker := s.approvalAsker
+		s.mu.Unlock()
+		if asker == nil {
+			return PolicyResponse{Allow: false, Message: "approvals are not enabled"}
+		}
+		return asker.AskApproval(req)
 
 	default:
 		return PolicyResponse{Allow: false, Message: "unknown request type"}

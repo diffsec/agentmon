@@ -327,9 +327,10 @@ func TestPolicyAdapter_CheckExec(t *testing.T) {
 		}
 	})
 
-	t.Run("approve_enforced_returns_redirect", func(t *testing.T) {
+	t.Run("approve_enforced_without_approvals_denies", func(t *testing.T) {
 		// In enforced mode (enforceApprovals=true), both PolicyDecision and
-		// EffectiveDecision are "approve", so the action should be "redirect".
+		// EffectiveDecision are "approve". With no approval manager, nobody
+		// can approve, so the exec is denied, as the Go engine does.
 		p := &policy.Policy{
 			Version: 1,
 			Name:    "test",
@@ -349,8 +350,8 @@ func TestPolicyAdapter_CheckExec(t *testing.T) {
 		if result.Decision != "approve" {
 			t.Errorf("decision: got %q, want %q", result.Decision, "approve")
 		}
-		if result.Action != "redirect" {
-			t.Errorf("action: got %q, want %q", result.Action, "redirect")
+		if result.Action != "deny" {
+			t.Errorf("action: got %q, want %q", result.Action, "deny")
 		}
 		if result.Rule != "approve-sudo" {
 			t.Errorf("rule: got %q, want %q", result.Rule, "approve-sudo")

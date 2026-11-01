@@ -129,11 +129,22 @@ class FilterDataProvider: NEFilterDataProvider {
             let blockingEnabled = SessionPolicyCache.shared.cacheForSession(sessionID)?.networkBlocking ?? false
             // An approve rule. The filter cannot hold a flow while a person
             // decides, so it denies the flow when the policy enforces and
-            // allows it in audit mode. Through the transparent proxy, the
-            // daemon asks for approval instead. This used to send a
-            // pnacl_check to the daemon, which nothing answered: the daemon
-            // has no PNACL handler, so every check came back allow.
+            // allows it in audit mode. When it denies, it asks the daemon to
+            // open the approval dialog. If the person approves, the next
+            // snapshot has a grant for this host and port, and a retry
+            // succeeds. Through the transparent proxy, the daemon holds a
+            // TCP flow until the person answers instead.
             NSLog("FilterDataProvider: approve rule for \(hostname ?? ip):\(port) from pid \(pid) -- \(blockingEnabled ? "denied" : "allowed in audit mode")")
+            if blockingEnabled {
+                SessionPolicyCache.shared.requestApproval([
+                    "kind": "network",
+                    "session_id": sessionID,
+                    "ip": ip,
+                    "port": port,
+                    "domain": hostname ?? "",
+                    "pid": Int(pid),
+                ])
+            }
             return blockingEnabled ? .drop() : .allow()
         }
     }

@@ -103,6 +103,20 @@ for op in ["read", "write", "chmod", "rmdir"] {
     }
 }
 
+// A grant from an approval is the exact path, with glob characters escaped
+// by escapeGlob in internal/platform/darwin/policysock/ask.go. It must match
+// only that path.
+let grant = [FileRule(pattern: #"/w/a\*b\?\[c].txt"#, operations: ["write"], action: "allow")]
+for (path, want) in [("/w/a*b?[c].txt", "allow"), ("/w/aXbY[c].txt", nil), ("/w/axb?c.txt", nil)] as [(String, String?)] {
+    let got = firstMatchingFileRule(grant, path: path, operation: "write", match: globMatch)?.action
+    if got == want {
+        print("ok    an escaped grant \(want == nil ? "does not match" : "matches") \(path)")
+    } else {
+        print("FAIL  an escaped grant on \(path): got \(got ?? "nil"), want \(want ?? "nil")")
+        failures += 1
+    }
+}
+
 func expect(_ got: [String], _ want: [String], _ why: String) {
     if got == want {
         print("ok    \(why)")
