@@ -35,13 +35,11 @@ if [ -z "$API_KEY" ] && [ -r "$KEY_FILE" ]; then API_KEY=$(cat "$KEY_FILE"); fi
 
 WS=$(mktemp -d "${TMPDIR:-/tmp}/amproc.XXXXXX")
 WS=$(cd "$WS" && pwd -P)
-SID=""
 TARGET_PID=""
 status=0
 
 cleanup() {
     [ -n "$TARGET_PID" ] && kill "$TARGET_PID" 2>/dev/null || true
-    [ -n "$SID" ] && "$A" session destroy "$SID" >/dev/null 2>&1 || true
     rm -rf "$WS"
 }
 trap 'cleanup' EXIT
@@ -104,9 +102,6 @@ PY
 "$PY" -c "import time; time.sleep(300)" &
 TARGET_PID=$!
 
-SID=$("$A" session create --workspace "$WS" --policy agent-default | awk '/^Session/{print $2}')
-[ -n "$SID" ] || { echo "could not create a session" >&2; exit 2; }
-
 outside=$(sudo "$PY" "$WS/access.py" "$TARGET_PID" 2>/dev/null || true)
 if [ "$outside" = "outside allowed allowed allowed" ]; then
     ok "root outside the session: task_for_pid, task_read_for_pid and pid_suspend succeed"
@@ -114,15 +109,22 @@ else
     fail "root outside the session: got '$outside', want 'outside allowed allowed allowed'"
 fi
 
-# wrap joins the root process to the session. It reads the API key from the
-# environment, because root has a different home directory.
+# Homebrew's python3 is a launcher that execs Python.app. Under wrap, that
+# second exec dies with no event, so wrap runs the Python.app binary itself.
+PYAPP=$("$PY" -c 'import os, sys; print(os.path.join(sys.base_prefix, "Resources/Python.app/Contents/MacOS/Python"))')
+[ -x "$PYAPP" ] || { echo "$PYAPP is missing" >&2; exit 2; }
+
+# wrap creates a new agent-default session, with the wrap process as its
+# root. A second wrap into the same session is not used, because the daemon
+# keeps the first root PID. wrap reads the API key from the environment,
+# because root has a different home directory.
 #
 # run_wrapped prints the probe's last line of output. On a failure the caller
 # prints the exit code and stderr, which run_wrapped keeps in $WS/err.
 run_wrapped() {
     local rc=0
-    (cd "$WS" && sudo AGENTMON_API_KEY="$API_KEY" "$A" wrap --session "$SID" --report=false -- \
-        "$PY" "$WS/access.py" "$@" 2>"$WS/err") > "$WS/out" || rc=$?
+    (cd "$WS" && sudo AGENTMON_API_KEY="$API_KEY" "$A" wrap --policy agent-default --report=false -- \
+        "$PYAPP" "$WS/access.py" "$@" 2>"$WS/err") > "$WS/out" || rc=$?
     echo "exit $rc" >> "$WS/err"
     tail -n 1 "$WS/out"
 }
@@ -152,7 +154,8 @@ else
     details
 fi
 
-n=$("$A" events query --session "$SID" --type process_access_blocked 2>/dev/null \
+# The events search runs on compact JSON, with no space after a colon.
+n=$("$A" events query --since 10m --type process_access_blocked --text-like "%\"target_pid\":$TARGET_PID%" 2>/dev/null \
     | grep -c '"type": "process_access_blocked"' || true)
 if [ "$n" -ge 3 ]; then ok "$n process_access_blocked events"; else fail "$n process_access_blocked events, want 3 or more"; fi
 
