@@ -131,6 +131,14 @@ nothing else. So a signal `absorb` or `approve` acts as deny, and a signal
 `listen` or `sendto`, so a rule for those operations is not checked.
 `agentmon policy validate` warns about each of these cases.
 
+**Process access on macOS: same session only.** A session process cannot get
+the task control port or the task read port of a process outside its session.
+It also cannot suspend or resume that process. The extension denies ESF
+`AUTH_GET_TASK`, `AUTH_GET_TASK_READ` and `AUTH_PROC_SUSPEND_RESUME` for these
+targets, and records a `process_access_blocked` event. No policy rule changes
+this. macOS already refuses these calls from a normal user, so the deny
+matters for a session process that runs as root.
+
 **No runtime environment-variable interception on macOS.** `shim/darwin/envshim.c`
 exists but is never built. Spawn-time filtering works.
 

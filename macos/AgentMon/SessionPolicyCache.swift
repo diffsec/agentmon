@@ -500,6 +500,17 @@ class SessionPolicyCache {
         }
     }
 
+    // MARK: - Process Access
+
+    /// Whether a session process can get the task port of a process, or
+    /// suspend or resume it. It can when the target is itself, or when the
+    /// target is in the same session. A target in another session, or in
+    /// none, is refused.
+    static func processAccessAllowed(sourcePID: pid_t, targetPID: pid_t,
+                                     sourceSession: String, targetSession: String?) -> Bool {
+        sourcePID == targetPID || targetSession == sourceSession
+    }
+
     // MARK: - Signal Policy Evaluation
 
     /// Decide a signal from a process of session `sid`. It returns allow
