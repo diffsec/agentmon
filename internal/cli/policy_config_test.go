@@ -78,15 +78,27 @@ func TestMacOSPolicyWarnings(t *testing.T) {
 			{Name: "net-ask", Decision: "approve"},
 		},
 		DnsRedirectRules: []policy.DnsRedirectRule{{Name: "dns"}},
+		UnixRules: []policy.UnixSocketRule{
+			{Name: "unix-ask", Decision: "approve", Operations: []string{"connect"}},
+			{Name: "unix-sendto", Decision: "deny", Operations: []string{"connect", "sendto"}},
+			{Name: "unix-ok", Decision: "deny", Operations: []string{"connect", "bind"}},
+		},
+		SignalRules: []policy.SignalRule{
+			{Name: "sig-absorb", Decision: "absorb"},
+			{Name: "sig-redirect", Decision: "redirect", Fallback: "deny"},
+			{Name: "sig-deny", Decision: "deny"},
+		},
 	}
 	got := strings.Join(macOSPolicyWarnings(p), "\n")
-	for _, want := range []string{"rule=redir:", "rule=soft:", "rule=net-redir:", "rule=dns:"} {
+	for _, want := range []string{"rule=redir:", "rule=soft:", "rule=net-redir:", "rule=dns:",
+		"rule=unix-ask:", "rule=unix-sendto: unix socket operation \"sendto\"", "rule=sig-absorb:",
+		"rule=sig-redirect: signal decision \"redirect\" is not possible on macOS; the fallback \"deny\""} {
 		if !strings.Contains(got, want) {
 			t.Errorf("warnings miss %q:\n%s", want, got)
 		}
 	}
 	// approve works on macOS, through the approval dialog.
-	for _, notWant := range []string{"rule=ask:", "rule=ok:", "rule=net-ask:"} {
+	for _, notWant := range []string{"rule=ask:", "rule=ok:", "rule=net-ask:", "rule=unix-ok:", "rule=sig-deny:"} {
 		if strings.Contains(got, notWant) {
 			t.Errorf("warnings include %q:\n%s", notWant, got)
 		}

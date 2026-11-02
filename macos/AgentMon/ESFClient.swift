@@ -709,9 +709,12 @@ private func handleAuthRename(client: OpaquePointer, event: UnsafePointer<es_mes
     }
 }
 
-/// Refuse a session process that binds a unix socket in the daemon's
-/// directory. A process that binds the policy socket path answers every
-/// policy question the extension asks.
+/// Check a unix socket bind by a session process.
+///
+/// A bind in the daemon's directory is refused whatever the policy says. A
+/// process that binds the policy socket path answers every policy question
+/// the extension asks. Any other bind is checked against the session's
+/// unix_socket_rules.
 private func handleAuthUIPCBind(client: OpaquePointer, event: UnsafePointer<es_message_t>, pid: pid_t) {
     guard SessionPolicyCache.shared.hasActiveSessions,
           let sessionID = SessionPolicyCache.shared.sessionForPID(pid) else {
@@ -721,35 +724,59 @@ private func handleAuthUIPCBind(client: OpaquePointer, event: UnsafePointer<es_m
 
     let bind = event.pointee.event.uipc_bind
     let dir = String(cString: bind.dir.pointee.path.data)
-    let path = dir + "/" + String(cString: bind.filename.data)
-    let denied = SessionPolicyCache.touchesControlDirectory(
-        path: path, operation: "create", controlDir: PolicySocketClient.shared.controlDirectory)
-
-    es_respond_auth_result(client, event, denied ? ES_AUTH_RESULT_DENY : ES_AUTH_RESULT_ALLOW, false)
-    if denied {
+    let path = dir + "/" + string(bind.filename)
+    if SessionPolicyCache.touchesControlDirectory(
+        path: path, operation: "create", controlDir: PolicySocketClient.shared.controlDirectory) {
+        es_respond_auth_result(client, event, ES_AUTH_RESULT_DENY, false)
         sendFileEvent(eventType: "file_create", path: path, operation: "create", pid: pid,
                       sessionID: sessionID, decision: "deny", rule: "protect-agentmon-control-directory")
+        return
+    }
+    let (decision, rule) = SessionPolicyCache.shared.evaluateUnixSocket(
+        sessionID: sessionID, path: path, operation: "bind")
+    es_respond_auth_result(client, event, decision == .deny ? ES_AUTH_RESULT_DENY : ES_AUTH_RESULT_ALLOW, false)
+    if decision == .deny {
+        sendUnixSocketEvent(path: path, operation: "bind", pid: pid, sessionID: sessionID, rule: rule)
     }
 }
 
-/// Refuse a session process, other than the session's root, a connection to
-/// a unix socket in the daemon's directory. Those sockets are the daemon's
-/// unix-socket API and the policy socket. Through the API, an agent could
-/// create a session with a policy of its choosing.
+/// Report a unix socket operation that the policy denied, with the event
+/// type that the Linux unix socket monitor uses.
+private func sendUnixSocketEvent(path: String, operation: String, pid: pid_t, sessionID: String, rule: String?) {
+    sendFileEvent(eventType: "unix_socket_op", path: path, operation: operation, pid: pid,
+                  sessionID: sessionID, decision: "deny", rule: rule)
+}
+
+/// Check a unix socket connect by a session process.
+///
+/// A connect to a socket in the daemon's directory is decided first, whatever
+/// the policy says. Those sockets are the daemon's unix-socket API and the
+/// policy socket. Through the API, an agent could create a session with a
+/// policy of its choosing. So only the session's root can connect, because
+/// for `agentmon wrap` the root is the CLI that talks to the daemon. Any
+/// other connect is checked against the session's unix_socket_rules.
 private func handleAuthUIPCConnect(client: OpaquePointer, event: UnsafePointer<es_message_t>, pid: pid_t) {
     guard SessionPolicyCache.shared.hasActiveSessions,
-          let sessionID = SessionPolicyCache.shared.sessionForPID(pid),
-          SessionPolicyCache.shared.cacheForSession(sessionID)?.rootPID != pid else {
+          let sessionID = SessionPolicyCache.shared.sessionForPID(pid) else {
         es_respond_auth_result(client, event, ES_AUTH_RESULT_ALLOW, false)
         return
     }
     let path = String(cString: event.pointee.event.uipc_connect.file.pointee.path.data)
     let dir = PolicySocketClient.shared.controlDirectory
-    let denied = !dir.isEmpty && path.hasPrefix(dir + "/")
-    es_respond_auth_result(client, event, denied ? ES_AUTH_RESULT_DENY : ES_AUTH_RESULT_ALLOW, false)
-    if denied {
-        os_log(.error, log: esLog,
-               "denied connect to %{public}s from session pid %{public}d", path, pid)
+    if !dir.isEmpty && path.hasPrefix(dir + "/") {
+        let isRoot = SessionPolicyCache.shared.cacheForSession(sessionID)?.rootPID == pid
+        es_respond_auth_result(client, event, isRoot ? ES_AUTH_RESULT_ALLOW : ES_AUTH_RESULT_DENY, false)
+        if !isRoot {
+            os_log(.error, log: esLog,
+                   "denied connect to %{public}s from session pid %{public}d", path, pid)
+        }
+        return
+    }
+    let (decision, rule) = SessionPolicyCache.shared.evaluateUnixSocket(
+        sessionID: sessionID, path: path, operation: "connect")
+    es_respond_auth_result(client, event, decision == .deny ? ES_AUTH_RESULT_DENY : ES_AUTH_RESULT_ALLOW, false)
+    if decision == .deny {
+        sendUnixSocketEvent(path: path, operation: "connect", pid: pid, sessionID: sessionID, rule: rule)
     }
 }
 
@@ -805,20 +832,53 @@ private func handleAuthFileChange(client: OpaquePointer, event: UnsafePointer<es
     )
 }
 
-/// Refuse a session process that signals the daemon. An agent that kills the
-/// daemon could bind the policy socket before launchd restarts it.
+/// Check a signal from a session process.
+///
+/// A signal to the daemon is refused whatever the policy says. An agent that
+/// kills the daemon could bind the policy socket before launchd restarts it.
+/// Any other signal is checked against the session's signal_rules.
 private func handleAuthSignal(client: OpaquePointer, event: UnsafePointer<es_message_t>, pid: pid_t) {
-    let target = event.pointee.event.signal.target.pointee.audit_token
     guard SessionPolicyCache.shared.hasActiveSessions,
-          PolicySocketClient.shared.isValidatedServer(target),
-          SessionPolicyCache.shared.sessionForPID(pid) != nil else {
+          let sessionID = SessionPolicyCache.shared.sessionForPID(pid) else {
         es_respond_auth_result(client, event, ES_AUTH_RESULT_ALLOW, false)
         return
     }
-    os_log(.error, log: esLog,
-           "denied signal %{public}d from session pid %{public}d to the agentmon daemon",
-           event.pointee.event.signal.sig, pid)
-    es_respond_auth_result(client, event, ES_AUTH_RESULT_DENY, false)
+    let sig = event.pointee.event.signal.sig
+    let target = event.pointee.event.signal.target.pointee
+    if PolicySocketClient.shared.isValidatedServer(target.audit_token) {
+        os_log(.error, log: esLog,
+               "denied signal %{public}d from session pid %{public}d to the agentmon daemon", sig, pid)
+        es_respond_auth_result(client, event, ES_AUTH_RESULT_DENY, false)
+        return
+    }
+
+    let source = event.pointee.process.pointee
+    let targetPID = audit_token_to_pid(target.audit_token)
+    let targetPath = String(cString: target.executable.pointee.path.data)
+    let result = SessionPolicyCache.shared.evaluateSignal(
+        sessionID: sessionID, signal: sig, sourcePID: pid, sourcePPID: source.ppid,
+        targetPID: targetPID, targetPPID: target.ppid,
+        targetCmd: (targetPath as NSString).lastPathComponent,
+        sameUser: audit_token_to_euid(source.audit_token) == audit_token_to_euid(target.audit_token))
+    es_respond_auth_result(client, event, result.allowed ? ES_AUTH_RESULT_ALLOW : ES_AUTH_RESULT_DENY, false)
+
+    // Report what the policy refused or asked to audit, with the event types
+    // and fields that the Linux signal handler uses.
+    guard !result.allowed || result.action == "audit" else { return }
+    sendFileEvent(
+        eventType: result.allowed ? "signal_sent" : "signal_blocked",
+        path: targetPath,
+        operation: "signal",
+        pid: pid,
+        sessionID: sessionID,
+        decision: result.allowed ? "audit" : "deny",
+        rule: result.rule,
+        extraFields: ["fields": [
+            "source_pid": Int(pid),
+            "target_pid": Int(targetPID),
+            "signal": Int(sig),
+        ] as [String: Any]]
+    )
 }
 
 /// How long to wait for the daemon's exec verdict before failing closed.

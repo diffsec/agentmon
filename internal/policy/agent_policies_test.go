@@ -214,9 +214,10 @@ func TestAgentPolicies_DefaultRuleDetails(t *testing.T) {
 	assert.Equal(t, 500, p.ResourceLimits.PidsMax)
 
 	// --- Signal rules ---
-	require.Len(t, p.SignalRules, 6)
+	require.Len(t, p.SignalRules, 7)
 	assert.Equal(t, "allow-self", p.SignalRules[0].Name)
-	assert.Equal(t, "deny-system", p.SignalRules[5].Name)
+	assert.Equal(t, "allow-descendants", p.SignalRules[2].Name)
+	assert.Equal(t, "deny-system", p.SignalRules[6].Name)
 
 	// --- Audit ---
 	assert.False(t, p.Audit.LogAllowed)

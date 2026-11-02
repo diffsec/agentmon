@@ -360,6 +360,8 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 		NetworkRules:       networkRules,
 		DNSRules:           dnsRules,
 		Defaults:           &defaults,
+		UnixSocketRules:    unixSocketSnapshotRules(p.UnixRules),
+		SignalRules:        signalSnapshotRules(p.SignalRules),
 		NetworkEnforcement: enforcement,
 		NetworkFailOpen:    &failOpen,
 		ActiveSessions:     activeSessions,

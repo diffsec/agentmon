@@ -788,6 +788,16 @@ unix_socket_rules:
     operations: [connect]
     decision: allow
 
+  # macOS resolves host names through mDNSResponder and logs through syslogd,
+  # both over a unix socket. The rule below would deny both.
+  - name: allow-macos-system-services
+    description: Allow the macOS DNS resolver and system log sockets
+    paths:
+      - "/var/run/mDNSResponder"
+      - "/var/run/syslog"
+    operations: [connect]
+    decision: allow
+
   - name: deny-system-sockets
     description: Deny other system sockets
     paths:
@@ -846,7 +856,7 @@ resource_limits:
   idle_timeout: 30m
 
 # =============================================================================
-# SIGNAL RULES (Linux: enforced, macOS/Windows: audit only)
+# SIGNAL RULES (Linux and macOS: enforced, Windows: audit only)
 # =============================================================================
 
 signal_rules:
@@ -860,6 +870,14 @@ signal_rules:
     signals: ["@all"]
     target:
       type: children
+    decision: allow
+
+  # A tool that stops a timed-out command signals its whole process group,
+  # which holds grandchildren as well as the child.
+  - name: allow-descendants
+    signals: ["@all"]
+    target:
+      type: descendants
     decision: allow
 
   - name: allow-session

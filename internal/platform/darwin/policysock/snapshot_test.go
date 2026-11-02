@@ -4,7 +4,12 @@ package policysock
 
 import (
 	"encoding/json"
+	"slices"
+	"sort"
 	"testing"
+
+	"github.com/diffsec/agentmon/internal/policy"
+	"golang.org/x/sys/unix"
 )
 
 func TestPolicySnapshotResponse_JSON(t *testing.T) {
@@ -81,5 +86,73 @@ func TestPolicySnapshotResponse_EmptyForMatchingVersion(t *testing.T) {
 	}
 	if decoded.Version != 0 {
 		t.Fatalf("expected version 0, got %d", decoded.Version)
+	}
+}
+
+func TestBuildPolicySnapshot_UnixSocketRules(t *testing.T) {
+	p := &policy.Policy{Version: 1, UnixRules: []policy.UnixSocketRule{
+		{Name: "dns", Paths: []string{"/var/run/mDNSResponder"}, Operations: []string{"Connect"}, Decision: "allow"},
+		{Name: "sys", Paths: []string{"/var/run/**", "/private/var/run/**"}, Decision: "deny"},
+	}}
+	resp := snapshotFor(t, p)
+	if len(resp.UnixSocketRules) != 3 {
+		t.Fatalf("got %d unix socket rules, want one for each path: %+v", len(resp.UnixSocketRules), resp.UnixSocketRules)
+	}
+	dns := resp.UnixSocketRules[0]
+	if dns.Name != "dns" || dns.Pattern != "/var/run/mDNSResponder" || len(dns.Operations) != 1 || dns.Operations[0] != "connect" || dns.Action != "allow" {
+		t.Errorf("first rule = %+v", dns)
+	}
+	if r := resp.UnixSocketRules[2]; r.Pattern != "/private/var/run/**" || len(r.Operations) != 0 || r.Action != "deny" {
+		t.Errorf("last rule = %+v, want every operation", r)
+	}
+	if got := snapshotFor(t, &policy.Policy{Version: 1}).UnixSocketRules; len(got) != 0 {
+		t.Errorf("a policy with no unix socket rules sent %+v", got)
+	}
+}
+
+func TestBuildPolicySnapshot_SignalRules(t *testing.T) {
+	p := &policy.Policy{Version: 1, SignalRules: []policy.SignalRule{
+		{Name: "fatal", Signals: []string{"@fatal", "SIGTERM"}, Target: policy.SignalTargetSpec{Type: "External"}, Decision: "deny"},
+		{Name: "proc", Signals: []string{"HUP"}, Target: policy.SignalTargetSpec{Type: "process", Pattern: "node*"}, Decision: "absorb"},
+		{Name: "redir", Signals: []string{"SIGINT"}, Target: policy.SignalTargetSpec{Type: "session"}, Decision: "redirect", RedirectTo: "SIGTERM", Fallback: "deny"},
+		{Name: "range", Signals: []string{"15"}, Target: policy.SignalTargetSpec{Type: "pid_range", Min: 10, Max: 20}, Decision: "audit"},
+	}}
+	resp := snapshotFor(t, p)
+	if len(resp.SignalRules) != 4 {
+		t.Fatalf("got %d signal rules: %+v", len(resp.SignalRules), resp.SignalRules)
+	}
+	fatal := resp.SignalRules[0]
+	want := []int{int(unix.SIGQUIT), int(unix.SIGABRT), int(unix.SIGKILL), int(unix.SIGTERM)}
+	sort.Ints(want)
+	if fatal.Target != "external" || fatal.Action != "deny" || !slices.Equal(fatal.Signals, want) {
+		t.Errorf("fatal rule = %+v, want signals %v once each", fatal, want)
+	}
+	if r := resp.SignalRules[1]; r.Action != "deny" || r.Pattern != "node*" || !slices.Equal(r.Signals, []int{int(unix.SIGHUP)}) {
+		t.Errorf("absorb rule = %+v, want deny", r)
+	}
+	if r := resp.SignalRules[2]; r.Action != "deny" {
+		t.Errorf("redirect rule = %+v, want its fallback deny", r)
+	}
+	if r := resp.SignalRules[3]; r.Action != "audit" || r.Min != 10 || r.Max != 20 {
+		t.Errorf("range rule = %+v", r)
+	}
+}
+
+func TestMacOSSignalAction(t *testing.T) {
+	for _, c := range []struct{ decision, fallback, want string }{
+		{"allow", "", "allow"},
+		{"audit", "", "audit"},
+		{"deny", "audit", "deny"},
+		{"absorb", "", "deny"},
+		{"approve", "", "deny"},
+		{"redirect", "", "audit"},
+		{"redirect", "deny", "deny"},
+		{"redirect", "allow", "allow"},
+		{"redirect", "redirect", "audit"},
+		{"unknown", "", "deny"},
+	} {
+		if got := macOSSignalAction(c.decision, c.fallback); got != c.want {
+			t.Errorf("macOSSignalAction(%q, %q) = %q, want %q", c.decision, c.fallback, got, c.want)
+		}
 	}
 }
