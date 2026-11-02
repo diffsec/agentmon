@@ -69,6 +69,13 @@ class ESFClient {
             ES_EVENT_TYPE_AUTH_CLONE,
             ES_EVENT_TYPE_AUTH_COPYFILE,
             ES_EVENT_TYPE_AUTH_SIGNAL,
+            // A task control or read port lets its holder read the target's
+            // memory, and the control port also lets it write the memory and
+            // start threads. pid_suspend stops a process. A session process
+            // must not do any of this to a process outside its session.
+            ES_EVENT_TYPE_AUTH_GET_TASK,
+            ES_EVENT_TYPE_AUTH_GET_TASK_READ,
+            ES_EVENT_TYPE_AUTH_PROC_SUSPEND_RESUME,
             // Each of these changes a file without an open for writing, so
             // AUTH_OPEN never sees them. On build 1669, truncate() and chmod()
             // on a file outside the workspace succeeded in an agent-default
@@ -498,6 +505,16 @@ private func handleESEvent(client: OpaquePointer, event: UnsafePointer<es_messag
         }
     case ES_EVENT_TYPE_AUTH_SIGNAL:
         handleAuthSignal(client: client, event: event, pid: pid)
+    case ES_EVENT_TYPE_AUTH_GET_TASK:
+        handleAuthProcessAccess(client: client, event: event, pid: pid,
+                                target: event.pointee.event.get_task.target, operation: "get_task")
+    case ES_EVENT_TYPE_AUTH_GET_TASK_READ:
+        handleAuthProcessAccess(client: client, event: event, pid: pid,
+                                target: event.pointee.event.get_task_read.target, operation: "get_task_read")
+    case ES_EVENT_TYPE_AUTH_PROC_SUSPEND_RESUME:
+        let e = event.pointee.event.proc_suspend_resume
+        handleAuthProcessAccess(client: client, event: event, pid: pid, target: e.target,
+                                operation: processSuspendResumeOperation(e.type))
     case ES_EVENT_TYPE_AUTH_TRUNCATE:
         handleAuthFileChange(client: client, event: event, pid: pid) { e in
             [(path(of: e.truncate.target), "write")]
@@ -877,6 +894,62 @@ private func handleAuthSignal(client: OpaquePointer, event: UnsafePointer<es_mes
             "source_pid": Int(pid),
             "target_pid": Int(targetPID),
             "signal": Int(sig),
+        ] as [String: Any]]
+    )
+}
+
+/// The operation name that a process_access event reports for a
+/// pid_suspend, pid_resume or pid_shutdown_sockets call.
+private func processSuspendResumeOperation(_ type: es_proc_suspend_resume_type_t) -> String {
+    switch type {
+    case ES_PROC_SUSPEND_RESUME_TYPE_SUSPEND: return "suspend"
+    case ES_PROC_SUSPEND_RESUME_TYPE_RESUME: return "resume"
+    case ES_PROC_SUSPEND_RESUME_TYPE_SHUTDOWN_SOCKETS: return "shutdown_sockets"
+    default: return "suspend_resume"
+    }
+}
+
+/// Check a task port request or a suspend, resume or socket shutdown from a
+/// session process.
+///
+/// No policy rule type covers these calls. A session process can do them to
+/// itself and to the processes of its own session. Every other target is
+/// denied, because the port gives full access to the target's memory.
+///
+/// macOS already refuses these calls to a process of another user, and to a
+/// platform binary, unless the caller is root. So the deny matters mostly for
+/// a session process that runs as root.
+private func handleAuthProcessAccess(client: OpaquePointer, event: UnsafePointer<es_message_t>, pid: pid_t,
+                                     target: UnsafeMutablePointer<es_process_t>?, operation: String) {
+    guard SessionPolicyCache.shared.hasActiveSessions,
+          let sessionID = SessionPolicyCache.shared.sessionForPID(pid),
+          let target = target?.pointee else {
+        es_respond_auth_result(client, event, ES_AUTH_RESULT_ALLOW, false)
+        return
+    }
+    let targetPID = audit_token_to_pid(target.audit_token)
+    let allowed = SessionPolicyCache.processAccessAllowed(
+        sourcePID: pid, targetPID: targetPID,
+        sourceSession: sessionID, targetSession: SessionPolicyCache.shared.sessionForPID(targetPID))
+    // No caching: the target can join or leave the session later.
+    es_respond_auth_result(client, event, allowed ? ES_AUTH_RESULT_ALLOW : ES_AUTH_RESULT_DENY, false)
+    guard !allowed else { return }
+
+    let targetPath = String(cString: target.executable.pointee.path.data)
+    os_log(.info, log: esLog,
+           "denied %{public}@ from session pid %{public}d to pid %{public}d (%{public}@) outside the session",
+           operation, pid, targetPID, targetPath)
+    sendFileEvent(
+        eventType: "process_access_blocked",
+        path: targetPath,
+        operation: operation,
+        pid: pid,
+        sessionID: sessionID,
+        decision: "deny",
+        rule: "deny-outside-process-access",
+        extraFields: ["fields": [
+            "source_pid": Int(pid),
+            "target_pid": Int(targetPID),
         ] as [String: Any]]
     )
 }
