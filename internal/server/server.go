@@ -110,6 +110,14 @@ type Server struct {
 		// session's policy, so neither a wrapped agent nor an exec'd command
 		// can start before anything can enforce against it.
 		AwaitSnapshot(sessionID string, timeout time.Duration) bool
+		// AwaitRootDelivered blocks until the extension holds a snapshot of
+		// the session that names pid as a root. wrap-init needs it, because
+		// a session that the extension already holds passes AwaitSnapshot
+		// before the extension knows the new wrap process.
+		AwaitRootDelivered(sessionID string, pid int32, timeout time.Duration) bool
+		// RootPIDsForSession lists the session's roots. A non-empty list
+		// means that the session is already registered.
+		RootPIDsForSession(sessionID string) []int32
 	}
 }
 

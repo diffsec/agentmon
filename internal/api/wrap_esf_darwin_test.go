@@ -25,6 +25,9 @@ type recordingTracker struct {
 	// picked up the policy. Zero value is "delivered", so tests about other
 	// things do not sit through the wait.
 	notDelivered bool
+
+	// awaited records the PIDs that AwaitRootDelivered waited for.
+	awaited []int32
 }
 
 func (r *recordingTracker) RegisterProcess(sessionID string, pid, ppid int32) {
@@ -40,6 +43,25 @@ func (r *recordingTracker) AwaitSnapshot(string, time.Duration) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return !r.notDelivered
+}
+
+func (r *recordingTracker) AwaitRootDelivered(_ string, pid int32, _ time.Duration) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.awaited = append(r.awaited, pid)
+	return !r.notDelivered
+}
+
+func (r *recordingTracker) RootPIDsForSession(sessionID string) []int32 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []int32
+	for _, reg := range r.registered {
+		if reg.sessionID == sessionID && reg.ppid == 0 {
+			out = append(out, reg.pid)
+		}
+	}
+	return out
 }
 
 func (r *recordingTracker) EndSession(sessionID string) {
@@ -224,5 +246,71 @@ func TestPlatformWrapInit_RefusesWhenSnapshotNeverArrives(t *testing.T) {
 	defer tr.mu.Unlock()
 	if len(tr.ended) != 1 || tr.ended[0] != "sess-1" {
 		t.Errorf("refused wrap-init did not unregister the session; ended = %v", tr.ended)
+	}
+}
+
+// TestPlatformWrapInit_ReusedSessionWaitsForItsOwnRoot covers SECENG-312. A
+// second `agentmon wrap --session` joined a session that the extension
+// already held, so the wait for "a snapshot of the session" ended at once.
+// That snapshot did not name the new wrap process, and its agent ran outside
+// the session. wrap-init must wait for a snapshot that names the caller.
+func TestPlatformWrapInit_ReusedSessionWaitsForItsOwnRoot(t *testing.T) {
+	live := darwin.CheckSysExtLiveness()
+	if !live.Running {
+		t.Skip("no running system extension on this machine")
+	}
+	darwin.SetExtensionPresenceProbe(func() (bool, time.Time) { return true, time.Now() })
+	t.Cleanup(func() { darwin.SetExtensionPresenceProbe(nil) })
+
+	tr := &recordingTracker{}
+	a := &App{}
+	a.SetSessionTracker(tr)
+
+	for _, pid := range []int{4242, 5353} {
+		if _, _, err := platformWrapInit(a, "sess-1", types.WrapInitRequest{CallerPID: pid}); err != nil {
+			t.Fatalf("wrap-init for pid %d: %v", pid, err)
+		}
+	}
+
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+	if len(tr.awaited) != 2 || tr.awaited[0] != 4242 || tr.awaited[1] != 5353 {
+		t.Errorf("wrap-init waited for roots %v, want [4242 5353]", tr.awaited)
+	}
+}
+
+// TestPlatformWrapInit_ReusedSessionTimeoutKeepsSession: when the second
+// wrap into a session times out, the session must stay. Another agent runs
+// in it, and ending the session would stop the enforcement of that agent.
+func TestPlatformWrapInit_ReusedSessionTimeoutKeepsSession(t *testing.T) {
+	live := darwin.CheckSysExtLiveness()
+	if !live.Running {
+		t.Skip("no running system extension on this machine")
+	}
+	darwin.SetExtensionPresenceProbe(func() (bool, time.Time) { return true, time.Now() })
+	t.Cleanup(func() { darwin.SetExtensionPresenceProbe(nil) })
+
+	tr := &recordingTracker{}
+	a := &App{}
+	a.SetSessionTracker(tr)
+	if _, _, err := platformWrapInit(a, "sess-1", types.WrapInitRequest{CallerPID: 4242}); err != nil {
+		t.Fatalf("first wrap-init: %v", err)
+	}
+
+	tr.mu.Lock()
+	tr.notDelivered = true
+	tr.mu.Unlock()
+	_, code, err := platformWrapInit(a, "sess-1", types.WrapInitRequest{CallerPID: 5353})
+	if err == nil {
+		t.Fatal("second wrap-init succeeded although the extension never named its root")
+	}
+	if code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want %d", code, http.StatusServiceUnavailable)
+	}
+
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+	if len(tr.ended) != 0 {
+		t.Errorf("a refused second wrap-init ended the session; ended = %v", tr.ended)
 	}
 }

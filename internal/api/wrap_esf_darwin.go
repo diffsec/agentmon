@@ -54,6 +54,10 @@ func platformWrapInit(a *App, sessionID string, req types.WrapInitRequest) (type
 			fmt.Errorf("wrap: the agentmon system extension is not enforcing, so nothing would constrain this session (%s)", live.Detail)
 	}
 
+	// A second `agentmon wrap --session` joins a session that is already
+	// registered, and that the extension may already hold.
+	reused := len(a.sessionTracker.RootPIDsForSession(sessionID)) > 0
+
 	// ppid 0 marks this as a session root rather than a tracked child.
 	a.sessionTracker.RegisterProcess(sessionID, int32(req.CallerPID), 0)
 
@@ -71,6 +75,13 @@ func platformWrapInit(a *App, sessionID string, req types.WrapInitRequest) (type
 	// exec sessions then enforce nothing at all. That is a separate, known
 	// defect; this line is what wrap needs once it is fixed.
 	notifySessionRegistered()
+	// The session-registered notification makes the extension fetch only the
+	// sessions that it does not hold. For a reused session it must fetch
+	// again, to learn the new root. The policy-update notification makes it
+	// fetch every session it holds.
+	if reused {
+		notifyPolicyUpdated()
+	}
 
 	// Wait for the extension to actually hold the policy before letting the
 	// agent start.
@@ -82,12 +93,22 @@ func platformWrapInit(a *App, sessionID string, req types.WrapInitRequest) (type
 	// unenforced -- a `whoami` the policy denies succeeded, and so did a read of
 	// a denied file, while a curl a few hundred milliseconds later was blocked
 	// correctly. An agent's first actions are exactly the ones worth policing.
-	if !a.sessionTracker.AwaitSnapshot(sessionID, interceptionReadyTimeout) {
+	//
+	// The wait is for a snapshot that names this caller as a root. Any
+	// snapshot of the session is not enough: before, a second wrap into a
+	// session that the extension held returned at once, and its agent ran
+	// outside the session with no policy (SECENG-312).
+	if !a.sessionTracker.AwaitRootDelivered(sessionID, int32(req.CallerPID), interceptionReadyTimeout) {
 		// Undo the registration. A refused wrap-init must leave nothing behind:
 		// the server is telling the caller this session is not wrapped, and a
 		// session root left registered would have the extension attributing
 		// processes to a session the server considers unwrapped.
-		a.sessionTracker.EndSession(sessionID)
+		//
+		// A reused session stays. Another agent runs in it, and ending the
+		// session would stop the enforcement of that agent.
+		if !reused {
+			a.sessionTracker.EndSession(sessionID)
+		}
 		return types.WrapInitResponse{}, http.StatusServiceUnavailable,
 			fmt.Errorf("wrap: the system extension did not pick up this session's policy within %s, so the agent would start unconstrained", interceptionReadyTimeout)
 	}

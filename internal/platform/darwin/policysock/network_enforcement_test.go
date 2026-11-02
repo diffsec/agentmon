@@ -222,7 +222,7 @@ func TestAwaitSnapshot(t *testing.T) {
 	t.Run("returns immediately once delivered", func(t *testing.T) {
 		tracker := NewSessionTracker()
 		tracker.RegisterProcess("session-a", 100, 0)
-		tracker.NoteSnapshotDelivered("session-a")
+		tracker.NoteSnapshotDelivered("session-a", nil)
 
 		start := time.Now()
 		if !tracker.AwaitSnapshot("session-a", time.Minute) {
@@ -240,7 +240,7 @@ func TestAwaitSnapshot(t *testing.T) {
 
 		go func() {
 			time.Sleep(50 * time.Millisecond)
-			tracker.NoteSnapshotDelivered("session-a")
+			tracker.NoteSnapshotDelivered("session-a", nil)
 		}()
 
 		if !tracker.AwaitSnapshot("session-a", 5*time.Second) {
@@ -279,7 +279,7 @@ func TestAwaitSnapshot(t *testing.T) {
 		}
 		// Giving up must not latch the session off: the extension may still
 		// arrive, and later commands should see it.
-		tracker.NoteSnapshotDelivered("session-a")
+		tracker.NoteSnapshotDelivered("session-a", nil)
 		if !tracker.AwaitSnapshot("session-a", time.Second) {
 			t.Error("a snapshot delivered after a timeout was ignored")
 		}
@@ -288,7 +288,7 @@ func TestAwaitSnapshot(t *testing.T) {
 	t.Run("ending a session clears both flags", func(t *testing.T) {
 		tracker := NewSessionTracker()
 		tracker.RegisterProcess("session-a", 100, 0)
-		tracker.NoteSnapshotDelivered("session-a")
+		tracker.NoteSnapshotDelivered("session-a", nil)
 		tracker.EndSession("session-a")
 
 		// A reused ID must not inherit the old session's readiness, or its
@@ -338,5 +338,42 @@ func TestNoSessionSnapshotShape(t *testing.T) {
 	}
 	if decoded["rule"] != "no-policy-fail-closed" {
 		t.Errorf("rule = %v, want no-policy-fail-closed", decoded["rule"])
+	}
+}
+
+// TestAwaitRootDelivered covers SECENG-312: a second wrap into a session
+// must wait for a snapshot that names its own process, not for any snapshot
+// of the session.
+func TestAwaitRootDelivered(t *testing.T) {
+	tracker := NewSessionTracker()
+	tracker.RegisterProcess("session-a", 100, 0)
+	tracker.NoteSnapshotDelivered("session-a", tracker.RootPIDsForSession("session-a"))
+
+	tracker.RegisterProcess("session-a", 200, 0)
+	tracker.RegisterProcess("session-a", 300, 100) // a child, not a root
+	if got := tracker.RootPIDsForSession("session-a"); len(got) != 2 || got[0] != 100 || got[1] != 200 {
+		t.Fatalf("RootPIDsForSession = %v, want [100 200]", got)
+	}
+	if !tracker.AwaitSnapshot("session-a", time.Millisecond) {
+		t.Fatal("AwaitSnapshot: the session has a delivered snapshot")
+	}
+	if tracker.AwaitRootDelivered("session-a", 200, 20*time.Millisecond) {
+		t.Fatal("AwaitRootDelivered reported pid 200 delivered; no snapshot named it")
+	}
+
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		tracker.NoteSnapshotDelivered("session-a", tracker.RootPIDsForSession("session-a"))
+	}()
+	if !tracker.AwaitRootDelivered("session-a", 200, 5*time.Second) {
+		t.Fatal("AwaitRootDelivered gave up on a snapshot that named pid 200")
+	}
+
+	tracker.EndSession("session-a")
+	if got := tracker.RootPIDsForSession("session-a"); got != nil {
+		t.Errorf("RootPIDsForSession after EndSession = %v, want nil", got)
+	}
+	if tracker.AwaitRootDelivered("session-a", 200, time.Millisecond) {
+		t.Error("AwaitRootDelivered reported a root of an ended session")
 	}
 }

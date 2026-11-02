@@ -140,9 +140,14 @@ type PolicyResponse struct {
 	// PendingApprovals answers list_approvals.
 	PendingApprovals []PendingApproval `json:"pending_approvals,omitempty"`
 
-	// Policy snapshot fields (returned by fetch_policy_snapshot)
+	// Policy snapshot fields (returned by fetch_policy_snapshot).
+	//
+	// RootPIDs lists every root of the session: root_pid first, then the
+	// process of each later `agentmon wrap --session` into it. The extension
+	// maps each one to the session.
 	SnapshotVersion uint64                `json:"version,omitempty"`
 	RootPID         int32                 `json:"root_pid,omitempty"`
+	RootPIDs        []int32               `json:"root_pids,omitempty"`
 	FileRules       []SnapshotFileRule    `json:"file_rules,omitempty"`
 	NetworkRules    []SnapshotNetworkRule `json:"network_rules,omitempty"`
 	DNSRules        []SnapshotDNSRule     `json:"dns_rules,omitempty"`

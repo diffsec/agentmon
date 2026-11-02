@@ -93,6 +93,8 @@ class SessionCache {
     let rootPID: pid_t
     var version: UInt64
     var sessionPIDs: Set<pid_t>
+    /// Every root of the session, root_pid first. See parseRootPIDs.
+    var rootPIDs: [pid_t]
     var fileRules: [FileRule]
     var networkRules: [NetworkRule]
     var dnsRules: [DNSRule]
@@ -129,6 +131,7 @@ class SessionCache {
         self.rootPID = rootPID
         self.version = version
         self.sessionPIDs = [rootPID]
+        self.rootPIDs = [rootPID]
         self.fileRules = fileRules
         self.networkRules = networkRules
         self.dnsRules = dnsRules
@@ -167,7 +170,9 @@ class SessionPolicyCache {
         invalidateOutsideSessions()
         queue.async(flags: .barrier) {
             self.sessions[sessionID] = snapshot
-            self.pidToSession[rootPID] = sessionID
+            for pid in snapshot.rootPIDs {
+                self.pidToSession[pid] = sessionID
+            }
         }
     }
 
@@ -880,7 +885,22 @@ class SessionPolicyCache {
             if snapshot.version <= existing.version { return }
             // Preserve sessionPIDs — they're maintained by fork/exit, not snapshot
             snapshot.sessionPIDs = existing.sessionPIDs
+            // A later `agentmon wrap --session` adds a root. Before, only
+            // the first root was ever mapped, so the second wrap's agent ran
+            // outside the session with no policy (SECENG-312).
+            var added = false
+            for pid in snapshot.rootPIDs where self.pidToSession[pid] != sessionID {
+                self.pidToSession[pid] = sessionID
+                snapshot.sessionPIDs.insert(pid)
+                added = true
+            }
             self.sessions[sessionID] = snapshot
+            // The new root, or a process below it, can hold an "outside"
+            // answer from before. Drop those answers after the mapping is in
+            // place, so that no lookup caches "outside" again in between.
+            if added {
+                self.invalidateOutsideSessions()
+            }
         }
     }
 
@@ -1210,7 +1230,22 @@ extension SessionCache {
         )
         cache.unixSocketRules = parseUnixSocketRules(json["unix_socket_rules"])
         cache.signalRules = parseSignalRules(json["signal_rules"])
+        cache.rootPIDs = parseRootPIDs(json["root_pids"], rootPID: rootPID)
+        cache.sessionPIDs.formUnion(cache.rootPIDs)
         return cache
+    }
+
+    /// The session's roots: root_pid, then the process of each later
+    /// `agentmon wrap --session` into the session. A daemon that does not
+    /// send root_pids gives root_pid alone.
+    static func parseRootPIDs(_ raw: Any?, rootPID: pid_t) -> [pid_t] {
+        var roots = [rootPID]
+        for value in raw as? [Any] ?? [] {
+            guard let pid = value as? Int32 ?? (value as? Int).map({ Int32($0) }),
+                  pid > 0, !roots.contains(pid) else { continue }
+            roots.append(pid)
+        }
+        return roots
     }
 
     static func parseUnixSocketRules(_ raw: Any?) -> [UnixSocketRule] {

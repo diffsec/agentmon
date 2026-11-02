@@ -10,6 +10,7 @@ type PolicySnapshotResponse struct {
 	Version      uint64                `json:"version"`
 	SessionID    string                `json:"session_id"`
 	RootPID      int32                 `json:"root_pid"`
+	RootPIDs     []int32               `json:"root_pids,omitempty"`
 	FileRules    []SnapshotFileRule    `json:"file_rules"`
 	NetworkRules []SnapshotNetworkRule `json:"network_rules"`
 	DNSRules     []SnapshotDNSRule     `json:"dns_rules"`
