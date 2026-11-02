@@ -25,6 +25,10 @@ fi
 [ -n "$PY" ] || { echo "no python3 found; set PYTHON" >&2; exit 2; }
 [ "$(id -u)" -ne 0 ] || { echo "run this as your own user; it calls sudo itself" >&2; exit 2; }
 
+# Ask for the password before anything starts. sudo needs a terminal for it.
+echo "sudo runs the root half of the test."
+sudo -v || { echo "sudo failed; run this script in a terminal" >&2; exit 2; }
+
 KEY_FILE="$HOME/Library/Application Support/agentmon/local-api.key"
 API_KEY=${AGENTMON_API_KEY:-}
 if [ -z "$API_KEY" ] && [ -r "$KEY_FILE" ]; then API_KEY=$(cat "$KEY_FILE"); fi
@@ -82,7 +86,6 @@ TARGET_PID=$!
 SID=$("$A" session create --workspace "$WS" --policy agent-default | awk '/^Session/{print $2}')
 [ -n "$SID" ] || { echo "could not create a session" >&2; exit 2; }
 
-echo "sudo runs the root half of the test."
 outside=$(sudo "$PY" "$WS/access.py" "$TARGET_PID" 2>&1 || true)
 if [ "$outside" = "allowed allowed allowed" ]; then
     ok "root outside the session: task_for_pid, task_read_for_pid and pid_suspend succeed"
