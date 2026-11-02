@@ -48,6 +48,10 @@ type esfEvent struct {
 	Rule      string `json:"rule"`
 	Action    string `json:"action,omitempty"`
 	Timestamp string `json:"timestamp"`
+
+	// Fields holds data that only some event types have, such as the
+	// target and signal number of a signal event.
+	Fields map[string]any `json:"fields,omitempty"`
 }
 
 // HandleESFEvent implements the EventHandler interface.
@@ -109,6 +113,9 @@ func (h *ESFEventHandler) HandleESFEvent(ctx context.Context, payload []byte) er
 	}
 	if ev.Action != "" {
 		event.Fields["action"] = ev.Action
+	}
+	for k, v := range ev.Fields {
+		event.Fields[k] = v
 	}
 
 	if err := h.store.AppendEvent(ctx, event); err != nil {

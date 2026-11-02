@@ -31,6 +31,44 @@ struct NetworkRule {
     let action: String
 }
 
+/// One path of a unix_socket_rules entry. The first rule that matches a
+/// connect or bind decides, as in Engine.CheckUnixSocket.
+struct UnixSocketRule {
+    let name: String
+    let pattern: String
+    /// An empty set matches every operation, as matchOp does.
+    let operations: Set<String>
+    let action: String
+}
+
+/// One signal_rules entry. The daemon sends the signals as numbers and the
+/// action as one that ES can enforce: allow, audit or deny.
+struct SignalRule {
+    let name: String
+    let signals: Set<Int32>
+    /// The target type, as signal.ParseTargetSpec names it.
+    let target: String
+    let pattern: String
+    let min: Int
+    let max: Int
+    let action: String
+}
+
+/// The target of a signal, as the Go engine's signal.TargetContext
+/// describes it. The relations are exclusive, as PIDRegistry.ClassifyTarget
+/// sets them: a parent is not also a sibling, for example.
+struct SignalTarget {
+    var sourcePID: pid_t
+    var targetPID: pid_t
+    var targetCmd: String
+    var inSession: Bool
+    var sameUser: Bool
+    var isChild = false
+    var isDescendant = false
+    var isSibling = false
+    var isParent = false
+}
+
 struct DNSRule {
     let pattern: String
     let action: String  // "allow", "deny", "nxdomain"
@@ -60,6 +98,14 @@ class SessionCache {
     var dnsRules: [DNSRule]
     var execRules: [ExecRule]
     var defaults: PolicyDefaults
+
+    /// Empty when the policy has no unix_socket_rules. The extension then
+    /// checks only the daemon's own directory.
+    var unixSocketRules: [UnixSocketRule] = []
+
+    /// Empty when the policy has no signal_rules. The extension then guards
+    /// only the daemon.
+    var signalRules: [SignalRule] = []
 
     /// Whether the content filter should consult the daemon for flows this
     /// cache cannot decide, instead of allowing and reporting them. Sent by the
@@ -401,6 +447,147 @@ class SessionPolicyCache {
             ])
         }
         return result
+    }
+
+    // MARK: - Unix Socket Policy Evaluation
+
+    /// Decide a connect or bind of a unix socket at `path` by a process of
+    /// session `sid`. It returns allow when the policy has no
+    /// unix_socket_rules. Otherwise the first rule that matches decides, and
+    /// no match denies, as in Engine.CheckUnixSocket. The rule name is nil
+    /// for the default.
+    ///
+    /// approve acts as deny, because no approval dialog exists for sockets
+    /// yet. `agentmon policy validate` warns about it.
+    func evaluateUnixSocket(sessionID sid: String, path: String, operation: String) -> (CacheDecision, String?) {
+        queue.sync {
+            guard let cache = sessions[sid], !cache.unixSocketRules.isEmpty else {
+                return (.allow, nil)
+            }
+            guard let rule = Self.firstMatchingUnixSocketRule(
+                cache.unixSocketRules, paths: Self.socketPathCandidates(path),
+                operation: operation, match: globMatch) else {
+                return (.deny, "default-deny-unix")
+            }
+            let allowed = rule.action == "allow" || rule.action == "audit"
+            return (allowed ? .allow : .deny, rule.name)
+        }
+    }
+
+    /// The paths that a policy can name for the socket at `path`.
+    ///
+    /// ES gives the real path, and on macOS /var, /tmp and /etc are links
+    /// into /private. A policy names /var/run/mDNSResponder, but the ES event
+    /// names /private/var/run/mDNSResponder. A rule matches if it matches
+    /// either form.
+    static func socketPathCandidates(_ path: String) -> [String] {
+        for prefix in ["/private/var/", "/private/tmp/", "/private/etc/"] where path.hasPrefix(prefix) {
+            return [path, String(path.dropFirst("/private".count))]
+        }
+        return [path]
+    }
+
+    /// The first rule whose operations match `operation` and whose pattern
+    /// matches one of `paths`.
+    static func firstMatchingUnixSocketRule(
+        _ rules: [UnixSocketRule], paths: [String], operation: String,
+        match: (_ pattern: String, _ path: String) -> Bool
+    ) -> UnixSocketRule? {
+        rules.first { rule in
+            (rule.operations.isEmpty || rule.operations.contains(operation)
+                || rule.operations.contains("*"))
+                && paths.contains { match(rule.pattern, $0) }
+        }
+    }
+
+    // MARK: - Signal Policy Evaluation
+
+    /// Decide a signal from a process of session `sid`. It returns allow
+    /// with no rule when the policy has no signal_rules. Otherwise the first
+    /// rule that matches decides, and no match denies, as in
+    /// signal.Engine.Check.
+    func evaluateSignal(sessionID sid: String, signal: Int32, sourcePID: pid_t, sourcePPID: pid_t,
+                        targetPID: pid_t, targetPPID: pid_t, targetCmd: String,
+                        sameUser: Bool) -> (allowed: Bool, rule: String?, action: String) {
+        guard let cache = cacheForSession(sid), !cache.signalRules.isEmpty else {
+            return (true, nil, "allow")
+        }
+        let target = classifySignalTarget(
+            sessionID: sid, rootPID: cache.rootPID, sourcePID: sourcePID, sourcePPID: sourcePPID,
+            targetPID: targetPID, targetPPID: targetPPID, targetCmd: targetCmd, sameUser: sameUser)
+        guard let rule = Self.firstMatchingSignalRule(cache.signalRules, signal: signal, target: target) else {
+            return (false, nil, "deny")
+        }
+        return (rule.action == "allow" || rule.action == "audit", rule.name, rule.action)
+    }
+
+    /// Describe the target of a signal as PIDRegistry.ClassifyTarget does.
+    ///
+    /// On Linux the registry knows the parent of each session process except
+    /// the session's root. So the root's own parent is not its "parent"
+    /// target, and the root has no siblings. A child, descendant or sibling
+    /// must be in the session.
+    func classifySignalTarget(sessionID sid: String, rootPID: pid_t, sourcePID: pid_t, sourcePPID: pid_t,
+                              targetPID: pid_t, targetPPID: pid_t, targetCmd: String,
+                              sameUser: Bool) -> SignalTarget {
+        var t = SignalTarget(sourcePID: sourcePID, targetPID: targetPID, targetCmd: targetCmd,
+                             inSession: sessionForPID(targetPID) == sid, sameUser: sameUser)
+        if sourcePID == targetPID {
+            return t
+        }
+        if targetPID == rootPID || (sourcePID != rootPID && sourcePPID == targetPID) {
+            t.isParent = true
+            return t
+        }
+        guard t.inSession else { return t }
+        if targetPPID == sourcePID {
+            t.isChild = true
+            t.isDescendant = true
+            return t
+        }
+        // Walk up from the target while the ancestors are in the session.
+        var ancestor = targetPPID
+        for _ in 0..<64 {
+            if ancestor == sourcePID {
+                t.isDescendant = true
+                return t
+            }
+            if ancestor <= 1 || ancestor == rootPID || sessionForPID(ancestor) != sid {
+                break
+            }
+            guard let next = ProcessHierarchy.shared.getParent(pid: ancestor) else { break }
+            ancestor = next
+        }
+        if sourcePID != rootPID && sourcePPID == targetPPID && sourcePPID != 0 {
+            t.isSibling = true
+        }
+        return t
+    }
+
+    /// The first rule that names `signal` and whose target matches.
+    static func firstMatchingSignalRule(_ rules: [SignalRule], signal: Int32, target: SignalTarget) -> SignalRule? {
+        rules.first { $0.signals.contains(signal) && signalTargetMatches($0, target) }
+    }
+
+    /// Whether a rule's target matches, as ParsedTarget.Matches decides.
+    static func signalTargetMatches(_ rule: SignalRule, _ t: SignalTarget) -> Bool {
+        switch rule.target {
+        case "self": return t.targetPID == t.sourcePID
+        case "children": return t.isChild
+        case "descendants": return t.isDescendant
+        case "siblings": return t.isSibling
+        case "session": return t.inSession
+        case "parent": return t.isParent
+        case "external": return !t.inSession
+        // The same PIDs as the Go engine. On macOS, PID 1 is launchd.
+        case "system": return t.targetPID == 1 || t.targetPID == 2
+        case "user": return t.sameUser && !t.inSession
+        // gobwas/glob with no separators: "*" matches "/" too, as fnmatch
+        // does without FNM_PATHNAME.
+        case "process": return !rule.pattern.isEmpty && fnmatch(rule.pattern, t.targetCmd, 0) == 0
+        case "pid_range": return Int(t.targetPID) >= rule.min && Int(t.targetPID) <= rule.max
+        default: return false
+        }
     }
 
     // MARK: - Approvals
@@ -1010,7 +1197,31 @@ extension SessionCache {
             dnsRules: dnsRules, execRules: execRules, defaults: defaults,
             networkEnforcement: enforcement, networkFailOpen: failOpen
         )
+        cache.unixSocketRules = parseUnixSocketRules(json["unix_socket_rules"])
+        cache.signalRules = parseSignalRules(json["signal_rules"])
         return cache
+    }
+
+    static func parseUnixSocketRules(_ raw: Any?) -> [UnixSocketRule] {
+        guard let rules = raw as? [[String: Any]] else { return [] }
+        return rules.compactMap { r in
+            guard let pattern = r["pattern"] as? String,
+                  let action = r["action"] as? String else { return nil }
+            return UnixSocketRule(name: r["name"] as? String ?? "", pattern: pattern,
+                                  operations: Set(r["operations"] as? [String] ?? []), action: action)
+        }
+    }
+
+    static func parseSignalRules(_ raw: Any?) -> [SignalRule] {
+        guard let rules = raw as? [[String: Any]] else { return [] }
+        return rules.compactMap { r in
+            guard let target = r["target"] as? String,
+                  let action = r["action"] as? String else { return nil }
+            let signals = (r["signals"] as? [Int] ?? []).map { Int32($0) }
+            return SignalRule(name: r["name"] as? String ?? "", signals: Set(signals), target: target,
+                              pattern: r["pattern"] as? String ?? "",
+                              min: r["min"] as? Int ?? 0, max: r["max"] as? Int ?? 0, action: action)
+        }
     }
 }
 

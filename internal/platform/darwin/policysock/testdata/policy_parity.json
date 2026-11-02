@@ -53,5 +53,55 @@
     {"host": "example.com", "ip": "93.184.216.34", "port": 80, "want": "deny"},
     {"host": "", "ip": "1.1.1.1", "port": 53, "want": "deny"},
     {"host": "localhost", "ip": "1.2.3.4", "port": 80, "want": "deny"}
+  ],
+  "unix_socket_rules": [
+    {"name": "allow-dns", "paths": ["/var/run/mDNSResponder"], "operations": ["connect"], "decision": "allow"},
+    {"name": "deny-system-sockets", "paths": ["/var/run/**"], "operations": ["connect", "bind"], "decision": "deny"},
+    {"name": "allow-tmp-bind", "paths": ["/tmp/*.sock"], "operations": ["bind"], "decision": "allow"},
+    {"name": "audit-work", "paths": ["/work/**"], "decision": "audit"},
+    {"name": "approve-agent", "paths": ["/Users/*/.ssh/agent.sock"], "operations": ["*"], "decision": "approve"}
+  ],
+  "unix_socket_cases": [
+    {"path": "/var/run/mDNSResponder", "operation": "connect", "want": "allow"},
+    {"path": "/var/run/mDNSResponder", "operation": "bind", "want": "deny"},
+    {"path": "/var/run/docker.sock", "operation": "connect", "want": "deny"},
+    {"path": "/var/run/a/b.sock", "operation": "connect", "want": "deny"},
+    {"path": "/tmp/x.sock", "operation": "bind", "want": "allow"},
+    {"path": "/tmp/x.sock", "operation": "connect", "want": "deny"},
+    {"path": "/tmp/d/x.sock", "operation": "bind", "want": "deny"},
+    {"path": "/work/a/b.sock", "operation": "connect", "want": "audit"},
+    {"path": "/work/a/b.sock", "operation": "bind", "want": "audit"},
+    {"path": "/Users/x/.ssh/agent.sock", "operation": "connect", "want": "approve"},
+    {"path": "/elsewhere.sock", "operation": "connect", "want": "deny"}
+  ],
+  "_signal_comment": "Signals are numbers, so the Swift side needs no table of names. Each case gives the target as the Go TargetContext sees it.",
+  "signal_rules": [
+    {"name": "allow-self", "signals": ["1", "2", "9", "15"], "target": {"type": "self"}, "decision": "allow"},
+    {"name": "allow-children", "signals": ["1", "2", "9", "15"], "target": {"type": "children"}, "decision": "allow"},
+    {"name": "allow-session-term", "signals": ["15", "2"], "target": {"type": "session"}, "decision": "allow"},
+    {"name": "audit-parent", "signals": ["1", "2", "9", "15"], "target": {"type": "parent"}, "decision": "audit"},
+    {"name": "deny-sleep", "signals": ["9"], "target": {"type": "process", "pattern": "sl*p"}, "decision": "deny"},
+    {"name": "allow-user-hup", "signals": ["1"], "target": {"type": "user"}, "decision": "allow"},
+    {"name": "allow-range", "signals": ["15"], "target": {"type": "pid_range", "min": 5000, "max": 6000}, "decision": "allow"},
+    {"name": "deny-system", "signals": ["1", "2", "9", "15"], "target": {"type": "system"}, "decision": "deny"},
+    {"name": "deny-external", "signals": ["9", "15"], "target": {"type": "external"}, "decision": "deny"},
+    {"name": "allow-descendants", "signals": ["1"], "target": {"type": "descendants"}, "decision": "allow"},
+    {"name": "allow-siblings", "signals": ["9"], "target": {"type": "siblings"}, "decision": "allow"}
+  ],
+  "signal_cases": [
+    {"signal": 9, "source_pid": 100, "target_pid": 100, "want": "allow"},
+    {"signal": 9, "source_pid": 100, "target_pid": 101, "is_child": true, "is_descendant": true, "in_session": true, "want": "allow"},
+    {"signal": 9, "source_pid": 100, "target_pid": 102, "in_session": true, "target_cmd": "sleep", "want": "deny"},
+    {"signal": 15, "source_pid": 100, "target_pid": 102, "in_session": true, "target_cmd": "sleep", "want": "allow"},
+    {"signal": 9, "source_pid": 100, "target_pid": 99, "is_parent": true, "in_session": true, "want": "audit"},
+    {"signal": 1, "source_pid": 100, "target_pid": 700, "same_user": true, "want": "allow"},
+    {"signal": 1, "source_pid": 100, "target_pid": 700, "same_user": true, "in_session": true, "want": "deny"},
+    {"signal": 15, "source_pid": 100, "target_pid": 5500, "want": "allow"},
+    {"signal": 15, "source_pid": 100, "target_pid": 1, "want": "deny"},
+    {"signal": 2, "source_pid": 100, "target_pid": 1, "want": "deny"},
+    {"signal": 15, "source_pid": 100, "target_pid": 7000, "want": "deny"},
+    {"signal": 1, "source_pid": 100, "target_pid": 103, "is_descendant": true, "in_session": true, "want": "allow"},
+    {"signal": 9, "source_pid": 100, "target_pid": 104, "is_sibling": true, "in_session": true, "want": "allow"},
+    {"signal": 30, "source_pid": 100, "target_pid": 100, "want": "deny"}
   ]
 }

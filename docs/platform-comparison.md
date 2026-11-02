@@ -123,8 +123,13 @@ process's memory is not capping it.
 equivalent. The seatbelt profile compiled by `agentmon-macwrap` restricts
 filesystem and exec reach; it is not a namespace.
 
-**No signal blocking on macOS.** Endpoint Security can audit signals but not
-block or redirect them.
+**Signals and unix sockets on macOS: allow or deny only.** The extension
+checks `signal_rules` with ESF `AUTH_SIGNAL`, and `unix_socket_rules` with
+`AUTH_UIPC_CONNECT` and `AUTH_UIPC_BIND`. ES can allow or deny an event, and
+nothing else. So a signal `absorb` or `approve` acts as deny, and a signal
+`redirect` takes the rule's `fallback`. ES has no event for a unix socket
+`listen` or `sendto`, so a rule for those operations is not checked.
+`agentmon policy validate` warns about each of these cases.
 
 **No runtime environment-variable interception on macOS.** `shim/darwin/envshim.c`
 exists but is never built. Spawn-time filtering works.

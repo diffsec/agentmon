@@ -222,3 +222,37 @@ func TestESFEventHandler_ActionField(t *testing.T) {
 		t.Errorf("Fields[action] = %v, want %q", ev.Fields["action"], "soft_delete")
 	}
 }
+
+// A signal event carries its target and signal number in fields.
+func TestESFEventHandler_SignalFields(t *testing.T) {
+	store := &fakeEventStore{}
+	h := NewESFEventHandler(store, NewCommandResolver(), NewSessionTracker())
+
+	payload, _ := json.Marshal(map[string]any{
+		"type":       "file_event",
+		"event_type": "signal_blocked",
+		"path":       "/bin/sleep",
+		"operation":  "signal",
+		"pid":        100,
+		"session_id": "session-abc",
+		"decision":   "deny",
+		"rule":       "deny-external-fatal",
+		"timestamp":  "2026-11-02T10:00:00Z",
+		"fields":     map[string]any{"source_pid": 100, "target_pid": 200, "signal": 15},
+	})
+	if err := h.HandleESFEvent(context.Background(), payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(store.events) != 1 {
+		t.Fatalf("got %d events", len(store.events))
+	}
+	ev := store.events[0]
+	if ev.Type != "signal_blocked" || ev.Policy == nil || ev.Policy.Rule != "deny-external-fatal" {
+		t.Errorf("event = %+v", ev)
+	}
+	for k, want := range map[string]float64{"source_pid": 100, "target_pid": 200, "signal": 15} {
+		if got, _ := ev.Fields[k].(float64); got != want {
+			t.Errorf("Fields[%q] = %v, want %v", k, ev.Fields[k], want)
+		}
+	}
+}

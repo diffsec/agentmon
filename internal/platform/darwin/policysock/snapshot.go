@@ -16,6 +16,12 @@ type PolicySnapshotResponse struct {
 	ExecRules    []SnapshotExecRule    `json:"exec_rules"`
 	Defaults     *SnapshotDefaults     `json:"defaults"`
 
+	// UnixSocketRules and SignalRules are empty when the policy has no rules
+	// of that type. The extension then does not check that type at all, as
+	// the Go engine has no signal engine without signal rules.
+	UnixSocketRules []SnapshotUnixSocketRule `json:"unix_socket_rules,omitempty"`
+	SignalRules     []SnapshotSignalRule     `json:"signal_rules,omitempty"`
+
 	// NetworkEnforcement is "block" or "audit"; NetworkFailOpen says what a
 	// blocking-mode timeout or socket failure does. See networkEnforcement in
 	// handler.go for how they are derived and what each one changes.
@@ -45,6 +51,30 @@ type SnapshotNetworkRule struct {
 	Ports    []int    `json:"ports,omitempty"`
 	Protocol string   `json:"protocol,omitempty"`
 	Action   string   `json:"action"`
+}
+
+// SnapshotUnixSocketRule is one path of a unix_socket_rules entry, in policy
+// order. When the snapshot has any of these, the extension checks each
+// connect and bind of a session process: the first rule that matches
+// decides, and no match denies, as in Engine.CheckUnixSocket.
+type SnapshotUnixSocketRule struct {
+	Name       string   `json:"name,omitempty"`
+	Pattern    string   `json:"pattern"`
+	Operations []string `json:"operations,omitempty"`
+	Action     string   `json:"action"`
+}
+
+// SnapshotSignalRule is one signal_rules entry, in policy order. The daemon
+// expands signal names and groups to the macOS signal numbers, and maps the
+// decision to one that ES can enforce (see macOSSignalAction).
+type SnapshotSignalRule struct {
+	Name    string `json:"name,omitempty"`
+	Signals []int  `json:"signals"`
+	Target  string `json:"target"`
+	Pattern string `json:"pattern,omitempty"`
+	Min     int    `json:"min,omitempty"`
+	Max     int    `json:"max,omitempty"`
+	Action  string `json:"action"`
 }
 
 // SnapshotDNSRule represents a single DNS-filtering rule in the snapshot.

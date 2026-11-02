@@ -23,7 +23,7 @@ agentmon sits *under* your agent/tooling—intercepting **file**, **network**, *
   - PTY activity
   - LLM API requests with DLP and usage tracking
   - Postgres-family database traffic through declared `db_services`
-  - signal send/block (Linux enforced, macOS audit only)
+  - signal send/block (enforced on Linux and macOS)
   - database queries via the embedded **PostgreSQL proxy** — per-statement classification and policy
   - Route outbound HTTP API calls through declared services (**http_services**) with per-method, per-path rules, approval gating, and fail-closed host enforcement
 - **Two output modes**:

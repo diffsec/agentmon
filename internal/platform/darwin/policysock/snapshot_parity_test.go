@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/diffsec/agentmon/internal/policy"
+	"github.com/diffsec/agentmon/internal/signal"
 )
 
 func snapshotFor(t *testing.T, p *policy.Policy) PolicyResponse {
@@ -61,11 +62,43 @@ func TestBuildPolicySnapshot_VersionIncreases(t *testing.T) {
 // Swift matchers in scripts/test-swift-policy-parity.sh, so a decision that
 // differs between Linux and macOS fails one of the two.
 type parityTable struct {
-	FileRules           []policy.FileRule    `json:"file_rules"`
-	FileCases           []parityFileCase     `json:"file_cases"`
-	FileCasesNoCatchAll []parityFileCase     `json:"file_cases_no_catch_all"`
-	NetworkRules        []policy.NetworkRule `json:"network_rules"`
-	NetworkCases        []parityNetworkCase  `json:"network_cases"`
+	FileRules           []policy.FileRule       `json:"file_rules"`
+	FileCases           []parityFileCase        `json:"file_cases"`
+	FileCasesNoCatchAll []parityFileCase        `json:"file_cases_no_catch_all"`
+	NetworkRules        []policy.NetworkRule    `json:"network_rules"`
+	NetworkCases        []parityNetworkCase     `json:"network_cases"`
+	UnixSocketRules     []policy.UnixSocketRule `json:"unix_socket_rules"`
+	UnixSocketCases     []parityFileCase        `json:"unix_socket_cases"`
+	SignalRules         []paritySignalRule      `json:"signal_rules"`
+	SignalCases         []paritySignalCase      `json:"signal_cases"`
+}
+
+// paritySignalRule is a policy.SignalRule with JSON names. policy.SignalRule
+// has YAML tags only.
+type paritySignalRule struct {
+	Name     string   `json:"name"`
+	Signals  []string `json:"signals"`
+	Decision string   `json:"decision"`
+	Target   struct {
+		Type    string `json:"type"`
+		Pattern string `json:"pattern"`
+		Min     int    `json:"min"`
+		Max     int    `json:"max"`
+	} `json:"target"`
+}
+
+type paritySignalCase struct {
+	Signal       int    `json:"signal"`
+	SourcePID    int    `json:"source_pid"`
+	TargetPID    int    `json:"target_pid"`
+	TargetCmd    string `json:"target_cmd"`
+	IsChild      bool   `json:"is_child"`
+	IsDescendant bool   `json:"is_descendant"`
+	IsSibling    bool   `json:"is_sibling"`
+	IsParent     bool   `json:"is_parent"`
+	InSession    bool   `json:"in_session"`
+	SameUser     bool   `json:"same_user"`
+	Want         string `json:"want"`
 }
 
 type parityFileCase struct {
@@ -121,6 +154,44 @@ func TestPolicyParity_GoEngine(t *testing.T) {
 		}
 		if got := string(engine.CheckNetworkIP(domain, net.ParseIP(c.IP), c.Port).PolicyDecision); got != c.Want {
 			t.Errorf("network %s (%s) port %d = %s, want %s", c.Host, c.IP, c.Port, got, c.Want)
+		}
+	}
+}
+
+func TestPolicyParity_GoUnixSockets(t *testing.T) {
+	tab := loadParityTable(t)
+	engine, err := policy.NewEngine(&policy.Policy{Version: 1, UnixRules: tab.UnixSocketRules}, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range tab.UnixSocketCases {
+		if got := string(engine.CheckUnixSocket(c.Path, c.Operation).PolicyDecision); got != c.Want {
+			t.Errorf("unix %s %s = %s, want %s", c.Operation, c.Path, got, c.Want)
+		}
+	}
+}
+
+func TestPolicyParity_GoSignals(t *testing.T) {
+	tab := loadParityTable(t)
+	var rules []signal.SignalRule
+	for _, r := range tab.SignalRules {
+		rules = append(rules, signal.SignalRule{
+			Name: r.Name, Signals: r.Signals, Decision: r.Decision,
+			Target: signal.TargetSpec{Type: r.Target.Type, Pattern: r.Target.Pattern, Min: r.Target.Min, Max: r.Target.Max},
+		})
+	}
+	engine, err := signal.NewEngine(rules)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range tab.SignalCases {
+		ctx := &signal.TargetContext{
+			SourcePID: c.SourcePID, TargetPID: c.TargetPID, TargetCmd: c.TargetCmd,
+			IsChild: c.IsChild, IsDescendant: c.IsDescendant, IsSibling: c.IsSibling,
+			IsParent: c.IsParent, InSession: c.InSession, SameUser: c.SameUser,
+		}
+		if got := string(engine.Check(c.Signal, ctx).Action); got != c.Want {
+			t.Errorf("signal %d from %d to %d = %s, want %s", c.Signal, c.SourcePID, c.TargetPID, got, c.Want)
 		}
 	}
 }

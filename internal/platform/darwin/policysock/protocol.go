@@ -149,6 +149,9 @@ type PolicyResponse struct {
 	ExecRules       []SnapshotExecRule    `json:"exec_rules,omitempty"`
 	Defaults        *SnapshotDefaults     `json:"defaults,omitempty"`
 
+	UnixSocketRules []SnapshotUnixSocketRule `json:"unix_socket_rules,omitempty"`
+	SignalRules     []SnapshotSignalRule     `json:"signal_rules,omitempty"`
+
 	// NetworkEnforcement drives FilterDataProvider.blockingEnabled: "block" or
 	// "audit". NetworkFailOpen drives its failOpen. Both are pointers/omitempty
 	// so they appear only on snapshot replies, not on every check response.

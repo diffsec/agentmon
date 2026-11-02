@@ -481,6 +481,10 @@ func printDBExplainText(cmd *cobra.Command, report policyexplain.Report) error {
 // with a redirect decision acts as deny too: on macOS a TCP redirect works
 // only through connect_redirects. Nothing answers DNS for a macOS session,
 // so dns_redirects do nothing.
+//
+// ES has AUTH events for a unix socket connect and bind, and none for listen
+// or sendto. ES can allow or deny a signal, so a signal absorb or approve
+// acts as deny, and a signal redirect takes the rule's fallback.
 func macOSPolicyWarnings(p *policy.Policy) []string {
 	var out []string
 	for _, r := range p.FileRules {
@@ -496,6 +500,28 @@ func macOSPolicyWarnings(p *policy.Policy) []string {
 	}
 	for _, r := range p.DnsRedirectRules {
 		out = append(out, fmt.Sprintf("rule=%s: dns_redirects are not applied on macOS", r.Name))
+	}
+	for _, r := range p.UnixRules {
+		if strings.EqualFold(r.Decision, "approve") {
+			out = append(out, fmt.Sprintf("rule=%s: unix socket decision \"approve\" acts as deny on macOS", r.Name))
+		}
+		for _, op := range r.Operations {
+			if o := strings.ToLower(op); o == "listen" || o == "sendto" {
+				out = append(out, fmt.Sprintf("rule=%s: unix socket operation %q is not checked on macOS; only connect and bind are", r.Name, o))
+			}
+		}
+	}
+	for _, r := range p.SignalRules {
+		switch d := strings.ToLower(r.Decision); d {
+		case "absorb", "approve":
+			out = append(out, fmt.Sprintf("rule=%s: signal decision %q acts as deny on macOS", r.Name, d))
+		case "redirect":
+			fb := r.Fallback
+			if fb == "" {
+				fb = "audit"
+			}
+			out = append(out, fmt.Sprintf("rule=%s: signal decision \"redirect\" is not possible on macOS; the fallback %q applies", r.Name, fb))
+		}
 	}
 	return out
 }
