@@ -511,6 +511,9 @@ func macOSPolicyWarnings(p *policy.Policy) []string {
 			}
 		}
 	}
+	if w := macOSResolverSocketWarning(p); w != "" {
+		out = append(out, w)
+	}
 	for _, r := range p.SignalRules {
 		switch d := strings.ToLower(r.Decision); d {
 		case "absorb", "approve":
@@ -524,6 +527,33 @@ func macOSPolicyWarnings(p *policy.Policy) []string {
 		}
 	}
 	return out
+}
+
+// macOSResolver is the unix socket that macOS host name lookups connect to.
+// ES names it by its real path, /private/var/run/mDNSResponder, and the
+// extension matches a rule against both forms.
+const macOSResolver = "/var/run/mDNSResponder"
+
+// macOSResolverSocketWarning warns when a policy has unix_socket_rules but
+// does not allow a connect to the resolver socket. The extension denies a
+// socket that no rule allows, so every host name lookup in the session
+// fails.
+func macOSResolverSocketWarning(p *policy.Policy) string {
+	if len(p.UnixRules) == 0 {
+		return ""
+	}
+	engine, err := policy.NewEngine(p, false, true)
+	if err != nil {
+		return ""
+	}
+	for _, path := range []string{macOSResolver, "/private" + macOSResolver} {
+		switch engine.CheckUnixSocket(path, "connect").PolicyDecision {
+		case types.DecisionAllow, types.DecisionAudit:
+			return ""
+		}
+	}
+	dec := engine.CheckUnixSocket(macOSResolver, "connect")
+	return fmt.Sprintf("rule=%s: unix_socket_rules deny a connect to %s, so host name lookups fail in a macOS session; allow it before this rule", dec.Rule, macOSResolver)
 }
 
 func printDBPolicyWarnings(cmd *cobra.Command, warns []dbpolicy.Warning) {

@@ -104,3 +104,37 @@ func TestMacOSPolicyWarnings(t *testing.T) {
 		}
 	}
 }
+
+func TestMacOSResolverSocketWarning(t *testing.T) {
+	sys := policy.UnixSocketRule{Name: "deny-system-sockets", Paths: []string{"/var/run/**"}, Operations: []string{"connect"}, Decision: "deny"}
+	dns := policy.UnixSocketRule{Name: "allow-dns", Paths: []string{"/var/run/mDNSResponder"}, Operations: []string{"connect"}, Decision: "allow"}
+	realPath := policy.UnixSocketRule{Name: "allow-dns-real", Paths: []string{"/private/var/run/mDNSResponder"}, Decision: "audit"}
+	for _, c := range []struct {
+		name  string
+		rules []policy.UnixSocketRule
+		want  string
+	}{
+		{"no socket rules", nil, ""},
+		{"denied by a rule", []policy.UnixSocketRule{sys}, "rule=deny-system-sockets:"},
+		{"denied by the default", []policy.UnixSocketRule{{Name: "tmp", Paths: []string{"/tmp/**"}, Decision: "allow"}}, "rule=default-deny-unix:"},
+		{"allowed first", []policy.UnixSocketRule{dns, sys}, ""},
+		{"allowed after the deny", []policy.UnixSocketRule{sys, dns}, "rule=deny-system-sockets:"},
+		{"real path audited", []policy.UnixSocketRule{realPath, sys}, ""},
+	} {
+		got := macOSResolverSocketWarning(&policy.Policy{Version: 1, UnixRules: c.rules})
+		if c.want == "" && got != "" || c.want != "" && !strings.HasPrefix(got, c.want) {
+			t.Errorf("%s: warning = %q, want prefix %q", c.name, got, c.want)
+		}
+	}
+}
+
+// The shipped agent-default policy must not trigger the warning.
+func TestMacOSResolverSocketWarning_AgentDefault(t *testing.T) {
+	p, err := policy.LoadFromFile(filepath.Join("..", "..", "configs", "policies", "agent-default.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := macOSResolverSocketWarning(p); w != "" {
+		t.Fatalf("agent-default: %s", w)
+	}
+}
