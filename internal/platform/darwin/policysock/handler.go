@@ -17,8 +17,9 @@ type SessionResolver interface {
 	SessionForPID(pid int32) string
 	LatestSession() (sessionID string, rootPID int32)
 	RootPIDForSession(sessionID string) int32
+	RootPIDsForSession(sessionID string) []int32
 	ActiveSessions() []string
-	NoteSnapshotDelivered(sessionID string)
+	NoteSnapshotDelivered(sessionID string, roots []int32)
 }
 
 // PolicyAdapter adapts the policy.Engine to the PolicyHandler interface.
@@ -330,8 +331,10 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 	// two registrations; it fetches the latest and would never learn about the
 	// other. Handing back the full list lets it fetch what it is missing.
 	var activeSessions []string
+	var rootPIDs []int32
 	if a.sessions != nil {
 		activeSessions = a.sessions.ActiveSessions()
+		rootPIDs = a.sessions.RootPIDsForSession(sessionID)
 	}
 
 	// The extension asked for this session's policy and is about to receive it,
@@ -339,7 +342,7 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 	// letting the agent start; without it the agent's first commands run before
 	// the extension has any policy at all.
 	if a.sessions != nil {
-		a.sessions.NoteSnapshotDelivered(sessionID)
+		a.sessions.NoteSnapshotDelivered(sessionID, rootPIDs)
 	}
 
 	enforcement := networkEnforcement(p)
@@ -355,6 +358,7 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 		Allow:              true,
 		SessionID:          sessionID,
 		RootPID:            rootPID,
+		RootPIDs:           rootPIDs,
 		SnapshotVersion:    nextSnapshotVersion(),
 		FileRules:          fileRules,
 		NetworkRules:       networkRules,

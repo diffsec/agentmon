@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/diffsec/agentmon/internal/policy"
 	"golang.org/x/sys/unix"
@@ -154,5 +155,25 @@ func TestMacOSSignalAction(t *testing.T) {
 		if got := macOSSignalAction(c.decision, c.fallback); got != c.want {
 			t.Errorf("macOSSignalAction(%q, %q) = %q, want %q", c.decision, c.fallback, got, c.want)
 		}
+	}
+}
+
+// TestBuildPolicySnapshot_RootPIDs: the snapshot names every root of the
+// session, and the tracker records that the extension received each one.
+func TestBuildPolicySnapshot_RootPIDs(t *testing.T) {
+	engine, err := policy.NewEngine(&policy.Policy{Version: 1}, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tracker := NewSessionTracker()
+	tracker.RegisterProcess("s1", 100, 0)
+	tracker.RegisterProcess("s1", 200, 0)
+
+	resp := NewPolicyAdapter(engine, tracker).BuildPolicySnapshot("s1", 0)
+	if resp.RootPID != 100 || !slices.Equal(resp.RootPIDs, []int32{100, 200}) {
+		t.Errorf("root_pid = %d, root_pids = %v, want 100 and [100 200]", resp.RootPID, resp.RootPIDs)
+	}
+	if !tracker.AwaitRootDelivered("s1", 200, time.Millisecond) {
+		t.Error("the tracker did not record that the snapshot named pid 200")
 	}
 }

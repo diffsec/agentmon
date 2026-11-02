@@ -26,6 +26,17 @@ type SessionTracker struct {
 	// sessionID -> root PID (first PID registered for the session)
 	sessionRootPID map[string]int32
 
+	// sessionID -> every PID registered with no parent, in order. The first
+	// is sessionRootPID. Each later `agentmon wrap --session` into the same
+	// session adds its own wrap process here. The snapshot sends them all, so
+	// that the extension maps each one to the session.
+	sessionRoots map[string][]int32
+
+	// sessionID -> the roots that a delivered snapshot listed. A wrap into a
+	// session that the extension already holds must wait for a snapshot that
+	// names its own PID, not for any snapshot of the session.
+	rootsDelivered map[string]map[int32]struct{}
+
 	// sessionIDs in registration order, most recent last. Go map iteration is
 	// randomised, so "latest" cannot be derived from sessionRootPID -- see
 	// LatestSession.
@@ -48,6 +59,8 @@ func NewSessionTracker() *SessionTracker {
 		pidToParent:    make(map[int32]int32),
 		sessionToPids:  make(map[string]map[int32]struct{}),
 		sessionRootPID: make(map[string]int32),
+		sessionRoots:   make(map[string][]int32),
+		rootsDelivered: make(map[string]map[int32]struct{}),
 
 		snapshotDelivered: make(map[string]struct{}),
 		snapshotAbandoned: make(map[string]struct{}),
@@ -65,13 +78,54 @@ func NewSessionTracker() *SessionTracker {
 // `whoami` the policy denies succeeded, and so did a read of a denied file.
 // wrap-init waits on this rather than returning as soon as the notification is
 // posted.
-func (t *SessionTracker) NoteSnapshotDelivered(sessionID string) {
+//
+// roots are the root PIDs that the delivered snapshot listed.
+func (t *SessionTracker) NoteSnapshotDelivered(sessionID string, roots []int32) {
 	if sessionID == "" {
 		return
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.snapshotDelivered[sessionID] = struct{}{}
+	if t.rootsDelivered[sessionID] == nil {
+		t.rootsDelivered[sessionID] = make(map[int32]struct{})
+	}
+	for _, pid := range roots {
+		t.rootsDelivered[sessionID][pid] = struct{}{}
+	}
+}
+
+// rootDelivered reports whether a delivered snapshot of the session listed
+// pid as a root.
+func (t *SessionTracker) rootDelivered(sessionID string, pid int32) bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	_, ok := t.rootsDelivered[sessionID][pid]
+	return ok
+}
+
+// AwaitRootDelivered blocks until the extension has fetched a snapshot of
+// the session that lists pid as a root, or until timeout. It reports
+// whether that happened.
+//
+// wrap-init uses this, and not AwaitSnapshot. When a second wrap joins a
+// session, the extension already holds a snapshot of it, so AwaitSnapshot
+// returns at once. But that snapshot does not name the new wrap process, so
+// the extension treats the wrapped agent as outside every session.
+func (t *SessionTracker) AwaitRootDelivered(sessionID string, pid int32, timeout time.Duration) bool {
+	if sessionID == "" || pid <= 0 {
+		return false
+	}
+	deadline := time.Now().Add(timeout)
+	for {
+		if t.rootDelivered(sessionID, pid) {
+			return true
+		}
+		if !time.Now().Before(deadline) {
+			return false
+		}
+		time.Sleep(snapshotPollInterval)
+	}
 }
 
 // SnapshotDelivered reports whether the extension has fetched this session's
@@ -161,6 +215,18 @@ func (t *SessionTracker) RegisterProcess(sessionID string, pid, ppid int32) {
 		t.sessionRootPID[sessionID] = pid
 		t.sessionOrder = append(t.sessionOrder, sessionID)
 	}
+	if ppid <= 0 && !containsPID(t.sessionRoots[sessionID], pid) {
+		t.sessionRoots[sessionID] = append(t.sessionRoots[sessionID], pid)
+	}
+}
+
+func containsPID(pids []int32, pid int32) bool {
+	for _, p := range pids {
+		if p == pid {
+			return true
+		}
+	}
+	return false
 }
 
 // SetParent records a parent-child relationship (from fork events).
@@ -200,6 +266,8 @@ func (t *SessionTracker) EndSession(sessionID string) {
 	// accumulated forever and LatestSession could hand back a terminated
 	// session's root PID (AUDIT M30).
 	delete(t.sessionRootPID, sessionID)
+	delete(t.sessionRoots, sessionID)
+	delete(t.rootsDelivered, sessionID)
 	// Same reason: an ended session's delivery flag must not outlive it, or a
 	// later session reusing the ID would be reported as already enforced.
 	delete(t.snapshotDelivered, sessionID)
@@ -305,6 +373,20 @@ func (t *SessionTracker) RootPIDForSession(sessionID string) int32 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.sessionRootPID[sessionID]
+}
+
+// RootPIDsForSession returns every root PID of a session, first registered
+// first. It returns a copy.
+func (t *SessionTracker) RootPIDsForSession(sessionID string) []int32 {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	roots := t.sessionRoots[sessionID]
+	if len(roots) == 0 {
+		return nil
+	}
+	out := make([]int32, len(roots))
+	copy(out, roots)
+	return out
 }
 
 // RegisterSession implements SessionRegistrar by registering the root PID

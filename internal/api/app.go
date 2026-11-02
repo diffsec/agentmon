@@ -124,6 +124,14 @@ type App struct {
 		// a notification, and the extension fetches asynchronously. Both
 		// wrap-init and exec block on this before letting a process start.
 		AwaitSnapshot(sessionID string, timeout time.Duration) bool
+		// AwaitRootDelivered blocks until the extension holds a snapshot of
+		// the session that names pid as a root. wrap-init needs it, because
+		// a session that the extension already holds passes AwaitSnapshot
+		// before the extension knows the new wrap process.
+		AwaitRootDelivered(sessionID string, pid int32, timeout time.Duration) bool
+		// RootPIDsForSession lists the session's roots. A non-empty list
+		// means that the session is already registered.
+		RootPIDsForSession(sessionID string) []int32
 	}
 
 	// acceptNotifyFDForTest, if non-nil, wraps the goroutine launch for
@@ -308,6 +316,8 @@ func (a *App) SetSessionTracker(t interface {
 	RegisterProcess(sessionID string, pid, ppid int32)
 	EndSession(sessionID string)
 	AwaitSnapshot(sessionID string, timeout time.Duration) bool
+	AwaitRootDelivered(sessionID string, pid int32, timeout time.Duration) bool
+	RootPIDsForSession(sessionID string) []int32
 }) {
 	a.sessionTracker = t
 }
