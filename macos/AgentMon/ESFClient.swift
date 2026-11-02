@@ -954,6 +954,28 @@ private func handleAuthProcessAccess(client: OpaquePointer, event: UnsafePointer
     )
 }
 
+/// Record an exec that the daemon's policy denied, as the Linux execve
+/// handler does. Without it, a denied exec under `agentmon wrap` left no
+/// trace: the process died, and no event said why (SECENG-311).
+private func sendExecDeniedEvent(path: String, args: [String], pid: pid_t, parentPID: pid_t,
+                                 sessionID: String, rule: String?, message: String?) {
+    var fields: [String: Any] = ["argv": args, "parent_pid": Int(parentPID)]
+    if let message = message, !message.isEmpty {
+        fields["message"] = message
+    }
+    sendFileEvent(
+        eventType: "execve",
+        path: path,
+        operation: "exec",
+        pid: pid,
+        sessionID: sessionID,
+        decision: "deny",
+        rule: rule,
+        action: "blocked",
+        extraFields: ["fields": fields]
+    )
+}
+
 /// How long to wait for the daemon's exec verdict before failing closed.
 ///
 /// Comfortably inside the ES deadline for AUTH_EXEC, and enormous next to the
@@ -1111,7 +1133,11 @@ private func handleAuthExec(client: OpaquePointer, event: UnsafePointer<es_messa
             ])
 
         case "deny":
-            responder.respond(ES_AUTH_RESULT_DENY)
+            if responder.respond(ES_AUTH_RESULT_DENY) {
+                sendExecDeniedEvent(path: execPath, args: args, pid: pid, parentPID: parentPID,
+                                    sessionID: sessionID, rule: response?["rule"] as? String,
+                                    message: response?["message"] as? String)
+            }
 
         default:
             // A nil response is a socket failure; an unrecognised action is

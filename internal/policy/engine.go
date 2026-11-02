@@ -7,8 +7,10 @@ import (
 	"net"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/diffsec/agentmon/internal/shellparse"
 	"github.com/diffsec/agentmon/pkg/types"
@@ -128,6 +130,88 @@ type compiledCommandRule struct {
 	fullPaths     map[string]struct{} // Commands with paths (e.g., "/bin/sh") - match exact path
 	pathGlobs     []glob.Glob         // Glob patterns for paths (e.g., "/usr/*/sh")
 	argsRegexes   []*regexp.Regexp    // Regex patterns matched against joined args string
+}
+
+// matchesCommand reports whether the rule names command. A rule with no
+// commands names every command. A full path or a path glob is checked
+// first. Then the basename is checked as it is, and in two other forms:
+//
+//   - Without ".real". The shim install renames the original shell to
+//     <name>.real and puts the shim at the original path. The shim sends the
+//     real shell as the command, so a policy that lists `bash` must also
+//     match `bash.real`.
+//   - Without a version suffix, such as ".15" in "python3.15". On macOS, ES
+//     reports the resolved executable, and Homebrew's python3 resolves to
+//     .../bin/python3.15. A policy that lists `python3` must match it, or
+//     Homebrew's python3 dies under `agentmon wrap` (SECENG-311).
+func (r *compiledCommandRule) matchesCommand(command string) bool {
+	if len(r.basenames) == 0 && len(r.basenameGlobs) == 0 && len(r.fullPaths) == 0 && len(r.pathGlobs) == 0 {
+		return true
+	}
+	cmdLower := strings.ToLower(command)
+	if _, ok := r.fullPaths[cmdLower]; ok {
+		return true
+	}
+	for _, g := range r.pathGlobs {
+		if g.Match(cmdLower) || g.Match(command) {
+			return true
+		}
+	}
+
+	base := filepath.Base(command)
+	names := commandNameForms(strings.ToLower(base))
+	for _, n := range names {
+		if _, ok := r.basenames[n]; ok {
+			return true
+		}
+	}
+	for _, g := range r.basenameGlobs {
+		if g.Match(base) {
+			return true
+		}
+		for _, n := range names {
+			if g.Match(n) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// commandNameForms returns a lowercase basename, then the same name without
+// ".real", then without a trailing version suffix. Each form is in the list
+// once.
+func commandNameForms(base string) []string {
+	forms := []string{base}
+	add := func(n string) {
+		if n != "" && !slices.Contains(forms, n) {
+			forms = append(forms, n)
+		}
+	}
+	noReal := strings.TrimSuffix(base, ".real")
+	add(noReal)
+	add(stripVersionSuffix(noReal))
+	return forms
+}
+
+// stripVersionSuffix removes trailing ".<digits>" parts: "python3.15" gives
+// "python3", and "perl5.34.1" gives "perl5". A name with no such suffix is
+// returned unchanged. The part that stays must hold a letter, so "1.2"
+// stays "1.2".
+func stripVersionSuffix(name string) string {
+	out := name
+	for {
+		dot := strings.LastIndexByte(out, '.')
+		if dot <= 0 || dot == len(out)-1 || !strings.ContainsFunc(out[:dot], unicode.IsLetter) {
+			return out
+		}
+		for _, c := range out[dot+1:] {
+			if c < '0' || c > '9' {
+				return out
+			}
+		}
+		out = out[:dot]
+	}
 }
 
 type compiledUnixRule struct {
@@ -853,19 +937,6 @@ func decisionStrictness(d types.Decision) int {
 // default-deny fall-through (kept here so callers that don't care about
 // match status continue to see deny-by-default).
 func (e *Engine) matchCommandRules(command string, args []string) (Decision, bool) {
-	cmdLower := strings.ToLower(command)
-	cmdBase := strings.ToLower(filepath.Base(command))
-	// The shim install renames the original shell to <name>.real and places
-	// the shim at the original path. Server-side, the shim forwards the
-	// real shell as the outer command — so an operator policy listing
-	// `commands: [bash]` would otherwise miss `bash.real` and fall through
-	// to default-deny on every shim-routed shell invocation. shellparse
-	// already strips this suffix for known-shell detection (see
-	// shellparse.basenameLower); apply the same normalization to the
-	// basename match here so policy entries written without `.real`
-	// continue to match after a shim install.
-	cmdBaseNorm := strings.TrimSuffix(cmdBase, ".real")
-
 	for _, r := range e.compiledCommandRules {
 		// Pre-check is always depth 0 (direct command from user)
 		// Skip rules that don't apply to direct commands
@@ -873,54 +944,7 @@ func (e *Engine) matchCommandRules(command string, args []string) (Decision, boo
 			continue
 		}
 
-		// Check if command matches any of the rule's patterns
-		commandMatched := false
-
-		// If no commands specified, rule applies to all commands
-		if len(r.basenames) == 0 && len(r.basenameGlobs) == 0 && len(r.fullPaths) == 0 && len(r.pathGlobs) == 0 {
-			commandMatched = true
-		} else {
-			// Check full path matches first (more specific)
-			if _, ok := r.fullPaths[cmdLower]; ok {
-				commandMatched = true
-			}
-
-			// Check path glob patterns
-			if !commandMatched {
-				for _, g := range r.pathGlobs {
-					if g.Match(cmdLower) || g.Match(command) {
-						commandMatched = true
-						break
-					}
-				}
-			}
-
-			// Check basename matches (less specific, legacy behavior)
-			if !commandMatched {
-				if _, ok := r.basenames[cmdBase]; ok {
-					commandMatched = true
-				} else if cmdBaseNorm != cmdBase {
-					if _, ok := r.basenames[cmdBaseNorm]; ok {
-						commandMatched = true
-					}
-				}
-			}
-
-			// Check basename glob patterns
-			if !commandMatched {
-				for _, g := range r.basenameGlobs {
-					if g.Match(cmdBase) || g.Match(filepath.Base(command)) {
-						commandMatched = true
-						break
-					}
-					if cmdBaseNorm != cmdBase && g.Match(cmdBaseNorm) {
-						commandMatched = true
-						break
-					}
-				}
-			}
-		}
-
+		commandMatched := r.matchesCommand(command)
 		if !commandMatched {
 			continue
 		}
@@ -1529,55 +1553,13 @@ func (e *Engine) checkExecve(filename string, argv []string, depth int) (dec Dec
 			defer func() { dec.Tor = &tv }() // audit: attach, don't loosen
 		}
 	}
-	cmdLower := strings.ToLower(filename)
-	cmdBase := strings.ToLower(filepath.Base(filename))
-
 	for _, r := range e.compiledCommandRules {
 		// Check depth/context constraint first
 		if !r.rule.Context.MatchesDepth(depth) {
 			continue
 		}
 
-		// Check if command matches any of the rule's patterns
-		commandMatched := false
-
-		// If no commands specified, rule applies to all commands
-		if len(r.basenames) == 0 && len(r.basenameGlobs) == 0 && len(r.fullPaths) == 0 && len(r.pathGlobs) == 0 {
-			commandMatched = true
-		} else {
-			// Check full path matches first (more specific)
-			if _, ok := r.fullPaths[cmdLower]; ok {
-				commandMatched = true
-			}
-
-			// Check path glob patterns
-			if !commandMatched {
-				for _, g := range r.pathGlobs {
-					if g.Match(cmdLower) || g.Match(filename) {
-						commandMatched = true
-						break
-					}
-				}
-			}
-
-			// Check basename matches (less specific, legacy behavior)
-			if !commandMatched {
-				if _, ok := r.basenames[cmdBase]; ok {
-					commandMatched = true
-				}
-			}
-
-			// Check basename glob patterns
-			if !commandMatched {
-				for _, g := range r.basenameGlobs {
-					if g.Match(cmdBase) || g.Match(filepath.Base(filename)) {
-						commandMatched = true
-						break
-					}
-				}
-			}
-		}
-
+		commandMatched := r.matchesCommand(filename)
 		if !commandMatched {
 			continue
 		}
