@@ -976,12 +976,49 @@ private func sendExecDeniedEvent(path: String, args: [String], pid: pid_t, paren
     )
 }
 
-/// How long to wait for the daemon's exec verdict before failing closed.
+/// The shortest wait for the daemon's exec verdict before failing closed.
 ///
-/// Comfortably inside the ES deadline for AUTH_EXEC, and enormous next to the
-/// observed round trip, which is a single unix-socket request on the same
-/// machine.
+/// Enormous next to the observed round trip, which is a single unix-socket
+/// request on the same machine. A package install needs longer, because the
+/// daemon resolves it and asks the package providers. See execWaitTime.
 private let execDecisionTimeout: TimeInterval = 2.0
+
+/// The longest wait for the daemon's exec verdict.
+private let execDecisionMaxWait: TimeInterval = 30.0
+
+/// Time kept free before the ES deadline. The extension must answer before
+/// it, or ES ends the extension's client.
+private let execDeadlineMargin: TimeInterval = 1.0
+
+/// Words that start a package install in the package managers that the
+/// daemon checks: npm, pnpm, yarn, pip, uv and poetry.
+private let packageInstallWords: Set<String> = ["install", "i", "add", "ci", "sync"]
+
+/// Whether an exec can be a package install, from its arguments. A false
+/// answer for a real install is safe: the daemon then has 1.5 s, and an
+/// unfinished check denies the exec.
+private func execMayBePackageInstall(_ args: [String]) -> Bool {
+    args.dropFirst().contains { packageInstallWords.contains($0) }
+}
+
+/// How long to wait for the daemon's exec verdict: until execDeadlineMargin
+/// before the message's ES deadline, but no longer than execDecisionMaxWait.
+/// When the deadline leaves less than execDecisionTimeout, the wait ends
+/// 0.2 s before the deadline.
+private func execWaitTime(_ message: UnsafePointer<es_message_t>) -> TimeInterval {
+    var timebase = mach_timebase_info_data_t()
+    mach_timebase_info(&timebase)
+    let now = mach_absolute_time()
+    let deadline = message.pointee.deadline
+    guard deadline > now, timebase.denom != 0 else { return execDecisionTimeout }
+    let ticks = Double(deadline - now)
+    let remaining = ticks * Double(timebase.numer) / Double(timebase.denom) / 1e9
+    let wait = min(remaining - execDeadlineMargin, execDecisionMaxWait)
+    if wait >= execDecisionTimeout {
+        return wait
+    }
+    return max(min(execDecisionTimeout, remaining - 0.2), 0.1)
+}
 
 /// Queue for the fail-closed watchdog below. Concurrent: each exec's watchdog
 /// is independent and must not be delayed by another's.
@@ -1074,6 +1111,19 @@ private func handleAuthExec(client: OpaquePointer, event: UnsafePointer<es_messa
         ttyPath = String(cString: ttyFile.pointee.path.data)
     }
     let cwdPath = String(cString: execPtr.pointee.cwd.pointee.path.data)
+    // For a script, ES reports the interpreter as the target. The daemon
+    // needs the script to see `pip3 install x` as a package install.
+    var scriptPath = ""
+    if event.pointee.version >= 2, let script = execPtr.pointee.script {
+        scriptPath = String(cString: script.pointee.path.data)
+    }
+    // An exec that can be a package install may need seconds: the daemon
+    // resolves the install and asks the package providers. Only such an
+    // exec waits longer, on a connection of its own. Every other exec keeps
+    // the 2 s limit. If this test misses an install, the daemon has 1.5 s
+    // for the check, and an unfinished check denies the exec.
+    let mayInstall = execMayBePackageInstall(args)
+    let waitTime = mayInstall ? execWaitTime(event) : execDecisionTimeout
 
     // Ask the daemon rather than deciding from the local cache.
     //
@@ -1097,14 +1147,14 @@ private func handleAuthExec(client: OpaquePointer, event: UnsafePointer<es_messa
 
     // Fail closed if no verdict arrives. Allowing on timeout would mean a slow
     // or dead daemon silently turns command policy off.
-    execWatchdogQueue.asyncAfter(deadline: .now() + execDecisionTimeout) {
+    execWatchdogQueue.asyncAfter(deadline: .now() + waitTime) {
         if responder.respond(ES_AUTH_RESULT_DENY) {
             os_log(.error, log: esLog,
                    "exec check timed out for pid %{public}d -- denied (fail closed)", pid)
         }
     }
 
-    PolicySocketClient.shared.request([
+    let execRequest: [String: Any] = [
         "type": "exec_check",
         "path": execPath,
         "args": args,
@@ -1112,8 +1162,11 @@ private func handleAuthExec(client: OpaquePointer, event: UnsafePointer<es_messa
         "parent_pid": Int(parentPID),
         "session_id": sessionID,
         "tty_path": ttyPath ?? "",
-        "cwd_path": cwdPath
-    ]) { response in
+        "cwd_path": cwdPath,
+        "script": scriptPath,
+        "deadline_ms": Int(waitTime * 1000)
+    ]
+    let onVerdict: ([String: Any]?) -> Void = { response in
         switch response?["action"] as? String {
         case "continue":
             responder.respond(ES_AUTH_RESULT_ALLOW)
@@ -1147,6 +1200,11 @@ private func handleAuthExec(client: OpaquePointer, event: UnsafePointer<es_messa
                        "exec check for pid %{public}d got no usable verdict -- denied (fail closed)", pid)
             }
         }
+    }
+    if mayInstall {
+        PolicySocketClient.shared.requestOnce(execRequest, timeout: waitTime, completion: onVerdict)
+    } else {
+        PolicySocketClient.shared.request(execRequest, completion: onVerdict)
     }
 
     // Track exec depth for recursion monitoring (best-effort, after response)

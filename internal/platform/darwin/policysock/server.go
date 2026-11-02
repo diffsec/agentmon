@@ -511,8 +511,10 @@ func (s *Server) handleExecCheck(req *PolicyRequest) PolicyResponse {
 	}
 
 	result := h.CheckExec(req.Path, req.Args, req.PID, req.ParentPID, req.SessionID, ExecContext{
-		TTYPath: req.TTYPath,
-		CWDPath: req.CWDPath,
+		TTYPath:  req.TTYPath,
+		CWDPath:  req.CWDPath,
+		Script:   req.Script,
+		Deadline: time.Duration(req.DeadlineMS) * time.Millisecond,
 	})
 	return PolicyResponse{
 		Allow:        result.Action == "continue",

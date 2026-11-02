@@ -3,7 +3,10 @@ package pkgcheck
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/diffsec/agentmon/internal/policy"
 )
@@ -28,7 +31,23 @@ type Checker struct {
 	cfg  CheckerConfig
 	orch *Orchestrator
 	eval *Evaluator
+
+	// recent holds the verdicts of the last recentTTL, by install. On macOS
+	// one `agentmon exec pip install x` is checked twice: by the exec API,
+	// and again when the system extension sees the exec. Without this, the
+	// second check resolves the same install again.
+	mu     sync.Mutex
+	recent map[string]recentVerdict
+	now    func() time.Time
 }
+
+type recentVerdict struct {
+	verdict Verdict
+	at      time.Time
+}
+
+// recentTTL is how long Check reuses a verdict for the same install.
+const recentTTL = 30 * time.Second
 
 // NewChecker creates a new Checker wired to the given config.
 func NewChecker(cfg CheckerConfig) *Checker {
@@ -39,19 +58,68 @@ func NewChecker(cfg CheckerConfig) *Checker {
 			Providers:     cfg.Providers,
 			PrivacyFilter: pf,
 		}),
-		eval: NewEvaluator(cfg.Rules),
+		eval:   NewEvaluator(cfg.Rules),
+		recent: make(map[string]recentVerdict),
+		now:    time.Now,
 	}
 }
 
 // Check evaluates a command. Returns a nil verdict if the command is not a
 // recognised package-install operation.
+//
+// A verdict of allow, warn or block for the same install in the same
+// directory is reused for recentTTL. An approve verdict is not reused,
+// because each one asks a person.
 func (c *Checker) Check(ctx context.Context, command string, args []string, workDir string) (*Verdict, error) {
-	// 1. Classify the command.
+	// `python -m pip install x` is a pip install.
+	command, args = UnwrapInstallCommand(command, args)
 	intent := ClassifyInstallCommand(command, args, c.cfg.Scope)
 	if intent == nil {
 		return nil, nil
 	}
+	key := recentKey(intent, workDir)
+	if v, ok := c.recentVerdict(key); ok {
+		return v, nil
+	}
+	v, err := c.check(ctx, command, args, workDir, intent)
+	if err == nil && v != nil && v.Action != VerdictApprove {
+		c.mu.Lock()
+		c.recent[key] = recentVerdict{verdict: *v, at: c.now()}
+		c.mu.Unlock()
+	}
+	return v, err
+}
 
+// recentKey names an install: the tool, the directory and the arguments.
+// The directory is resolved, because the exec API and macOS ES can name the
+// same one differently, for example /var and /private/var.
+func recentKey(intent *InstallIntent, workDir string) string {
+	if dir, err := filepath.EvalSymlinks(workDir); err == nil {
+		workDir = dir
+	}
+	return intent.Tool + "\x00" + workDir + "\x00" + strings.Join(intent.OrigArgs, "\x00")
+}
+
+// recentVerdict returns a copy of a verdict from the last recentTTL, and
+// drops the ones that are older.
+func (c *Checker) recentVerdict(key string) (*Verdict, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now := c.now()
+	for k, r := range c.recent {
+		if now.Sub(r.at) > recentTTL {
+			delete(c.recent, k)
+		}
+	}
+	r, ok := c.recent[key]
+	if !ok {
+		return nil, false
+	}
+	v := r.verdict
+	return &v, true
+}
+
+func (c *Checker) check(ctx context.Context, command string, args []string, workDir string, intent *InstallIntent) (*Verdict, error) {
 	// 2. Find a resolver that can handle this tool.
 	// Strip leading global flags so args[0] is the subcommand,
 	// which is what resolvers' CanResolve expects.

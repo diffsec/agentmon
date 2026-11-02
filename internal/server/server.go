@@ -650,6 +650,10 @@ func New(cfg *config.Config) (*Server, error) {
 	// the proxy after compiling the session-local DB unavoidability bundle.
 
 	// Initialize package checker (optional).
+	// pkgChecker stays nil when package checks are off. The policy socket
+	// uses the same checker, so the exec API and the macOS extension share
+	// one verdict for one install.
+	var pkgChecker *pkgcheck.Checker
 	if cfg.PackageChecks.Enabled {
 		// Resolve and apply fail mode so Snyk/Socket OnFailure reflects
 		// the operator's policy before provider entries are constructed.
@@ -706,7 +710,7 @@ func New(cfg *config.Config) (*Server, error) {
 		rules := append([]policy.PackageRule(nil), engine.PackageRules()...)
 		rules = append(rules, config.CompileBlockOnRules(cfg.PackageChecks.BlockOn)...)
 
-		pkgChecker := pkgcheck.NewChecker(pkgcheck.CheckerConfig{
+		pkgChecker = pkgcheck.NewChecker(pkgcheck.CheckerConfig{
 			Scope:     cfg.PackageChecks.Scope,
 			Resolvers: resolvers,
 			Providers: providerEntries,
@@ -867,7 +871,7 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 
 	// Start the policy socket server (macOS only; no-op on other platforms).
-	srv.startPolicySocket(cfg, engine, approvalsMgr)
+	srv.startPolicySocket(cfg, engine, approvalsMgr, pkgChecker)
 	// Wire cmdResolver and sessionTracker into the app (darwin only).
 	if srv.cmdResolver != nil {
 		app.SetCmdResolver(srv.cmdResolver)

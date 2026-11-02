@@ -3,6 +3,7 @@ package pkgcheck
 import (
 	"path/filepath"
 	"strings"
+	"unicode"
 )
 
 // InstallIntent captures the parsed intent of an install command.
@@ -68,6 +69,9 @@ func ClassifyInstallCommand(command string, args []string, scope string) *Instal
 	base = strings.TrimSuffix(base, ".exe")
 	base = strings.TrimSuffix(base, ".cmd")
 	base = strings.TrimSuffix(base, ".bat")
+	// A versioned name such as "pip3.15" is the same tool. Homebrew installs
+	// pip3.15 next to pip3, and on macOS ES reports resolved paths.
+	base = trimVersionSuffix(base)
 
 	switch base {
 	case "npm":
@@ -85,6 +89,50 @@ func ClassifyInstallCommand(command string, args []string, scope string) *Instal
 	default:
 		return nil
 	}
+}
+
+// trimVersionSuffix removes trailing ".<digits>" parts: "pip3.15" gives
+// "pip3". The part that stays must hold a letter.
+func trimVersionSuffix(name string) string {
+	for {
+		dot := strings.LastIndexByte(name, '.')
+		if dot <= 0 || dot == len(name)-1 || !strings.ContainsFunc(name[:dot], unicode.IsLetter) {
+			return name
+		}
+		if strings.Trim(name[dot+1:], "0123456789") != "" {
+			return name
+		}
+		name = name[:dot]
+	}
+}
+
+// UnwrapInstallCommand returns the package manager command inside a
+// `python -m pip ...` command, as ("pip", the arguments after the module).
+// Any other command comes back unchanged.
+//
+// The interpreter's own flags before -m are skipped. A flag that takes a
+// value, such as -W or -X, is not expected before -m, so the first argument
+// that does not start with "-" ends the search.
+func UnwrapInstallCommand(command string, args []string) (string, []string) {
+	base := strings.ToLower(filepath.Base(command))
+	if !strings.HasPrefix(trimVersionSuffix(base), "python") {
+		return command, args
+	}
+	for i, a := range args {
+		if a == "-m" {
+			if i+1 < len(args) {
+				switch trimVersionSuffix(strings.ToLower(args[i+1])) {
+				case "pip", "pip3":
+					return "pip", args[i+2:]
+				}
+			}
+			return command, args
+		}
+		if !strings.HasPrefix(a, "-") {
+			return command, args
+		}
+	}
+	return command, args
 }
 
 // classifyNPM handles npm install/i/add/ci commands.

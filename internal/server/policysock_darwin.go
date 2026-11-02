@@ -12,6 +12,7 @@ import (
 	"github.com/diffsec/agentmon/internal/config"
 	"github.com/diffsec/agentmon/internal/events"
 	"github.com/diffsec/agentmon/internal/netmonitor"
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 	"github.com/diffsec/agentmon/internal/platform/darwin"
 	"github.com/diffsec/agentmon/internal/platform/darwin/policysock"
 	"github.com/diffsec/agentmon/internal/policy"
@@ -26,7 +27,7 @@ const approvalGrantTTL = 60 * time.Second
 // startPolicySocket creates and starts the policy socket server for macOS
 // system extension IPC. It sets the policySockCancel and policySockDone
 // fields on the Server so the socket is shut down when the server stops.
-func (s *Server) startPolicySocket(cfg *config.Config, engine *policy.Engine, approvalsMgr *approvals.Manager) {
+func (s *Server) startPolicySocket(cfg *config.Config, engine *policy.Engine, approvalsMgr *approvals.Manager, pkgChecker *pkgcheck.Checker) {
 	sockPath := cfg.PolicySocket.Path
 	if sockPath == "" {
 		return
@@ -85,6 +86,11 @@ func (s *Server) startPolicySocket(cfg *config.Config, engine *policy.Engine, ap
 		adapter.SetApprovals(approvalsMgr)
 	}
 	psrv.SetApprovalAsker(adapter)
+	// A nil *pkgcheck.Checker in the interface would not be nil, so the
+	// adapter gets it only when package checks are on.
+	if pkgChecker != nil {
+		adapter.SetPackageChecker(pkgChecker)
+	}
 	psrv.SetFlowHandler(flowHandler{
 		sessions:  s.sessions,
 		engine:    engine,
