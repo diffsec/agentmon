@@ -2,6 +2,8 @@
 
 package policysock
 
+import "time"
+
 // RequestType identifies the type of policy check.
 type RequestType string
 
@@ -112,6 +114,13 @@ type PolicyRequest struct {
 	// Exec context fields (from ESF event)
 	TTYPath string `json:"tty_path,omitempty"` // Controlling terminal path
 	CWDPath string `json:"cwd_path,omitempty"` // Working directory of the exec'ing process
+	// Script is the script that an interpreter runs, as ES reports it. For
+	// `pip3 install x`, the executable is python3.15 and args[1] is the
+	// pip3 script. Empty for a binary.
+	Script string `json:"script,omitempty"`
+	// DeadlineMS is the time left before the extension stops waiting for
+	// the verdict. 0 means the request does not say.
+	DeadlineMS int64 `json:"deadline_ms,omitempty"`
 
 	// Exec depth tracking (matches Linux seccomp depth)
 	Depth int `json:"depth,omitempty"`
@@ -173,6 +182,11 @@ type PolicyResponse struct {
 type ExecContext struct {
 	TTYPath string // Controlling terminal path (e.g. /dev/ttys001)
 	CWDPath string // Working directory of the exec'ing process
+	// Script is the script that an interpreter runs. Empty for a binary.
+	Script string
+	// Deadline is how long the extension waits for the verdict. 0 means
+	// unknown.
+	Deadline time.Duration
 }
 
 // ApprovalResponse represents a pending approval request returned to the client.

@@ -3,8 +3,12 @@
 package policysock
 
 import (
+	"context"
+	"errors"
 	"testing"
+	"time"
 
+	"github.com/diffsec/agentmon/internal/pkgcheck"
 	"github.com/diffsec/agentmon/internal/policy"
 )
 
@@ -539,5 +543,96 @@ func TestBuildPolicySnapshot_FailsClosed(t *testing.T) {
 				t.Error("fail-closed snapshot should carry no rules; the defaults do the work")
 			}
 		})
+	}
+}
+
+// fakePackageChecker returns one verdict and records what it was asked.
+type fakePackageChecker struct {
+	verdict  *pkgcheck.Verdict
+	err      error
+	command  string
+	args     []string
+	workDir  string
+	deadline time.Duration
+}
+
+func (f *fakePackageChecker) CheckForPolicy(ctx context.Context, _ []policy.PackageRule, command string, args []string, workDir string) (*pkgcheck.Verdict, error) {
+	f.command, f.args, f.workDir = command, args, workDir
+	if d, ok := ctx.Deadline(); ok {
+		f.deadline = time.Until(d)
+	}
+	return f.verdict, f.err
+}
+
+// TestCheckExec_PackageInstall: an exec that the command rules allow is then
+// package-checked. ES reports a script's interpreter as the executable, so
+// `pip3 install x` must be classified from argv[1].
+func TestCheckExec_PackageInstall(t *testing.T) {
+	p := &policy.Policy{Version: 1, CommandRules: []policy.CommandRule{
+		{Name: "allow-all", Commands: []string{"*"}, Decision: "allow"},
+	}}
+	engine, err := policy.NewEngine(p, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const py = "/opt/homebrew/Cellar/python@3.15/3.15.0/bin/python3.15"
+	argv := []string{py, "/opt/homebrew/bin/pip3", "install", "evil"}
+	ec := ExecContext{CWDPath: "/tmp/ws", Script: "/opt/homebrew/Cellar/python@3.15/3.15.0/bin/pip3", Deadline: 10 * time.Second}
+
+	for _, c := range []struct {
+		name       string
+		checker    *fakePackageChecker
+		wantAction string
+		wantRule   string
+	}{
+		{"block", &fakePackageChecker{verdict: &pkgcheck.Verdict{Action: pkgcheck.VerdictBlock, Summary: "evil is malware"}}, "deny", "package-check"},
+		{"allow", &fakePackageChecker{verdict: &pkgcheck.Verdict{Action: pkgcheck.VerdictAllow}}, "continue", "allow-all"},
+		{"warn", &fakePackageChecker{verdict: &pkgcheck.Verdict{Action: pkgcheck.VerdictWarn}}, "continue", "allow-all"},
+		{"not an install", &fakePackageChecker{}, "continue", "allow-all"},
+		{"error", &fakePackageChecker{err: errors.New("pip dry-run failed")}, "deny", "package-check"},
+		{"approve without approvals", &fakePackageChecker{verdict: &pkgcheck.Verdict{Action: pkgcheck.VerdictApprove}}, "deny", "package-check"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			a := NewPolicyAdapter(engine, nil)
+			a.SetPackageChecker(c.checker)
+			got := a.CheckExec(py, argv, 100, 1, "s1", ec)
+			if got.Action != c.wantAction || got.Rule != c.wantRule {
+				t.Errorf("CheckExec = %s by %q (%s), want %s by %q", got.Action, got.Rule, got.Message, c.wantAction, c.wantRule)
+			}
+			if c.checker.command != "/opt/homebrew/bin/pip3" || len(c.checker.args) != 2 || c.checker.workDir != "/tmp/ws" {
+				t.Errorf("checked %s %v in %s, want /opt/homebrew/bin/pip3 [install evil] in /tmp/ws",
+					c.checker.command, c.checker.args, c.checker.workDir)
+			}
+			if c.checker.deadline <= 0 || c.checker.deadline > 10*time.Second-packageCheckMargin {
+				t.Errorf("check deadline = %s, want under %s", c.checker.deadline, 10*time.Second-packageCheckMargin)
+			}
+		})
+	}
+}
+
+// TestCheckExec_PackageCheckSkippedOnDeny: an exec that the command rules
+// deny is not package-checked.
+func TestCheckExec_PackageCheckSkippedOnDeny(t *testing.T) {
+	engine, err := policy.NewEngine(&policy.Policy{Version: 1}, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := &fakePackageChecker{verdict: &pkgcheck.Verdict{Action: pkgcheck.VerdictAllow}}
+	a := NewPolicyAdapter(engine, nil)
+	a.SetPackageChecker(f)
+	got := a.CheckExec("/usr/bin/pip3", []string{"/usr/bin/pip3", "install", "x"}, 100, 1, "s1", ExecContext{})
+	if got.Action != "deny" || f.command != "" {
+		t.Errorf("CheckExec = %s, checker asked for %q; want deny with no package check", got.Action, f.command)
+	}
+}
+
+func TestInstallCommand(t *testing.T) {
+	cmd, args := installCommand("/usr/local/bin/uv", []string{"uv", "pip", "install", "x"}, "")
+	if cmd != "/usr/local/bin/uv" || len(args) != 3 {
+		t.Errorf("binary: %s %v", cmd, args)
+	}
+	cmd, args = installCommand("/usr/bin/python3", []string{"python3", "/usr/local/bin/pip3", "install", "x"}, "/usr/local/bin/pip3")
+	if cmd != "/usr/local/bin/pip3" || len(args) != 2 {
+		t.Errorf("script: %s %v", cmd, args)
 	}
 }

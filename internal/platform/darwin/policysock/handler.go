@@ -28,6 +28,7 @@ type PolicyAdapter struct {
 	sessions      SessionResolver
 	sessionEngine func(sessionID string) *policy.Engine
 	approvals     *approvals.Manager
+	packages      PackageChecker
 }
 
 // SetSessionEngineLookup gives the adapter each session's own policy engine.
@@ -117,7 +118,7 @@ func (a *PolicyAdapter) ResolveSession(pid int32) string {
 
 // CheckExec evaluates a command through the exec pipeline, returning
 // the full decision and action for the ESF client to act on.
-func (a *PolicyAdapter) CheckExec(executable string, args []string, pid int32, parentPID int32, sessionID string, _ ExecContext) ExecCheckResult {
+func (a *PolicyAdapter) CheckExec(executable string, args []string, pid int32, parentPID int32, sessionID string, ec ExecContext) ExecCheckResult {
 	engine := a.engineFor(sessionID)
 	if engine == nil {
 		slog.Error("policy socket: no policy engine installed, denying exec (fail closed)",
@@ -174,12 +175,18 @@ func (a *PolicyAdapter) CheckExec(executable string, args []string, pid int32, p
 		action = "deny"
 	}
 
-	return ExecCheckResult{
+	result := ExecCheckResult{
 		Decision: decision,
 		Action:   action,
 		Rule:     dec.Rule,
 		Message:  dec.Message,
 	}
+	if action == "continue" {
+		if pkg, ok := a.checkPackageInstall(sessionID, executable, args, ec); ok {
+			return pkg
+		}
+	}
+	return result
 }
 
 // denyAllSnapshot returns a snapshot that denies everything for the session.

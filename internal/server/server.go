@@ -650,6 +650,10 @@ func New(cfg *config.Config) (*Server, error) {
 	// the proxy after compiling the session-local DB unavoidability bundle.
 
 	// Initialize package checker (optional).
+	// pkgChecker stays nil when package checks are off. The policy socket
+	// uses the same checker, so the exec API and the macOS extension share
+	// one verdict for one install.
+	var pkgChecker *pkgcheck.Checker
 	if cfg.PackageChecks.Enabled {
 		// Resolve and apply fail mode so Snyk/Socket OnFailure reflects
 		// the operator's policy before provider entries are constructed.
@@ -699,18 +703,18 @@ func New(cfg *config.Config) (*Server, error) {
 			return nil, fmt.Errorf("package_checks.enabled=true but no providers were initialized — at least one provider must be configured and have its API key (if required) set")
 		}
 
-		// Compose rules: engine.PackageRules() takes precedence, then block_on
-		// shorthand fills in the remaining finding types. We use the no-catch-all
-		// variant here so that an operator's policy file can deliberately omit
-		// a catch-all rule and rely on the evaluator's default-deny.
-		rules := append([]policy.PackageRule(nil), engine.PackageRules()...)
-		rules = append(rules, config.CompileBlockOnRules(cfg.PackageChecks.BlockOn)...)
-
-		pkgChecker := pkgcheck.NewChecker(pkgcheck.CheckerConfig{
+		// Rules: the default policy's package rules, then the block_on
+		// shorthand (pkgcheck.ComposeRules). block_on uses the no-catch-all
+		// variant, so that an operator's policy file can deliberately omit a
+		// catch-all rule and rely on the evaluator's default-deny. A check
+		// for a session uses that session's policy rules instead
+		// (Checker.CheckForPolicy).
+		pkgChecker = pkgcheck.NewChecker(pkgcheck.CheckerConfig{
 			Scope:     cfg.PackageChecks.Scope,
 			Resolvers: resolvers,
 			Providers: providerEntries,
-			Rules:     rules,
+			Rules:     engine.PackageRules(),
+			BlockOn:   config.CompileBlockOnRules(cfg.PackageChecks.BlockOn),
 			Allowlist: pkgcheck.NewAllowlist(30 * time.Second),
 			Privacy: pkgcheck.PrivacyConfig{
 				ExternalScanRegistries: cfg.PackageChecks.Privacy.ExternalScanRegistries,
@@ -867,7 +871,7 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 
 	// Start the policy socket server (macOS only; no-op on other platforms).
-	srv.startPolicySocket(cfg, engine, approvalsMgr)
+	srv.startPolicySocket(cfg, engine, approvalsMgr, pkgChecker)
 	// Wire cmdResolver and sessionTracker into the app (darwin only).
 	if srv.cmdResolver != nil {
 		app.SetCmdResolver(srv.cmdResolver)

@@ -843,6 +843,15 @@ package_rules:
     action: block
     reason: "Known malware detected"
 
+  # Every other finding is allowed. A finding that no rule matches blocks the
+  # install, and the local provider reports "license unknown" for every
+  # package, so without this rule every install was blocked. The daemon
+  # applies this last rule after its package_checks.block_on rules, so a
+  # stricter block_on still blocks.
+  - match: {}
+    action: allow
+    reason: "No critical vulnerability or malware"
+
 # =============================================================================
 # RESOURCE LIMITS
 # =============================================================================

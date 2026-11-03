@@ -931,7 +931,14 @@ func (a *App) execInSessionCore(ctx context.Context, id string, req types.ExecRe
 
 	// Package install check (after command policy check and approval, before event emission).
 	if a.pkgChecker != nil && pre.EffectiveDecision != types.DecisionDeny {
-		verdict, pkgErr := a.pkgChecker.Check(ctx, req.Command, req.Args, req.WorkingDir)
+		// The session's own policy rules, as on the macOS exec path.
+		var verdict *pkgcheck.Verdict
+		var pkgErr error
+		if eng := s.PolicyEngine(); eng != nil {
+			verdict, pkgErr = a.pkgChecker.CheckForPolicy(ctx, eng.PackageRules(), req.Command, req.Args, req.WorkingDir)
+		} else {
+			verdict, pkgErr = a.pkgChecker.Check(ctx, req.Command, req.Args, req.WorkingDir)
+		}
 		if pkgErr != nil {
 			slog.Warn("package check error", "err", pkgErr)
 			pre.EffectiveDecision = types.DecisionDeny

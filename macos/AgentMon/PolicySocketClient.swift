@@ -482,7 +482,39 @@ class PolicySocketClient {
     /// The kept connection, opened and checked if there is none.
     private func requestConnection() throws -> Int32 {
         if requestFD >= 0 { return requestFD }
+        requestFD = try openConnection(timeout: timeout)
+        return requestFD
+    }
 
+    /// Queue for requestOnce. Concurrent, so that one slow request does not
+    /// hold up another.
+    private let onceQueue = DispatchQueue(label: "dev.diffsec.agentmon.policysocket.once",
+                                          attributes: .concurrent)
+
+    /// Send one request on a new connection of its own, and wait up to
+    /// `timeout` for the answer.
+    ///
+    /// request() sends every request on one kept connection, one at a time,
+    /// with a 5 s read timeout. A package install check can take longer than
+    /// that, and on the kept connection it would hold up every other exec
+    /// check. completion gets nil when the request fails.
+    func requestOnce(_ request: [String: Any], timeout: TimeInterval,
+                     completion: @escaping ([String: Any]?) -> Void) {
+        onceQueue.async {
+            var fd: Int32 = -1
+            defer { if fd >= 0 { close(fd) } }
+            do {
+                fd = try self.openConnection(timeout: timeout)
+                completion(try self.exchange(request, on: fd))
+            } catch {
+                NSLog("PolicySocketClient: one-off request failed: \(error)")
+                completion(nil)
+            }
+        }
+    }
+
+    /// Open a connection to the daemon and check the daemon's signature.
+    private func openConnection(timeout: TimeInterval) throws -> Int32 {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw SocketError.creation }
 
@@ -510,7 +542,9 @@ class PolicySocketClient {
         }
 
         // Timeouts
-        var tv = timeval(tv_sec: Int(timeout), tv_usec: 0)
+        let seconds = Int(timeout)
+        var tv = timeval(tv_sec: seconds,
+                         tv_usec: Int32((timeout - Double(seconds)) * 1_000_000))
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
 
@@ -519,7 +553,6 @@ class PolicySocketClient {
         var nosigpipe: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &nosigpipe, socklen_t(MemoryLayout<Int32>.size))
 
-        requestFD = fd
         return fd
     }
 
