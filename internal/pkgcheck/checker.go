@@ -16,7 +16,12 @@ type CheckerConfig struct {
 	Scope     string // "new_packages_only" | "all_installs"
 	Resolvers []Resolver
 	Providers map[string]ProviderEntry
-	Rules     []policy.PackageRule
+	// Rules are the package rules of the daemon's default policy. Check uses
+	// them. CheckForPolicy takes a session's own rules instead.
+	Rules []policy.PackageRule
+	// BlockOn are the rules from package_checks.block_on. They apply after a
+	// policy's rules, except its final catch-all. See ComposeRules.
+	BlockOn   []policy.PackageRule
 	Allowlist *Allowlist
 	// Privacy configures which packages are sent to external providers.
 	// An empty PrivacyConfig (the zero value) means no filtering — all
@@ -58,7 +63,7 @@ func NewChecker(cfg CheckerConfig) *Checker {
 			Providers:     cfg.Providers,
 			PrivacyFilter: pf,
 		}),
-		eval:   NewEvaluator(cfg.Rules),
+		eval:   NewEvaluator(ComposeRules(cfg.Rules, cfg.BlockOn)),
 		recent: make(map[string]recentVerdict),
 		now:    time.Now,
 	}
@@ -71,17 +76,32 @@ func NewChecker(cfg CheckerConfig) *Checker {
 // directory is reused for recentTTL. An approve verdict is not reused,
 // because each one asks a person.
 func (c *Checker) Check(ctx context.Context, command string, args []string, workDir string) (*Verdict, error) {
+	return c.check(ctx, c.eval, "default", command, args, workDir)
+}
+
+// CheckForPolicy is Check with a session policy's package rules in place of
+// the default policy's. The block_on rules still apply. Before, every check
+// used the daemon's default policy, so an agent-default session never got
+// agent-default's package rules.
+func (c *Checker) CheckForPolicy(ctx context.Context, rules []policy.PackageRule, command string, args []string, workDir string) (*Verdict, error) {
+	eval := NewEvaluator(ComposeRules(rules, c.cfg.BlockOn))
+	return c.check(ctx, eval, fmt.Sprintf("%+v", rules), command, args, workDir)
+}
+
+// check classifies the command and returns a recent verdict for the same
+// install under the same rules, or checks it. rulesKey names the rules.
+func (c *Checker) check(ctx context.Context, eval *Evaluator, rulesKey string, command string, args []string, workDir string) (*Verdict, error) {
 	// `python -m pip install x` is a pip install.
 	command, args = UnwrapInstallCommand(command, args)
 	intent := ClassifyInstallCommand(command, args, c.cfg.Scope)
 	if intent == nil {
 		return nil, nil
 	}
-	key := recentKey(intent, workDir)
+	key := rulesKey + "\x00" + recentKey(intent, workDir)
 	if v, ok := c.recentVerdict(key); ok {
 		return v, nil
 	}
-	v, err := c.check(ctx, command, args, workDir, intent)
+	v, err := c.resolveAndEvaluate(ctx, eval, command, args, workDir, intent)
 	if err == nil && v != nil && v.Action != VerdictApprove {
 		c.mu.Lock()
 		c.recent[key] = recentVerdict{verdict: *v, at: c.now()}
@@ -119,7 +139,7 @@ func (c *Checker) recentVerdict(key string) (*Verdict, bool) {
 	return &v, true
 }
 
-func (c *Checker) check(ctx context.Context, command string, args []string, workDir string, intent *InstallIntent) (*Verdict, error) {
+func (c *Checker) resolveAndEvaluate(ctx context.Context, eval *Evaluator, command string, args []string, workDir string, intent *InstallIntent) (*Verdict, error) {
 	// 2. Find a resolver that can handle this tool.
 	// Strip leading global flags so args[0] is the subcommand,
 	// which is what resolvers' CanResolve expects.
@@ -191,7 +211,7 @@ func (c *Checker) check(ctx context.Context, command string, args []string, work
 	}
 
 	// 6. Evaluate findings against policy rules.
-	verdict := c.eval.EvaluateWithContext(EvalContext{
+	verdict := eval.EvaluateWithContext(EvalContext{
 		Findings:       findings,
 		Ecosystem:      plan.Ecosystem,
 		ProviderErrors: providerErrs,
@@ -260,4 +280,33 @@ func buildCheckerSummary(intent *InstallIntent, plan *InstallPlan, verdict *Verd
 		sb.WriteString(fmt.Sprintf(" (%d finding(s))", len(verdict.Findings)))
 	}
 	return sb.String()
+}
+
+// ComposeRules puts a policy's package rules first, then the block_on rules.
+// A policy's last rule that matches every finding moves to the end.
+// Otherwise it would shadow every block_on rule: agent-default ends with an
+// allow for every finding, and block_on.vulnerability=high must still block
+// a high vulnerability. A policy without a catch-all keeps the evaluator's
+// default deny for a finding that no rule matches.
+func ComposeRules(policyRules, blockOn []policy.PackageRule) []policy.PackageRule {
+	out := make([]policy.PackageRule, 0, len(policyRules)+len(blockOn))
+	var catchAll *policy.PackageRule
+	if n := len(policyRules); n > 0 && IsCatchAllRule(policyRules[n-1]) {
+		catchAll = &policyRules[n-1]
+		policyRules = policyRules[:n-1]
+	}
+	out = append(out, policyRules...)
+	out = append(out, blockOn...)
+	if catchAll != nil {
+		out = append(out, *catchAll)
+	}
+	return out
+}
+
+// IsCatchAllRule reports whether a package rule matches every finding.
+func IsCatchAllRule(r policy.PackageRule) bool {
+	m := r.Match
+	return m.FindingType == "" && m.Severity == "" && len(m.Packages) == 0 &&
+		len(m.NamePatterns) == 0 && len(m.Reasons) == 0 && m.Ecosystem == "" &&
+		m.LicenseSPDX == nil && len(m.Options) == 0
 }

@@ -201,12 +201,16 @@ func TestAgentPolicies_DefaultRuleDetails(t *testing.T) {
 	assert.Contains(t, p.EnvPolicy.Deny, "*_SECRET*")
 
 	// --- Package rules ---
-	require.Len(t, p.PackageRules, 2)
+	require.Len(t, p.PackageRules, 3)
 	assert.Equal(t, "block", p.PackageRules[0].Action)
 	assert.Equal(t, "vulnerability", p.PackageRules[0].Match.FindingType)
 	assert.Equal(t, "critical", p.PackageRules[0].Match.Severity)
 	assert.Equal(t, "block", p.PackageRules[1].Action)
 	assert.Equal(t, "malware", p.PackageRules[1].Match.FindingType)
+	// Every other finding is allowed. Without this rule, the local
+	// provider's "license unknown" finding blocked every install.
+	assert.Equal(t, "allow", p.PackageRules[2].Action)
+	assert.Equal(t, PackageMatch{}, p.PackageRules[2].Match)
 
 	// --- Resource limits ---
 	assert.Equal(t, 8192, p.ResourceLimits.MaxMemoryMB)

@@ -11,12 +11,14 @@ import (
 
 	"github.com/diffsec/agentmon/internal/approvals"
 	"github.com/diffsec/agentmon/internal/pkgcheck"
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
-// PackageChecker checks a package install. *pkgcheck.Checker implements it.
-// It returns a nil verdict for a command that is not an install.
+// PackageChecker checks a package install against a session policy's
+// package rules. *pkgcheck.Checker implements it. It returns a nil verdict
+// for a command that is not an install.
 type PackageChecker interface {
-	Check(ctx context.Context, command string, args []string, workDir string) (*pkgcheck.Verdict, error)
+	CheckForPolicy(ctx context.Context, rules []policy.PackageRule, command string, args []string, workDir string) (*pkgcheck.Verdict, error)
 }
 
 // SetPackageChecker makes CheckExec check package installs, as the exec API
@@ -75,7 +77,11 @@ func (a *PolicyAdapter) checkPackageInstall(sessionID, executable string, args [
 	ctx, cancel := context.WithTimeout(context.Background(), budget)
 	defer cancel()
 
-	verdict, err := a.packages.Check(ctx, command, cmdArgs, ec.CWDPath)
+	var rules []policy.PackageRule
+	if engine := a.engineFor(sessionID); engine != nil {
+		rules = engine.PackageRules()
+	}
+	verdict, err := a.packages.CheckForPolicy(ctx, rules, command, cmdArgs, ec.CWDPath)
 	if err != nil {
 		// The exec API denies on the same error (api/core.go).
 		slog.Warn("policy socket: package check failed, denying the exec",

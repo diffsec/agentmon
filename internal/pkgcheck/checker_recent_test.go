@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/diffsec/agentmon/internal/policy"
 )
 
 // countingResolver resolves every pip install to one package and counts the
@@ -75,5 +77,44 @@ func TestUnwrapInstallCommand(t *testing.T) {
 	}
 	if intent := ClassifyInstallCommand("/opt/homebrew/bin/pip3.15", []string{"install", "x"}, ""); intent == nil || intent.Tool != "pip" {
 		t.Errorf("pip3.15 install x: intent = %+v, want a pip install", intent)
+	}
+}
+
+// findingResolver resolves to one package, and findingProvider reports a
+// "license unknown" finding for it, as the local provider does.
+type findingProvider struct{}
+
+func (findingProvider) Name() string                { return "fake" }
+func (findingProvider) Capabilities() []FindingType { return []FindingType{FindingLicense} }
+func (findingProvider) CheckBatch(_ context.Context, req CheckRequest) (*CheckResponse, error) {
+	var out []Finding
+	for _, p := range req.Packages {
+		out = append(out, Finding{Type: FindingLicense, Severity: SeverityInfo, Package: p, Provider: "fake"})
+	}
+	return &CheckResponse{Provider: "fake", Findings: out}, nil
+}
+
+// TestCheckForPolicyUsesSessionRules: the default policy has no package
+// rules, so a license finding blocks. A session policy that allows every
+// other finding, as agent-default does, must allow the same install.
+func TestCheckForPolicyUsesSessionRules(t *testing.T) {
+	c := NewChecker(CheckerConfig{
+		Resolvers: []Resolver{&countingResolver{}},
+		Providers: map[string]ProviderEntry{"fake": {Provider: findingProvider{}}},
+	})
+	ctx := context.Background()
+	dir := t.TempDir()
+
+	v, err := c.Check(ctx, "pip3", []string{"install", "requests"}, dir)
+	if err != nil || v == nil || v.Action != VerdictBlock {
+		t.Fatalf("Check with the default rules = %+v, %v; want block", v, err)
+	}
+	session := []policy.PackageRule{
+		{Match: policy.PackageMatch{FindingType: "malware"}, Action: "block"},
+		{Match: policy.PackageMatch{}, Action: "allow"},
+	}
+	v, err = c.CheckForPolicy(ctx, session, "pip3", []string{"install", "requests"}, dir)
+	if err != nil || v == nil || v.Action != VerdictAllow {
+		t.Errorf("CheckForPolicy with a catch-all allow = %+v, %v; want allow", v, err)
 	}
 }

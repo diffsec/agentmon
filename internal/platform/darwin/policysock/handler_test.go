@@ -556,7 +556,7 @@ type fakePackageChecker struct {
 	deadline time.Duration
 }
 
-func (f *fakePackageChecker) Check(ctx context.Context, command string, args []string, workDir string) (*pkgcheck.Verdict, error) {
+func (f *fakePackageChecker) CheckForPolicy(ctx context.Context, _ []policy.PackageRule, command string, args []string, workDir string) (*pkgcheck.Verdict, error) {
 	f.command, f.args, f.workDir = command, args, workDir
 	if d, ok := ctx.Deadline(); ok {
 		f.deadline = time.Until(d)

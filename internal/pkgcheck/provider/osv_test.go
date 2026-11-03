@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 	"testing"
 
 	"github.com/diffsec/agentmon/internal/pkgcheck"
@@ -222,4 +223,43 @@ func TestParseCVSSBaseScore(t *testing.T) {
 			assert.InDelta(t, tt.expected, score, 0.01)
 		})
 	}
+}
+
+// TestOSVProvider_FetchesSeverity: /v1/querybatch returns only the ID of each
+// vulnerability. The provider must fetch the record to learn the severity.
+// Before, every OSV finding was medium, so no critical rule ever matched.
+func TestOSVProvider_FetchesSeverity(t *testing.T) {
+	var detailCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/querybatch":
+			_, _ = w.Write([]byte(`{"results":[{"vulns":[{"id":"GHSA-crit","modified":"2024-01-01T00:00:00Z"},{"id":"GHSA-gone","modified":"2024-01-01T00:00:00Z"}]}]}`))
+		case "/v1/vulns/GHSA-crit":
+			detailCalls.Add(1)
+			_, _ = w.Write([]byte(`{"id":"GHSA-crit","summary":"SQL injection","severity":[{"type":"CVSS_V3","score":"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	p := NewOSVProvider(OSVConfig{BaseURL: server.URL})
+	req := pkgcheck.CheckRequest{
+		Ecosystem: pkgcheck.EcosystemPyPI,
+		Packages:  []pkgcheck.PackageRef{{Name: "django", Version: "2.2"}},
+	}
+	resp, err := p.CheckBatch(context.Background(), req)
+	require.NoError(t, err)
+	require.Len(t, resp.Findings, 2)
+	assert.Equal(t, pkgcheck.SeverityCritical, resp.Findings[0].Severity)
+	assert.Equal(t, "SQL injection", resp.Findings[0].Title)
+	// A record that could not be fetched keeps the medium default, and the
+	// response is marked partial.
+	assert.Equal(t, pkgcheck.SeverityMedium, resp.Findings[1].Severity)
+	assert.True(t, resp.Metadata.Partial)
+
+	// The second check of the same package reuses the cached record.
+	_, err = p.CheckBatch(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), detailCalls.Load())
 }

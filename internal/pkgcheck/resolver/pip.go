@@ -69,11 +69,14 @@ func (r *pipResolver) Resolve(ctx context.Context, workDir string, command []str
 	ctx, cancel := context.WithTimeout(ctx, r.cfg.Timeout)
 	defer cancel()
 
-	// pip install --dry-run --report - [--index-url <url>] [--extra-index-url <url>] <packages>
+	// pip install --quiet --dry-run --report - [--index-url <url>] [--extra-index-url <url>] <packages>
 	// Forward any --index-url / -i / --extra-index-url flags from the original
 	// command so the dry-run resolves against the same index the actual install
 	// will use.
-	cmdArgs := []string{"install", "--dry-run", "--report", "-"}
+	//
+	// --quiet is required. Without it, pip 26 writes "Collecting ..." lines
+	// to stdout before the JSON report, and the report never parses.
+	cmdArgs := []string{"install", "--quiet", "--dry-run", "--report", "-"}
 	cmdArgs = append(cmdArgs, r.extractIndexURLFlags(command)...)
 	cmdArgs = append(cmdArgs, packages...)
 	allArgs := append(append([]string(nil), r.prefixArgs...), cmdArgs...)

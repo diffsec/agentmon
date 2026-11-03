@@ -703,18 +703,18 @@ func New(cfg *config.Config) (*Server, error) {
 			return nil, fmt.Errorf("package_checks.enabled=true but no providers were initialized — at least one provider must be configured and have its API key (if required) set")
 		}
 
-		// Compose rules: engine.PackageRules() takes precedence, then block_on
-		// shorthand fills in the remaining finding types. We use the no-catch-all
-		// variant here so that an operator's policy file can deliberately omit
-		// a catch-all rule and rely on the evaluator's default-deny.
-		rules := append([]policy.PackageRule(nil), engine.PackageRules()...)
-		rules = append(rules, config.CompileBlockOnRules(cfg.PackageChecks.BlockOn)...)
-
+		// Rules: the default policy's package rules, then the block_on
+		// shorthand (pkgcheck.ComposeRules). block_on uses the no-catch-all
+		// variant, so that an operator's policy file can deliberately omit a
+		// catch-all rule and rely on the evaluator's default-deny. A check
+		// for a session uses that session's policy rules instead
+		// (Checker.CheckForPolicy).
 		pkgChecker = pkgcheck.NewChecker(pkgcheck.CheckerConfig{
 			Scope:     cfg.PackageChecks.Scope,
 			Resolvers: resolvers,
 			Providers: providerEntries,
-			Rules:     rules,
+			Rules:     engine.PackageRules(),
+			BlockOn:   config.CompileBlockOnRules(cfg.PackageChecks.BlockOn),
 			Allowlist: pkgcheck.NewAllowlist(30 * time.Second),
 			Privacy: pkgcheck.PrivacyConfig{
 				ExternalScanRegistries: cfg.PackageChecks.Privacy.ExternalScanRegistries,

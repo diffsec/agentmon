@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/diffsec/agentmon/internal/pkgcheck"
@@ -29,7 +31,15 @@ type OSVConfig struct {
 type osvProvider struct {
 	baseURL string
 	client  *http.Client
+
+	// details caches full vulnerability records by ID. A record changes
+	// rarely, and one install can name the same IDs again and again.
+	mu      sync.Mutex
+	details map[string]osvVuln
 }
+
+// osvDetailFetches is how many vulnerability records are fetched at once.
+const osvDetailFetches = 16
 
 // NewOSVProvider returns a CheckProvider that queries OSV.dev for vulnerabilities.
 func NewOSVProvider(cfg OSVConfig) pkgcheck.CheckProvider {
@@ -44,6 +54,7 @@ func NewOSVProvider(cfg OSVConfig) pkgcheck.CheckProvider {
 	return &osvProvider{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		client:  &http.Client{Timeout: timeout},
+		details: make(map[string]osvVuln),
 	}
 }
 
@@ -80,11 +91,11 @@ type osvResult struct {
 }
 
 type osvVuln struct {
-	ID         string          `json:"id"`
-	Summary    string          `json:"summary"`
-	Details    string          `json:"details"`
-	Severity   []osvSeverity   `json:"severity,omitempty"`
-	References []osvReference  `json:"references,omitempty"`
+	ID         string         `json:"id"`
+	Summary    string         `json:"summary"`
+	Details    string         `json:"details"`
+	Severity   []osvSeverity  `json:"severity,omitempty"`
+	References []osvReference `json:"references,omitempty"`
 }
 
 type osvSeverity struct {
@@ -152,6 +163,14 @@ func (p *osvProvider) CheckBatch(ctx context.Context, req pkgcheck.CheckRequest)
 		iterCount = len(req.Packages)
 	}
 
+	// /v1/querybatch returns only the ID and the modified time of each
+	// vulnerability, with no severity. Without the full records, every
+	// finding defaulted to medium, so a rule for critical vulnerabilities,
+	// such as agent-default's, never matched.
+	if !p.fillDetails(ctx, batchResp.Results[:iterCount]) {
+		partial = true
+	}
+
 	var findings []pkgcheck.Finding
 	for i := 0; i < iterCount; i++ {
 		result := batchResp.Results[i]
@@ -188,6 +207,92 @@ func (p *osvProvider) CheckBatch(ctx context.Context, req pkgcheck.CheckRequest)
 			Partial:  partial,
 		},
 	}, nil
+}
+
+// fillDetails replaces each vulnerability that has only an ID with its full
+// record from /v1/vulns/{id}. It returns false when a record could not be
+// fetched. That vulnerability then keeps no severity, and counts as medium.
+func (p *osvProvider) fillDetails(ctx context.Context, results []osvResult) bool {
+	var missing []string
+	seen := map[string]bool{}
+	p.mu.Lock()
+	for _, r := range results {
+		for _, v := range r.Vulns {
+			if !needsDetails(v) || seen[v.ID] {
+				continue
+			}
+			seen[v.ID] = true
+			if _, ok := p.details[v.ID]; !ok {
+				missing = append(missing, v.ID)
+			}
+		}
+	}
+	p.mu.Unlock()
+
+	ok := true
+	if len(missing) > 0 {
+		var wg sync.WaitGroup
+		var failMu sync.Mutex
+		sem := make(chan struct{}, osvDetailFetches)
+		for _, id := range missing {
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(id string) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				v, err := p.fetchVuln(ctx, id)
+				if err != nil {
+					failMu.Lock()
+					ok = false
+					failMu.Unlock()
+					return
+				}
+				p.mu.Lock()
+				p.details[id] = v
+				p.mu.Unlock()
+			}(id)
+		}
+		wg.Wait()
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for i := range results {
+		for j, v := range results[i].Vulns {
+			if d, found := p.details[v.ID]; found && needsDetails(v) {
+				results[i].Vulns[j] = d
+			}
+		}
+	}
+	return ok
+}
+
+// needsDetails reports whether a vulnerability holds only its ID, as the
+// batch API returns it.
+func needsDetails(v osvVuln) bool {
+	return v.ID != "" && len(v.Severity) == 0 && v.Summary == "" && v.Details == ""
+}
+
+// fetchVuln gets one vulnerability record from /v1/vulns/{id}.
+func (p *osvProvider) fetchVuln(ctx context.Context, id string) (osvVuln, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/v1/vulns/"+url.PathEscape(id), nil)
+	if err != nil {
+		return osvVuln{}, err
+	}
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return osvVuln{}, err
+	}
+	// The body is only read. A close error cannot change the record.
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return osvVuln{}, fmt.Errorf("osv: vulnerability %s: status %d", id, resp.StatusCode)
+	}
+	var v osvVuln
+	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
+		return osvVuln{}, fmt.Errorf("osv: decode vulnerability %s: %w", id, err)
+	}
+	return v, nil
 }
 
 // mapEcosystemOSV converts our Ecosystem type to the OSV ecosystem string.

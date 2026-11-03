@@ -7,9 +7,18 @@
 # not. agent-default blocks a package with a critical vulnerability, and
 # django 2.2 has CVE-2022-34265 (CVSS 9.8).
 #
-# Run it on a Mac where AgentMon.app is installed, its extension is enabled,
-# and the daemon runs with `package_checks.enabled: true`. It needs internet
-# access to pypi.org and api.osv.dev. Run it before each release.
+# Run it on a Mac where AgentMon.app is installed and its extension is
+# enabled. It needs internet access to pypi.org and api.osv.dev. Run it
+# before each release. The daemon configuration needs:
+#
+#   package_checks:
+#     enabled: true
+#     resolvers:
+#       pip:
+#         dry_run_command: /path/to/a/venv/bin/pip
+#
+# launchd starts the daemon with no Homebrew directory in PATH, so the
+# default resolver command "pip" is not found, and every check fails.
 set -euo pipefail
 
 A=${AGENTMON:-/Applications/AgentMon.app/Contents/MacOS/agentmon}
@@ -21,6 +30,7 @@ if [ -z "$PY" ]; then
 fi
 [ -n "$PY" ] || { echo "no python3 found; set PYTHON" >&2; exit 2; }
 
+START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 WS=$(mktemp -d "${TMPDIR:-/tmp}/ampkg.XXXXXX")
 WS=$(cd "$WS" && pwd -P)
 status=0
@@ -70,9 +80,17 @@ got=$(wrap "$PY" "$WS/install.py" "$WS/.venv/bin/pip" --isolated install --no-ca
 expect installed "$got" "pip install six==1.16.0 (no findings) under wrap"
 
 # The events search runs on compact JSON, with no space after a colon.
-n=$("$A" events query --since 10m --type execve --text-like '%django%' 2>/dev/null \
-    | grep -c '"rule": "package-check"' || true)
-if [ "$n" -ge 2 ]; then ok "$n execve events from the package check"; else fail "$n execve events from the package check, want 2 or more"; fi
+# A failed check also denies, so the reason must name the vulnerability.
+# The events of this run are the ones newer than the start of the script.
+events=$("$A" events query --since "$START" --type execve --text-like '%django%' 2>/dev/null || true)
+n=$(printf '%s\n' "$events" | grep -c '"rule": "package-check"' || true)
+failed=$(printf '%s\n' "$events" | grep -c 'package check failed' || true)
+if [ "$n" -ge 2 ] && [ "$failed" -eq 0 ]; then
+    ok "$n execve events from the package check, none from a failed check"
+else
+    fail "$n execve events from the package check, $failed from a failed check; want 2 or more, and 0"
+    printf '%s\n' "$events" | grep '"message"' | sed 's/^/      /'
+fi
 
 if [ $status -ne 0 ] && [ -s "$WS/err" ]; then
     echo "wrap stderr:"
