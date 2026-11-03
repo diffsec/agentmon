@@ -109,22 +109,17 @@ else
     fail "root outside the session: got '$outside', want 'outside allowed allowed allowed'"
 fi
 
-# Homebrew's python3 is a launcher that execs Python.app. Under wrap, that
-# second exec dies with no event, so wrap runs the Python.app binary itself.
-PYAPP=$("$PY" -c 'import os, sys; print(os.path.join(sys.base_prefix, "Resources/Python.app/Contents/MacOS/Python"))')
-[ -x "$PYAPP" ] || { echo "$PYAPP is missing" >&2; exit 2; }
-
 # wrap creates a new agent-default session, with the wrap process as its
-# root. A second wrap into the same session is not used, because the daemon
-# keeps the first root PID. wrap reads the API key from the environment,
-# because root has a different home directory.
+# root. test-macos-wrap-session-reuse.sh covers wraps into one session. wrap
+# reads the API key from the environment, because root has a different home
+# directory.
 #
 # run_wrapped prints the probe's last line of output. On a failure the caller
 # prints the exit code and stderr, which run_wrapped keeps in $WS/err.
 run_wrapped() {
     local rc=0
     (cd "$WS" && sudo AGENTMON_API_KEY="$API_KEY" "$A" wrap --policy agent-default --report=false -- \
-        "$PYAPP" "$WS/access.py" "$@" 2>"$WS/err") > "$WS/out" || rc=$?
+        "$PY" "$WS/access.py" "$@" 2>"$WS/err") > "$WS/out" || rc=$?
     echo "exit $rc" >> "$WS/err"
     tail -n 1 "$WS/out"
 }

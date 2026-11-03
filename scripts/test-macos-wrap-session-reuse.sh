@@ -21,10 +21,6 @@ if [ -z "$PY" ]; then
     done
 fi
 [ -n "$PY" ] || { echo "no python3 found; set PYTHON" >&2; exit 2; }
-# Homebrew's python3 is a launcher that execs Python.app. Under wrap, that
-# second exec dies with no event (SECENG-311), so wrap runs Python.app itself.
-PYAPP=$("$PY" -c 'import os, sys; print(os.path.join(sys.base_prefix, "Resources/Python.app/Contents/MacOS/Python"))')
-[ -x "$PYAPP" ] || { echo "$PYAPP is missing" >&2; exit 2; }
 
 SYS_SOCK=/var/run/usbmuxd
 [ -S "$SYS_SOCK" ] || { echo "$SYS_SOCK is missing" >&2; exit 2; }
@@ -74,7 +70,7 @@ SID=$("$A" session create --workspace "$WS" --policy agent-default | awk '/^Sess
 [ -n "$SID" ] || { echo "could not create a session" >&2; exit 2; }
 
 wrap() {
-    (cd "$WS" && "$A" wrap --session "$SID" --report=false -- "$PYAPP" "$WS/probe.py" "$@" 2>>"$WS/err")
+    (cd "$WS" && "$A" wrap --session "$SID" --report=false -- "$PY" "$WS/probe.py" "$@" 2>>"$WS/err")
 }
 
 # The first wrap checks, then waits until the second wrap finished.
