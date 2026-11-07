@@ -1,8 +1,6 @@
 module github.com/diffsec/agentmon
 
-go 1.25.0
-
-toolchain go1.25.7
+go 1.26.0
 
 require (
 	cloud.google.com/go/kms v1.26.0
@@ -26,6 +24,7 @@ require (
 	github.com/creack/pty v1.1.18
 	github.com/docker/docker v28.5.1+incompatible
 	github.com/docker/go-connections v0.6.0
+	github.com/ebitengine/purego v0.8.4
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/go-webauthn/webauthn v0.15.0
@@ -41,14 +40,14 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/klauspost/compress v1.18.0
 	github.com/miekg/dns v1.1.62
-	github.com/pganalyze/pg_query_go/v6 v6.2.2
+	github.com/pganalyze/pg_query_go/v6 v6.2.5
 	github.com/pquerna/otp v1.5.0
 	github.com/seccomp/libseccomp-golang v0.11.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/spf13/cobra v1.10.1
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.1
 	github.com/testcontainers/testcontainers-go v0.40.0
-	github.com/wasilibs/go-pgquery v0.0.0-20260428021157-dca720e45577
+	github.com/wasilibs/go-pgquery v0.0.0-20261106060434-4301e51f8dbf
 	github.com/winfsp/cgofuse v1.6.0
 	github.com/zalando/go-keyring v0.2.8
 	go.opentelemetry.io/otel v1.43.0
@@ -60,11 +59,11 @@ require (
 	go.opentelemetry.io/otel/trace v1.43.0
 	golang.org/x/net v0.56.0
 	golang.org/x/sync v0.22.0
-	golang.org/x/sys v0.47.0
+	golang.org/x/sys v0.49.0
 	golang.org/x/term v0.45.0
 	golang.org/x/time v0.15.0
 	google.golang.org/grpc v1.81.1
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.29.8
 	pgregory.net/rapid v0.7.0
@@ -107,7 +106,6 @@ require (
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
@@ -163,7 +161,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.6 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
-	github.com/tetratelabs/wazero v1.11.0 // indirect
+	github.com/tetratelabs/wazero v1.12.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect
@@ -178,6 +176,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.43.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
 	golang.org/x/mod v0.37.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
