@@ -67,7 +67,7 @@ require (
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.29.8
-	pgregory.net/rapid v0.7.0
+	pgregory.net/rapid v0.7.2
 )
 
 require (
