@@ -177,3 +177,13 @@ func TestBuildPolicySnapshot_RootPIDs(t *testing.T) {
 		t.Error("the tracker did not record that the snapshot named pid 200")
 	}
 }
+
+func TestBuildPolicySnapshot_PidsMax(t *testing.T) {
+	p := &policy.Policy{Version: 1, ResourceLimits: policy.ResourceLimits{PidsMax: 64}}
+	if got := snapshotFor(t, p).PidsMax; got != 64 {
+		t.Errorf("PidsMax = %d, want 64", got)
+	}
+	if got := snapshotFor(t, &policy.Policy{Version: 1}).PidsMax; got != 0 {
+		t.Errorf("a policy with no pids_max sent %d", got)
+	}
+}

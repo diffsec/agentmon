@@ -172,6 +172,11 @@ type PolicyResponse struct {
 	NetworkEnforcement string `json:"network_enforcement,omitempty"`
 	NetworkFailOpen    *bool  `json:"network_fail_open,omitempty"`
 
+	// PidsMax is resource_limits.pids_max. The extension denies an exec in
+	// the session when the session holds more processes than this. Zero
+	// means no limit.
+	PidsMax int `json:"pids_max,omitempty"`
+
 	// ActiveSessions lists every registered session, oldest first, so the
 	// extension can notice one it never received a snapshot for. See
 	// SessionTracker.ActiveSessions for why that happens.

@@ -526,6 +526,34 @@ func macOSPolicyWarnings(p *policy.Policy) []string {
 			out = append(out, fmt.Sprintf("rule=%s: signal decision \"redirect\" is not possible on macOS; the fallback %q applies", r.Name, fb))
 		}
 	}
+	return append(out, macOSResourceLimitWarnings(p.ResourceLimits)...)
+}
+
+// macOSResourceLimitWarnings lists the resource_limits that macOS does not
+// enforce. macOS has no cgroups. The extension enforces pids_max by denying
+// an exec, but ES has no AUTH event for fork, so a plain fork still works.
+// The timeouts work on every platform.
+func macOSResourceLimitWarnings(l policy.ResourceLimits) []string {
+	var out []string
+	unsupported := []struct {
+		name string
+		set  bool
+	}{
+		{"max_memory_mb", l.MaxMemoryMB > 0},
+		{"memory_swap_max_mb", l.MemorySwapMaxMB > 0},
+		{"cpu_quota_percent", l.CPUQuotaPercent > 0},
+		{"disk_read_bps_max", l.DiskReadBpsMax > 0},
+		{"disk_write_bps_max", l.DiskWriteBpsMax > 0},
+		{"net_bandwidth_mbps", l.NetBandwidthMbps > 0},
+	}
+	for _, u := range unsupported {
+		if u.set {
+			out = append(out, fmt.Sprintf("resource_limits.%s is not enforced on macOS", u.name))
+		}
+	}
+	if l.PidsMax > 0 {
+		out = append(out, "resource_limits.pids_max stops an exec on macOS, not a fork")
+	}
 	return out
 }
 
