@@ -1091,6 +1091,19 @@ private func handleAuthExec(client: OpaquePointer, event: UnsafePointer<es_messa
     }
     let parentPID = event.pointee.process.pointee.ppid
 
+    // resource_limits.pids_max. ES has no AUTH event for fork, so the limit
+    // stops new programs, not a plain fork. The process that execs is
+    // already counted, so the session is over the limit only when it holds
+    // more processes than pids_max.
+    if let (limit, count) = SessionPolicyCache.shared.processLimit(sessionID: sessionID),
+       count > limit {
+        es_respond_auth_result(client, event, ES_AUTH_RESULT_DENY, false)
+        sendExecDeniedEvent(path: execPath, args: [execPath], pid: pid, parentPID: parentPID,
+                            sessionID: sessionID, rule: "resource-limit-pids-max",
+                            message: "session holds \(count) processes, pids_max is \(limit)")
+        return
+    }
+
     // Everything the daemon needs is extracted here, while the message is
     // certainly valid, rather than inside the async completion.
     let argc = es_exec_arg_count(execPtr)

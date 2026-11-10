@@ -138,3 +138,21 @@ func TestMacOSResolverSocketWarning_AgentDefault(t *testing.T) {
 		t.Fatalf("agent-default: %s", w)
 	}
 }
+
+func TestMacOSResourceLimitWarnings(t *testing.T) {
+	got := strings.Join(macOSResourceLimitWarnings(policy.ResourceLimits{
+		MaxMemoryMB: 512, CPUQuotaPercent: 50, PidsMax: 32,
+	}), "\n")
+	for _, want := range []string{"max_memory_mb is not enforced", "cpu_quota_percent is not enforced",
+		"pids_max stops an exec on macOS, not a fork"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("warnings miss %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "disk_read_bps_max") || strings.Contains(got, "net_bandwidth_mbps") {
+		t.Errorf("warnings name a limit that the policy does not set:\n%s", got)
+	}
+	if w := macOSResourceLimitWarnings(policy.ResourceLimits{}); len(w) != 0 {
+		t.Errorf("no limits gave warnings: %v", w)
+	}
+}

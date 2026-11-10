@@ -375,6 +375,7 @@ func (a *PolicyAdapter) BuildPolicySnapshot(sessionID string, clientVersion uint
 		SignalRules:        signalSnapshotRules(p.SignalRules),
 		NetworkEnforcement: enforcement,
 		NetworkFailOpen:    &failOpen,
+		PidsMax:            p.ResourceLimits.PidsMax,
 		ActiveSessions:     activeSessions,
 	}
 }

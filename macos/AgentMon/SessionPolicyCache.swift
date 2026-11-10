@@ -121,6 +121,10 @@ class SessionCache {
     /// True when the daemon asked for enforcement rather than observation.
     var networkBlocking: Bool { networkEnforcement == "block" }
 
+    /// resource_limits.pids_max. An exec in the session is denied when the
+    /// session holds more processes than this. Zero means no limit.
+    var pidsMax: Int = 0
+
 
     init(sessionID: String, rootPID: pid_t, version: UInt64,
          fileRules: [FileRule], networkRules: [NetworkRule],
@@ -358,6 +362,16 @@ class SessionPolicyCache {
         queue.sync {
             guard let sid = pidToSession[pid] else { return nil }
             return sessions[sid]
+        }
+    }
+
+    /// The process limit of a session and the number of processes that it
+    /// holds now. NOTIFY_FORK adds a process and NOTIFY_EXIT removes it.
+    /// Returns nil when the session has no limit.
+    func processLimit(sessionID: String) -> (limit: Int, count: Int)? {
+        queue.sync {
+            guard let cache = sessions[sessionID], cache.pidsMax > 0 else { return nil }
+            return (cache.pidsMax, cache.sessionPIDs.count)
         }
     }
 
@@ -1230,6 +1244,7 @@ extension SessionCache {
         )
         cache.unixSocketRules = parseUnixSocketRules(json["unix_socket_rules"])
         cache.signalRules = parseSignalRules(json["signal_rules"])
+        cache.pidsMax = max(0, json["pids_max"] as? Int ?? 0)
         cache.rootPIDs = parseRootPIDs(json["root_pids"], rootPID: rootPID)
         cache.sessionPIDs.formUnion(cache.rootPIDs)
         return cache
