@@ -1,6 +1,7 @@
 // macos/SysExt/DNSProxyProvider.swift
 import NetworkExtension
 import Network
+import os.log
 
 /// DNS filtering provider.
 ///
@@ -28,20 +29,16 @@ import Network
 /// an upstream resolver, DNS rules in the snapshot, and PID scoping -- in that
 /// order.
 class DNSProxyProvider: NEDNSProxyProvider {
+    // SPIKE (SECENG-308): this build answers one question. Does the audit
+    // token of a DNS proxy flow name the process that looked the name up, or
+    // mDNSResponder? The provider forwards every UDP query to the server
+    // that the query was sent to, and logs the source of each one. It
+    // enforces nothing. Do not merge this provider.
+    private let spikeLog = OSLog(subsystem: "dev.diffsec.agentmon", category: "dns-spike")
+
     override func startProxy(options: [String: Any]? = nil, completionHandler: @escaping (Error?) -> Void) {
-        // Refuse to start rather than silently mangling the machine's DNS.
-        //
-        // This costs nothing today: no configuration exists, so this method is
-        // never called. It matters the moment someone installs one -- returning
-        // an error surfaces as a failed proxy, whereas succeeding would answer
-        // every DNS query on the Mac with a copy of the query. Delete this
-        // guard only together with the three fixes named above.
-        NSLog("DNSProxyProvider: refusing to start -- no upstream resolver and no DNS rules in the snapshot; DNS policy is unenforced on macOS")
-        completionHandler(NSError(
-            domain: "dev.diffsec.agentmon",
-            code: 1,
-            userInfo: [NSLocalizedDescriptionKey:
-                "AgentMon DNS proxy is not implemented: it has no upstream resolver, so starting it would break DNS resolution machine-wide."]))
+        os_log(.default, log: spikeLog, "dns-spike: started")
+        completionHandler(nil)
     }
 
     override func stopProxy(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
@@ -49,91 +46,70 @@ class DNSProxyProvider: NEDNSProxyProvider {
     }
 
     override func handleNewFlow(_ flow: NEAppProxyFlow) -> Bool {
-        // DNS flows come through here
-        if let udpFlow = flow as? NEAppProxyUDPFlow {
-            handleDNSFlow(udpFlow)
-            return true
+        let source = describeSource(flow.metaData)
+        guard let udpFlow = flow as? NEAppProxyUDPFlow else {
+            // A TCP query is rare. Returning false leaves it to the system.
+            os_log(.default, log: spikeLog, "dns-spike: tcp flow not handled %{public}@", source)
+            return false
         }
-        return false
-    }
-
-    private func handleDNSFlow(_ flow: NEAppProxyUDPFlow) {
-        if #available(macOS 15.0, *) {
-            flow.open(withLocalFlowEndpoint: nil) { [weak self] error in
-                if let error = error {
-                    NSLog("DNS flow open error: \(error)")
-                    return
-                }
-                self?.readAndProcessDNS(flow)
-            }
-        } else {
-            flow.open(withLocalEndpoint: nil) { [weak self] error in
-                if let error = error {
-                    NSLog("DNS flow open error: \(error)")
-                    return
-                }
-                self?.readAndProcessDNS(flow)
-            }
-        }
-    }
-
-    private func readAndProcessDNS(_ flow: NEAppProxyUDPFlow) {
-        if #available(macOS 15.0, *) {
-            readAndProcessDNSModern(flow)
-        } else {
-            readAndProcessDNSLegacy(flow)
-        }
-    }
-
-    @available(macOS 15.0, *)
-    private func readAndProcessDNSModern(_ flow: NEAppProxyUDPFlow) {
-        flow.readDatagrams { [weak self] tuples, error in
+        udpFlow.open(withLocalEndpoint: nil) { [weak self] error in
             guard let self = self else { return }
-
-            guard let tuples = tuples, error == nil else {
-                if let error = error { NSLog("DNS read error: \(error)") }
+            if let error = error {
+                os_log(.error, log: self.spikeLog, "dns-spike: open failed %{public}@", String(describing: error))
                 return
             }
-
-            for (datagram, endpoint) in tuples {
-                if let response = self.processQuery(datagram) {
-                    flow.writeDatagrams([(response, endpoint)]) { error in
-                        if let error = error { NSLog("DNS write error: \(error)") }
-                    }
-                } else if self.shouldForward(datagram) {
-                    flow.writeDatagrams([(datagram, endpoint)]) { error in
-                        if let error = error { NSLog("DNS write error: \(error)") }
-                    }
-                }
-            }
-
-            self.readAndProcessDNSModern(flow)
+            self.relay(udpFlow, source: source)
         }
+        return true
     }
 
-    private func readAndProcessDNSLegacy(_ flow: NEAppProxyUDPFlow) {
-        flow.readDatagrams(completionHandler: { [weak self] datagrams, endpoints, error in
-            guard let self = self else { return }
+    /// The PID, its session, and the signing identifier behind a flow.
+    private func describeSource(_ meta: NEFlowMetaData) -> String {
+        var pid: pid_t = -1
+        if let data = meta.sourceAppAuditToken, data.count == MemoryLayout<audit_token_t>.size {
+            var token = audit_token_t()
+            _ = withUnsafeMutableBytes(of: &token) { data.copyBytes(to: $0) }
+            pid = audit_token_to_pid(token)
+        }
+        let session = pid > 0 ? (SessionPolicyCache.shared.sessionForPID(pid) ?? "none") : "none"
+        var path = [CChar](repeating: 0, count: 4096)
+        let name = pid > 0 && proc_pidpath(pid, &path, UInt32(path.count)) > 0 ? String(cString: path) : "?"
+        return "pid=\(pid) path=\(name) session=\(session) signing=\(meta.sourceAppSigningIdentifier)"
+    }
 
-            guard let datagrams = datagrams, let endpoints = endpoints, error == nil else {
-                if let error = error { NSLog("DNS read error: \(error)") }
+    private func relay(_ flow: NEAppProxyUDPFlow, source: String) {
+        flow.readDatagrams { [weak self] datagrams, endpoints, error in
+            guard let self = self else { return }
+            guard let datagrams = datagrams, let endpoints = endpoints, error == nil, !datagrams.isEmpty else {
+                flow.closeReadWithError(nil)
+                flow.closeWriteWithError(nil)
                 return
             }
-
             for (datagram, endpoint) in zip(datagrams, endpoints) {
-                if let response = self.processQuery(datagram) {
-                    flow.writeDatagrams([response], sentBy: [endpoint]) { error in
-                        if let error = error { NSLog("DNS write error: \(error)") }
-                    }
-                } else if self.shouldForward(datagram) {
-                    flow.writeDatagrams([datagram], sentBy: [endpoint]) { error in
-                        if let error = error { NSLog("DNS write error: \(error)") }
-                    }
+                let domain = self.parseDNSQueryDomain(datagram) ?? "?"
+                os_log(.default, log: self.spikeLog, "dns-spike: query %{public}@ %{public}@", domain, source)
+                guard let host = endpoint as? NWHostEndpoint, let port = Network.NWEndpoint.Port(host.port) else { continue }
+                self.forward(datagram, host: host.hostname, port: port) { reply in
+                    flow.writeDatagrams([reply], sentBy: [endpoint]) { _ in }
                 }
             }
+            self.relay(flow, source: source)
+        }
+    }
 
-            self.readAndProcessDNSLegacy(flow)
-        })
+    /// Send one query to its server and pass the first reply back.
+    private func forward(_ query: Data, host: String, port: Network.NWEndpoint.Port, reply: @escaping (Data) -> Void) {
+        let conn = NWConnection(host: Network.NWEndpoint.Host(host), port: port, using: .udp)
+        conn.stateUpdateHandler = { state in
+            if case .failed = state { conn.cancel() }
+        }
+        conn.start(queue: .global())
+        conn.send(content: query, completion: .contentProcessed { _ in })
+        conn.receiveMessage { data, _, _, _ in
+            if let data = data { reply(data) }
+            conn.cancel()
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5) { conn.cancel() }
     }
 
     /// Returns an NXDOMAIN response if the query should be blocked, nil otherwise.

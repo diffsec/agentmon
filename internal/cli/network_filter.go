@@ -23,6 +23,7 @@ func newNetworkFilterCmd() *cobra.Command {
 	cmd.AddCommand(newNetworkFilterStatusCmd())
 	cmd.AddCommand(newNetworkFilterEnableCmd())
 	cmd.AddCommand(newNetworkFilterDisableCmd())
+	cmd.AddCommand(newNetworkFilterDNSSpikeCmd())
 	return cmd
 }
 
@@ -159,5 +160,22 @@ func installTransparentProxyWithMessages() (darwin.ActivateResult, error) {
 			return result, fmt.Errorf("installing the transparent proxy failed: %w", err)
 		}
 		return result, fmt.Errorf("installing the transparent proxy failed")
+	}
+}
+
+// SPIKE (SECENG-308): turns the spike DNS proxy on or off. Do not merge.
+func newNetworkFilterDNSSpikeCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:    "dns-spike on|off",
+		Hidden: true,
+		Args:   cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			res, err := darwin.SetDNSSpike(args[0] == "on")
+			if err != nil {
+				return fmt.Errorf("dns spike %s: %w (result %d)", args[0], err, res)
+			}
+			fmt.Printf("dns spike %s\n", args[0])
+			return nil
+		},
 	}
 }
