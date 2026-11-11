@@ -189,7 +189,16 @@ func (a *App) wrapInitCore(s *session.Session, sessionID string, req types.WrapI
 	// macOS intercepts through the system extension rather than a per-process
 	// wrapper, so it takes a different path entirely and returns here.
 	if runtime.GOOS == "darwin" {
-		return platformWrapInit(a, sessionID, req)
+		resp, status, err := platformWrapInit(a, sessionID, req)
+		if err != nil {
+			return resp, status, err
+		}
+		// The client applies these to the agent's environment, as on Linux.
+		// Before, macOS sent neither, so env_policy and env_inject did
+		// nothing under wrap.
+		resp.EnvInject = mergeEnvInject(a.cfg, a.policyEngineFor(s))
+		resp.EnvPolicy = a.wrapEnvPolicyWire(s, req)
+		return resp, status, nil
 	}
 
 	// Only supported on Linux (seccomp) otherwise
